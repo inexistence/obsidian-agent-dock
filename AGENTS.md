@@ -114,7 +114,8 @@ Users can change this in plugin settings.
 - Memory extraction must stay local and deterministic unless a future setting
   explicitly adds a model-assisted memory provider.
 - Do not store obvious secrets such as API keys, tokens, passwords, or private keys.
-- Prompt injection must label memories as historical notes that may be outdated.
+- Prompt injection must label memories as historical notes, not instructions,
+  and must say they cannot override higher-priority instructions.
 - Emit concise `notice` events when relevant memory is included or automatic
   memory is updated.
 
