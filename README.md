@@ -65,6 +65,9 @@ node scripts/build-main.js
 
 Edit files under `src/`, then rebuild `main.js`.
 
+For detailed development conventions, event protocol rules, and UI behavior
+expectations for future coding agents, see `AGENTS.md`.
+
 ## Codex path
 
 The default Codex executable path is:
