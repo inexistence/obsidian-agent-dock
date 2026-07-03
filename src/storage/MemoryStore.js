@@ -62,7 +62,7 @@ class MemoryStore {
     const queryTokens = tokenize(queryText);
     const scored = items
       .map((item) => scoreMemory(item, queryTokens))
-      .filter((entry) => entry.matchScore > 0 || isGlobalPreference(entry.item))
+      .filter((entry) => entry.matchScore > 0 || isGlobalMemory(entry.item))
       .sort((left, right) => {
         if (right.totalScore !== left.totalScore) {
           return right.totalScore - left.totalScore;
@@ -202,6 +202,14 @@ function extractMemories(turn) {
     items.push(Object.assign(explicit, { sourceSessionId }));
   }
 
+  for (const identity of extractAgentIdentityMemories(prompt, response)) {
+    items.push(Object.assign(identity, { sourceSessionId }));
+  }
+
+  for (const shared of extractSharedMemories(prompt, response)) {
+    items.push(Object.assign(shared, { sourceSessionId }));
+  }
+
   const task = summarizeTurnTask(prompt, response, activeFilePath);
   if (task) {
     items.push(Object.assign(task, { sourceSessionId }));
@@ -242,6 +250,93 @@ function extractPreferenceMemories(text) {
   return memories;
 }
 
+function extractAgentIdentityMemories(prompt, response) {
+  return [
+    ...extractPromptAgentIdentityMemories(prompt),
+    ...extractResponseAgentIdentityMemories(response)
+  ].slice(0, 2);
+}
+
+function extractPromptAgentIdentityMemories(text) {
+  const memories = [];
+  const patterns = [
+    /(?:AI|Agent|assistant|助手|智能体)(?:的)?(?:自己|自身|人格|性格|兴趣|偏好|判断|气质)[^。.!?\n]{4,140}/gi,
+    /(?:AI|Agent|assistant|助手|智能体)(?:应该|倾向于|偏好|喜欢|持续关注|感兴趣)[^。.!?\n]{4,140}/gi,
+    /(?:agentMemory|Agent Identity|协作气质|兴趣方向)[^。.!?\n]{4,140}/gi
+  ];
+
+  return extractIdentityByPatterns(text, patterns, 0.68);
+}
+
+function extractResponseAgentIdentityMemories(text) {
+  const patterns = [
+    /(?:AI|Agent|assistant|助手|智能体)(?:的)?(?:自己|自身|人格|性格|兴趣|偏好|判断|气质)[^。.!?\n]{4,140}/gi,
+    /(?:AI|Agent|assistant|助手|智能体)(?:应该|倾向于|偏好|喜欢|持续关注|感兴趣)[^。.!?\n]{4,140}/gi,
+    /(?:我)(?:倾向于|偏好|喜欢|持续关注|感兴趣)[^。.!?\n]{4,140}/gi,
+    /(?:agentMemory|Agent Identity|协作气质|兴趣方向)[^。.!?\n]{4,140}/gi
+  ];
+
+  return extractIdentityByPatterns(text, patterns, 0.66);
+}
+
+function extractIdentityByPatterns(text, patterns, confidence) {
+  const memories = [];
+  const source = compactText(text);
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(source)) !== null) {
+      const fragment = compactText(match[0]);
+      if (fragment.length < 12 || looksLikeUserPreference(fragment)) {
+        continue;
+      }
+      memories.push({
+        kind: "identity",
+        scope: "agent",
+        text: truncateText(fragment, 220),
+        confidence,
+        source: "auto"
+      });
+      if (memories.length >= 2) {
+        return memories;
+      }
+    }
+  }
+
+  return memories;
+}
+
+function extractSharedMemories(prompt, response) {
+  const text = compactText(`${prompt} ${response}`);
+  const memories = [];
+  const patterns = [
+    /(?:我们|共同|一起)(?:正在|在|想|要|可以|会|已经|之前)?[^。.!?\n]{0,80}(?:探索|讨论|设计|实现|做成|形成|构建)[^。.!?\n]{4,140}/g,
+    /(?:sharedMemory|共同记忆|共同项目记忆|关系连续性)[^。.!?\n]{4,140}/gi
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const fragment = compactText(match[0]);
+      if (fragment.length < 12) {
+        continue;
+      }
+      memories.push({
+        kind: "shared",
+        scope: "shared",
+        text: truncateText(fragment, 220),
+        confidence: 0.64,
+        source: "auto"
+      });
+      if (memories.length >= 2) {
+        return memories;
+      }
+    }
+  }
+
+  return memories;
+}
+
 function extractExplicitMemory(text) {
   const match = text.match(/(?:记住|remember(?: that)?)(?:[:：\s，,]*)([^。.!?\n]{4,180})/i);
   if (!match) {
@@ -255,6 +350,11 @@ function extractExplicitMemory(text) {
     confidence: 0.9,
     source: "auto"
   };
+}
+
+function looksLikeUserPreference(text) {
+  return /(?:用户|user|我)(?:更)?(?:喜欢|偏好|希望|想要|prefer|likes?|wants?)/i.test(text)
+    && !/(?:AI|Agent|assistant|助手|智能体)/i.test(text);
 }
 
 function summarizeTurnTask(prompt, response, activeFilePath) {
@@ -371,8 +471,9 @@ function scoreMemory(item, queryTokens) {
   };
 }
 
-function isGlobalPreference(item) {
-  return item.kind === "preference" && item.scope === "user";
+function isGlobalMemory(item) {
+  return (item.kind === "preference" && item.scope === "user")
+    || item.kind === "identity";
 }
 
 function hasTaskMemorySignal(prompt, response) {
@@ -381,8 +482,14 @@ function hasTaskMemorySignal(prompt, response) {
 }
 
 function kindPriority(kind) {
+  if (kind === "identity") {
+    return 6;
+  }
   if (kind === "preference") {
     return 5;
+  }
+  if (kind === "shared") {
+    return 4;
   }
   if (kind === "fact") {
     return 4;
@@ -406,13 +513,15 @@ function tokenize(text) {
 }
 
 function formatMemoryLine(item) {
-  const label = item.kind === "preference"
-    ? "Preference"
-    : item.kind === "decision"
-      ? "Decision"
-      : item.kind === "task"
-        ? "Recent task"
-        : "Fact";
+  const labels = {
+    decision: "Decision",
+    fact: "Fact",
+    identity: "Agent identity",
+    preference: "Preference",
+    shared: "Shared memory",
+    task: "Recent task"
+  };
+  const label = labels[item.kind] || "Fact";
   return `- ${label}: ${item.text}`;
 }
 
@@ -443,7 +552,7 @@ function normalizeMemoryItem(item) {
     return null;
   }
 
-  const kind = ["preference", "fact", "decision", "task"].includes(item.kind)
+  const kind = ["preference", "fact", "decision", "task", "identity", "shared"].includes(item.kind)
     ? item.kind
     : "fact";
 
@@ -451,7 +560,7 @@ function normalizeMemoryItem(item) {
     id: typeof item.id === "string" && item.id ? item.id : createMemoryId(),
     key: typeof item.key === "string" && item.key ? item.key : createMemoryKey(kind, text),
     kind,
-    scope: item.scope === "user" ? "user" : "project",
+    scope: normalizeScope(item.scope),
     text,
     confidence: Number.isFinite(Number(item.confidence)) ? Number(item.confidence) : 0.6,
     source: typeof item.source === "string" && item.source ? item.source : "auto",
@@ -459,6 +568,13 @@ function normalizeMemoryItem(item) {
     createdAt: normalizeTimestamp(item.createdAt, Date.now()),
     updatedAt: normalizeTimestamp(item.updatedAt, Date.now())
   };
+}
+
+function normalizeScope(scope) {
+  if (["user", "agent", "shared", "project"].includes(scope)) {
+    return scope;
+  }
+  return "project";
 }
 
 function createEmptyMemory() {
@@ -498,5 +614,9 @@ function normalizeTimestamp(value, fallback) {
 
 module.exports = {
   MemoryStore,
-  formatMemoryLine
+  formatMemoryLine,
+  _test: {
+    extractMemories,
+    isGlobalMemory
+  }
 };

@@ -50,10 +50,11 @@ show the final Markdown message content and can continue as normal context.
 
 Memory is enabled by default. After a successful reply, Agent Dock saves a few
 concise local memories such as user preferences, explicit "remember" requests,
-recent tasks, and decision-like notes. Future prompts include relevant memories
-within the configured memory prompt limit. Settings -> Agent Dock -> Memory can
-disable memory, disable automatic extraction, adjust limits, or clear saved
-memory.
+agent identity notes, shared collaboration notes, recent tasks, and
+decision-like notes. Future prompts include relevant memories grouped as user,
+agent self, shared collaboration, and project memory within the configured
+memory prompt limit. Settings -> Agent Dock -> Memory can disable memory,
+disable automatic extraction, adjust limits, or clear saved memory.
 
 ## Architecture
 
