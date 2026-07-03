@@ -1,0 +1,36 @@
+README.md
+  s_03b849e3d66f81::t_67e4524e1a9847 56-60
+scripts/test-memory-store.js
+  s_03b849e3d66f81::t_92bf90697c032f 15
+  s_03b849e3d66f81::t_6df09b89420f1c 14,17-18,20,85,90
+  s_03b849e3d66f81::t_47b78dc04258f5 16
+main.js
+  s_03b849e3d66f81::t_916c2214c2298e 527-529,774,782-807,809-814,816-850,852-857,859-1001,1003
+  s_03b849e3d66f81::t_44df2f0fb74f2c 808
+  s_03b849e3d66f81::t_742f0397694c23 526,815
+  s_03b849e3d66f81::t_ea0564c0ff3327 851,858
+  s_03b849e3d66f81::t_9082ef1493afe0 1002
+src/storage/MemoryStore.js
+  s_03b849e3d66f81::t_73bf7c6d18ef95 4,102
+  s_03b849e3d66f81::t_c0eea7a44248d3 3
+  s_03b849e3d66f81::t_306419c787c59d 39,46
+src/storage/memoryExtraction/RuleBasedMemoryExtractor.js
+  s_03b849e3d66f81::t_2b57bccf6051ad 1-283
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "b8659d18b51e4dfceae89dd1f435c23481af62c6",
+  "prompts": {},
+  "logical_commit_id": "b8659d18b51e4dfceae89dd1f435c23481af62c6",
+  "sessions": {
+    "s_03b849e3d66f81": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2722-365b-7331-834c-df0b5be3d870",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
