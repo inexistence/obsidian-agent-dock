@@ -132,6 +132,12 @@ class AgentDockView extends ItemView {
         cls: "codex-dock__role",
         text: message.role === "user" ? "You" : this.plugin.agent.label
       });
+      if (message.timeline && message.timeline.length > 0) {
+        const timeline = item.createDiv({ cls: "codex-dock__timeline" });
+        this.renderTimeline(timeline, message);
+      } else if (message.content) {
+        item.createEl("pre", { cls: "codex-dock__content", text: message.content });
+      }
       if (message.isLoading) {
         const loading = item.createDiv({ cls: "codex-dock__loading" });
         loading.createSpan({ cls: "codex-dock__loading-text", text: "思考中..." });
@@ -139,12 +145,6 @@ class AgentDockView extends ItemView {
         dots.createSpan();
         dots.createSpan();
         dots.createSpan();
-      }
-      if (message.timeline && message.timeline.length > 0) {
-        const timeline = item.createDiv({ cls: "codex-dock__timeline" });
-        this.renderTimeline(timeline, message);
-      } else if (message.content) {
-        item.createEl("pre", { cls: "codex-dock__content", text: message.content });
       }
     }
 
@@ -181,7 +181,6 @@ class AgentDockView extends ItemView {
         }
 
         if (update.kind === "content") {
-          assistantMessage.isLoading = false;
           assistantMessage.content += update.text;
           appendTimelineContent(assistantMessage, update.text);
         } else {
