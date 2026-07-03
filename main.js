@@ -450,7 +450,7 @@ function summarizeTurnTask(prompt, response, activeFilePath) {
   if (prompt.length < 12 || response.length < 20) {
     return null;
   }
-  if (!hasTaskMemorySignal(prompt, response, activeFilePath)) {
+  if (!hasTaskMemorySignal(prompt, response)) {
     return null;
   }
 
@@ -564,11 +564,7 @@ function isGlobalPreference(item) {
   return item.kind === "preference" && item.scope === "user";
 }
 
-function hasTaskMemorySignal(prompt, response, activeFilePath) {
-  if (activeFilePath) {
-    return true;
-  }
-
+function hasTaskMemorySignal(prompt, response) {
   const text = `${prompt}\n${response}`;
   return /(src\/|main\.js|README|AGENTS|manifest\.json|scripts\/|Obsidian|Codex|plugin|commit|build|review|bug|feature|setting|storage|prompt|实现|修复|增加|设计|重构|提交|插件|设置|记忆|代码|文件)/i.test(text);
 }
