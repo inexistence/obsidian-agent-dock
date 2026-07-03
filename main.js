@@ -1264,49 +1264,103 @@ class AgentDockView extends ItemView {
       }
     });
 
-    const clearButton = actions.createEl("button", {
-      cls: "codex-dock__icon-button",
-      attr: { "aria-label": "Clear conversation", title: "Clear conversation" }
-    });
-    clearButton.setText("Clear");
-    clearButton.addEventListener("click", () => {
-      const session = this.getActiveSession();
-      if (session?.currentRun) {
-        new Notice(`${this.plugin.agent.label} is still working in this conversation.`);
-        return;
-      }
-      if (session) {
-        session.messages = [];
-        this.renderMessages();
-      }
-    });
-
-    const sessionBar = containerEl.createDiv({ cls: "codex-dock__session-bar" });
-    this.sessionSelectEl = sessionBar.createEl("select", {
-      cls: "codex-dock__session-select",
-      attr: { "aria-label": "Conversation" }
-    });
-    this.sessionSelectEl.addEventListener("change", () => {
-      this.activeSessionId = this.sessionSelectEl.value;
-      this.render();
-    });
-
-    const newSessionButton = sessionBar.createEl("button", {
-      cls: "codex-dock__icon-button",
-      attr: { type: "button", "aria-label": "New conversation", title: "New conversation" }
-    });
-    newSessionButton.setText("New");
-    newSessionButton.addEventListener("click", () => {
-      this.createSession();
-      this.render();
-    });
-    this.updateSessionSelectOptions();
+    this.sessionBarEl = containerEl.createDiv({ cls: "codex-dock__session-bar" });
+    this.renderSessionSwitcher();
 
     this.messageList = containerEl.createDiv({ cls: "codex-dock__messages" });
     this.renderMessages();
 
     const composer = containerEl.createDiv({ cls: "codex-dock__composer" });
     this.renderComposerContent(composer, this.getActiveSession()?.draft || "");
+  }
+
+  renderSessionSwitcher() {
+    if (!this.sessionBarEl) {
+      return;
+    }
+
+    this.sessionBarEl.empty();
+    const activeSession = this.ensureActiveSession();
+    const switcher = this.sessionBarEl.createEl("details", { cls: "codex-dock__conversation-switcher" });
+    const summary = switcher.createEl("summary", {
+      cls: "codex-dock__conversation-summary",
+      attr: {
+        "aria-label": "Switch conversation",
+        title: "Switch conversation"
+      }
+    });
+    summary.createSpan({ cls: "codex-dock__conversation-title", text: activeSession.title });
+    const chevron = summary.createSpan({ cls: "codex-dock__conversation-chevron", attr: { "aria-hidden": "true" } });
+    setIcon(chevron, "chevron-down");
+
+    const menu = switcher.createDiv({ cls: "codex-dock__conversation-menu" });
+    menu.createDiv({ cls: "codex-dock__conversation-menu-title", text: "Conversations" });
+    const list = menu.createDiv({ cls: "codex-dock__conversation-list" });
+    for (const session of this.sessions) {
+      const item = list.createDiv({
+        cls: `codex-dock__conversation-item${session.id === this.activeSessionId ? " is-active" : ""}`
+      });
+      const switchButton = item.createEl("button", {
+        cls: "codex-dock__conversation-item-main",
+        attr: {
+          type: "button",
+          title: session.title
+        }
+      });
+      const check = switchButton.createSpan({ cls: "codex-dock__conversation-check", attr: { "aria-hidden": "true" } });
+      if (session.id === this.activeSessionId) {
+        setIcon(check, "check");
+      }
+      switchButton.createSpan({ cls: "codex-dock__conversation-item-title", text: session.title });
+      switchButton.addEventListener("click", () => {
+        this.activeSessionId = session.id;
+        switcher.removeAttribute("open");
+        this.render();
+      });
+
+      const deleteButton = item.createEl("button", {
+        cls: "codex-dock__conversation-delete",
+        attr: {
+          type: "button",
+          "aria-label": `Delete ${session.title}`,
+          title: "Delete conversation"
+        }
+      });
+      setIcon(deleteButton, "trash-2");
+      deleteButton.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.deleteSession(session.id);
+      });
+    }
+
+    const newSessionButton = this.sessionBarEl.createEl("button", {
+      cls: "codex-dock__conversation-new",
+      attr: {
+        type: "button",
+        "aria-label": "New conversation",
+        title: "New conversation"
+      }
+    });
+    setIcon(newSessionButton, "plus");
+    newSessionButton.addEventListener("click", () => {
+      this.createSession();
+      this.render();
+    });
+
+    const closeConversationMenu = (event) => {
+      if (!switcher.contains(event.target)) {
+        switcher.removeAttribute("open");
+        document.removeEventListener("pointerdown", closeConversationMenu);
+      }
+    };
+    switcher.addEventListener("toggle", () => {
+      if (switcher.open) {
+        window.setTimeout(() => document.addEventListener("pointerdown", closeConversationMenu), 0);
+      } else {
+        document.removeEventListener("pointerdown", closeConversationMenu);
+      }
+    });
   }
 
   renderComposerContent(composer, draft) {
@@ -1485,7 +1539,7 @@ class AgentDockView extends ItemView {
     }
 
     this.maybeNameSession(session, prompt);
-    this.updateSessionSelectOptions();
+    this.updateSessionSwitcher();
     this.inputEl.value = "";
     session.draft = "";
     session.messages.push({
@@ -1754,19 +1808,36 @@ class AgentDockView extends ItemView {
     session.isUntitled = false;
   }
 
-  updateSessionSelectOptions() {
-    if (!this.sessionSelectEl) {
+  updateSessionSwitcher() {
+    this.renderSessionSwitcher();
+  }
+
+  deleteSession(sessionId) {
+    const session = this.sessions.find((entry) => entry.id === sessionId);
+    if (!session) {
       return;
     }
 
-    this.sessionSelectEl.empty();
-    for (const session of this.sessions) {
-      this.sessionSelectEl.createEl("option", {
-        text: session.title,
-        value: session.id
-      });
+    if (session.currentRun) {
+      new Notice("Stop this conversation before deleting it.");
+      return;
     }
-    this.sessionSelectEl.value = this.activeSessionId;
+
+    if (!window.confirm(`Delete "${session.title}"?`)) {
+      return;
+    }
+
+    const deletedIndex = this.sessions.findIndex((entry) => entry.id === sessionId);
+    this.sessions.splice(deletedIndex, 1);
+
+    if (this.sessions.length === 0) {
+      this.createSession();
+    } else if (this.activeSessionId === sessionId) {
+      const nextIndex = Math.min(deletedIndex, this.sessions.length - 1);
+      this.activeSessionId = this.sessions[nextIndex].id;
+    }
+
+    this.render();
   }
 
   cancelActiveSession() {
