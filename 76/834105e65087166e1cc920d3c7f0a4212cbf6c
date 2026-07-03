@@ -1,0 +1,51 @@
+src/prompt.js
+  s_92038c63c9fc81::t_7c1c1e5fd69ccf 1-2,8,12,15,17,21,26,28,32,47,50,55-69,320,328
+main.js
+  s_92038c63c9fc81::t_5e3fc8025607ab 595
+  s_92038c63c9fc81::t_a2d99748480a45 189-594,596-679,681-682,688,692,695,697,701,706,708,712,727,730,735-749,1000,1008,1036-1041,1079-1088,1090-1093,1414-1419,1421-1427,1548-1553,1618-1637,1699,1862-1873,1876-1927,2407-2410,2499,3478-3481,3763,3777,3890-3893
+  s_92038c63c9fc81::t_11b2d2adee3101 188,1089,1638,1874-1875,3894-3895
+src/settings.js
+  s_92038c63c9fc81::t_204180735a290d 16-21,59-72
+  s_92038c63c9fc81::t_9d99981b227950 73
+src/view/timeline.js
+  s_92038c63c9fc81::t_ec05e816e78c1a 73
+src/view/AgentDockView.js
+  s_92038c63c9fc81::t_9252a5361840f3 488-491
+README.md
+  s_92038c63c9fc81::t_3bd5d733fa8e90 42,47-53,71,139-143,155
+AGENTS.md
+  s_92038c63c9fc81::t_946a63c299011a 34,110-120,152,236
+src/storage/MemoryStore.js
+  s_92038c63c9fc81::t_8ab2a73b12eefb 406
+  s_92038c63c9fc81::t_c63ace562484a6 1-405,407-488
+.gitignore
+  s_92038c63c9fc81::t_24ff0e28bbc0a6 3
+src/settingsTab.js
+  s_92038c63c9fc81::t_d509277a80e812 1,165-228
+  s_92038c63c9fc81::t_c6c1935ede0f88 229
+src/plugin.js
+  s_92038c63c9fc81::t_e193ddd99fb743 8,22,135-138
+  s_92038c63c9fc81::t_baf1efabfe20fd 139-140
+src/agents/codex/CodexAgent.js
+  s_92038c63c9fc81::t_feb5524d9a79dd 26-31,33-39,160-165,230-249
+  s_92038c63c9fc81::t_d315b9bcacd94f 250
+src/view/contextEstimate.js
+  s_92038c63c9fc81::t_bfad42ef047ae5 11-14
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "76834105e65087166e1cc920d3c7f0a4212cbf6c",
+  "prompts": {},
+  "logical_commit_id": "76834105e65087166e1cc920d3c7f0a4212cbf6c",
+  "sessions": {
+    "s_92038c63c9fc81": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f26c2-1959-71c0-b491-6e483da80007",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <huangjianbin@imo.im>"
+    }
+  }
+}
