@@ -3,14 +3,14 @@ const { ItemView, MarkdownRenderer, Notice } = require("obsidian");
 const { VIEW_TYPE_AGENT_DOCK } = require("../constants");
 const { t } = require("../i18n");
 const { DEFAULT_SETTINGS } = require("../settings");
-const { renderComposerContent } = require("./ComposerRenderer");
-const { copyText } = require("./clipboard");
-const { estimateContextChars, formatCompactNumber } = require("./contextEstimate");
-const { MessageTimelineRenderer } = require("./MessageTimelineRenderer");
-const { ReferenceController } = require("./ReferenceController");
-const { renderSessionSwitcher } = require("./SessionSwitcherRenderer");
-const { SessionStore } = require("./SessionStore");
-const { appendTimelineContent } = require("./timeline");
+const { renderComposerContent } = require("./composer/ComposerRenderer");
+const { ReferenceController } = require("./reference/ReferenceController");
+const { SessionStore } = require("./session/SessionStore");
+const { renderSessionSwitcher } = require("./session/SessionSwitcherRenderer");
+const { MessageTimelineRenderer } = require("./timeline/MessageTimelineRenderer");
+const { appendTimelineContent } = require("./timeline/timeline");
+const { copyText } = require("./utils/clipboard");
+const { estimateContextChars, formatCompactNumber } = require("./utils/contextEstimate");
 
 class AgentDockView extends ItemView {
   constructor(leaf, plugin) {

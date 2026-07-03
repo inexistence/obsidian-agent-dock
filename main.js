@@ -3059,7 +3059,7 @@ module.exports = {
 };
 
 },
-"src/view/ComposerRenderer.js": function(module, exports, __require) {
+"src/view/composer/ComposerRenderer.js": function(module, exports, __require) {
 const { setIcon } = require("obsidian");
 
 const { MODE_OPTIONS, getModeDescription, getModeLabel } = __require("src/modes.js");
@@ -3289,398 +3289,7 @@ module.exports = {
 };
 
 },
-"src/view/clipboard.js": function(module, exports, __require) {
-async function copyText(text) {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
-  }
-
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.style.position = "fixed";
-  textarea.style.opacity = "0";
-  document.body.appendChild(textarea);
-  textarea.select();
-  document.execCommand("copy");
-  textarea.remove();
-}
-
-module.exports = {
-  copyText
-};
-
-},
-"src/view/contextEstimate.js": function(module, exports, __require) {
-const { CUSTOM_ASSISTANT_STYLE_MAX_CHARS, DEFAULT_SETTINGS } = __require("src/settings.js");
-
-const BUILT_IN_ASSISTANT_STYLE_ESTIMATE_CHARS = 700;
-const ASSISTANT_STYLE_PROMPT_OVERHEAD_CHARS = 220;
-
-function estimateContextChars(messages, draft, settings) {
-  const transcriptChars = messages.reduce((total, message) => {
-    return total + String(message.content || "").length + 16;
-  }, 0);
-  const draftChars = String(draft || "").length + 16;
-  const noteChars = settings.includeActiveNote
-    ? (Number(settings.activeNoteMaxChars) || DEFAULT_SETTINGS.activeNoteMaxChars)
-    : 0;
-  const memoryChars = settings.memoryEnabled
-    ? (Number(settings.memoryMaxPromptChars) || DEFAULT_SETTINGS.memoryMaxPromptChars)
-    : 0;
-  const styleChars = estimateAssistantStyleChars(settings);
-  return transcriptChars + draftChars + noteChars + memoryChars + styleChars;
-}
-
-function estimateAssistantStyleChars(settings) {
-  if (settings.assistantStyle !== "custom") {
-    return BUILT_IN_ASSISTANT_STYLE_ESTIMATE_CHARS;
-  }
-
-  const customChars = String(settings.customAssistantStyle || "").length;
-  return ASSISTANT_STYLE_PROMPT_OVERHEAD_CHARS
-    + Math.min(customChars, CUSTOM_ASSISTANT_STYLE_MAX_CHARS);
-}
-
-function formatCompactNumber(value) {
-  if (value >= 1000) {
-    return `${Math.round(value / 1000)}k`;
-  }
-  return String(value);
-}
-
-module.exports = {
-  estimateContextChars,
-  formatCompactNumber
-};
-
-},
-"src/view/timeline.js": function(module, exports, __require) {
-function shouldShowEvent(entry, debugActivity) {
-  if (debugActivity) {
-    return true;
-  }
-
-  return ["reasoning", "tool", "error", "notice"].includes(entry.kind);
-}
-
-function getCompletedTimelineSections(timeline, debugActivity) {
-  const finalContentIndex = findLastContentIndex(timeline);
-
-  if (finalContentIndex === -1) {
-    return {
-      processedEntries: timeline.filter((entry) => shouldShowEvent(entry, debugActivity)),
-      finalEntry: null
-    };
-  }
-
-  return {
-    processedEntries: timeline.filter((entry, index) => {
-      if (index === finalContentIndex) {
-        return false;
-      }
-      return entry.kind === "content" || shouldShowEvent(entry, debugActivity);
-    }),
-    finalEntry: timeline[finalContentIndex]
-  };
-}
-
-function appendTimelineContent(message, text) {
-  const lastEntry = message.timeline[message.timeline.length - 1];
-  if (lastEntry && lastEntry.kind === "content") {
-    lastEntry.text += text;
-    return;
-  }
-
-  message.timeline.push({ kind: "content", text });
-}
-
-function findLastContentIndex(timeline) {
-  for (let index = timeline.length - 1; index >= 0; index -= 1) {
-    if (timeline[index].kind === "content") {
-      return index;
-    }
-  }
-  return -1;
-}
-
-function groupLiveTimeline(timeline, debugActivity, translate) {
-  const groups = [];
-  let pendingEvents = [];
-
-  const flushPendingEvents = () => {
-    if (pendingEvents.length === 0) {
-      return;
-    }
-
-    groups.push({
-      type: "eventGroup",
-      label: getEventGroupLabel(pendingEvents, translate),
-      entries: pendingEvents
-    });
-    pendingEvents = [];
-  };
-
-  for (const entry of timeline) {
-    if (entry.kind === "content") {
-      flushPendingEvents();
-      groups.push({ type: "entry", entry });
-      continue;
-    }
-
-    if (debugActivity || ["reasoning", "tool", "error", "notice"].includes(entry.kind)) {
-      const previous = pendingEvents[pendingEvents.length - 1];
-      if (previous && previous.kind !== entry.kind) {
-        flushPendingEvents();
-      }
-      pendingEvents.push(entry);
-    }
-  }
-
-  flushPendingEvents();
-  return groups;
-}
-
-function groupProcessedEntries(entries) {
-  const groups = [];
-  let pending = [];
-
-  const flush = () => {
-    if (pending.length === 0) {
-      return;
-    }
-
-    groups.push({ type: "eventGroup", entries: pending });
-    pending = [];
-  };
-
-  for (const entry of entries) {
-    if (entry.kind === "content") {
-      flush();
-      groups.push({ type: "entry", entry });
-      continue;
-    }
-
-    const previous = pending[pending.length - 1];
-    if (previous && previous.kind !== entry.kind) {
-      flush();
-    }
-    pending.push(entry);
-  }
-
-  flush();
-  return groups;
-}
-
-function getEventGroupLabel(entries, translate = defaultTranslate) {
-  const hasError = entries.some((entry) => entry.kind === "error");
-  if (hasError) {
-    return translate("timeline.needsAttention", { count: entries.length });
-  }
-
-  const hasTool = entries.some((entry) => entry.kind === "tool");
-  const hasReasoning = entries.some((entry) => entry.kind === "reasoning");
-  const hasNotice = entries.some((entry) => entry.kind === "notice");
-  const labelKey = hasTool
-    ? "timeline.toolCalls"
-    : hasReasoning
-      ? "timeline.reasoning"
-      : hasNotice
-        ? "timeline.notice"
-        : "timeline.activity";
-  return translate("timeline.groupLabel", {
-    label: translate(labelKey),
-    count: entries.length
-  });
-}
-
-function defaultTranslate(key, params = {}) {
-  const defaults = {
-    "timeline.needsAttention": "Needs attention {count} items",
-    "timeline.toolCalls": "Tool calls",
-    "timeline.reasoning": "Thinking",
-    "timeline.notice": "Notice",
-    "timeline.activity": "Activity",
-    "timeline.groupLabel": "{label} {count} items"
-  };
-  return String(defaults[key] || key).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => (
-    params[name] === undefined ? match : String(params[name])
-  ));
-}
-
-module.exports = {
-  appendTimelineContent,
-  getCompletedTimelineSections,
-  getEventGroupLabel,
-  groupLiveTimeline,
-  groupProcessedEntries,
-  shouldShowEvent
-};
-
-},
-"src/view/MessageTimelineRenderer.js": function(module, exports, __require) {
-const {
-  getCompletedTimelineSections,
-  getEventGroupLabel,
-  groupLiveTimeline,
-  groupProcessedEntries,
-  shouldShowEvent
-} = __require("src/view/timeline.js");
-
-class MessageTimelineRenderer {
-  constructor(options) {
-    this.getDebugActivity = options.getDebugActivity;
-    this.translate = options.translate;
-    this.renderMarkdownContent = options.renderMarkdownContent;
-    this.groupOpenStates = new WeakMap();
-  }
-
-  renderTimeline(containerEl, message) {
-    if (message.role !== "assistant") {
-      for (const entry of message.timeline) {
-        this.renderTimelineEntry(containerEl, entry);
-      }
-      return;
-    }
-
-    if (message.isComplete) {
-      this.renderCompletedTimeline(containerEl, message);
-      return;
-    }
-
-    for (const group of groupLiveTimeline(message.timeline, this.getDebugActivity(), this.translate)) {
-      if (group.type === "eventGroup") {
-        const key = this.getTimelineGroupKey("live", message.timeline, group.entries);
-        this.renderEventGroup(containerEl, message, key, group.entries, group.label, false);
-      } else {
-        this.renderTimelineEntry(containerEl, group.entry);
-      }
-    }
-  }
-
-  renderCompletedTimeline(containerEl, message) {
-    const timeline = message.timeline;
-    const { processedEntries, finalEntry } = getCompletedTimelineSections(
-      timeline,
-      this.getDebugActivity()
-    );
-
-    if (processedEntries.length > 0) {
-      this.renderProcessedGroup(containerEl, message, processedEntries);
-    }
-
-    if (finalEntry) {
-      this.renderTimelineEntry(containerEl, finalEntry);
-    }
-  }
-
-  renderProcessedGroup(containerEl, message, entries) {
-    if (entries.length === 0) {
-      return;
-    }
-
-    const details = this.renderDetails(containerEl, message, "processed", {
-      cls: "codex-dock__event-group codex-dock__event-group--processed",
-      defaultOpen: false
-    });
-    details.createEl("summary", {
-      cls: "codex-dock__event-group-summary",
-      text: this.translate("timeline.processed", { count: entries.length })
-    });
-
-    const body = details.createDiv({ cls: "codex-dock__event-group-body" });
-    for (const group of groupProcessedEntries(entries)) {
-      if (group.type === "eventGroup") {
-        const key = this.getTimelineGroupKey("processed", message.timeline, group.entries);
-        this.renderEventGroup(body, message, key, group.entries, getEventGroupLabel(group.entries, this.translate), false);
-      } else {
-        this.renderTimelineEntry(body, group.entry);
-      }
-    }
-  }
-
-  renderEventGroup(containerEl, message, key, entries, label, open) {
-    const details = this.renderDetails(containerEl, message, key, {
-      cls: "codex-dock__event-group",
-      defaultOpen: open
-    });
-    details.createEl("summary", {
-      cls: "codex-dock__event-group-summary",
-      text: label
-    });
-
-    const body = details.createDiv({ cls: "codex-dock__event-group-body" });
-    for (const entry of entries) {
-      this.renderTimelineEntry(body, entry);
-    }
-  }
-
-  renderDetails(containerEl, message, key, options) {
-    const details = containerEl.createEl("details", {
-      cls: options.cls
-    });
-    details.open = this.getStoredOpenState(message, key, options.defaultOpen);
-    details.addEventListener("toggle", () => {
-      this.setStoredOpenState(message, key, details.open);
-    });
-    return details;
-  }
-
-  getTimelineGroupKey(prefix, timeline, entries) {
-    const firstEntry = entries[0];
-    const firstIndex = firstEntry ? timeline.indexOf(firstEntry) : -1;
-    const kind = firstEntry?.kind || "activity";
-    return `${prefix}:${firstIndex}:${kind}`;
-  }
-
-  getStoredOpenState(message, key, defaultOpen) {
-    const states = this.groupOpenStates.get(message);
-    if (!states || !states.has(key)) {
-      return defaultOpen;
-    }
-    return states.get(key);
-  }
-
-  setStoredOpenState(message, key, open) {
-    let states = this.groupOpenStates.get(message);
-    if (!states) {
-      states = new Map();
-      this.groupOpenStates.set(message, states);
-    }
-    states.set(key, open);
-  }
-
-  renderTimelineEntry(containerEl, entry) {
-    if (entry.kind === "message" || entry.kind === "content") {
-      this.renderMarkdownContent(containerEl, entry.text);
-      return;
-    }
-
-    if (!this.shouldShowEvent(entry)) {
-      return;
-    }
-
-    const eventEl = containerEl.createDiv({ cls: `codex-dock__event codex-dock__event--${entry.kind || "activity"}` });
-    eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || this.translate("timeline.event") });
-    if (entry.summary && !this.getDebugActivity()) {
-      eventEl.createDiv({ cls: "codex-dock__event-summary", text: entry.summary });
-    }
-    if (entry.detail && this.getDebugActivity()) {
-      eventEl.createEl("pre", { cls: "codex-dock__event-detail", text: entry.detail });
-    }
-  }
-
-  shouldShowEvent(entry) {
-    return shouldShowEvent(entry, this.getDebugActivity());
-  }
-}
-
-module.exports = {
-  MessageTimelineRenderer
-};
-
-},
-"src/view/mention.js": function(module, exports, __require) {
+"src/view/reference/mention.js": function(module, exports, __require) {
 function getMentionMatch(value, cursor) {
   const beforeCursor = value.slice(0, cursor);
   const match = /(^|\s)@([^\s@]*)$/.exec(beforeCursor);
@@ -3768,149 +3377,96 @@ module.exports = {
 };
 
 },
-"src/view/ReferenceController.js": function(module, exports, __require) {
+"src/view/reference/MentionMenuController.js": function(module, exports, __require) {
 const { setIcon } = require("obsidian");
 
-const {
-  extractMentionReferences,
-  formatMentionToken,
-  getMentionMatch,
-  getParentPath,
-  replaceObsidianOpenLinks
-} = __require("src/view/mention.js");
+const { getMentionMatch } = __require("src/view/reference/mention.js");
 
-const MAX_PARTIAL_MENTION_SUGGESTIONS = 7;
-
-class ReferenceController {
+class MentionMenuController {
   constructor(options) {
-    this.app = options.app;
-    this.plugin = options.plugin;
+    this.getSuggestions = options.getSuggestions;
+    this.onSelect = options.onSelect;
     this.translate = options.translate;
-    this.getActiveSession = options.getActiveSession;
-    this.persistSessionChange = options.persistSessionChange;
-    this.updateContextStatus = options.updateContextStatus;
-    this.resetMentionState();
+    this.resetState();
   }
 
   setElements(elements) {
     this.inputEl = elements.inputEl;
-    this.mentionChipsEl = elements.mentionChipsEl;
     this.mentionMenuEl = elements.mentionMenuEl;
-    this.resetMentionState();
-    this.updateMentionChips();
+    this.resetState();
   }
 
-  handleMentionKeydown(event) {
-    if (!this.mentionState?.active) {
+  handleKeydown(event) {
+    if (!this.state?.active) {
       return false;
     }
 
     if (event.key === "ArrowDown") {
       event.preventDefault();
-      this.mentionState.selectedIndex = Math.min(
-        this.mentionState.selectedIndex + 1,
-        this.mentionState.suggestions.length - 1
+      this.state.selectedIndex = Math.min(
+        this.state.selectedIndex + 1,
+        this.state.suggestions.length - 1
       );
-      this.updateMentionSelection({ scrollIntoView: true });
+      this.updateSelection({ scrollIntoView: true });
       return true;
     }
 
     if (event.key === "ArrowUp") {
       event.preventDefault();
-      this.mentionState.selectedIndex = Math.max(this.mentionState.selectedIndex - 1, 0);
-      this.updateMentionSelection({ scrollIntoView: true });
+      this.state.selectedIndex = Math.max(this.state.selectedIndex - 1, 0);
+      this.updateSelection({ scrollIntoView: true });
       return true;
     }
 
     if (event.key === "Enter" || event.key === "Tab") {
       event.preventDefault();
-      this.selectMentionSuggestion(this.mentionState.selectedIndex);
+      this.select(this.state.selectedIndex);
       return true;
     }
 
     if (event.key === "Escape") {
       event.preventDefault();
-      this.hideMentionSuggestions();
+      this.hide();
       return true;
     }
 
     return false;
   }
 
-  updateMentionSuggestions() {
+  updateSuggestions() {
     const match = getMentionMatch(this.inputEl.value, this.inputEl.selectionStart);
     if (!match) {
-      this.hideMentionSuggestions();
+      this.hide();
       return;
     }
 
-    const suggestions = this.getVaultPathSuggestions(match.query);
+    const suggestions = this.getSuggestions(match.query);
     if (suggestions.length === 0) {
-      this.hideMentionSuggestions();
+      this.hide();
       return;
     }
 
-    this.mentionState = {
+    this.state = {
       active: true,
       start: match.start,
       end: match.end,
       selectedIndex: 0,
       suggestions
     };
-    this.renderMentionSuggestions();
+    this.render();
   }
 
-  getVaultPathSuggestions(query) {
-    const normalizedQuery = query.toLowerCase();
-    const suggestions = this.app.vault.getAllLoadedFiles()
-      .map((entry) => this.getMentionSuggestionForEntry(entry))
-      .filter((entry) => entry.path)
-      .filter((entry) => {
-        if (!normalizedQuery) {
-          return true;
-        }
-        return entry.path.toLowerCase().includes(normalizedQuery);
-      })
-      .map((suggestion) => ({
-        ...suggestion,
-        matchScore: getMentionSuggestionMatchScore(suggestion, normalizedQuery)
-      }))
-      .sort((left, right) => compareMentionSuggestions(left, right, normalizedQuery));
-    const exactNameMatches = normalizedQuery
-      ? suggestions.filter((suggestion) => suggestion.matchScore === 0)
-      : [];
-    const partialMatches = normalizedQuery
-      ? suggestions.filter((suggestion) => suggestion.matchScore !== 0)
-      : suggestions;
-
-    return [
-      ...exactNameMatches,
-      ...partialMatches.slice(0, MAX_PARTIAL_MENTION_SUGGESTIONS)
-    ];
-  }
-
-  getMentionSuggestionForEntry(entry) {
-    const name = entry.name || entry.path;
-    return {
-      path: entry.path,
-      name,
-      basename: getMarkdownBasename(name),
-      folder: getParentPath(entry.path),
-      kind: entry.children ? "folder" : "file"
-    };
-  }
-
-  showDroppedReferenceChoices(suggestions) {
+  showChoices(suggestions, options = {}) {
     if (!this.inputEl || !Array.isArray(suggestions) || suggestions.length === 0) {
       return false;
     }
 
     const value = this.inputEl.value;
-    const start = this.inputEl.selectionStart ?? value.length;
-    const end = this.inputEl.selectionEnd ?? start;
+    const start = options.start ?? this.inputEl.selectionStart ?? value.length;
+    const end = options.end ?? this.inputEl.selectionEnd ?? start;
     const before = value.slice(0, start);
     const after = value.slice(end);
-    this.mentionState = {
+    this.state = {
       active: true,
       start,
       end,
@@ -3919,23 +3475,23 @@ class ReferenceController {
       insertionPrefix: before && !/\s$/.test(before) ? " " : "",
       insertionSuffix: after && !/^\s/.test(after) ? " " : " "
     };
-    this.renderMentionSuggestions();
+    this.render();
     this.inputEl.focus();
     return true;
   }
 
-  renderMentionSuggestions() {
-    if (!this.mentionMenuEl || !this.mentionState.active) {
+  render() {
+    if (!this.mentionMenuEl || !this.state.active) {
       return;
     }
 
     this.mentionMenuEl.empty();
     this.mentionMenuEl.addClass("is-open");
     const list = this.mentionMenuEl.createDiv({ cls: "codex-dock__mention-list" });
-    for (let index = 0; index < this.mentionState.suggestions.length; index += 1) {
-      const suggestion = this.mentionState.suggestions[index];
+    for (let index = 0; index < this.state.suggestions.length; index += 1) {
+      const suggestion = this.state.suggestions[index];
       const option = list.createEl("button", {
-        cls: `codex-dock__mention-option${index === this.mentionState.selectedIndex ? " is-selected" : ""}`,
+        cls: `codex-dock__mention-option${index === this.state.selectedIndex ? " is-selected" : ""}`,
         attr: {
           type: "button",
           title: suggestion.path
@@ -3951,43 +3507,43 @@ class ReferenceController {
       });
       option.addEventListener("mousedown", (event) => {
         event.preventDefault();
-        this.selectMentionSuggestion(index);
+        this.select(index);
       });
       option.addEventListener("mouseenter", () => {
-        if (this.mentionState.selectedIndex === index) {
+        if (this.state.selectedIndex === index) {
           return;
         }
-        this.mentionState.selectedIndex = index;
-        this.updateMentionSelection();
+        this.state.selectedIndex = index;
+        this.updateSelection();
       });
     }
 
-    this.renderMentionPreview();
+    this.renderPreview();
   }
 
-  updateMentionSelection(options = {}) {
-    if (!this.mentionMenuEl || !this.mentionState.active) {
+  updateSelection(options = {}) {
+    if (!this.mentionMenuEl || !this.state.active) {
       return;
     }
 
     const optionEls = this.mentionMenuEl.querySelectorAll(".codex-dock__mention-option");
     for (let index = 0; index < optionEls.length; index += 1) {
-      const isSelected = index === this.mentionState.selectedIndex;
+      const isSelected = index === this.state.selectedIndex;
       optionEls[index].classList.toggle("is-selected", isSelected);
       if (isSelected && options.scrollIntoView) {
         optionEls[index].scrollIntoView({ block: "nearest" });
       }
     }
-    this.renderMentionPreview();
+    this.renderPreview();
   }
 
-  renderMentionPreview() {
-    if (!this.mentionMenuEl || !this.mentionState.active) {
+  renderPreview() {
+    if (!this.mentionMenuEl || !this.state.active) {
       return;
     }
 
     this.mentionMenuEl.querySelector(".codex-dock__mention-preview")?.remove();
-    const selected = this.mentionState.suggestions[this.mentionState.selectedIndex];
+    const selected = this.state.suggestions[this.state.selectedIndex];
     if (selected) {
       const preview = this.mentionMenuEl.createDiv({ cls: "codex-dock__mention-preview" });
       const segments = selected.path.split("/");
@@ -4003,169 +3559,100 @@ class ReferenceController {
     }
   }
 
-  selectMentionSuggestion(index) {
-    const suggestion = this.mentionState?.suggestions[index];
+  select(index) {
+    const suggestion = this.state?.suggestions[index];
     if (!suggestion) {
       return;
     }
 
-    const value = this.inputEl.value;
-    const mention = formatMentionToken(suggestion.path);
-    const prefix = this.mentionState.insertionPrefix || "";
-    const suffix = this.mentionState.insertionSuffix ?? " ";
-    const nextValue = `${value.slice(0, this.mentionState.start)}${prefix}${mention}${suffix}${value.slice(this.mentionState.end)}`;
-    const nextCursor = this.mentionState.start + prefix.length + mention.length + suffix.length;
-    this.inputEl.value = nextValue;
-    this.inputEl.selectionStart = nextCursor;
-    this.inputEl.selectionEnd = nextCursor;
-    const session = this.getActiveSession();
-    if (session) {
-      session.draft = nextValue;
-      this.persistSessionChange(session);
-    }
-    this.hideMentionSuggestions();
-    this.updateMentionChips();
-    this.updateContextStatus();
-    this.inputEl.focus();
+    this.onSelect(suggestion, {
+      start: this.state.start,
+      end: this.state.end,
+      insertionPrefix: this.state.insertionPrefix || "",
+      insertionSuffix: this.state.insertionSuffix ?? " "
+    });
   }
 
-  hideMentionSuggestions() {
+  hide() {
     if (!this.mentionMenuEl) {
       return;
     }
 
-    this.resetMentionState();
+    this.resetState();
     this.mentionMenuEl.empty();
     this.mentionMenuEl.removeClass("is-open");
   }
 
-  replaceObsidianLinksInInput() {
-    const value = this.inputEl.value;
-    const nextValue = replaceObsidianOpenLinks(value, (path) => this.normalizeReferencedPath(path));
-    if (nextValue === value) {
-      return false;
-    }
-
-    const cursor = this.inputEl.selectionStart;
-    const delta = nextValue.length - value.length;
-    this.inputEl.value = nextValue;
-    this.inputEl.selectionStart = Math.max(0, cursor + delta);
-    this.inputEl.selectionEnd = this.inputEl.selectionStart;
-    const session = this.getActiveSession();
-    if (session) {
-      session.draft = nextValue;
-      this.persistSessionChange(session);
-    }
-    this.updateMentionChips();
-    this.updateContextStatus();
-    this.updateMentionSuggestions();
-    return true;
+  resetState() {
+    this.state = {
+      active: false,
+      start: -1,
+      end: -1,
+      selectedIndex: 0,
+      suggestions: []
+    };
   }
+}
 
-  handleReferenceDrop(dataTransfer) {
-    const debugInfo = createReferenceDropDebugInfo(dataTransfer);
-    const debugEnabled = Boolean(this.plugin.settings.debugActivity);
-    const paths = this.extractDroppedReferencePaths(dataTransfer, debugInfo, debugEnabled);
-    if (paths.length === 0) {
-      const ambiguousReference = debugInfo.ambiguousReferences[0];
-      if (ambiguousReference && this.showDroppedReferenceChoices(ambiguousReference.suggestions)) {
-        logReferenceDropDebug(debugInfo, paths, debugEnabled, { status: "chooser" });
-        return true;
-      }
-      logReferenceDropDebug(debugInfo, paths, debugEnabled, { status: "ignored" });
-      return false;
-    }
+module.exports = {
+  MentionMenuController
+};
 
-    logReferenceDropDebug(debugInfo, paths, debugEnabled, { status: "accepted" });
+},
+"src/view/reference/ReferenceDropParser.js": function(module, exports, __require) {
+const {
+  extractMentionReferences,
+  replaceObsidianOpenLinks
+} = __require("src/view/reference/mention.js");
 
-    const tokens = paths.map((path) => formatMentionToken(path));
-    const value = this.inputEl.value;
-    const start = this.inputEl.selectionStart ?? value.length;
-    const end = this.inputEl.selectionEnd ?? start;
-    const before = value.slice(0, start);
-    const after = value.slice(end);
-    const prefix = before && !/\s$/.test(before) ? " " : "";
-    const suffix = after && !/^\s/.test(after) ? " " : "";
-    const insertion = `${prefix}${tokens.join(" ")}${suffix || " "}`;
-    const nextValue = `${before}${insertion}${after}`;
-    const nextCursor = before.length + insertion.length;
+function createReferenceDropDebugInfo(dataTransfer) {
+  return {
+    dropEffect: dataTransfer?.dropEffect || "",
+    effectAllowed: dataTransfer?.effectAllowed || "",
+    types: Array.from(dataTransfer?.types || []),
+    items: Array.from(dataTransfer?.items || []).map((item, index) => describeDataTransferItem(item, index)),
+    files: Array.from(dataTransfer?.files || []).map((file, index) => describeDataTransferFile(file, index)),
+    payloads: [],
+    extractions: [],
+    resolutions: [],
+    candidates: [],
+    ambiguousReferences: []
+  };
+}
 
-    this.inputEl.value = nextValue;
-    this.inputEl.selectionStart = nextCursor;
-    this.inputEl.selectionEnd = nextCursor;
-    const session = this.getActiveSession();
-    if (session) {
-      session.draft = nextValue;
-      this.persistSessionChange(session);
-    }
-    this.updateMentionChips();
-    this.updateContextStatus();
-    this.hideMentionSuggestions();
-    this.inputEl.focus();
-    return true;
+function logReferenceDropDebug(debugInfo, paths, debugEnabled = false, options = {}) {
+  const status = options.status || (paths.length > 0 ? "accepted" : "ignored");
+  const payload = {
+    stamp: "drop-ob-open-v8",
+    status,
+    dropEffect: debugInfo.dropEffect,
+    effectAllowed: debugInfo.effectAllowed,
+    types: debugInfo.types,
+    items: debugEnabled ? debugInfo.items : debugInfo.items.map(stripDataTransferItemDebug),
+    files: debugEnabled ? debugInfo.files : debugInfo.files.map(stripDataTransferFileDebug),
+    payloads: debugInfo.payloads,
+    extractions: debugInfo.extractions,
+    resolutions: debugInfo.resolutions,
+    candidates: debugInfo.candidates,
+    ambiguousReferences: debugInfo.ambiguousReferences,
+    acceptedPaths: paths
+  };
+
+  if (status === "accepted" && debugEnabled) {
+    console.info("[Agent Dock] Reference drop accepted", payload);
+  } else if (status === "chooser" && debugEnabled) {
+    console.info("[Agent Dock] Reference drop needs selection", payload);
+  } else if (status === "ignored") {
+    console.warn("[Agent Dock] Reference drop ignored", payload);
   }
+}
 
-  extractDroppedReferencePaths(dataTransfer, debugInfo, debugEnabled = false) {
+class ReferenceDropParser {
+  extractCandidates(dataTransfer, debugInfo, debugEnabled = false) {
     debugInfo.debugEnabled = debugEnabled;
-    const paths = [];
-    const seen = new Set();
-    const attemptedInputs = new Set();
+    const candidates = [];
     const addPath = (path, source = "unknown") => {
-      const normalizedInput = normalizeReferenceInput(path);
-      if (normalizedInput && attemptedInputs.has(normalizedInput)) {
-        debugInfo.candidates.push({
-          source,
-          raw: truncateDebugText(path),
-          normalized: normalizedInput,
-          accepted: false,
-          reason: "duplicate input"
-        });
-        return;
-      }
-      if (normalizedInput) {
-        attemptedInputs.add(normalizedInput);
-      }
-      const normalizedPath = this.normalizeReferencedPath(path);
-      const entry = normalizedPath ? this.resolveReferencedEntry(normalizedPath) : null;
-      if (debugEnabled || !entry) {
-        debugInfo.resolutions.push(this.getReferenceResolutionDebug(path, normalizedPath, entry));
-      }
-      const result = {
-        source,
-        raw: truncateDebugText(path),
-        normalized: normalizedPath,
-        accepted: false,
-        reason: ""
-      };
-      if (!normalizedPath) {
-        result.reason = "empty";
-        debugInfo.candidates.push(result);
-        return;
-      }
-      if (seen.has(normalizedPath)) {
-        result.reason = "duplicate";
-        debugInfo.candidates.push(result);
-        return;
-      }
-      if (!entry) {
-        const ambiguousSuggestions = this.getAmbiguousReferenceSuggestions(path);
-        if (ambiguousSuggestions.length > 1) {
-          debugInfo.ambiguousReferences.push({
-            source,
-            raw: truncateDebugText(path),
-            normalized: normalizedPath,
-            suggestions: ambiguousSuggestions
-          });
-        }
-        result.reason = "not found in vault";
-        debugInfo.candidates.push(result);
-        return;
-      }
-      seen.add(normalizedPath);
-      paths.push(normalizedPath);
-      result.accepted = true;
-      result.reason = `resolved to ${entry.path}`;
-      debugInfo.candidates.push(result);
+      candidates.push({ path, source });
     };
     const addText = (text, source) => {
       if (text) {
@@ -4210,273 +3697,7 @@ class ReferenceController {
       }
     }
 
-    return paths;
-  }
-
-  updateMentionChips() {
-    if (!this.mentionChipsEl) {
-      return;
-    }
-
-    const references = extractMentionReferences(this.inputEl?.value || "")
-      .map((reference) => ({
-        path: this.normalizeReferencedPath(reference.path),
-        name: reference.name
-      }))
-      .filter((reference) => reference.path);
-    this.mentionChipsEl.empty();
-    this.mentionChipsEl.toggleClass("is-empty", references.length === 0);
-    this.mentionChipsEl.setAttr("aria-hidden", references.length === 0 ? "true" : "false");
-
-    for (const reference of references) {
-      const entry = this.resolveReferencedEntry(reference.path);
-      const isFolder = Boolean(entry?.children);
-      const chip = this.mentionChipsEl.createSpan({
-        cls: `codex-dock__mention-chip${isFolder ? " is-folder" : " is-file"}`,
-        attr: {
-          title: reference.path
-        }
-      });
-      if (isFolder) {
-        const icon = chip.createSpan({ cls: "codex-dock__mention-chip-icon", attr: { "aria-hidden": "true" } });
-        setIcon(icon, "folder");
-      } else {
-        chip.createSpan({
-          cls: "codex-dock__mention-chip-type",
-          text: getMentionFileType(reference.name)
-        });
-      }
-      chip.createSpan({ cls: "codex-dock__mention-chip-name", text: reference.name || reference.path });
-    }
-  }
-
-  normalizeReferencedPath(path) {
-    const normalizedPath = normalizeReferenceInput(path);
-    if (!normalizedPath) {
-      return "";
-    }
-
-    const vaultBasePath = String(this.app.vault.adapter.basePath || "").replace(/\\/g, "/").replace(/\/+$/, "");
-    if (vaultBasePath && normalizedPath === vaultBasePath) {
-      return "";
-    }
-    if (vaultBasePath && normalizedPath.startsWith(`${vaultBasePath}/`)) {
-      return this.resolveReferencedPath(normalizedPath.slice(vaultBasePath.length + 1));
-    }
-
-    return this.resolveReferencedPath(normalizedPath.replace(/^\/+/, ""));
-  }
-
-  resolveReferencedPath(path) {
-    const normalizedPath = String(path || "").trim();
-    if (!normalizedPath) {
-      return "";
-    }
-
-    const entry = this.resolveReferencedEntry(normalizedPath);
-    return entry?.path || normalizedPath;
-  }
-
-  resolveReferencedEntry(path) {
-    const normalizedPath = String(path || "").trim();
-    if (!normalizedPath) {
-      return null;
-    }
-
-    return this.app.vault.getAbstractFileByPath(normalizedPath)
-      || (!/\.[^/]+$/.test(normalizedPath) ? this.app.vault.getAbstractFileByPath(`${normalizedPath}.md`) : null)
-      || this.findUniqueVaultEntryByName(normalizedPath);
-  }
-
-  getReferenceResolutionDebug(rawPath, normalizedPath, entry) {
-    const normalizedInput = normalizeReferenceInput(rawPath);
-    const vaultBasePath = String(this.app.vault.adapter.basePath || "").replace(/\\/g, "/").replace(/\/+$/, "");
-    const lookupPath = vaultBasePath && normalizedInput.startsWith(`${vaultBasePath}/`)
-      ? normalizedInput.slice(vaultBasePath.length + 1)
-      : normalizedInput.replace(/^\/+/, "");
-    const mdPath = !/\.[^/]+$/.test(lookupPath) ? `${lookupPath}.md` : "";
-    const exactEntry = lookupPath ? this.app.vault.getAbstractFileByPath(lookupPath) : null;
-    const mdEntry = mdPath ? this.app.vault.getAbstractFileByPath(mdPath) : null;
-    const nameMatches = this.findVaultEntryNameMatches(lookupPath).map((match) => match.path).slice(0, 10);
-
-    return {
-      raw: truncateDebugText(rawPath),
-      normalizedInput,
-      lookupPath,
-      normalizedPath,
-      exact: exactEntry?.path || "",
-      mdFallback: mdEntry?.path || "",
-      nameMatches,
-      accepted: entry?.path || ""
-    };
-  }
-
-  getAmbiguousReferenceSuggestions(rawPath) {
-    const lookupPath = this.getReferenceLookupPath(rawPath);
-    return this.findVaultEntryNameMatches(lookupPath)
-      .map((entry) => this.getMentionSuggestionForEntry(entry))
-      .sort((left, right) => {
-        if (left.kind !== right.kind) {
-          return left.kind === "file" ? -1 : 1;
-        }
-        return left.path.localeCompare(right.path);
-      });
-  }
-
-  getReferenceLookupPath(rawPath) {
-    const normalizedInput = normalizeReferenceInput(rawPath);
-    const vaultBasePath = String(this.app.vault.adapter.basePath || "").replace(/\\/g, "/").replace(/\/+$/, "");
-    return vaultBasePath && normalizedInput.startsWith(`${vaultBasePath}/`)
-      ? normalizedInput.slice(vaultBasePath.length + 1)
-      : normalizedInput.replace(/^\/+/, "");
-  }
-
-  findUniqueVaultEntryByName(path) {
-    const candidates = this.findVaultEntryNameMatches(path);
-
-    return candidates.length === 1 ? candidates[0] : null;
-  }
-
-  findVaultEntryNameMatches(path) {
-    const normalizedPath = String(path || "").replace(/\\/g, "/").replace(/^\/+/, "").trim();
-    if (!normalizedPath) {
-      return [];
-    }
-
-    const name = normalizedPath.split("/").pop() || normalizedPath;
-    const nameWithMd = /\.[^/]+$/.test(name) ? name : `${name}.md`;
-    return this.app.vault.getAllLoadedFiles()
-      .filter((entry) => entry.path)
-      .filter((entry) => (
-        entry.path === normalizedPath
-        || entry.name === name
-        || entry.name === nameWithMd
-        || entry.path.endsWith(`/${normalizedPath}`)
-        || entry.path.endsWith(`/${normalizedPath}.md`)
-      ));
-  }
-
-  resetMentionState() {
-    this.mentionState = {
-      active: false,
-      start: -1,
-      end: -1,
-      selectedIndex: 0,
-      suggestions: []
-    };
-  }
-}
-
-function getMentionFileType(name) {
-  const extension = String(name || "").split(".").pop();
-  if (!extension || extension === name || extension.length > 4) {
-    return "FILE";
-  }
-  return extension.toUpperCase();
-}
-
-function compareMentionSuggestions(left, right, normalizedQuery) {
-  const leftScore = typeof left.matchScore === "number"
-    ? left.matchScore
-    : getMentionSuggestionMatchScore(left, normalizedQuery);
-  const rightScore = typeof right.matchScore === "number"
-    ? right.matchScore
-    : getMentionSuggestionMatchScore(right, normalizedQuery);
-
-  if (leftScore !== rightScore) {
-    return leftScore - rightScore;
-  }
-  if (left.kind !== right.kind) {
-    return left.kind === "file" ? -1 : 1;
-  }
-  return left.path.localeCompare(right.path);
-}
-
-function getMentionSuggestionMatchScore(suggestion, normalizedQuery) {
-  if (!normalizedQuery) {
-    return 0;
-  }
-
-  const name = String(suggestion.name || "").toLowerCase();
-  const basename = String(suggestion.basename || "").toLowerCase();
-  if (name === normalizedQuery || basename === normalizedQuery) {
-    return 0;
-  }
-  if (name.startsWith(normalizedQuery) || basename.startsWith(normalizedQuery)) {
-    return 1;
-  }
-  if (name.includes(normalizedQuery) || basename.includes(normalizedQuery)) {
-    return 2;
-  }
-  return 3;
-}
-
-function getMarkdownBasename(name) {
-  return String(name || "").replace(/\.md$/i, "");
-}
-
-function normalizeReferenceInput(path) {
-  const value = String(path || "").replace(/\\"/g, "\"").trim();
-  const obsidianPath = extractObsidianOpenPathFromValue(value);
-  return String(obsidianPath || value).replace(/\\/g, "/").trim();
-}
-
-function extractObsidianOpenPathFromValue(value) {
-  const match = String(value || "").match(/^obsidian:\/\/open\?([^#\s<>"']+)/i);
-  if (!match) {
-    return "";
-  }
-  return getObsidianOpenQueryPath(match[1]);
-}
-
-function getObsidianOpenQueryPath(query) {
-  try {
-    const params = new URLSearchParams(query);
-    return decodeUriPath(params.get("file") || params.get("path") || "");
-  } catch {
-    return "";
-  }
-}
-
-function createReferenceDropDebugInfo(dataTransfer) {
-  return {
-    dropEffect: dataTransfer?.dropEffect || "",
-    effectAllowed: dataTransfer?.effectAllowed || "",
-    types: Array.from(dataTransfer?.types || []),
-    items: Array.from(dataTransfer?.items || []).map((item, index) => describeDataTransferItem(item, index)),
-    files: Array.from(dataTransfer?.files || []).map((file, index) => describeDataTransferFile(file, index)),
-    payloads: [],
-    extractions: [],
-    resolutions: [],
-    candidates: [],
-    ambiguousReferences: []
-  };
-}
-
-function logReferenceDropDebug(debugInfo, paths, debugEnabled = false, options = {}) {
-  const status = options.status || (paths.length > 0 ? "accepted" : "ignored");
-  const payload = {
-    stamp: "drop-ob-open-v8",
-    status,
-    dropEffect: debugInfo.dropEffect,
-    effectAllowed: debugInfo.effectAllowed,
-    types: debugInfo.types,
-    items: debugEnabled ? debugInfo.items : debugInfo.items.map(stripDataTransferItemDebug),
-    files: debugEnabled ? debugInfo.files : debugInfo.files.map(stripDataTransferFileDebug),
-    payloads: debugInfo.payloads,
-    extractions: debugInfo.extractions,
-    resolutions: debugInfo.resolutions,
-    candidates: debugInfo.candidates,
-    ambiguousReferences: debugInfo.ambiguousReferences,
-    acceptedPaths: paths
-  };
-
-  if (status === "accepted" && debugEnabled) {
-    console.info("[Agent Dock] Reference drop accepted", payload);
-  } else if (status === "chooser" && debugEnabled) {
-    console.info("[Agent Dock] Reference drop needs selection", payload);
-  } else if (status === "ignored") {
-    console.warn("[Agent Dock] Reference drop ignored", payload);
+    return candidates;
   }
 }
 
@@ -4699,6 +3920,29 @@ function collectJsonReferenceCandidates(value) {
   return candidates;
 }
 
+function normalizeReferenceInput(path) {
+  const value = String(path || "").replace(/\\"/g, "\"").trim();
+  const obsidianPath = extractObsidianOpenPathFromValue(value);
+  return String(obsidianPath || value).replace(/\\/g, "/").trim();
+}
+
+function extractObsidianOpenPathFromValue(value) {
+  const match = String(value || "").match(/^obsidian:\/\/open\?([^#\s<>"']+)/i);
+  if (!match) {
+    return "";
+  }
+  return getObsidianOpenQueryPath(match[1]);
+}
+
+function getObsidianOpenQueryPath(query) {
+  try {
+    const params = new URLSearchParams(query);
+    return decodeUriPath(params.get("file") || params.get("path") || "");
+  } catch {
+    return "";
+  }
+}
+
 function decodeUriPath(path) {
   try {
     return decodeURIComponent(String(path || ""));
@@ -4708,116 +3952,502 @@ function decodeUriPath(path) {
 }
 
 module.exports = {
+  ReferenceDropParser,
+  containsObsidianOpenUrl,
+  createReferenceDropDebugInfo,
+  decodeUriPath,
+  extractReferenceCandidatesFromText,
+  logReferenceDropDebug,
+  normalizeReferenceInput,
+  truncateDebugText
+};
+
+},
+"src/view/reference/ReferenceResolver.js": function(module, exports, __require) {
+const { getParentPath } = __require("src/view/reference/mention.js");
+const {
+  normalizeReferenceInput,
+  truncateDebugText
+} = __require("src/view/reference/ReferenceDropParser.js");
+
+const MAX_PARTIAL_MENTION_SUGGESTIONS = 7;
+
+class ReferenceResolver {
+  constructor(app) {
+    this.app = app;
+  }
+
+  getVaultPathSuggestions(query) {
+    const normalizedQuery = query.toLowerCase();
+    const suggestions = this.app.vault.getAllLoadedFiles()
+      .map((entry) => this.getMentionSuggestionForEntry(entry))
+      .filter((entry) => entry.path)
+      .filter((entry) => {
+        if (!normalizedQuery) {
+          return true;
+        }
+        return entry.path.toLowerCase().includes(normalizedQuery);
+      })
+      .map((suggestion) => ({
+        ...suggestion,
+        matchScore: getMentionSuggestionMatchScore(suggestion, normalizedQuery)
+      }))
+      .sort((left, right) => compareMentionSuggestions(left, right, normalizedQuery));
+    const exactNameMatches = normalizedQuery
+      ? suggestions.filter((suggestion) => suggestion.matchScore === 0)
+      : [];
+    const partialMatches = normalizedQuery
+      ? suggestions.filter((suggestion) => suggestion.matchScore !== 0)
+      : suggestions;
+
+    return [
+      ...exactNameMatches,
+      ...partialMatches.slice(0, MAX_PARTIAL_MENTION_SUGGESTIONS)
+    ];
+  }
+
+  getMentionSuggestionForEntry(entry) {
+    const name = entry.name || entry.path;
+    return {
+      path: entry.path,
+      name,
+      basename: getMarkdownBasename(name),
+      folder: getParentPath(entry.path),
+      kind: entry.children ? "folder" : "file"
+    };
+  }
+
+  normalizeReferencedPath(path) {
+    const normalizedPath = normalizeReferenceInput(path);
+    if (!normalizedPath) {
+      return "";
+    }
+
+    const vaultBasePath = String(this.app.vault.adapter.basePath || "").replace(/\\/g, "/").replace(/\/+$/, "");
+    if (vaultBasePath && normalizedPath === vaultBasePath) {
+      return "";
+    }
+    if (vaultBasePath && normalizedPath.startsWith(`${vaultBasePath}/`)) {
+      return this.resolveReferencedPath(normalizedPath.slice(vaultBasePath.length + 1));
+    }
+
+    return this.resolveReferencedPath(normalizedPath.replace(/^\/+/, ""));
+  }
+
+  resolveReferencedPath(path) {
+    const normalizedPath = String(path || "").trim();
+    if (!normalizedPath) {
+      return "";
+    }
+
+    const entry = this.resolveReferencedEntry(normalizedPath);
+    return entry?.path || normalizedPath;
+  }
+
+  resolveReferencedEntry(path) {
+    const normalizedPath = String(path || "").trim();
+    if (!normalizedPath) {
+      return null;
+    }
+
+    return this.app.vault.getAbstractFileByPath(normalizedPath)
+      || (!/\.[^/]+$/.test(normalizedPath) ? this.app.vault.getAbstractFileByPath(`${normalizedPath}.md`) : null)
+      || this.findUniqueVaultEntryByName(normalizedPath);
+  }
+
+  getReferenceResolutionDebug(rawPath, normalizedPath, entry) {
+    const normalizedInput = normalizeReferenceInput(rawPath);
+    const vaultBasePath = String(this.app.vault.adapter.basePath || "").replace(/\\/g, "/").replace(/\/+$/, "");
+    const lookupPath = vaultBasePath && normalizedInput.startsWith(`${vaultBasePath}/`)
+      ? normalizedInput.slice(vaultBasePath.length + 1)
+      : normalizedInput.replace(/^\/+/, "");
+    const mdPath = !/\.[^/]+$/.test(lookupPath) ? `${lookupPath}.md` : "";
+    const exactEntry = lookupPath ? this.app.vault.getAbstractFileByPath(lookupPath) : null;
+    const mdEntry = mdPath ? this.app.vault.getAbstractFileByPath(mdPath) : null;
+    const nameMatches = this.findVaultEntryNameMatches(lookupPath).map((match) => match.path).slice(0, 10);
+
+    return {
+      raw: truncateDebugText(rawPath),
+      normalizedInput,
+      lookupPath,
+      normalizedPath,
+      exact: exactEntry?.path || "",
+      mdFallback: mdEntry?.path || "",
+      nameMatches,
+      accepted: entry?.path || ""
+    };
+  }
+
+  getAmbiguousReferenceSuggestions(rawPath) {
+    const lookupPath = this.getReferenceLookupPath(rawPath);
+    return this.findVaultEntryNameMatches(lookupPath)
+      .map((entry) => this.getMentionSuggestionForEntry(entry))
+      .sort((left, right) => {
+        if (left.kind !== right.kind) {
+          return left.kind === "file" ? -1 : 1;
+        }
+        return left.path.localeCompare(right.path);
+      });
+  }
+
+  getReferenceLookupPath(rawPath) {
+    const normalizedInput = normalizeReferenceInput(rawPath);
+    const vaultBasePath = String(this.app.vault.adapter.basePath || "").replace(/\\/g, "/").replace(/\/+$/, "");
+    return vaultBasePath && normalizedInput.startsWith(`${vaultBasePath}/`)
+      ? normalizedInput.slice(vaultBasePath.length + 1)
+      : normalizedInput.replace(/^\/+/, "");
+  }
+
+  findUniqueVaultEntryByName(path) {
+    const candidates = this.findVaultEntryNameMatches(path);
+
+    return candidates.length === 1 ? candidates[0] : null;
+  }
+
+  findVaultEntryNameMatches(path) {
+    const normalizedPath = String(path || "").replace(/\\/g, "/").replace(/^\/+/, "").trim();
+    if (!normalizedPath) {
+      return [];
+    }
+
+    const name = normalizedPath.split("/").pop() || normalizedPath;
+    const nameWithMd = /\.[^/]+$/.test(name) ? name : `${name}.md`;
+    return this.app.vault.getAllLoadedFiles()
+      .filter((entry) => entry.path)
+      .filter((entry) => (
+        entry.path === normalizedPath
+        || entry.name === name
+        || entry.name === nameWithMd
+        || entry.path.endsWith(`/${normalizedPath}`)
+        || entry.path.endsWith(`/${normalizedPath}.md`)
+      ));
+  }
+}
+
+function compareMentionSuggestions(left, right, normalizedQuery) {
+  const leftScore = typeof left.matchScore === "number"
+    ? left.matchScore
+    : getMentionSuggestionMatchScore(left, normalizedQuery);
+  const rightScore = typeof right.matchScore === "number"
+    ? right.matchScore
+    : getMentionSuggestionMatchScore(right, normalizedQuery);
+
+  if (leftScore !== rightScore) {
+    return leftScore - rightScore;
+  }
+  if (left.kind !== right.kind) {
+    return left.kind === "file" ? -1 : 1;
+  }
+  return left.path.localeCompare(right.path);
+}
+
+function getMentionSuggestionMatchScore(suggestion, normalizedQuery) {
+  if (!normalizedQuery) {
+    return 0;
+  }
+
+  const name = String(suggestion.name || "").toLowerCase();
+  const basename = String(suggestion.basename || "").toLowerCase();
+  if (name === normalizedQuery || basename === normalizedQuery) {
+    return 0;
+  }
+  if (name.startsWith(normalizedQuery) || basename.startsWith(normalizedQuery)) {
+    return 1;
+  }
+  if (name.includes(normalizedQuery) || basename.includes(normalizedQuery)) {
+    return 2;
+  }
+  return 3;
+}
+
+function getMarkdownBasename(name) {
+  return String(name || "").replace(/\.md$/i, "");
+}
+
+module.exports = {
+  ReferenceResolver
+};
+
+},
+"src/view/reference/ReferenceController.js": function(module, exports, __require) {
+const { setIcon } = require("obsidian");
+
+const {
+  extractMentionReferences,
+  formatMentionToken,
+  replaceObsidianOpenLinks
+} = __require("src/view/reference/mention.js");
+const { MentionMenuController } = __require("src/view/reference/MentionMenuController.js");
+const {
+  ReferenceDropParser,
+  createReferenceDropDebugInfo,
+  logReferenceDropDebug,
+  normalizeReferenceInput,
+  truncateDebugText
+} = __require("src/view/reference/ReferenceDropParser.js");
+const { ReferenceResolver } = __require("src/view/reference/ReferenceResolver.js");
+
+class ReferenceController {
+  constructor(options) {
+    this.plugin = options.plugin;
+    this.getActiveSession = options.getActiveSession;
+    this.persistSessionChange = options.persistSessionChange;
+    this.updateContextStatus = options.updateContextStatus;
+    this.resolver = new ReferenceResolver(options.app);
+    this.dropParser = new ReferenceDropParser();
+    this.mentionMenu = new MentionMenuController({
+      getSuggestions: (query) => this.resolver.getVaultPathSuggestions(query),
+      onSelect: (suggestion, state) => this.selectMentionSuggestion(suggestion, state),
+      translate: options.translate
+    });
+  }
+
+  setElements(elements) {
+    this.inputEl = elements.inputEl;
+    this.mentionChipsEl = elements.mentionChipsEl;
+    this.mentionMenu.setElements({
+      inputEl: elements.inputEl,
+      mentionMenuEl: elements.mentionMenuEl
+    });
+    this.updateMentionChips();
+  }
+
+  handleMentionKeydown(event) {
+    return this.mentionMenu.handleKeydown(event);
+  }
+
+  updateMentionSuggestions() {
+    this.mentionMenu.updateSuggestions();
+  }
+
+  hideMentionSuggestions() {
+    this.mentionMenu.hide();
+  }
+
+  replaceObsidianLinksInInput() {
+    const value = this.inputEl.value;
+    const nextValue = replaceObsidianOpenLinks(value, (path) => this.resolver.normalizeReferencedPath(path));
+    if (nextValue === value) {
+      return false;
+    }
+
+    const cursor = this.inputEl.selectionStart;
+    const delta = nextValue.length - value.length;
+    this.inputEl.value = nextValue;
+    this.inputEl.selectionStart = Math.max(0, cursor + delta);
+    this.inputEl.selectionEnd = this.inputEl.selectionStart;
+    this.saveDraft(nextValue);
+    this.updateMentionChips();
+    this.updateContextStatus();
+    this.updateMentionSuggestions();
+    return true;
+  }
+
+  handleReferenceDrop(dataTransfer) {
+    const debugInfo = createReferenceDropDebugInfo(dataTransfer);
+    const debugEnabled = Boolean(this.plugin.settings.debugActivity);
+    const paths = this.extractDroppedReferencePaths(dataTransfer, debugInfo, debugEnabled);
+    if (paths.length === 0) {
+      const ambiguousReference = debugInfo.ambiguousReferences[0];
+      if (ambiguousReference && this.mentionMenu.showChoices(ambiguousReference.suggestions)) {
+        logReferenceDropDebug(debugInfo, paths, debugEnabled, { status: "chooser" });
+        return true;
+      }
+      logReferenceDropDebug(debugInfo, paths, debugEnabled, { status: "ignored" });
+      return false;
+    }
+
+    logReferenceDropDebug(debugInfo, paths, debugEnabled, { status: "accepted" });
+    this.insertReferenceTokens(paths);
+    return true;
+  }
+
+  extractDroppedReferencePaths(dataTransfer, debugInfo, debugEnabled = false) {
+    const paths = [];
+    const seen = new Set();
+    const attemptedInputs = new Set();
+    const candidates = this.dropParser.extractCandidates(dataTransfer, debugInfo, debugEnabled);
+
+    for (const candidate of candidates) {
+      this.resolveDropCandidate(candidate, {
+        attemptedInputs,
+        debugEnabled,
+        debugInfo,
+        paths,
+        seen
+      });
+    }
+
+    return paths;
+  }
+
+  resolveDropCandidate(candidate, context) {
+    const { attemptedInputs, debugEnabled, debugInfo, paths, seen } = context;
+    const { path, source } = candidate;
+    const normalizedInput = normalizeReferenceInput(path);
+    if (normalizedInput && attemptedInputs.has(normalizedInput)) {
+      debugInfo.candidates.push({
+        source,
+        raw: truncateDebugText(path),
+        normalized: normalizedInput,
+        accepted: false,
+        reason: "duplicate input"
+      });
+      return;
+    }
+    if (normalizedInput) {
+      attemptedInputs.add(normalizedInput);
+    }
+
+    const normalizedPath = this.resolver.normalizeReferencedPath(path);
+    const entry = normalizedPath ? this.resolver.resolveReferencedEntry(normalizedPath) : null;
+    if (debugEnabled || !entry) {
+      debugInfo.resolutions.push(this.resolver.getReferenceResolutionDebug(path, normalizedPath, entry));
+    }
+    const result = {
+      source,
+      raw: truncateDebugText(path),
+      normalized: normalizedPath,
+      accepted: false,
+      reason: ""
+    };
+    if (!normalizedPath) {
+      result.reason = "empty";
+      debugInfo.candidates.push(result);
+      return;
+    }
+    if (seen.has(normalizedPath)) {
+      result.reason = "duplicate";
+      debugInfo.candidates.push(result);
+      return;
+    }
+    if (!entry) {
+      const ambiguousSuggestions = this.resolver.getAmbiguousReferenceSuggestions(path);
+      if (ambiguousSuggestions.length > 1) {
+        debugInfo.ambiguousReferences.push({
+          source,
+          raw: truncateDebugText(path),
+          normalized: normalizedPath,
+          suggestions: ambiguousSuggestions
+        });
+      }
+      result.reason = "not found in vault";
+      debugInfo.candidates.push(result);
+      return;
+    }
+    seen.add(normalizedPath);
+    paths.push(normalizedPath);
+    result.accepted = true;
+    result.reason = `resolved to ${entry.path}`;
+    debugInfo.candidates.push(result);
+  }
+
+  selectMentionSuggestion(suggestion, state) {
+    this.replaceInputRange({
+      start: state.start,
+      end: state.end,
+      insertion: formatMentionToken(suggestion.path),
+      prefix: state.insertionPrefix || "",
+      suffix: state.insertionSuffix ?? " "
+    });
+    this.hideMentionSuggestions();
+    this.updateMentionChips();
+    this.updateContextStatus();
+    this.inputEl.focus();
+  }
+
+  insertReferenceTokens(paths) {
+    const tokens = paths.map((path) => formatMentionToken(path));
+    const value = this.inputEl.value;
+    const start = this.inputEl.selectionStart ?? value.length;
+    const end = this.inputEl.selectionEnd ?? start;
+    const before = value.slice(0, start);
+    const after = value.slice(end);
+    const prefix = before && !/\s$/.test(before) ? " " : "";
+    const suffix = after && !/^\s/.test(after) ? " " : "";
+    this.replaceInputRange({
+      start,
+      end,
+      insertion: tokens.join(" "),
+      prefix,
+      suffix: suffix || " "
+    });
+    this.updateMentionChips();
+    this.updateContextStatus();
+    this.hideMentionSuggestions();
+    this.inputEl.focus();
+  }
+
+  replaceInputRange(options) {
+    const value = this.inputEl.value;
+    const nextValue = `${value.slice(0, options.start)}${options.prefix}${options.insertion}${options.suffix}${value.slice(options.end)}`;
+    const nextCursor = options.start + options.prefix.length + options.insertion.length + options.suffix.length;
+    this.inputEl.value = nextValue;
+    this.inputEl.selectionStart = nextCursor;
+    this.inputEl.selectionEnd = nextCursor;
+    this.saveDraft(nextValue);
+  }
+
+  saveDraft(value) {
+    const session = this.getActiveSession();
+    if (session) {
+      session.draft = value;
+      this.persistSessionChange(session);
+    }
+  }
+
+  updateMentionChips() {
+    if (!this.mentionChipsEl) {
+      return;
+    }
+
+    const references = extractMentionReferences(this.inputEl?.value || "")
+      .map((reference) => ({
+        path: this.resolver.normalizeReferencedPath(reference.path),
+        name: reference.name
+      }))
+      .filter((reference) => reference.path);
+    this.mentionChipsEl.empty();
+    this.mentionChipsEl.toggleClass("is-empty", references.length === 0);
+    this.mentionChipsEl.setAttr("aria-hidden", references.length === 0 ? "true" : "false");
+
+    for (const reference of references) {
+      const entry = this.resolver.resolveReferencedEntry(reference.path);
+      const isFolder = Boolean(entry?.children);
+      const chip = this.mentionChipsEl.createSpan({
+        cls: `codex-dock__mention-chip${isFolder ? " is-folder" : " is-file"}`,
+        attr: {
+          title: reference.path
+        }
+      });
+      if (isFolder) {
+        const icon = chip.createSpan({ cls: "codex-dock__mention-chip-icon", attr: { "aria-hidden": "true" } });
+        setIcon(icon, "folder");
+      } else {
+        chip.createSpan({
+          cls: "codex-dock__mention-chip-type",
+          text: getMentionFileType(reference.name)
+        });
+      }
+      chip.createSpan({ cls: "codex-dock__mention-chip-name", text: reference.name || reference.path });
+    }
+  }
+}
+
+function getMentionFileType(name) {
+  const extension = String(name || "").split(".").pop();
+  if (!extension || extension === name || extension.length > 4) {
+    return "FILE";
+  }
+  return extension.toUpperCase();
+}
+
+module.exports = {
   ReferenceController
 };
 
 },
-"src/view/SessionSwitcherRenderer.js": function(module, exports, __require) {
-const { setIcon } = require("obsidian");
-
-function renderSessionSwitcher(options) {
-  const {
-    containerEl,
-    sessions,
-    activeSessionId,
-    activeSession,
-    onSwitchSession,
-    onDeleteSession,
-    onNewSession,
-    translate,
-    addGlobalPointerListener,
-    removeGlobalPointerListener
-  } = options;
-
-  containerEl.empty();
-  const switcher = containerEl.createEl("details", { cls: "codex-dock__conversation-switcher" });
-  const summary = switcher.createEl("summary", {
-    cls: "codex-dock__conversation-summary",
-    attr: {
-      "aria-label": translate("session.switchConversation"),
-      title: translate("session.switchConversation")
-    }
-  });
-  summary.createSpan({ cls: "codex-dock__conversation-title", text: activeSession.title });
-  const chevron = summary.createSpan({ cls: "codex-dock__conversation-chevron", attr: { "aria-hidden": "true" } });
-  setIcon(chevron, "chevron-down");
-
-  const menu = switcher.createDiv({ cls: "codex-dock__conversation-menu" });
-  menu.createDiv({ cls: "codex-dock__conversation-menu-title", text: translate("session.conversations") });
-  const list = menu.createDiv({ cls: "codex-dock__conversation-list" });
-  for (const session of sessions) {
-    const item = list.createDiv({
-      cls: `codex-dock__conversation-item${session.id === activeSessionId ? " is-active" : ""}`
-    });
-    const switchButton = item.createEl("button", {
-      cls: "codex-dock__conversation-item-main",
-      attr: {
-        type: "button",
-        title: session.title
-      }
-    });
-    const check = switchButton.createSpan({ cls: "codex-dock__conversation-check", attr: { "aria-hidden": "true" } });
-    if (session.id === activeSessionId) {
-      setIcon(check, "check");
-    }
-    switchButton.createSpan({ cls: "codex-dock__conversation-item-title", text: session.title });
-    switchButton.addEventListener("click", () => {
-      onSwitchSession(session.id);
-      switcher.removeAttribute("open");
-    });
-
-    const deleteButton = item.createEl("button", {
-      cls: "codex-dock__conversation-delete",
-      attr: {
-        type: "button",
-        "aria-label": translate("session.deleteNamedConversation", { title: session.title }),
-        title: translate("session.deleteConversation")
-      }
-    });
-    setIcon(deleteButton, "trash-2");
-    deleteButton.addEventListener("click", (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      onDeleteSession(session.id);
-    });
-  }
-
-  const newSessionButton = containerEl.createEl("button", {
-    cls: "codex-dock__conversation-new",
-    attr: {
-      type: "button",
-      "aria-label": translate("session.newConversation"),
-      title: translate("session.newConversation")
-    }
-  });
-  setIcon(newSessionButton, "plus");
-  newSessionButton.addEventListener("click", onNewSession);
-
-  const closeConversationMenu = (event) => {
-    if (!switcher.contains(event.target)) {
-      switcher.removeAttribute("open");
-      removeGlobalPointerListener(closeConversationMenu);
-    }
-  };
-  switcher.addEventListener("toggle", () => {
-    if (switcher.open) {
-      window.setTimeout(() => {
-        if (switcher.isConnected && switcher.open) {
-          addGlobalPointerListener(closeConversationMenu);
-        }
-      }, 0);
-    } else {
-      removeGlobalPointerListener(closeConversationMenu);
-    }
-  });
-}
-
-module.exports = {
-  renderSessionSwitcher
-};
-
-},
-"src/view/SessionStore.js": function(module, exports, __require) {
+"src/view/session/SessionStore.js": function(module, exports, __require) {
 class SessionStore {
   constructor(options = {}) {
     this.sessions = [];
@@ -4965,20 +4595,516 @@ module.exports = {
 };
 
 },
+"src/view/session/SessionSwitcherRenderer.js": function(module, exports, __require) {
+const { setIcon } = require("obsidian");
+
+function renderSessionSwitcher(options) {
+  const {
+    containerEl,
+    sessions,
+    activeSessionId,
+    activeSession,
+    onSwitchSession,
+    onDeleteSession,
+    onNewSession,
+    translate,
+    addGlobalPointerListener,
+    removeGlobalPointerListener
+  } = options;
+
+  containerEl.empty();
+  const switcher = containerEl.createEl("details", { cls: "codex-dock__conversation-switcher" });
+  const summary = switcher.createEl("summary", {
+    cls: "codex-dock__conversation-summary",
+    attr: {
+      "aria-label": translate("session.switchConversation"),
+      title: translate("session.switchConversation")
+    }
+  });
+  summary.createSpan({ cls: "codex-dock__conversation-title", text: activeSession.title });
+  const chevron = summary.createSpan({ cls: "codex-dock__conversation-chevron", attr: { "aria-hidden": "true" } });
+  setIcon(chevron, "chevron-down");
+
+  const menu = switcher.createDiv({ cls: "codex-dock__conversation-menu" });
+  menu.createDiv({ cls: "codex-dock__conversation-menu-title", text: translate("session.conversations") });
+  const list = menu.createDiv({ cls: "codex-dock__conversation-list" });
+  for (const session of sessions) {
+    const item = list.createDiv({
+      cls: `codex-dock__conversation-item${session.id === activeSessionId ? " is-active" : ""}`
+    });
+    const switchButton = item.createEl("button", {
+      cls: "codex-dock__conversation-item-main",
+      attr: {
+        type: "button",
+        title: session.title
+      }
+    });
+    const check = switchButton.createSpan({ cls: "codex-dock__conversation-check", attr: { "aria-hidden": "true" } });
+    if (session.id === activeSessionId) {
+      setIcon(check, "check");
+    }
+    switchButton.createSpan({ cls: "codex-dock__conversation-item-title", text: session.title });
+    switchButton.addEventListener("click", () => {
+      onSwitchSession(session.id);
+      switcher.removeAttribute("open");
+    });
+
+    const deleteButton = item.createEl("button", {
+      cls: "codex-dock__conversation-delete",
+      attr: {
+        type: "button",
+        "aria-label": translate("session.deleteNamedConversation", { title: session.title }),
+        title: translate("session.deleteConversation")
+      }
+    });
+    setIcon(deleteButton, "trash-2");
+    deleteButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onDeleteSession(session.id);
+    });
+  }
+
+  const newSessionButton = containerEl.createEl("button", {
+    cls: "codex-dock__conversation-new",
+    attr: {
+      type: "button",
+      "aria-label": translate("session.newConversation"),
+      title: translate("session.newConversation")
+    }
+  });
+  setIcon(newSessionButton, "plus");
+  newSessionButton.addEventListener("click", onNewSession);
+
+  const closeConversationMenu = (event) => {
+    if (!switcher.contains(event.target)) {
+      switcher.removeAttribute("open");
+      removeGlobalPointerListener(closeConversationMenu);
+    }
+  };
+  switcher.addEventListener("toggle", () => {
+    if (switcher.open) {
+      window.setTimeout(() => {
+        if (switcher.isConnected && switcher.open) {
+          addGlobalPointerListener(closeConversationMenu);
+        }
+      }, 0);
+    } else {
+      removeGlobalPointerListener(closeConversationMenu);
+    }
+  });
+}
+
+module.exports = {
+  renderSessionSwitcher
+};
+
+},
+"src/view/timeline/timeline.js": function(module, exports, __require) {
+function shouldShowEvent(entry, debugActivity) {
+  if (debugActivity) {
+    return true;
+  }
+
+  return ["reasoning", "tool", "error", "notice"].includes(entry.kind);
+}
+
+function getCompletedTimelineSections(timeline, debugActivity) {
+  const finalContentIndex = findLastContentIndex(timeline);
+
+  if (finalContentIndex === -1) {
+    return {
+      processedEntries: timeline.filter((entry) => shouldShowEvent(entry, debugActivity)),
+      finalEntry: null
+    };
+  }
+
+  return {
+    processedEntries: timeline.filter((entry, index) => {
+      if (index === finalContentIndex) {
+        return false;
+      }
+      return entry.kind === "content" || shouldShowEvent(entry, debugActivity);
+    }),
+    finalEntry: timeline[finalContentIndex]
+  };
+}
+
+function appendTimelineContent(message, text) {
+  const lastEntry = message.timeline[message.timeline.length - 1];
+  if (lastEntry && lastEntry.kind === "content") {
+    lastEntry.text += text;
+    return;
+  }
+
+  message.timeline.push({ kind: "content", text });
+}
+
+function findLastContentIndex(timeline) {
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    if (timeline[index].kind === "content") {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function groupLiveTimeline(timeline, debugActivity, translate) {
+  const groups = [];
+  let pendingEvents = [];
+
+  const flushPendingEvents = () => {
+    if (pendingEvents.length === 0) {
+      return;
+    }
+
+    groups.push({
+      type: "eventGroup",
+      label: getEventGroupLabel(pendingEvents, translate),
+      entries: pendingEvents
+    });
+    pendingEvents = [];
+  };
+
+  for (const entry of timeline) {
+    if (entry.kind === "content") {
+      flushPendingEvents();
+      groups.push({ type: "entry", entry });
+      continue;
+    }
+
+    if (debugActivity || ["reasoning", "tool", "error", "notice"].includes(entry.kind)) {
+      const previous = pendingEvents[pendingEvents.length - 1];
+      if (previous && previous.kind !== entry.kind) {
+        flushPendingEvents();
+      }
+      pendingEvents.push(entry);
+    }
+  }
+
+  flushPendingEvents();
+  return groups;
+}
+
+function groupProcessedEntries(entries) {
+  const groups = [];
+  let pending = [];
+
+  const flush = () => {
+    if (pending.length === 0) {
+      return;
+    }
+
+    groups.push({ type: "eventGroup", entries: pending });
+    pending = [];
+  };
+
+  for (const entry of entries) {
+    if (entry.kind === "content") {
+      flush();
+      groups.push({ type: "entry", entry });
+      continue;
+    }
+
+    const previous = pending[pending.length - 1];
+    if (previous && previous.kind !== entry.kind) {
+      flush();
+    }
+    pending.push(entry);
+  }
+
+  flush();
+  return groups;
+}
+
+function getEventGroupLabel(entries, translate = defaultTranslate) {
+  const hasError = entries.some((entry) => entry.kind === "error");
+  if (hasError) {
+    return translate("timeline.needsAttention", { count: entries.length });
+  }
+
+  const hasTool = entries.some((entry) => entry.kind === "tool");
+  const hasReasoning = entries.some((entry) => entry.kind === "reasoning");
+  const hasNotice = entries.some((entry) => entry.kind === "notice");
+  const labelKey = hasTool
+    ? "timeline.toolCalls"
+    : hasReasoning
+      ? "timeline.reasoning"
+      : hasNotice
+        ? "timeline.notice"
+        : "timeline.activity";
+  return translate("timeline.groupLabel", {
+    label: translate(labelKey),
+    count: entries.length
+  });
+}
+
+function defaultTranslate(key, params = {}) {
+  const defaults = {
+    "timeline.needsAttention": "Needs attention {count} items",
+    "timeline.toolCalls": "Tool calls",
+    "timeline.reasoning": "Thinking",
+    "timeline.notice": "Notice",
+    "timeline.activity": "Activity",
+    "timeline.groupLabel": "{label} {count} items"
+  };
+  return String(defaults[key] || key).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => (
+    params[name] === undefined ? match : String(params[name])
+  ));
+}
+
+module.exports = {
+  appendTimelineContent,
+  getCompletedTimelineSections,
+  getEventGroupLabel,
+  groupLiveTimeline,
+  groupProcessedEntries,
+  shouldShowEvent
+};
+
+},
+"src/view/timeline/MessageTimelineRenderer.js": function(module, exports, __require) {
+const {
+  getCompletedTimelineSections,
+  getEventGroupLabel,
+  groupLiveTimeline,
+  groupProcessedEntries,
+  shouldShowEvent
+} = __require("src/view/timeline/timeline.js");
+
+class MessageTimelineRenderer {
+  constructor(options) {
+    this.getDebugActivity = options.getDebugActivity;
+    this.translate = options.translate;
+    this.renderMarkdownContent = options.renderMarkdownContent;
+    this.groupOpenStates = new WeakMap();
+  }
+
+  renderTimeline(containerEl, message) {
+    if (message.role !== "assistant") {
+      for (const entry of message.timeline) {
+        this.renderTimelineEntry(containerEl, entry);
+      }
+      return;
+    }
+
+    if (message.isComplete) {
+      this.renderCompletedTimeline(containerEl, message);
+      return;
+    }
+
+    for (const group of groupLiveTimeline(message.timeline, this.getDebugActivity(), this.translate)) {
+      if (group.type === "eventGroup") {
+        const key = this.getTimelineGroupKey("live", message.timeline, group.entries);
+        this.renderEventGroup(containerEl, message, key, group.entries, group.label, false);
+      } else {
+        this.renderTimelineEntry(containerEl, group.entry);
+      }
+    }
+  }
+
+  renderCompletedTimeline(containerEl, message) {
+    const timeline = message.timeline;
+    const { processedEntries, finalEntry } = getCompletedTimelineSections(
+      timeline,
+      this.getDebugActivity()
+    );
+
+    if (processedEntries.length > 0) {
+      this.renderProcessedGroup(containerEl, message, processedEntries);
+    }
+
+    if (finalEntry) {
+      this.renderTimelineEntry(containerEl, finalEntry);
+    }
+  }
+
+  renderProcessedGroup(containerEl, message, entries) {
+    if (entries.length === 0) {
+      return;
+    }
+
+    const details = this.renderDetails(containerEl, message, "processed", {
+      cls: "codex-dock__event-group codex-dock__event-group--processed",
+      defaultOpen: false
+    });
+    details.createEl("summary", {
+      cls: "codex-dock__event-group-summary",
+      text: this.translate("timeline.processed", { count: entries.length })
+    });
+
+    const body = details.createDiv({ cls: "codex-dock__event-group-body" });
+    for (const group of groupProcessedEntries(entries)) {
+      if (group.type === "eventGroup") {
+        const key = this.getTimelineGroupKey("processed", message.timeline, group.entries);
+        this.renderEventGroup(body, message, key, group.entries, getEventGroupLabel(group.entries, this.translate), false);
+      } else {
+        this.renderTimelineEntry(body, group.entry);
+      }
+    }
+  }
+
+  renderEventGroup(containerEl, message, key, entries, label, open) {
+    const details = this.renderDetails(containerEl, message, key, {
+      cls: "codex-dock__event-group",
+      defaultOpen: open
+    });
+    details.createEl("summary", {
+      cls: "codex-dock__event-group-summary",
+      text: label
+    });
+
+    const body = details.createDiv({ cls: "codex-dock__event-group-body" });
+    for (const entry of entries) {
+      this.renderTimelineEntry(body, entry);
+    }
+  }
+
+  renderDetails(containerEl, message, key, options) {
+    const details = containerEl.createEl("details", {
+      cls: options.cls
+    });
+    details.open = this.getStoredOpenState(message, key, options.defaultOpen);
+    details.addEventListener("toggle", () => {
+      this.setStoredOpenState(message, key, details.open);
+    });
+    return details;
+  }
+
+  getTimelineGroupKey(prefix, timeline, entries) {
+    const firstEntry = entries[0];
+    const firstIndex = firstEntry ? timeline.indexOf(firstEntry) : -1;
+    const kind = firstEntry?.kind || "activity";
+    return `${prefix}:${firstIndex}:${kind}`;
+  }
+
+  getStoredOpenState(message, key, defaultOpen) {
+    const states = this.groupOpenStates.get(message);
+    if (!states || !states.has(key)) {
+      return defaultOpen;
+    }
+    return states.get(key);
+  }
+
+  setStoredOpenState(message, key, open) {
+    let states = this.groupOpenStates.get(message);
+    if (!states) {
+      states = new Map();
+      this.groupOpenStates.set(message, states);
+    }
+    states.set(key, open);
+  }
+
+  renderTimelineEntry(containerEl, entry) {
+    if (entry.kind === "message" || entry.kind === "content") {
+      this.renderMarkdownContent(containerEl, entry.text);
+      return;
+    }
+
+    if (!this.shouldShowEvent(entry)) {
+      return;
+    }
+
+    const eventEl = containerEl.createDiv({ cls: `codex-dock__event codex-dock__event--${entry.kind || "activity"}` });
+    eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || this.translate("timeline.event") });
+    if (entry.summary && !this.getDebugActivity()) {
+      eventEl.createDiv({ cls: "codex-dock__event-summary", text: entry.summary });
+    }
+    if (entry.detail && this.getDebugActivity()) {
+      eventEl.createEl("pre", { cls: "codex-dock__event-detail", text: entry.detail });
+    }
+  }
+
+  shouldShowEvent(entry) {
+    return shouldShowEvent(entry, this.getDebugActivity());
+  }
+}
+
+module.exports = {
+  MessageTimelineRenderer
+};
+
+},
+"src/view/utils/clipboard.js": function(module, exports, __require) {
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
+
+module.exports = {
+  copyText
+};
+
+},
+"src/view/utils/contextEstimate.js": function(module, exports, __require) {
+const { CUSTOM_ASSISTANT_STYLE_MAX_CHARS, DEFAULT_SETTINGS } = __require("src/settings.js");
+
+const BUILT_IN_ASSISTANT_STYLE_ESTIMATE_CHARS = 700;
+const ASSISTANT_STYLE_PROMPT_OVERHEAD_CHARS = 220;
+
+function estimateContextChars(messages, draft, settings) {
+  const transcriptChars = messages.reduce((total, message) => {
+    return total + String(message.content || "").length + 16;
+  }, 0);
+  const draftChars = String(draft || "").length + 16;
+  const noteChars = settings.includeActiveNote
+    ? (Number(settings.activeNoteMaxChars) || DEFAULT_SETTINGS.activeNoteMaxChars)
+    : 0;
+  const memoryChars = settings.memoryEnabled
+    ? (Number(settings.memoryMaxPromptChars) || DEFAULT_SETTINGS.memoryMaxPromptChars)
+    : 0;
+  const styleChars = estimateAssistantStyleChars(settings);
+  return transcriptChars + draftChars + noteChars + memoryChars + styleChars;
+}
+
+function estimateAssistantStyleChars(settings) {
+  if (settings.assistantStyle !== "custom") {
+    return BUILT_IN_ASSISTANT_STYLE_ESTIMATE_CHARS;
+  }
+
+  const customChars = String(settings.customAssistantStyle || "").length;
+  return ASSISTANT_STYLE_PROMPT_OVERHEAD_CHARS
+    + Math.min(customChars, CUSTOM_ASSISTANT_STYLE_MAX_CHARS);
+}
+
+function formatCompactNumber(value) {
+  if (value >= 1000) {
+    return `${Math.round(value / 1000)}k`;
+  }
+  return String(value);
+}
+
+module.exports = {
+  estimateContextChars,
+  formatCompactNumber
+};
+
+},
 "src/view/AgentDockView.js": function(module, exports, __require) {
 const { ItemView, MarkdownRenderer, Notice } = require("obsidian");
 
 const { VIEW_TYPE_AGENT_DOCK } = __require("src/constants.js");
 const { t } = __require("src/i18n/index.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
-const { renderComposerContent } = __require("src/view/ComposerRenderer.js");
-const { copyText } = __require("src/view/clipboard.js");
-const { estimateContextChars, formatCompactNumber } = __require("src/view/contextEstimate.js");
-const { MessageTimelineRenderer } = __require("src/view/MessageTimelineRenderer.js");
-const { ReferenceController } = __require("src/view/ReferenceController.js");
-const { renderSessionSwitcher } = __require("src/view/SessionSwitcherRenderer.js");
-const { SessionStore } = __require("src/view/SessionStore.js");
-const { appendTimelineContent } = __require("src/view/timeline.js");
+const { renderComposerContent } = __require("src/view/composer/ComposerRenderer.js");
+const { ReferenceController } = __require("src/view/reference/ReferenceController.js");
+const { SessionStore } = __require("src/view/session/SessionStore.js");
+const { renderSessionSwitcher } = __require("src/view/session/SessionSwitcherRenderer.js");
+const { MessageTimelineRenderer } = __require("src/view/timeline/MessageTimelineRenderer.js");
+const { appendTimelineContent } = __require("src/view/timeline/timeline.js");
+const { copyText } = __require("src/view/utils/clipboard.js");
+const { estimateContextChars, formatCompactNumber } = __require("src/view/utils/contextEstimate.js");
 
 class AgentDockView extends ItemView {
   constructor(leaf, plugin) {

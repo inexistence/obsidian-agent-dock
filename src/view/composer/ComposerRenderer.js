@@ -1,7 +1,7 @@
 const { setIcon } = require("obsidian");
 
-const { MODE_OPTIONS, getModeDescription, getModeLabel } = require("../modes");
-const { DEFAULT_SETTINGS } = require("../settings");
+const { MODE_OPTIONS, getModeDescription, getModeLabel } = require("../../modes");
+const { DEFAULT_SETTINGS } = require("../../settings");
 
 function renderComposerContent(composer, options) {
   const {
