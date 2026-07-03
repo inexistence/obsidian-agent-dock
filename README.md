@@ -32,8 +32,16 @@ The sidebar chat has a mode selector below the prompt box:
 Sidebar chat uses `codex exec --json` and renders Codex events in stream order while a turn is running. Consecutive reasoning and tool events are grouped into collapsed sections, and answer text appears inline with those groups. When the turn completes, everything except the final answer text collapses into an `已处理` section. Enable Settings -> Agent Dock -> Debug activity to expand command output, stderr, raw events, and full tool payloads. Hidden model reasoning is not exposed.
 
 Use the conversation selector below the header to switch chats, or `New` to
-start another chat. Conversation sessions are kept in memory for the current
-sidebar lifecycle.
+start another chat. Conversation sessions are restored after Obsidian restarts
+when Settings -> Agent Dock -> Persist chat history is enabled.
+
+Chat history uses the plugin data folder:
+
+- `data.json` stores settings, the active session id, and a lightweight session index.
+- `sessions/<session-id>.json` stores each conversation's user and assistant message bodies.
+
+Tool and reasoning timeline details are not persisted; restored conversations
+show the final Markdown message content and can continue as normal context.
 
 ## Architecture
 
@@ -50,6 +58,8 @@ src/
     args.js
     env.js
     shell.js
+  storage/
+    ChatStorage.js
   view/
     AgentDockView.js
   constants.js
@@ -128,4 +138,4 @@ For interactive Terminal launches, you can also set optional interactive argumen
 
 - This plugin is desktop-only because it runs a local CLI process.
 - The active note can be included automatically with each request.
-- Conversation history is kept only in memory for the current sidebar session for now.
+- Conversation history persistence is optional and defaults to enabled.

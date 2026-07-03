@@ -121,6 +121,48 @@ class AgentDockSettingTab extends PluginSettingTab {
             : DEFAULT_SETTINGS.contextLimitChars;
           await this.plugin.saveSettings();
         }));
+
+    new Setting(containerEl)
+      .setName("Persist chat history")
+      .setDesc("Restore conversations after Obsidian restarts. Message bodies are stored as per-session JSON files in the plugin folder.")
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.persistChatHistory)
+        .onChange(async (value) => {
+          this.plugin.settings.persistChatHistory = value;
+          if (!value) {
+            await this.plugin.clearPersistedChatHistory();
+            return;
+          }
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName("Persisted session limit")
+      .setDesc("Maximum number of recent conversations kept on disk.")
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.maxPersistedSessions))
+        .setValue(String(this.plugin.settings.maxPersistedSessions))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.maxPersistedSessions = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.maxPersistedSessions;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName("Persisted messages per session")
+      .setDesc("Maximum number of recent messages kept for each conversation.")
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.maxPersistedMessagesPerSession))
+        .setValue(String(this.plugin.settings.maxPersistedMessagesPerSession))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.maxPersistedMessagesPerSession = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.maxPersistedMessagesPerSession;
+          await this.plugin.saveSettings();
+        }));
   }
 }
 

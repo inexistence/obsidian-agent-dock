@@ -30,6 +30,7 @@ should stay ready for other agent CLIs such as Claude Code or Cursor.
 - `src/settingsTab.js`: Obsidian settings UI.
 - `src/prompt.js`: prompt construction, active note inclusion, and conversation transcript.
 - `src/cli/*.js`: CLI argument/env/shell helpers.
+- `src/storage/ChatStorage.js`: persisted chat session index/body storage.
 - `styles.css`: Obsidian plugin styles.
 - `scripts/build-main.js`: zero-dependency bundler for `main.js`.
 
@@ -121,9 +122,15 @@ answer content.
 ## Timeline Rendering Rules
 
 The view stores multiple in-memory chat sessions in `AgentDockView.sessions`.
-Each session owns its own `messages` array and context estimate. Session state is
-not persisted across Obsidian reloads yet. Keep provider adapters unaware of this
-UI session model.
+Each session owns its own `messages` array and context estimate. Provider
+adapters must stay unaware of this UI session model.
+
+When chat history persistence is enabled, `data.json` stores settings, the
+active session id, and a lightweight session index. Full user and assistant
+message bodies are stored separately under the plugin folder in
+`sessions/<session-id>.json`. Persisted sessions restore as plain user/assistant
+Markdown message content; tool, reasoning, notice, and activity timeline details
+are runtime UI events and are not persisted by default.
 
 While a turn is running:
 
@@ -210,7 +217,8 @@ Do not put provider-specific parsing logic in `AgentDockView.js`.
 
 - This plugin is desktop-only because it spawns local CLI processes.
 - It is symlinked during local development into an Obsidian vault plugin folder.
-- `data.json` is local Obsidian plugin settings and should stay untracked.
+- `data.json` is local Obsidian plugin data and should stay untracked.
+- `sessions/*.json` contains local persisted chat history and should stay untracked.
 - macOS Gatekeeper can block the Codex executable; users can fix this by installing
   Codex from its official source and configuring the executable path.
 

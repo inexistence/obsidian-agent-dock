@@ -519,7 +519,10 @@ const DEFAULT_SETTINGS = {
   includeActiveNote: true,
   debugActivity: false,
   activeNoteMaxChars: 6000,
-  contextLimitChars: 258000
+  contextLimitChars: 258000,
+  persistChatHistory: true,
+  maxPersistedSessions: 20,
+  maxPersistedMessagesPerSession: 200
 };
 
 function normalizeSettings(savedSettings) {
@@ -549,9 +552,65 @@ function normalizeSettings(savedSettings) {
     settings.contextLimitChars,
     DEFAULT_SETTINGS.contextLimitChars
   );
+  settings.persistChatHistory = settings.persistChatHistory !== false;
+  settings.maxPersistedSessions = normalizePositiveInteger(
+    settings.maxPersistedSessions,
+    DEFAULT_SETTINGS.maxPersistedSessions
+  );
+  settings.maxPersistedMessagesPerSession = normalizePositiveInteger(
+    settings.maxPersistedMessagesPerSession,
+    DEFAULT_SETTINGS.maxPersistedMessagesPerSession
+  );
 
   delete settings.command;
   return settings;
+}
+
+function normalizePluginData(savedData) {
+  if (savedData && savedData.schemaVersion >= 2) {
+    return {
+      schemaVersion: 2,
+      settings: normalizeSettings(savedData.settings),
+      chatState: normalizeChatState(savedData.chatState)
+    };
+  }
+
+  return {
+    schemaVersion: 2,
+    settings: normalizeSettings(savedData),
+    chatState: normalizeChatState(null)
+  };
+}
+
+function normalizeChatState(savedState) {
+  const state = savedState && typeof savedState === "object" ? savedState : {};
+  const sessionIndex = Array.isArray(state.sessionIndex)
+    ? state.sessionIndex.map(normalizeSessionIndexEntry).filter(Boolean)
+    : [];
+
+  return {
+    activeSessionId: typeof state.activeSessionId === "string" ? state.activeSessionId : "",
+    sessionIndex
+  };
+}
+
+function normalizeSessionIndexEntry(entry) {
+  if (!entry || typeof entry !== "object" || typeof entry.id !== "string" || !entry.id) {
+    return null;
+  }
+
+  return {
+    id: entry.id,
+    title: typeof entry.title === "string" && entry.title ? entry.title : "Chat",
+    isUntitled: entry.isUntitled === true,
+    createdAt: normalizeTimestamp(entry.createdAt),
+    updatedAt: normalizeTimestamp(entry.updatedAt)
+  };
+}
+
+function normalizeTimestamp(value) {
+  const timestamp = Number(value);
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : Date.now();
 }
 
 function normalizePositiveInteger(value, fallback) {
@@ -561,6 +620,7 @@ function normalizePositiveInteger(value, fallback) {
 
 module.exports = {
   DEFAULT_SETTINGS,
+  normalizePluginData,
   normalizeSettings
 };
 
@@ -1191,11 +1251,312 @@ class AgentDockSettingTab extends PluginSettingTab {
             : DEFAULT_SETTINGS.contextLimitChars;
           await this.plugin.saveSettings();
         }));
+
+    new Setting(containerEl)
+      .setName("Persist chat history")
+      .setDesc("Restore conversations after Obsidian restarts. Message bodies are stored as per-session JSON files in the plugin folder.")
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.persistChatHistory)
+        .onChange(async (value) => {
+          this.plugin.settings.persistChatHistory = value;
+          if (!value) {
+            await this.plugin.clearPersistedChatHistory();
+            return;
+          }
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName("Persisted session limit")
+      .setDesc("Maximum number of recent conversations kept on disk.")
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.maxPersistedSessions))
+        .setValue(String(this.plugin.settings.maxPersistedSessions))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.maxPersistedSessions = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.maxPersistedSessions;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName("Persisted messages per session")
+      .setDesc("Maximum number of recent messages kept for each conversation.")
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.maxPersistedMessagesPerSession))
+        .setValue(String(this.plugin.settings.maxPersistedMessagesPerSession))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.maxPersistedMessagesPerSession = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.maxPersistedMessagesPerSession;
+          await this.plugin.saveSettings();
+        }));
   }
 }
 
 module.exports = {
   AgentDockSettingTab
+};
+
+},
+"src/storage/ChatStorage.js": function(module, exports, __require) {
+const { normalizePath } = require("obsidian");
+
+const CHAT_STATE_VERSION = 1;
+const SESSION_DIR_NAME = "sessions";
+
+class ChatStorage {
+  constructor(plugin) {
+    this.plugin = plugin;
+    this.adapter = plugin.app.vault.adapter;
+    const pluginDir = plugin.manifest.dir || `.obsidian/plugins/${plugin.manifest.id}`;
+    this.baseDir = normalizePath(`${pluginDir}/${SESSION_DIR_NAME}`);
+  }
+
+  async loadSessions(chatState, settings) {
+    if (!settings.persistChatHistory) {
+      return {
+        activeSessionId: "",
+        sessions: []
+      };
+    }
+
+    const sessions = [];
+    for (const entry of chatState.sessionIndex || []) {
+      const session = await this.loadSession(entry.id, entry);
+      if (session) {
+        sessions.push(session);
+      }
+    }
+
+    return {
+      activeSessionId: chatState.activeSessionId,
+      sessions
+    };
+  }
+
+  async saveSessions(sessionState, settings) {
+    if (!settings.persistChatHistory) {
+      await this.deleteAllSessions();
+      this.plugin.chatState = {
+        activeSessionId: "",
+        sessionIndex: []
+      };
+      await this.plugin.savePluginData();
+      return;
+    }
+
+    await this.ensureSessionDir();
+    const limitedSessions = limitSessions(sessionState.sessions, settings);
+    const sessionIndex = [];
+    const keepFileNames = new Set(limitedSessions.map((session) => `${safeFileName(session.id)}.json`));
+
+    for (const session of limitedSessions) {
+      const persistedSession = serializeSession(session, settings);
+      sessionIndex.push(toSessionIndexEntry(persistedSession));
+      await this.writeJson(this.getSessionPath(session.id), persistedSession);
+    }
+
+    await this.pruneSessionFiles(keepFileNames);
+
+    this.plugin.chatState = {
+      activeSessionId: limitedSessions.some((session) => session.id === sessionState.activeSessionId)
+        ? sessionState.activeSessionId
+        : limitedSessions[0]?.id || "",
+      sessionIndex
+    };
+    await this.plugin.savePluginData();
+  }
+
+  async deleteSession(sessionId) {
+    const path = this.getSessionPath(sessionId);
+    try {
+      if (await this.adapter.exists(path)) {
+        await this.adapter.remove(path);
+      }
+    } catch (error) {
+      console.warn(`Agent Dock could not delete persisted session ${sessionId}:`, error);
+    }
+  }
+
+  async deleteAllSessions() {
+    await this.pruneSessionFiles(new Set());
+  }
+
+  async loadSession(sessionId, indexEntry) {
+    try {
+      const raw = await this.adapter.read(this.getSessionPath(sessionId));
+      return normalizePersistedSession(JSON.parse(raw), indexEntry);
+    } catch (error) {
+      console.warn(`Agent Dock could not load persisted session ${sessionId}:`, error);
+      return normalizePersistedSession(indexEntry, indexEntry);
+    }
+  }
+
+  async ensureSessionDir() {
+    if (await this.adapter.exists(this.baseDir)) {
+      return;
+    }
+    await this.adapter.mkdir(this.baseDir);
+  }
+
+  async pruneSessionFiles(keepFileNames) {
+    let listing;
+    try {
+      if (!await this.adapter.exists(this.baseDir)) {
+        return;
+      }
+      listing = await this.adapter.list(this.baseDir);
+    } catch (error) {
+      console.warn("Agent Dock could not list persisted sessions:", error);
+      return;
+    }
+
+    for (const filePath of listing.files || []) {
+      const fileName = filePath.split("/").pop() || "";
+      if (!fileName.endsWith(".json")) {
+        continue;
+      }
+      if (keepFileNames.has(fileName)) {
+        continue;
+      }
+      try {
+        await this.adapter.remove(filePath);
+      } catch (error) {
+        console.warn(`Agent Dock could not prune persisted session ${fileName}:`, error);
+      }
+    }
+  }
+
+  async writeJson(path, value) {
+    await this.adapter.write(path, `${JSON.stringify(value, null, 2)}\n`);
+  }
+
+  getSessionPath(sessionId) {
+    return normalizePath(`${this.baseDir}/${safeFileName(sessionId)}.json`);
+  }
+}
+
+function serializeSession(session, settings) {
+  const now = Date.now();
+  const messages = Array.isArray(session.messages)
+    ? session.messages
+      .map(serializeMessage)
+      .filter(Boolean)
+      .slice(-settings.maxPersistedMessagesPerSession)
+    : [];
+
+  return {
+    version: CHAT_STATE_VERSION,
+    id: session.id,
+    title: session.title || "Chat",
+    isUntitled: session.isUntitled === true,
+    draft: String(session.draft || ""),
+    createdAt: normalizeTimestamp(session.createdAt, now),
+    updatedAt: normalizeTimestamp(session.updatedAt, now),
+    messages
+  };
+}
+
+function serializeMessage(message) {
+  if (!message || typeof message !== "object") {
+    return null;
+  }
+  if (message.role !== "user" && message.role !== "assistant") {
+    return null;
+  }
+
+  const content = String(message.content || "");
+  if (!content && message.role === "assistant") {
+    return null;
+  }
+
+  return {
+    role: message.role,
+    content,
+    createdAt: normalizeTimestamp(message.createdAt, Date.now())
+  };
+}
+
+function normalizePersistedSession(rawSession, indexEntry) {
+  const source = rawSession && typeof rawSession === "object" ? rawSession : {};
+  const id = typeof source.id === "string" && source.id
+    ? source.id
+    : indexEntry?.id || "";
+
+  if (!id) {
+    return null;
+  }
+
+  const messages = Array.isArray(source.messages)
+    ? source.messages.map(normalizePersistedMessage).filter(Boolean)
+    : [];
+
+  return {
+    id,
+    title: typeof source.title === "string" && source.title ? source.title : indexEntry?.title || "Chat",
+    isUntitled: source.isUntitled === true || indexEntry?.isUntitled === true,
+    currentRun: null,
+    draft: typeof source.draft === "string" ? source.draft : "",
+    createdAt: normalizeTimestamp(source.createdAt, indexEntry?.createdAt || Date.now()),
+    updatedAt: normalizeTimestamp(source.updatedAt, indexEntry?.updatedAt || Date.now()),
+    messages
+  };
+}
+
+function normalizePersistedMessage(message) {
+  if (!message || typeof message !== "object") {
+    return null;
+  }
+  if (message.role !== "user" && message.role !== "assistant") {
+    return null;
+  }
+
+  const content = String(message.content || "");
+  if (!content) {
+    return null;
+  }
+
+  return {
+    role: message.role,
+    content,
+    timeline: [{ kind: message.role === "assistant" ? "content" : "message", text: content }],
+    createdAt: normalizeTimestamp(message.createdAt, Date.now()),
+    isComplete: true,
+    isLoading: false
+  };
+}
+
+function limitSessions(sessions, settings) {
+  return [...sessions]
+    .sort((left, right) => normalizeTimestamp(right.updatedAt, 0) - normalizeTimestamp(left.updatedAt, 0))
+    .slice(0, settings.maxPersistedSessions)
+    .reverse();
+}
+
+function toSessionIndexEntry(session) {
+  return {
+    id: session.id,
+    title: session.title,
+    isUntitled: session.isUntitled,
+    createdAt: session.createdAt,
+    updatedAt: session.updatedAt
+  };
+}
+
+function safeFileName(value) {
+  return String(value || "session").replace(/[^A-Za-z0-9._-]/g, "_");
+}
+
+function normalizeTimestamp(value, fallback) {
+  const timestamp = Number(value);
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : fallback;
+}
+
+module.exports = {
+  ChatStorage
 };
 
 },
@@ -1215,6 +1576,7 @@ function renderComposerContent(composer, options) {
     updateContextStatus,
     updateMentionSuggestions,
     hideMentionSuggestions,
+    onDraftChanged,
     submit,
     cancelActiveSession,
     addGlobalPointerListener,
@@ -1248,6 +1610,7 @@ function renderComposerContent(composer, options) {
     const session = getActiveSession();
     if (session) {
       session.draft = inputEl.value;
+      onDraftChanged(session);
     }
     updateContextStatus();
     updateMentionSuggestions();
@@ -1865,12 +2228,15 @@ class SessionStore {
   }
 
   createSession() {
+    const now = Date.now();
     const session = {
       id: `session-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       title: `Chat ${this.sessions.length + 1}`,
       isUntitled: true,
       currentRun: null,
       draft: "",
+      createdAt: now,
+      updatedAt: now,
       messages: []
     };
     this.sessions.push(session);
@@ -1894,6 +2260,7 @@ class SessionStore {
     const compact = prompt.replace(/\s+/g, " ").trim();
     session.title = compact.length > 28 ? `${compact.slice(0, 28)}...` : compact || session.title;
     session.isUntitled = false;
+    this.touchSession(session);
   }
 
   deleteSession(sessionId) {
@@ -1913,6 +2280,71 @@ class SessionStore {
 
     return true;
   }
+
+  loadState(state) {
+    const sessions = Array.isArray(state?.sessions) ? state.sessions : [];
+    this.sessions = sessions.map(normalizeSession).filter(Boolean);
+    this.activeSessionId = typeof state?.activeSessionId === "string" ? state.activeSessionId : "";
+    this.ensureActiveSession();
+  }
+
+  toState() {
+    return {
+      activeSessionId: this.activeSessionId,
+      sessions: this.sessions
+    };
+  }
+
+  touchSession(session) {
+    if (session) {
+      session.updatedAt = Date.now();
+    }
+  }
+}
+
+function normalizeSession(session) {
+  if (!session || typeof session !== "object" || typeof session.id !== "string" || !session.id) {
+    return null;
+  }
+
+  return {
+    id: session.id,
+    title: typeof session.title === "string" && session.title ? session.title : "Chat",
+    isUntitled: session.isUntitled === true,
+    currentRun: null,
+    draft: typeof session.draft === "string" ? session.draft : "",
+    createdAt: normalizeTimestamp(session.createdAt),
+    updatedAt: normalizeTimestamp(session.updatedAt),
+    messages: Array.isArray(session.messages) ? session.messages.map(normalizeMessage).filter(Boolean) : []
+  };
+}
+
+function normalizeMessage(message) {
+  if (!message || typeof message !== "object") {
+    return null;
+  }
+  if (message.role !== "user" && message.role !== "assistant") {
+    return null;
+  }
+  const content = String(message.content || "");
+  if (!content) {
+    return null;
+  }
+  return {
+    role: message.role,
+    content,
+    timeline: Array.isArray(message.timeline)
+      ? message.timeline
+      : [{ kind: message.role === "assistant" ? "content" : "message", text: content }],
+    isLoading: false,
+    isComplete: true,
+    createdAt: normalizeTimestamp(message.createdAt)
+  };
+}
+
+function normalizeTimestamp(value) {
+  const timestamp = Number(value);
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : Date.now();
 }
 
 module.exports = {
@@ -1953,6 +2385,7 @@ class AgentDockView extends ItemView {
     this.pendingMessageRenderSessionId = "";
     this.pendingMessageRenderTarget = null;
     this.globalPointerListeners = new Set();
+    this.hasLoadedPersistedSessions = false;
   }
 
   get sessions() {
@@ -1980,6 +2413,7 @@ class AgentDockView extends ItemView {
   }
 
   async onOpen() {
+    await this.loadPersistedSessions();
     this.ensureActiveSession();
     this.render();
   }
@@ -1988,6 +2422,7 @@ class AgentDockView extends ItemView {
     this.cancelPendingMessageRender();
     this.clearGlobalPointerListeners();
     this.cancelRunningSessions();
+    await this.plugin.flushChatSessions();
   }
 
   render() {
@@ -2037,6 +2472,7 @@ class AgentDockView extends ItemView {
       activeSession,
       onSwitchSession: (sessionId) => {
         this.activeSessionId = sessionId;
+        this.persistChatSessions();
         this.render();
       },
       onDeleteSession: (sessionId) => this.deleteSession(sessionId),
@@ -2059,6 +2495,7 @@ class AgentDockView extends ItemView {
       updateContextStatus: () => this.updateContextStatus(),
       updateMentionSuggestions: () => this.updateMentionSuggestions(),
       hideMentionSuggestions: () => this.hideMentionSuggestions(),
+      onDraftChanged: (session) => this.persistSessionChange(session),
       submit: () => this.submit(),
       cancelActiveSession: () => this.cancelActiveSession(),
       addGlobalPointerListener: (listener) => this.addGlobalPointerListener(listener),
@@ -2303,6 +2740,7 @@ class AgentDockView extends ItemView {
     const session = this.getActiveSession();
     if (session) {
       session.draft = nextValue;
+      this.persistSessionChange(session);
     }
     this.hideMentionSuggestions();
     this.updateContextStatus();
@@ -2340,6 +2778,7 @@ class AgentDockView extends ItemView {
     const session = this.getActiveSession();
     if (session) {
       session.draft = nextValue;
+      this.persistSessionChange(session);
     }
     this.updateContextStatus();
     this.updateMentionSuggestions();
@@ -2362,12 +2801,21 @@ class AgentDockView extends ItemView {
     this.updateSessionSwitcher();
     this.inputEl.value = "";
     session.draft = "";
+    this.sessionStore.touchSession(session);
+    const now = Date.now();
     session.messages.push({
       role: "user",
       content: prompt,
+      createdAt: now,
       timeline: [{ kind: "message", text: prompt }]
     });
-    const assistantMessage = { role: "assistant", content: "", timeline: [], isLoading: true };
+    const assistantMessage = {
+      role: "assistant",
+      content: "",
+      timeline: [],
+      isLoading: true,
+      createdAt: now
+    };
     session.messages.push(assistantMessage);
     const run = {
       abortController: new AbortController(),
@@ -2376,6 +2824,7 @@ class AgentDockView extends ItemView {
     session.currentRun = run;
     this.renderMessages();
     this.renderComposer();
+    this.persistChatSessions({ immediate: true });
 
     try {
       const conversation = session.messages.slice(0, -1);
@@ -2400,6 +2849,7 @@ class AgentDockView extends ItemView {
         assistantMessage.content = emptyText;
         appendTimelineContent(assistantMessage, emptyText);
       }
+      this.sessionStore.touchSession(session);
       this.renderSessionIfActive(session);
     } catch (error) {
       assistantMessage.isLoading = false;
@@ -2415,6 +2865,7 @@ class AgentDockView extends ItemView {
           ].join("\n");
       assistantMessage.content = errorText;
       appendTimelineContent(assistantMessage, errorText);
+      this.sessionStore.touchSession(session);
       this.renderSessionIfActive(session);
       if (error.name === "AbortError") {
         new Notice(`${this.plugin.agent.label} stopped.`);
@@ -2427,6 +2878,7 @@ class AgentDockView extends ItemView {
       }
       this.renderSessionIfActive(session);
       this.renderComposerIfActive(session);
+      await this.persistChatSessions({ immediate: true });
     }
   }
 
@@ -2494,7 +2946,9 @@ class AgentDockView extends ItemView {
   }
 
   createSession() {
-    return this.sessionStore.createSession();
+    const session = this.sessionStore.createSession();
+    this.persistChatSessions();
+    return session;
   }
 
   getActiveSession() {
@@ -2509,7 +2963,7 @@ class AgentDockView extends ItemView {
     this.renderSessionSwitcher();
   }
 
-  deleteSession(sessionId) {
+  async deleteSession(sessionId) {
     const session = this.sessionStore.getSession(sessionId);
     if (!session) {
       return;
@@ -2525,6 +2979,8 @@ class AgentDockView extends ItemView {
     }
 
     this.sessionStore.deleteSession(sessionId);
+    await this.plugin.deletePersistedSession(sessionId);
+    await this.persistChatSessions({ immediate: true });
     this.render();
   }
 
@@ -2608,6 +3064,29 @@ class AgentDockView extends ItemView {
     }
   }
 
+  async loadPersistedSessions() {
+    if (this.hasLoadedPersistedSessions) {
+      return;
+    }
+    this.hasLoadedPersistedSessions = true;
+    const state = await this.plugin.loadChatSessions();
+    this.sessionStore.loadState(state);
+  }
+
+  persistSessionChange(session) {
+    this.sessionStore.touchSession(session);
+    this.persistChatSessions();
+  }
+
+  async persistChatSessions(options = {}) {
+    const state = this.sessionStore.toState();
+    if (options.immediate) {
+      await this.plugin.saveChatSessions(state);
+      return;
+    }
+    this.plugin.scheduleSaveChatSessions(state);
+  }
+
   addGlobalPointerListener(listener) {
     if (this.globalPointerListeners.has(listener)) {
       return;
@@ -2636,17 +3115,26 @@ module.exports = {
 
 },
 "src/plugin.js": function(module, exports, __require) {
-const { Plugin } = require("obsidian");
+const { Notice, Plugin } = require("obsidian");
 
 const { createAgent } = __require("src/agents/AgentRegistry.js");
 const { VIEW_TYPE_AGENT_DOCK } = __require("src/constants.js");
-const { normalizeSettings } = __require("src/settings.js");
+const { normalizePluginData } = __require("src/settings.js");
 const { AgentDockSettingTab } = __require("src/settingsTab.js");
+const { ChatStorage } = __require("src/storage/ChatStorage.js");
 const { AgentDockView } = __require("src/view/AgentDockView.js");
 
 module.exports = class AgentDockPlugin extends Plugin {
   async onload() {
-    this.settings = normalizeSettings(await this.loadData());
+    const pluginData = normalizePluginData(await this.loadData());
+    this.settings = pluginData.settings;
+    this.chatState = pluginData.chatState;
+    this.chatSaveTimer = null;
+    this.pendingChatSessionState = null;
+    this.chatSaveInFlight = false;
+    this.chatSaveRequested = false;
+    this.chatSaveFailureNotified = false;
+    this.chatStorage = new ChatStorage(this);
     this.refreshAgent();
 
     this.registerView(
@@ -2670,6 +3158,7 @@ module.exports = class AgentDockPlugin extends Plugin {
   }
 
   async onunload() {
+    await this.flushChatSessions();
     this.agent?.cancelAll?.();
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_AGENT_DOCK);
   }
@@ -2679,7 +3168,85 @@ module.exports = class AgentDockPlugin extends Plugin {
   }
 
   async saveSettings() {
-    await this.saveData(this.settings);
+    await this.savePluginData();
+  }
+
+  async savePluginData() {
+    await this.saveData({
+      schemaVersion: 2,
+      settings: this.settings,
+      chatState: this.chatState
+    });
+  }
+
+  async loadChatSessions() {
+    return this.chatStorage.loadSessions(this.chatState, this.settings);
+  }
+
+  scheduleSaveChatSessions(sessionState, delay = 750) {
+    this.pendingChatSessionState = sessionState;
+    if (this.chatSaveTimer) {
+      window.clearTimeout(this.chatSaveTimer);
+    }
+    this.chatSaveTimer = window.setTimeout(() => {
+      this.chatSaveTimer = null;
+      this.saveChatSessions(this.pendingChatSessionState);
+    }, delay);
+  }
+
+  async flushChatSessions() {
+    if (this.chatSaveTimer) {
+      window.clearTimeout(this.chatSaveTimer);
+      this.chatSaveTimer = null;
+    }
+    if (this.pendingChatSessionState) {
+      await this.saveChatSessions(this.pendingChatSessionState);
+    }
+  }
+
+  async saveChatSessions(sessionState) {
+    if (!sessionState) {
+      return;
+    }
+
+    this.pendingChatSessionState = sessionState;
+    if (this.chatSaveInFlight) {
+      this.chatSaveRequested = true;
+      return;
+    }
+
+    this.chatSaveInFlight = true;
+    try {
+      do {
+        this.chatSaveRequested = false;
+        try {
+          await this.chatStorage.saveSessions(this.pendingChatSessionState, this.settings);
+          this.chatSaveFailureNotified = false;
+        } catch (error) {
+          console.warn("Agent Dock could not save chat history:", error);
+          if (!this.chatSaveFailureNotified) {
+            this.chatSaveFailureNotified = true;
+            new Notice("Agent Dock could not save chat history. Check the console for details.");
+          }
+          this.chatSaveRequested = false;
+        }
+      } while (this.chatSaveRequested);
+    } finally {
+      this.chatSaveInFlight = false;
+    }
+  }
+
+  async deletePersistedSession(sessionId) {
+    await this.chatStorage.deleteSession(sessionId);
+  }
+
+  async clearPersistedChatHistory() {
+    await this.chatStorage.deleteAllSessions();
+    this.chatState = {
+      activeSessionId: "",
+      sessionIndex: []
+    };
+    await this.savePluginData();
   }
 
   async activateView() {

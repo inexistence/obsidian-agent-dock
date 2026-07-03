@@ -13,6 +13,7 @@ function renderComposerContent(composer, options) {
     updateContextStatus,
     updateMentionSuggestions,
     hideMentionSuggestions,
+    onDraftChanged,
     submit,
     cancelActiveSession,
     addGlobalPointerListener,
@@ -46,6 +47,7 @@ function renderComposerContent(composer, options) {
     const session = getActiveSession();
     if (session) {
       session.draft = inputEl.value;
+      onDraftChanged(session);
     }
     updateContextStatus();
     updateMentionSuggestions();

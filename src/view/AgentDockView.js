@@ -30,6 +30,7 @@ class AgentDockView extends ItemView {
     this.pendingMessageRenderSessionId = "";
     this.pendingMessageRenderTarget = null;
     this.globalPointerListeners = new Set();
+    this.hasLoadedPersistedSessions = false;
   }
 
   get sessions() {
@@ -57,6 +58,7 @@ class AgentDockView extends ItemView {
   }
 
   async onOpen() {
+    await this.loadPersistedSessions();
     this.ensureActiveSession();
     this.render();
   }
@@ -65,6 +67,7 @@ class AgentDockView extends ItemView {
     this.cancelPendingMessageRender();
     this.clearGlobalPointerListeners();
     this.cancelRunningSessions();
+    await this.plugin.flushChatSessions();
   }
 
   render() {
@@ -114,6 +117,7 @@ class AgentDockView extends ItemView {
       activeSession,
       onSwitchSession: (sessionId) => {
         this.activeSessionId = sessionId;
+        this.persistChatSessions();
         this.render();
       },
       onDeleteSession: (sessionId) => this.deleteSession(sessionId),
@@ -136,6 +140,7 @@ class AgentDockView extends ItemView {
       updateContextStatus: () => this.updateContextStatus(),
       updateMentionSuggestions: () => this.updateMentionSuggestions(),
       hideMentionSuggestions: () => this.hideMentionSuggestions(),
+      onDraftChanged: (session) => this.persistSessionChange(session),
       submit: () => this.submit(),
       cancelActiveSession: () => this.cancelActiveSession(),
       addGlobalPointerListener: (listener) => this.addGlobalPointerListener(listener),
@@ -380,6 +385,7 @@ class AgentDockView extends ItemView {
     const session = this.getActiveSession();
     if (session) {
       session.draft = nextValue;
+      this.persistSessionChange(session);
     }
     this.hideMentionSuggestions();
     this.updateContextStatus();
@@ -417,6 +423,7 @@ class AgentDockView extends ItemView {
     const session = this.getActiveSession();
     if (session) {
       session.draft = nextValue;
+      this.persistSessionChange(session);
     }
     this.updateContextStatus();
     this.updateMentionSuggestions();
@@ -439,12 +446,21 @@ class AgentDockView extends ItemView {
     this.updateSessionSwitcher();
     this.inputEl.value = "";
     session.draft = "";
+    this.sessionStore.touchSession(session);
+    const now = Date.now();
     session.messages.push({
       role: "user",
       content: prompt,
+      createdAt: now,
       timeline: [{ kind: "message", text: prompt }]
     });
-    const assistantMessage = { role: "assistant", content: "", timeline: [], isLoading: true };
+    const assistantMessage = {
+      role: "assistant",
+      content: "",
+      timeline: [],
+      isLoading: true,
+      createdAt: now
+    };
     session.messages.push(assistantMessage);
     const run = {
       abortController: new AbortController(),
@@ -453,6 +469,7 @@ class AgentDockView extends ItemView {
     session.currentRun = run;
     this.renderMessages();
     this.renderComposer();
+    this.persistChatSessions({ immediate: true });
 
     try {
       const conversation = session.messages.slice(0, -1);
@@ -477,6 +494,7 @@ class AgentDockView extends ItemView {
         assistantMessage.content = emptyText;
         appendTimelineContent(assistantMessage, emptyText);
       }
+      this.sessionStore.touchSession(session);
       this.renderSessionIfActive(session);
     } catch (error) {
       assistantMessage.isLoading = false;
@@ -492,6 +510,7 @@ class AgentDockView extends ItemView {
           ].join("\n");
       assistantMessage.content = errorText;
       appendTimelineContent(assistantMessage, errorText);
+      this.sessionStore.touchSession(session);
       this.renderSessionIfActive(session);
       if (error.name === "AbortError") {
         new Notice(`${this.plugin.agent.label} stopped.`);
@@ -504,6 +523,7 @@ class AgentDockView extends ItemView {
       }
       this.renderSessionIfActive(session);
       this.renderComposerIfActive(session);
+      await this.persistChatSessions({ immediate: true });
     }
   }
 
@@ -571,7 +591,9 @@ class AgentDockView extends ItemView {
   }
 
   createSession() {
-    return this.sessionStore.createSession();
+    const session = this.sessionStore.createSession();
+    this.persistChatSessions();
+    return session;
   }
 
   getActiveSession() {
@@ -586,7 +608,7 @@ class AgentDockView extends ItemView {
     this.renderSessionSwitcher();
   }
 
-  deleteSession(sessionId) {
+  async deleteSession(sessionId) {
     const session = this.sessionStore.getSession(sessionId);
     if (!session) {
       return;
@@ -602,6 +624,8 @@ class AgentDockView extends ItemView {
     }
 
     this.sessionStore.deleteSession(sessionId);
+    await this.plugin.deletePersistedSession(sessionId);
+    await this.persistChatSessions({ immediate: true });
     this.render();
   }
 
@@ -683,6 +707,29 @@ class AgentDockView extends ItemView {
     if (session.id === this.activeSessionId) {
       this.renderComposer();
     }
+  }
+
+  async loadPersistedSessions() {
+    if (this.hasLoadedPersistedSessions) {
+      return;
+    }
+    this.hasLoadedPersistedSessions = true;
+    const state = await this.plugin.loadChatSessions();
+    this.sessionStore.loadState(state);
+  }
+
+  persistSessionChange(session) {
+    this.sessionStore.touchSession(session);
+    this.persistChatSessions();
+  }
+
+  async persistChatSessions(options = {}) {
+    const state = this.sessionStore.toState();
+    if (options.immediate) {
+      await this.plugin.saveChatSessions(state);
+      return;
+    }
+    this.plugin.scheduleSaveChatSessions(state);
   }
 
   addGlobalPointerListener(listener) {
