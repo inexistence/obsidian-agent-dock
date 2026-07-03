@@ -1,0 +1,27 @@
+src/view/AgentDockView.js
+  s_aae769c3aec17d::t_43ee84ae4881f0 8,251-273,275
+main.js
+  s_aae769c3aec17d::t_cfa1d1e063b81e 4450-4660,4662-4726,5216,5460-5481,5483
+  s_aae769c3aec17d::t_77bda1d3e0fb6f 4661
+  s_aae769c3aec17d::t_801dac09abbad3 4449
+src/view/session/ChatTurnRunner.js
+  s_aae769c3aec17d::t_b16ee0be332a7a 1-47,49-111
+  s_aae769c3aec17d::t_a5d905ed672021 48
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "05eea4eb858691badec0354ee6310c9d8be14c7a",
+  "prompts": {},
+  "logical_commit_id": "05eea4eb858691badec0354ee6310c9d8be14c7a",
+  "sessions": {
+    "s_aae769c3aec17d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f27c3-f1c6-7e20-b14e-a1322c76e422",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
