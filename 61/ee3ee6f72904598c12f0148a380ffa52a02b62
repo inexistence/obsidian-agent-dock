@@ -1,0 +1,22 @@
+src/storage/MemoryStore.js
+  s_92038c63c9fc81::t_31f3b85e7e2353 264,378
+main.js
+  s_92038c63c9fc81::t_94a6a22ed57357 453,567
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "61ee3ee6f72904598c12f0148a380ffa52a02b62",
+  "prompts": {},
+  "logical_commit_id": "61ee3ee6f72904598c12f0148a380ffa52a02b62",
+  "sessions": {
+    "s_92038c63c9fc81": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f26c2-1959-71c0-b491-6e483da80007",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <huangjianbin@imo.im>"
+    }
+  }
+}
