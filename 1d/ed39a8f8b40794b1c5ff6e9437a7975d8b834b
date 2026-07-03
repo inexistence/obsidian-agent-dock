@@ -1,0 +1,39 @@
+.agents/skills/code-review-expert/references/solid-checklist.md
+  s_2c2aef0de2798c::t_cd6347def97a5a 1-65
+.agents/skills/commit-hygiene/agents/openai.yaml
+  s_2c2aef0de2798c::t_74e50721409c4c 1-4
+.agents/skills/code-review-expert/SKILL.md
+  s_2c2aef0de2798c::t_feb12942611900 1-155
+.agents/skills/code-review-expert/references/security-checklist.md
+  s_2c2aef0de2798c::t_64aad4a30c5b12 1-118
+AGENTS.md
+  s_2c2aef0de2798c::t_4512448e84d047 34
+  s_2c2aef0de2798c::t_61216f90d683c8 35
+  s_2c2aef0de2798c::t_dbd298aface356 234-239
+  s_2c2aef0de2798c::t_23b4218eb919a0 229-230
+.agents/skills/code-review-expert/references/code-quality-checklist.md
+  s_2c2aef0de2798c::t_d43c06938b3071 1-130
+.agents/skills/code-review-expert/references/removal-plan.md
+  s_2c2aef0de2798c::t_f62bf87bf19d06 1-52
+.agents/skills/code-review-expert/agents/agent.yaml
+  s_2c2aef0de2798c::t_4c00cd657abfb0 1-7
+.agents/skills/commit-hygiene/SKILL.md
+  s_2c2aef0de2798c::t_d56f477eddbe47 1-112
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "1ded39a8f8b40794b1c5ff6e9437a7975d8b834b",
+  "prompts": {},
+  "logical_commit_id": "1ded39a8f8b40794b1c5ff6e9437a7975d8b834b",
+  "sessions": {
+    "s_2c2aef0de2798c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f26a3-b202-7b02-83cf-95db0b2fe38e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <huangjianbin@imo.im>"
+    }
+  }
+}
