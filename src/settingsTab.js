@@ -107,6 +107,20 @@ class AgentDockSettingTab extends PluginSettingTab {
             : DEFAULT_SETTINGS.activeNoteMaxChars;
           await this.plugin.saveSettings();
         }));
+
+    new Setting(containerEl)
+      .setName("Context character limit")
+      .setDesc("Maximum prompt size before older conversation history is compressed. Default is 258k characters.")
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.contextLimitChars))
+        .setValue(String(this.plugin.settings.contextLimitChars))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.contextLimitChars = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.contextLimitChars;
+          await this.plugin.saveSettings();
+        }));
   }
 }
 

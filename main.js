@@ -188,17 +188,23 @@ module.exports = {
 },
 "src/prompt.js": function(module, exports, __require) {
 async function buildPrompt(app, settings, prompt, conversation) {
+  const result = await buildPromptWithMetadata(app, settings, prompt, conversation);
+  return result.prompt;
+}
+
+async function buildPromptWithMetadata(app, settings, prompt, conversation) {
   const promptParts = [];
+  const contextLimit = Number(settings.contextLimitChars) || 258000;
 
   if (!settings.includeActiveNote) {
-    promptParts.push(formatConversationPrompt(prompt, conversation));
-    return promptParts.join("\n");
+    promptParts.push(formatConversationPrompt(prompt, conversation, contextLimit));
+    return buildPromptResult(promptParts.join("\n"), contextLimit);
   }
 
   const file = app.workspace.getActiveFile();
   if (!file) {
-    promptParts.push(formatConversationPrompt(prompt, conversation));
-    return promptParts.join("\n");
+    promptParts.push(formatConversationPrompt(prompt, conversation, contextLimit));
+    return buildPromptResult(promptParts.join("\n"), contextLimit);
   }
 
   const note = await app.vault.cachedRead(file);
@@ -207,25 +213,28 @@ async function buildPrompt(app, settings, prompt, conversation) {
     ? `${note.slice(0, maxChars)}\n\n[Note clipped]`
     : note;
 
-  promptParts.push(
+  const notePrompt = [
     `Active Obsidian note: ${file.path}`,
     "",
     clippedNote,
-    "",
-    formatConversationPrompt(prompt, conversation)
+    ""
+  ].join("\n");
+  const conversationBudget = Math.max(1000, contextLimit - notePrompt.length);
+
+  promptParts.push(
+    notePrompt,
+    formatConversationPrompt(prompt, conversation, conversationBudget)
   );
 
-  return promptParts.join("\n");
+  return buildPromptResult(promptParts.join("\n"), contextLimit);
 }
 
-function formatConversationPrompt(prompt, conversation) {
+function formatConversationPrompt(prompt, conversation, maxChars) {
   if (!conversation || conversation.length <= 1) {
     return ["User request:", prompt].join("\n");
   }
 
-  const transcript = conversation
-    .map((message) => `${message.role === "user" ? "User" : "Agent"}: ${message.content}`)
-    .join("\n\n");
+  const transcript = formatConversationTranscript(conversation, maxChars);
 
   return [
     "Conversation so far:",
@@ -235,8 +244,124 @@ function formatConversationPrompt(prompt, conversation) {
   ].join("\n");
 }
 
+function formatConversationTranscript(conversation, maxChars) {
+  const fullTranscript = conversation.map(formatMessageForTranscript).join("\n\n");
+  if (!maxChars || fullTranscript.length <= maxChars) {
+    return fullTranscript;
+  }
+
+  const latestMessage = conversation[conversation.length - 1];
+  const latestText = formatMessageForTranscript(latestMessage);
+  const summaryHeader = `[Earlier conversation compressed because it exceeded the context character limit. Original messages: ${conversation.length - 1}.]`;
+  const availableForRecent = Math.max(0, maxChars - latestText.length - summaryHeader.length - 8);
+  const recentMessages = [];
+  let used = 0;
+
+  for (let index = conversation.length - 2; index >= 0; index -= 1) {
+    const formatted = formatMessageForTranscript(conversation[index]);
+    const nextUsed = used + formatted.length + (recentMessages.length > 0 ? 2 : 0);
+    if (nextUsed > availableForRecent) {
+      break;
+    }
+    recentMessages.unshift(formatted);
+    used = nextUsed;
+  }
+
+  const omittedCount = Math.max(0, conversation.length - 1 - recentMessages.length);
+  const compressedSummary = summarizeMessages(conversation.slice(0, omittedCount), summaryHeader);
+  const compressedTranscript = [
+    compressedSummary,
+    recentMessages.join("\n\n"),
+    latestText
+  ].filter(Boolean).join("\n\n");
+
+  return limitCompressedTranscript(compressedTranscript, latestText, maxChars);
+}
+
+function summarizeMessages(messages, header) {
+  if (messages.length === 0) {
+    return "";
+  }
+
+  const maxSummaryChars = 12000;
+  const lines = [header];
+  let used = header.length;
+
+  for (const message of messages) {
+    const content = compactText(message.content);
+    const line = `- ${message.role === "user" ? "User" : "Agent"}: ${truncateText(content, 500)}`;
+    if (used + line.length + 1 > maxSummaryChars) {
+      lines.push(`- ... ${messages.length - lines.length + 1} earlier messages omitted`);
+      break;
+    }
+    lines.push(line);
+    used += line.length + 1;
+  }
+
+  return lines.join("\n");
+}
+
+function formatMessageForTranscript(message) {
+  return `${message.role === "user" ? "User" : "Agent"}: ${message.content}`;
+}
+
+function compactText(text) {
+  return String(text || "").replace(/\s+/g, " ").trim();
+}
+
+function truncateText(text, maxChars) {
+  if (text.length <= maxChars) {
+    return text;
+  }
+  if (maxChars <= 3) {
+    return text.slice(0, maxChars);
+  }
+  return `${text.slice(0, maxChars - 3)}...`;
+}
+
+function limitCompressedTranscript(transcript, latestText, maxChars) {
+  if (!maxChars || transcript.length <= maxChars) {
+    return transcript;
+  }
+
+  if (latestText.length >= maxChars) {
+    return truncateText(latestText, maxChars);
+  }
+
+  const prefixBudget = Math.max(0, maxChars - latestText.length - 2);
+  const prefix = truncateText(transcript.slice(0, transcript.length - latestText.length), prefixBudget);
+  return [prefix, latestText].filter(Boolean).join("\n\n");
+}
+
+function limitPrompt(prompt, maxChars) {
+  if (!maxChars || prompt.length <= maxChars) {
+    return prompt;
+  }
+
+  const notice = "[Prompt compressed to fit the configured context character limit.]\n\n";
+  const available = Math.max(0, maxChars - notice.length);
+  if (available === 0) {
+    return notice.slice(0, maxChars);
+  }
+  return `${notice}${prompt.slice(prompt.length - available)}`;
+}
+
+function buildPromptResult(rawPrompt, contextLimit) {
+  const prompt = limitPrompt(rawPrompt, contextLimit);
+  return {
+    prompt,
+    context: {
+      limitChars: contextLimit,
+      originalChars: rawPrompt.length,
+      promptChars: prompt.length,
+      compressed: prompt.length < rawPrompt.length || rawPrompt.includes("[Earlier conversation compressed")
+    }
+  };
+}
+
 module.exports = {
-  buildPrompt
+  buildPrompt,
+  buildPromptWithMetadata
 };
 
 },
@@ -252,7 +377,8 @@ const DEFAULT_SETTINGS = {
   workingDirectory: "",
   includeActiveNote: true,
   debugActivity: false,
-  activeNoteMaxChars: 6000
+  activeNoteMaxChars: 6000,
+  contextLimitChars: 258000
 };
 
 function normalizeSettings(savedSettings) {
@@ -274,8 +400,22 @@ function normalizeSettings(savedSettings) {
     settings.agentId = DEFAULT_SETTINGS.agentId;
   }
 
+  settings.activeNoteMaxChars = normalizePositiveInteger(
+    settings.activeNoteMaxChars,
+    DEFAULT_SETTINGS.activeNoteMaxChars
+  );
+  settings.contextLimitChars = normalizePositiveInteger(
+    settings.contextLimitChars,
+    DEFAULT_SETTINGS.contextLimitChars
+  );
+
   delete settings.command;
   return settings;
+}
+
+function normalizePositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 module.exports = {
@@ -525,7 +665,7 @@ const { parseArgsTemplate, withJsonOutput, withOutputLastMessage } = __require("
 const { buildCliPath } = __require("src/cli/env.js");
 const { escapeAppleScriptString, shellQuote } = __require("src/cli/shell.js");
 const { applyModeArgs } = __require("src/modes.js");
-const { buildPrompt } = __require("src/prompt.js");
+const { buildPromptWithMetadata } = __require("src/prompt.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
 const { codexJsonEventToUpdates } = __require("src/agents/codex/jsonEvents.js");
 
@@ -539,7 +679,15 @@ class CodexAgent {
   async run(prompt, onUpdate, conversation) {
     const settings = this.plugin.settings;
     const cwd = this.getWorkingDirectory();
-    const finalPrompt = await buildPrompt(this.plugin.app, settings, prompt, conversation);
+    const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation);
+    const finalPrompt = promptResult.prompt;
+    if (promptResult.context.compressed) {
+      onUpdate({
+        kind: "notice",
+        title: "Context compressed",
+        summary: `Compressed ${formatNumber(promptResult.context.originalChars)} chars into ${formatNumber(promptResult.context.promptChars)} / ${formatNumber(promptResult.context.limitChars)} chars.`
+      });
+    }
     const outputPath = path.join(
       os.tmpdir(),
       `obsidian-agent-dock-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`
@@ -689,6 +837,10 @@ async function readOutputFile(outputPath) {
   }
 }
 
+function formatNumber(value) {
+  return new Intl.NumberFormat().format(value);
+}
+
 module.exports = {
   CodexAgent
 };
@@ -836,6 +988,20 @@ class AgentDockSettingTab extends PluginSettingTab {
             : DEFAULT_SETTINGS.activeNoteMaxChars;
           await this.plugin.saveSettings();
         }));
+
+    new Setting(containerEl)
+      .setName("Context character limit")
+      .setDesc("Maximum prompt size before older conversation history is compressed. Default is 258k characters.")
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.contextLimitChars))
+        .setValue(String(this.plugin.settings.contextLimitChars))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.contextLimitChars = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.contextLimitChars;
+          await this.plugin.saveSettings();
+        }));
   }
 }
 
@@ -925,6 +1091,7 @@ class AgentDockView extends ItemView {
         this.submit();
       }
     });
+    this.inputEl.addEventListener("input", () => this.updateContextStatus());
 
     const modeRow = composer.createDiv({ cls: "codex-dock__mode-row" });
     modeRow.createEl("label", {
@@ -954,7 +1121,11 @@ class AgentDockView extends ItemView {
       this.plugin.settings.mode = modeSelect.value;
       modeHint.setText(getModeDescription(this.plugin.settings.mode, DEFAULT_SETTINGS.mode));
       await this.plugin.saveSettings();
+      this.updateContextStatus();
     });
+
+    this.contextStatusEl = composer.createDiv({ cls: "codex-dock__context-status" });
+    this.updateContextStatus();
 
     const sendButton = composer.createEl("button", { cls: "mod-cta codex-dock__send" });
     sendButton.setText("Send");
@@ -995,6 +1166,7 @@ class AgentDockView extends ItemView {
     }
 
     this.messageList.scrollTop = this.messageList.scrollHeight;
+    this.updateContextStatus();
   }
 
   async submit() {
@@ -1197,8 +1369,39 @@ class AgentDockView extends ItemView {
       return true;
     }
 
-    return ["reasoning", "tool", "error"].includes(entry.kind);
+    return ["reasoning", "tool", "error", "notice"].includes(entry.kind);
   }
+
+  updateContextStatus() {
+    if (!this.contextStatusEl) {
+      return;
+    }
+
+    const limit = Number(this.plugin.settings.contextLimitChars) || DEFAULT_SETTINGS.contextLimitChars;
+    const used = estimateContextChars(this.messages, this.inputEl?.value || "", this.plugin.settings);
+    const percent = Math.min(999, Math.round((used / limit) * 100));
+    this.contextStatusEl.toggleClass("is-warning", percent >= 80);
+    this.contextStatusEl.toggleClass("is-over", percent >= 100);
+    this.contextStatusEl.setText(`Context ${percent}% · ${formatCompactNumber(used)} / ${formatCompactNumber(limit)} chars`);
+  }
+}
+
+function estimateContextChars(messages, draft, settings) {
+  const transcriptChars = messages.reduce((total, message) => {
+    return total + String(message.content || "").length + 16;
+  }, 0);
+  const draftChars = String(draft || "").length + 16;
+  const noteChars = settings.includeActiveNote
+    ? (Number(settings.activeNoteMaxChars) || DEFAULT_SETTINGS.activeNoteMaxChars)
+    : 0;
+  return transcriptChars + draftChars + noteChars;
+}
+
+function formatCompactNumber(value) {
+  if (value >= 1000) {
+    return `${Math.round(value / 1000)}k`;
+  }
+  return String(value);
 }
 
 async function copyText(text) {
@@ -1312,7 +1515,8 @@ function getEventGroupLabel(entries) {
 
   const hasTool = entries.some((entry) => entry.kind === "tool");
   const hasReasoning = entries.some((entry) => entry.kind === "reasoning");
-  const label = hasTool ? "工具调用" : hasReasoning ? "思考" : "活动";
+  const hasNotice = entries.some((entry) => entry.kind === "notice");
+  const label = hasTool ? "工具调用" : hasReasoning ? "思考" : hasNotice ? "提示" : "活动";
   return `${label} ${entries.length} 项`;
 }
 

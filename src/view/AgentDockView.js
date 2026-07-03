@@ -78,6 +78,7 @@ class AgentDockView extends ItemView {
         this.submit();
       }
     });
+    this.inputEl.addEventListener("input", () => this.updateContextStatus());
 
     const modeRow = composer.createDiv({ cls: "codex-dock__mode-row" });
     modeRow.createEl("label", {
@@ -107,7 +108,11 @@ class AgentDockView extends ItemView {
       this.plugin.settings.mode = modeSelect.value;
       modeHint.setText(getModeDescription(this.plugin.settings.mode, DEFAULT_SETTINGS.mode));
       await this.plugin.saveSettings();
+      this.updateContextStatus();
     });
+
+    this.contextStatusEl = composer.createDiv({ cls: "codex-dock__context-status" });
+    this.updateContextStatus();
 
     const sendButton = composer.createEl("button", { cls: "mod-cta codex-dock__send" });
     sendButton.setText("Send");
@@ -148,6 +153,7 @@ class AgentDockView extends ItemView {
     }
 
     this.messageList.scrollTop = this.messageList.scrollHeight;
+    this.updateContextStatus();
   }
 
   async submit() {
@@ -350,8 +356,39 @@ class AgentDockView extends ItemView {
       return true;
     }
 
-    return ["reasoning", "tool", "error"].includes(entry.kind);
+    return ["reasoning", "tool", "error", "notice"].includes(entry.kind);
   }
+
+  updateContextStatus() {
+    if (!this.contextStatusEl) {
+      return;
+    }
+
+    const limit = Number(this.plugin.settings.contextLimitChars) || DEFAULT_SETTINGS.contextLimitChars;
+    const used = estimateContextChars(this.messages, this.inputEl?.value || "", this.plugin.settings);
+    const percent = Math.min(999, Math.round((used / limit) * 100));
+    this.contextStatusEl.toggleClass("is-warning", percent >= 80);
+    this.contextStatusEl.toggleClass("is-over", percent >= 100);
+    this.contextStatusEl.setText(`Context ${percent}% · ${formatCompactNumber(used)} / ${formatCompactNumber(limit)} chars`);
+  }
+}
+
+function estimateContextChars(messages, draft, settings) {
+  const transcriptChars = messages.reduce((total, message) => {
+    return total + String(message.content || "").length + 16;
+  }, 0);
+  const draftChars = String(draft || "").length + 16;
+  const noteChars = settings.includeActiveNote
+    ? (Number(settings.activeNoteMaxChars) || DEFAULT_SETTINGS.activeNoteMaxChars)
+    : 0;
+  return transcriptChars + draftChars + noteChars;
+}
+
+function formatCompactNumber(value) {
+  if (value >= 1000) {
+    return `${Math.round(value / 1000)}k`;
+  }
+  return String(value);
 }
 
 async function copyText(text) {
@@ -465,7 +502,8 @@ function getEventGroupLabel(entries) {
 
   const hasTool = entries.some((entry) => entry.kind === "tool");
   const hasReasoning = entries.some((entry) => entry.kind === "reasoning");
-  const label = hasTool ? "工具调用" : hasReasoning ? "思考" : "活动";
+  const hasNotice = entries.some((entry) => entry.kind === "notice");
+  const label = hasTool ? "工具调用" : hasReasoning ? "思考" : hasNotice ? "提示" : "活动";
   return `${label} ${entries.length} 项`;
 }
 

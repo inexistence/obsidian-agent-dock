@@ -91,6 +91,20 @@ exec {{prompt}}
 
 You can also change the arguments and working directory in the plugin settings. If macOS blocks the `codex` binary, reinstall Codex from its official source and set the executable path again.
 
+The default context character limit is:
+
+```sh
+258000
+```
+
+You can change this in Settings -> Agent Dock -> Context character limit. When
+the prompt would exceed this limit, older conversation history is compressed
+while the latest user request is preserved.
+
+The composer shows an estimated context usage percentage below the prompt box.
+If a send actually triggers compression, the response timeline includes a
+`Context compressed` notice.
+
 For interactive Terminal launches, you can also set optional interactive arguments, for example:
 
 ```sh

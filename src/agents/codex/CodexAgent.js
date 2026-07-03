@@ -8,7 +8,7 @@ const { parseArgsTemplate, withJsonOutput, withOutputLastMessage } = require("..
 const { buildCliPath } = require("../../cli/env");
 const { escapeAppleScriptString, shellQuote } = require("../../cli/shell");
 const { applyModeArgs } = require("../../modes");
-const { buildPrompt } = require("../../prompt");
+const { buildPromptWithMetadata } = require("../../prompt");
 const { DEFAULT_SETTINGS } = require("../../settings");
 const { codexJsonEventToUpdates } = require("./jsonEvents");
 
@@ -22,7 +22,15 @@ class CodexAgent {
   async run(prompt, onUpdate, conversation) {
     const settings = this.plugin.settings;
     const cwd = this.getWorkingDirectory();
-    const finalPrompt = await buildPrompt(this.plugin.app, settings, prompt, conversation);
+    const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation);
+    const finalPrompt = promptResult.prompt;
+    if (promptResult.context.compressed) {
+      onUpdate({
+        kind: "notice",
+        title: "Context compressed",
+        summary: `Compressed ${formatNumber(promptResult.context.originalChars)} chars into ${formatNumber(promptResult.context.promptChars)} / ${formatNumber(promptResult.context.limitChars)} chars.`
+      });
+    }
     const outputPath = path.join(
       os.tmpdir(),
       `obsidian-agent-dock-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`
@@ -170,6 +178,10 @@ async function readOutputFile(outputPath) {
   } catch {
     return "";
   }
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat().format(value);
 }
 
 module.exports = {

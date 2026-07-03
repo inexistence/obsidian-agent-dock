@@ -79,6 +79,24 @@ Default executable path:
 
 Users can change this in plugin settings.
 
+## Context Budget And Compression
+
+- `contextLimitChars` defaults to `258000`.
+- This is a character budget, not a tokenizer-backed token budget.
+- `src/prompt.js` applies the limit while building the prompt.
+- Active note content is clipped separately by `activeNoteMaxChars`.
+- If conversation history exceeds the remaining budget, older messages are
+  compressed into a compact transcript summary.
+- The newest message is preserved with highest priority.
+- The composer displays an estimated context percentage using local character
+  counts. It is intentionally approximate because active note and prompt wrapper
+  text are only finalized at send time.
+- When actual prompt construction triggers compression, the adapter emits a
+  visible `notice` event so the user can see that compression happened.
+- Keep this compression deterministic and local; do not call the agent recursively
+  just to summarize history unless the project explicitly adds a summarization
+  provider later.
+
 ## Normalized Agent Events
 
 Agent adapters must emit these UI events:
@@ -87,6 +105,7 @@ Agent adapters must emit these UI events:
 - `reasoning`: visible reasoning summary/progress, not hidden chain of thought.
 - `tool`: command/tool/web/MCP/file-change activity.
 - `error`: user-visible failure.
+- `notice`: visible system notice such as context compression.
 - `activity`: debug or low-level activity. Hidden unless debug activity is enabled.
 
 Do not emit assistant answer text as `message`; `message` is only used for user
@@ -168,6 +187,13 @@ To add a provider:
 4. Keep view code provider-agnostic.
 
 Do not put provider-specific parsing logic in `AgentDockView.js`.
+
+## TODO
+
+- Add model-assisted context compression as an optional upgrade over the current
+  deterministic truncation/summary strategy. It should produce structured session
+  state such as user goal, decisions made, current status, constraints, and open
+  tasks, then persist that summary separately from raw chat history.
 
 ## Local Development Notes
 

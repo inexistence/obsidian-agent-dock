@@ -9,7 +9,8 @@ const DEFAULT_SETTINGS = {
   workingDirectory: "",
   includeActiveNote: true,
   debugActivity: false,
-  activeNoteMaxChars: 6000
+  activeNoteMaxChars: 6000,
+  contextLimitChars: 258000
 };
 
 function normalizeSettings(savedSettings) {
@@ -31,8 +32,22 @@ function normalizeSettings(savedSettings) {
     settings.agentId = DEFAULT_SETTINGS.agentId;
   }
 
+  settings.activeNoteMaxChars = normalizePositiveInteger(
+    settings.activeNoteMaxChars,
+    DEFAULT_SETTINGS.activeNoteMaxChars
+  );
+  settings.contextLimitChars = normalizePositiveInteger(
+    settings.contextLimitChars,
+    DEFAULT_SETTINGS.contextLimitChars
+  );
+
   delete settings.command;
   return settings;
+}
+
+function normalizePositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
 module.exports = {
