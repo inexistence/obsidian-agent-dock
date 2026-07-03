@@ -4437,10 +4437,7 @@ class AgentDockView extends ItemView {
   }
 
   handleReferenceDrop(dataTransfer) {
-    const debugInfo = createReferenceDropDebugInfo(dataTransfer);
-    const debugEnabled = Boolean(this.plugin.settings.debugActivity);
-    const paths = this.extractDroppedReferencePaths(dataTransfer, debugInfo, debugEnabled);
-    logReferenceDropDebug(debugInfo, paths, debugEnabled);
+    const paths = this.extractDroppedReferencePaths(dataTransfer);
     if (paths.length === 0) {
       return false;
     }
@@ -4472,20 +4469,13 @@ class AgentDockView extends ItemView {
     return true;
   }
 
-  extractDroppedReferencePaths(dataTransfer, debugInfo, debugEnabled = false) {
+  extractDroppedReferencePaths(dataTransfer) {
     const paths = [];
     const seen = new Set();
     const attemptedInputs = new Set();
-    const addPath = (path, source = "unknown") => {
+    const addPath = (path) => {
       const normalizedInput = normalizeReferenceInput(path);
       if (normalizedInput && attemptedInputs.has(normalizedInput)) {
-        debugInfo.candidates.push({
-          source,
-          raw: truncateDebugText(path),
-          normalized: normalizedInput,
-          accepted: false,
-          reason: "duplicate input"
-        });
         return;
       }
       if (normalizedInput) {
@@ -4493,62 +4483,33 @@ class AgentDockView extends ItemView {
       }
       const normalizedPath = this.normalizeReferencedPath(path);
       const entry = normalizedPath ? this.resolveReferencedEntry(normalizedPath) : null;
-      if (debugEnabled || !entry) {
-        debugInfo.resolutions.push(this.getReferenceResolutionDebug(path, normalizedPath, entry));
-      }
-      const result = {
-        source,
-        raw: truncateDebugText(path),
-        normalized: normalizedPath,
-        accepted: false,
-        reason: ""
-      };
       if (!normalizedPath) {
-        result.reason = "empty";
-        debugInfo.candidates.push(result);
         return;
       }
       if (seen.has(normalizedPath)) {
-        result.reason = "duplicate";
-        debugInfo.candidates.push(result);
         return;
       }
       if (!entry) {
-        result.reason = "not found in vault";
-        debugInfo.candidates.push(result);
         return;
       }
       seen.add(normalizedPath);
       paths.push(normalizedPath);
-      result.accepted = true;
-      result.reason = `resolved to ${entry.path}`;
-      debugInfo.candidates.push(result);
     };
-    const addText = (text, source) => {
-      if (text) {
-        debugInfo.payloads.push({
-          source,
-          text: truncateDebugText(text, 600)
-        });
-      }
-      for (const candidate of extractReferenceCandidatesFromText(text, debugInfo, source)) {
-        addPath(candidate, source);
+    const addText = (text) => {
+      for (const candidate of extractReferenceCandidatesFromText(text)) {
+        addPath(candidate);
       }
     };
 
     for (const file of Array.from(dataTransfer.files || [])) {
-      addPath(file.path || file.name || "", "dataTransfer.files");
+      addPath(file.path || file.name || "");
     }
 
     for (const type of Array.from(dataTransfer.types || [])) {
       try {
-        addText(dataTransfer.getData(type), type);
+        addText(dataTransfer.getData(type));
       } catch {
         // Some drag payload types are read-protected by the host.
-        debugInfo.payloads.push({
-          source: type,
-          text: "[read-protected]"
-        });
       }
     }
 
@@ -4628,29 +4589,6 @@ class AgentDockView extends ItemView {
     return this.app.vault.getAbstractFileByPath(normalizedPath)
       || (!/\.[^/]+$/.test(normalizedPath) ? this.app.vault.getAbstractFileByPath(`${normalizedPath}.md`) : null)
       || this.findUniqueVaultEntryByName(normalizedPath);
-  }
-
-  getReferenceResolutionDebug(rawPath, normalizedPath, entry) {
-    const normalizedInput = normalizeReferenceInput(rawPath);
-    const vaultBasePath = String(this.app.vault.adapter.basePath || "").replace(/\\/g, "/").replace(/\/+$/, "");
-    const lookupPath = vaultBasePath && normalizedInput.startsWith(`${vaultBasePath}/`)
-      ? normalizedInput.slice(vaultBasePath.length + 1)
-      : normalizedInput.replace(/^\/+/, "");
-    const mdPath = !/\.[^/]+$/.test(lookupPath) ? `${lookupPath}.md` : "";
-    const exactEntry = lookupPath ? this.app.vault.getAbstractFileByPath(lookupPath) : null;
-    const mdEntry = mdPath ? this.app.vault.getAbstractFileByPath(mdPath) : null;
-    const nameMatches = this.findVaultEntryNameMatches(lookupPath).map((match) => match.path).slice(0, 10);
-
-    return {
-      raw: truncateDebugText(rawPath),
-      normalizedInput,
-      lookupPath,
-      normalizedPath,
-      exact: exactEntry?.path || "",
-      mdFallback: mdEntry?.path || "",
-      nameMatches,
-      accepted: entry?.path || ""
-    };
   }
 
   findUniqueVaultEntryByName(path) {
@@ -5045,116 +4983,63 @@ function getObsidianOpenQueryPath(query) {
   }
 }
 
-function createReferenceDropDebugInfo(dataTransfer) {
-  return {
-    types: Array.from(dataTransfer?.types || []),
-    items: Array.from(dataTransfer?.items || []).map((item) => ({
-      kind: item.kind || "",
-      type: item.type || ""
-    })),
-    files: Array.from(dataTransfer?.files || []).map((file) => ({
-      name: file.name || "",
-      path: file.path || "",
-      type: file.type || ""
-    })),
-    payloads: [],
-    extractions: [],
-    resolutions: [],
-    candidates: []
-  };
-}
-
-function logReferenceDropDebug(debugInfo, paths, debugEnabled = false) {
-  const payload = {
-    stamp: "drop-ob-open-v4",
-    types: debugInfo.types,
-    items: debugInfo.items,
-    files: debugInfo.files,
-    payloads: debugInfo.payloads,
-    extractions: debugInfo.extractions,
-    resolutions: debugInfo.resolutions,
-    candidates: debugInfo.candidates,
-    acceptedPaths: paths
-  };
-
-  if (paths.length > 0 && debugEnabled) {
-    console.info("[Agent Dock] Reference drop accepted", payload);
-  } else if (paths.length === 0) {
-    console.warn("[Agent Dock] Reference drop ignored", payload);
-  }
-}
-
-function truncateDebugText(value, maxChars = 180) {
-  const text = String(value || "");
-  return text.length > maxChars ? `${text.slice(0, maxChars)}...` : text;
-}
-
-function extractReferenceCandidatesFromText(text, debugInfo = null, sourceLabel = "") {
+function extractReferenceCandidatesFromText(text) {
   const source = String(text || "").trim();
   if (!source) {
     return [];
   }
 
   const candidates = [];
-  const addCandidate = (path, stage) => {
+  const addCandidate = (path) => {
     const obsidianPath = extractObsidianOpenPathFromValue(path);
     const cleanPath = String(obsidianPath || path || "").replace(/^file:\/\//, "").trim();
-    if (debugInfo) {
-      debugInfo.extractions.push({
-        source: sourceLabel,
-        stage,
-        raw: truncateDebugText(path),
-        obsidianPath,
-        candidate: cleanPath
-      });
-    }
     if (cleanPath) {
       candidates.push(cleanPath);
     }
   };
 
   for (const candidate of extractJsonReferenceCandidates(source)) {
-    addCandidate(candidate, "json");
+    addCandidate(candidate);
   }
 
   for (const candidate of extractObsidianOpenPathCandidates(source)) {
-    addCandidate(candidate, "obsidian-url");
+    addCandidate(candidate);
   }
 
   for (const reference of extractMentionReferences(replaceObsidianOpenLinks(source))) {
-    addCandidate(reference.path, "mention");
+    addCandidate(reference.path);
   }
 
   let match;
   const wikiPattern = /\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g;
   while ((match = wikiPattern.exec(source)) !== null) {
-    addCandidate(match[1], "wikilink");
+    addCandidate(match[1]);
   }
 
   const markdownLinkPattern = /\[[^\]]*\]\(([^)]+)\)/g;
   while ((match = markdownLinkPattern.exec(source)) !== null) {
-    addCandidate(decodeUriPath(match[1]), "markdown-link");
+    addCandidate(decodeUriPath(match[1]));
   }
 
   const hrefPattern = /\b(?:href|src)=["']([^"']+)["']/gi;
   while ((match = hrefPattern.exec(source)) !== null) {
-    addCandidate(decodeUriPath(match[1]), "href");
+    addCandidate(decodeUriPath(match[1]));
   }
 
   const dataAttributePattern = /\bdata-(?:path|href|file)=["']([^"']+)["']/gi;
   while ((match = dataAttributePattern.exec(source)) !== null) {
-    addCandidate(decodeUriPath(match[1]), "data-attribute");
+    addCandidate(decodeUriPath(match[1]));
   }
 
   const objectPathPattern = /["'](?:path|file|sourcePath|source-path|data-path)["']\s*:\s*["']([^"']+)["']/gi;
   while ((match = objectPathPattern.exec(source)) !== null) {
-    addCandidate(decodeUriPath(match[1]), "object-path");
+    addCandidate(decodeUriPath(match[1]));
   }
 
   for (const line of source.split(/\r?\n/)) {
     const compact = line.trim();
     if (/^[^\s<>"']+(?:\/[^\s<>"']+)*$/.test(compact) || /^file:\/\/[^\s<>"']+$/i.test(compact)) {
-      addCandidate(decodeUriPath(compact), "line");
+      addCandidate(decodeUriPath(compact));
     }
   }
 
