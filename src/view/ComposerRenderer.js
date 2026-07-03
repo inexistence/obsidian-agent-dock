@@ -35,7 +35,8 @@ function renderComposerContent(composer, options) {
     if (handleMentionKeydown(event)) {
       return;
     }
-    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+    const isComposing = event.isComposing || event.keyCode === 229;
+    if (event.key === "Enter" && !event.shiftKey && !isComposing) {
       event.preventDefault();
       submit();
     }
