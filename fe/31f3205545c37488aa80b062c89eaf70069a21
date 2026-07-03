@@ -1,0 +1,27 @@
+styles.css
+  s_9bb44736ee5316::t_c54b6963c7fc1d 75-91
+src/view/AgentDockView.js
+  s_9bb44736ee5316::t_f98629217ba546 326-328
+  s_9bb44736ee5316::t_9bbd917a6a1050 1,139,305,321-325
+  s_9bb44736ee5316::t_c546c4e54f32bc 329-330
+main.js
+  s_9bb44736ee5316::t_1265c73863b445 848,986,1152,1168-1175
+  s_9bb44736ee5316::t_f91911f8f7b470 1176-1177
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "fe31f3205545c37488aa80b062c89eaf70069a21",
+  "prompts": {},
+  "logical_commit_id": "fe31f3205545c37488aa80b062c89eaf70069a21",
+  "sessions": {
+    "s_9bb44736ee5316": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f25c8-a3c9-7780-8609-9d0d51aab44e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <huangjianbin@imo.im>"
+    }
+  }
+}
