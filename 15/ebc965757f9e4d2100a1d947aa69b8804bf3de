@@ -1,0 +1,21 @@
+styles.css
+  s_867531e3a2303c::t_c6762d9091dd8c 341
+  s_867531e3a2303c::t_4746717fb6ad90 342
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "15ebc965757f9e4d2100a1d947aa69b8804bf3de",
+  "prompts": {},
+  "logical_commit_id": "15ebc965757f9e4d2100a1d947aa69b8804bf3de",
+  "sessions": {
+    "s_867531e3a2303c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f26df-bfb6-7603-8404-b50e6245ddee",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <huangjianbin@imo.im>"
+    }
+  }
+}
