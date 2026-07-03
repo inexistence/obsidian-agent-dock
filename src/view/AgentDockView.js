@@ -358,14 +358,14 @@ class AgentDockView extends ItemView {
         this.mentionState.selectedIndex + 1,
         this.mentionState.suggestions.length - 1
       );
-      this.renderMentionSuggestions();
+      this.updateMentionSelection({ scrollIntoView: true });
       return true;
     }
 
     if (event.key === "ArrowUp") {
       event.preventDefault();
       this.mentionState.selectedIndex = Math.max(this.mentionState.selectedIndex - 1, 0);
-      this.renderMentionSuggestions();
+      this.updateMentionSelection({ scrollIntoView: true });
       return true;
     }
 
@@ -466,10 +466,35 @@ class AgentDockView extends ItemView {
           return;
         }
         this.mentionState.selectedIndex = index;
-        this.renderMentionSuggestions();
+        this.updateMentionSelection();
       });
     }
 
+    this.renderMentionPreview();
+  }
+
+  updateMentionSelection(options = {}) {
+    if (!this.mentionMenuEl || !this.mentionState.active) {
+      return;
+    }
+
+    const optionEls = this.mentionMenuEl.querySelectorAll(".codex-dock__mention-option");
+    for (let index = 0; index < optionEls.length; index += 1) {
+      const isSelected = index === this.mentionState.selectedIndex;
+      optionEls[index].classList.toggle("is-selected", isSelected);
+      if (isSelected && options.scrollIntoView) {
+        optionEls[index].scrollIntoView({ block: "nearest" });
+      }
+    }
+    this.renderMentionPreview();
+  }
+
+  renderMentionPreview() {
+    if (!this.mentionMenuEl || !this.mentionState.active) {
+      return;
+    }
+
+    this.mentionMenuEl.querySelector(".codex-dock__mention-preview")?.remove();
     const selected = this.mentionState.suggestions[this.mentionState.selectedIndex];
     if (selected) {
       const preview = this.mentionMenuEl.createDiv({ cls: "codex-dock__mention-preview" });
