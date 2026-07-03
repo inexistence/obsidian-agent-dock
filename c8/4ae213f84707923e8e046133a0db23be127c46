@@ -1,0 +1,23 @@
+main.js
+  s_c2267154fad624::t_df72630baede9d 1703,1710,1811,1815-1839
+src/view/AgentDockView.js
+  s_c2267154fad624::t_cbfd53563d43d5 361,368,476,481-487
+  s_c2267154fad624::t_1f5931e54beae2 469,473-475,477-480,488-497
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "c84ae213f84707923e8e046133a0db23be127c46",
+  "prompts": {},
+  "logical_commit_id": "c84ae213f84707923e8e046133a0db23be127c46",
+  "sessions": {
+    "s_c2267154fad624": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2655-0a02-7741-bdb1-6e087afb128a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <huangjianbin@imo.im>"
+    }
+  }
+}
