@@ -1,0 +1,26 @@
+src/prompt.js
+  s_92038c63c9fc81::t_c5d674fda2473f 66
+AGENTS.md
+  s_92038c63c9fc81::t_0f379b92787e0e 117-118
+main.js
+  s_92038c63c9fc81::t_f60fe96360d3fa 253-254,256-257,453-455,546,549,552-553,555-573,764
+src/storage/MemoryStore.js
+  s_92038c63c9fc81::t_c37cbb5e4f2dc1 64-65,67-68,264-266,357,360,363-364,366-384
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "03edebea47028311ba0a5676b70c1039dae08854",
+  "prompts": {},
+  "logical_commit_id": "03edebea47028311ba0a5676b70c1039dae08854",
+  "sessions": {
+    "s_92038c63c9fc81": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f26c2-1959-71c0-b491-6e483da80007",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <huangjianbin@imo.im>"
+    }
+  }
+}
