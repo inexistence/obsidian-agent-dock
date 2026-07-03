@@ -2,6 +2,7 @@ const { Notice, Plugin } = require("obsidian");
 
 const { createAgent } = require("./agents/AgentRegistry");
 const { VIEW_TYPE_AGENT_DOCK } = require("./constants");
+const { t } = require("./i18n");
 const { normalizePluginData } = require("./settings");
 const { AgentDockSettingTab } = require("./settingsTab");
 const { ChatStorage } = require("./storage/ChatStorage");
@@ -27,15 +28,15 @@ module.exports = class AgentDockPlugin extends Plugin {
       (leaf) => new AgentDockView(leaf, this)
     );
 
-    this.addRibbonIcon("bot", "Open Agent Dock", () => this.activateView());
+    this.addRibbonIcon("bot", t(this.settings, "command.openDock"), () => this.activateView());
     this.addCommand({
       id: "open-agent-dock",
-      name: "Open Agent Dock",
+      name: t(this.settings, "command.openDock"),
       callback: () => this.activateView()
     });
     this.addCommand({
       id: "open-interactive-agent",
-      name: "Open interactive agent in Terminal",
+      name: t(this.settings, "command.openInteractive"),
       callback: () => this.openInteractiveAgent()
     });
 
@@ -111,7 +112,7 @@ module.exports = class AgentDockPlugin extends Plugin {
           console.warn("Agent Dock could not save chat history:", error);
           if (!this.chatSaveFailureNotified) {
             this.chatSaveFailureNotified = true;
-            new Notice("Agent Dock could not save chat history. Check the console for details.");
+            new Notice(t(this.settings, "notice.saveChatHistoryFailed"));
           }
           this.chatSaveRequested = false;
         }
@@ -156,5 +157,14 @@ module.exports = class AgentDockPlugin extends Plugin {
 
   async openInteractiveAgent() {
     return this.agent.openInteractive();
+  }
+
+  refreshOpenViews() {
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_AGENT_DOCK)) {
+      const view = leaf.view;
+      if (view instanceof AgentDockView) {
+        view.render();
+      }
+    }
   }
 };

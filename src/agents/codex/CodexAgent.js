@@ -7,6 +7,7 @@ const path = require("path");
 const { parseArgsTemplate, withJsonOutput, withOutputLastMessage } = require("../../cli/args");
 const { buildCliPath } = require("../../cli/env");
 const { escapeAppleScriptString, shellQuote } = require("../../cli/shell");
+const { t } = require("../../i18n");
 const { applyModeArgs } = require("../../modes");
 const { buildPromptWithMetadata } = require("../../prompt");
 const { DEFAULT_SETTINGS } = require("../../settings");
@@ -23,6 +24,7 @@ class CodexAgent {
 
   async run(prompt, onUpdate, conversation, options = {}) {
     const settings = this.plugin.settings;
+    const translate = (key, params) => t(settings, key, params);
     const cwd = this.getWorkingDirectory();
     const activeFilePath = this.plugin.app.workspace.getActiveFile()?.path || "";
     const memories = await this.plugin.memoryStore.getRelevantMemories(prompt, settings, {
@@ -32,10 +34,10 @@ class CodexAgent {
     const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, { memories });
     const finalPrompt = promptResult.prompt;
     if (promptResult.context.memoryCount > 0) {
-      const memorySummary = formatMemoryNoticeSummary(memories);
+      const memorySummary = formatMemoryNoticeSummary(memories, translate);
       onUpdate({
         kind: "notice",
-        title: "Local memory referenced",
+        title: translate("codex.memoryReferenced.title"),
         summary: memorySummary,
         detail: memories.map(formatMemoryLine).join("\n")
       });
@@ -43,8 +45,12 @@ class CodexAgent {
     if (promptResult.context.compressed) {
       onUpdate({
         kind: "notice",
-        title: "Context compressed",
-        summary: `Compressed ${formatNumber(promptResult.context.originalChars)} chars into ${formatNumber(promptResult.context.promptChars)} / ${formatNumber(promptResult.context.limitChars)} chars.`
+        title: translate("codex.contextCompressed.title"),
+        summary: translate("codex.contextCompressed.summary", {
+          original: formatNumber(promptResult.context.originalChars),
+          prompt: formatNumber(promptResult.context.promptChars),
+          limit: formatNumber(promptResult.context.limitChars)
+        })
       });
     }
     const outputPath = path.join(
@@ -113,7 +119,7 @@ class CodexAgent {
 
         try {
           const event = JSON.parse(line);
-          const updates = codexJsonEventToUpdates(event);
+          const updates = codexJsonEventToUpdates(event, translate);
           for (const update of updates) {
             if (update.kind === "content") {
               finalOutput += update.text;
@@ -121,7 +127,7 @@ class CodexAgent {
             onUpdate(update);
           }
         } catch {
-          onUpdate({ kind: "activity", title: "Raw output", detail: line });
+          onUpdate({ kind: "activity", title: translate("codex.rawOutput"), detail: line });
         }
       };
 
@@ -155,7 +161,7 @@ class CodexAgent {
         }
 
         if (aborted) {
-          settle(reject, createAbortError());
+          settle(reject, createAbortError(translate));
           return;
         }
 
@@ -173,7 +179,7 @@ class CodexAgent {
         const details = [errorOutput.trim(), fileOutput.trim()]
           .filter(Boolean)
           .join("\n\n");
-        settle(reject, new Error(details || `Codex exited with code ${code}`));
+        settle(reject, new Error(details || translate("codex.exitedWithCode", { code })));
       });
     });
   }
@@ -187,7 +193,7 @@ class CodexAgent {
 
   async openInteractive() {
     if (process.platform !== "darwin") {
-      new Notice("Interactive Codex launch is currently implemented for macOS Terminal.");
+      new Notice(t(this.plugin.settings, "codex.terminalMacOnly"));
       return;
     }
 
@@ -223,7 +229,7 @@ class CodexAgent {
           return;
         }
 
-        reject(new Error(errorOutput.trim() || `Terminal exited with code ${code}`));
+        reject(new Error(errorOutput.trim() || t(settings, "codex.terminalExitedWithCode", { code })));
       });
     });
   }
@@ -238,16 +244,19 @@ class CodexAgent {
       if (saved.length > 0) {
         onUpdate({
           kind: "notice",
-          title: "Memory updated",
-          summary: `Updated ${saved.length} local historical ${saved.length === 1 ? "note" : "notes"} for future chats.`
+          title: t(settings, "codex.memoryUpdated.title"),
+          summary: t(settings, "codex.memoryUpdated.summary", {
+            count: saved.length,
+            noteLabel: saved.length === 1 ? "note" : "notes"
+          })
         });
       }
     } catch (error) {
       console.warn("Agent Dock could not update memory:", error);
       onUpdate({
         kind: "notice",
-        title: "Memory skipped",
-        summary: "Agent Dock could not save automatic memory. Check the console for details."
+        title: t(settings, "codex.memorySkipped.title"),
+        summary: t(settings, "codex.memorySkipped.summary")
       });
     }
   }
@@ -267,21 +276,24 @@ function formatNumber(value) {
   return new Intl.NumberFormat().format(value);
 }
 
-function formatMemoryNoticeSummary(memories) {
+function formatMemoryNoticeSummary(memories, translate) {
   const count = memories.length;
   const lines = [
-    `Referenced ${count} relevant local historical ${count === 1 ? "note" : "notes"} in the prompt.`
+    translate("codex.memoryReferenced.summary", {
+      count,
+      noteLabel: count === 1 ? "note" : "notes"
+    })
   ];
   const visibleMemories = memories.slice(0, 5).map(formatMemoryLine);
   lines.push(...visibleMemories);
   if (memories.length > visibleMemories.length) {
-    lines.push(`- ... ${memories.length - visibleMemories.length} more`);
+    lines.push(translate("codex.memoryReferenced.more", { count: memories.length - visibleMemories.length }));
   }
   return lines.join("\n");
 }
 
-function createAbortError() {
-  const error = new Error("Codex run was stopped.");
+function createAbortError(translate) {
+  const error = new Error(translate("codex.abortError"));
   error.name = "AbortError";
   return error;
 }

@@ -46,7 +46,7 @@ function findLastContentIndex(timeline) {
   return -1;
 }
 
-function groupLiveTimeline(timeline, debugActivity) {
+function groupLiveTimeline(timeline, debugActivity, translate) {
   const groups = [];
   let pendingEvents = [];
 
@@ -57,7 +57,7 @@ function groupLiveTimeline(timeline, debugActivity) {
 
     groups.push({
       type: "eventGroup",
-      label: getEventGroupLabel(pendingEvents),
+      label: getEventGroupLabel(pendingEvents, translate),
       entries: pendingEvents
     });
     pendingEvents = [];
@@ -114,17 +114,40 @@ function groupProcessedEntries(entries) {
   return groups;
 }
 
-function getEventGroupLabel(entries) {
+function getEventGroupLabel(entries, translate = defaultTranslate) {
   const hasError = entries.some((entry) => entry.kind === "error");
   if (hasError) {
-    return `需要关注 ${entries.length} 项`;
+    return translate("timeline.needsAttention", { count: entries.length });
   }
 
   const hasTool = entries.some((entry) => entry.kind === "tool");
   const hasReasoning = entries.some((entry) => entry.kind === "reasoning");
   const hasNotice = entries.some((entry) => entry.kind === "notice");
-  const label = hasTool ? "工具调用" : hasReasoning ? "思考" : hasNotice ? "提示" : "活动";
-  return `${label} ${entries.length} 项`;
+  const labelKey = hasTool
+    ? "timeline.toolCalls"
+    : hasReasoning
+      ? "timeline.reasoning"
+      : hasNotice
+        ? "timeline.notice"
+        : "timeline.activity";
+  return translate("timeline.groupLabel", {
+    label: translate(labelKey),
+    count: entries.length
+  });
+}
+
+function defaultTranslate(key, params = {}) {
+  const defaults = {
+    "timeline.needsAttention": "Needs attention {count} items",
+    "timeline.toolCalls": "Tool calls",
+    "timeline.reasoning": "Thinking",
+    "timeline.notice": "Notice",
+    "timeline.activity": "Activity",
+    "timeline.groupLabel": "{label} {count} items"
+  };
+  return String(defaults[key] || key).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => (
+    params[name] === undefined ? match : String(params[name])
+  ));
 }
 
 module.exports = {

@@ -1,6 +1,7 @@
 const { ItemView, MarkdownRenderer, Notice, setIcon } = require("obsidian");
 
 const { VIEW_TYPE_AGENT_DOCK } = require("../constants");
+const { t } = require("../i18n");
 const { DEFAULT_SETTINGS } = require("../settings");
 const { renderComposerContent } = require("./ComposerRenderer");
 const { copyText } = require("./clipboard");
@@ -20,9 +21,13 @@ class AgentDockView extends ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
-    this.sessionStore = new SessionStore();
+    this.sessionStore = new SessionStore({
+      getUntitledSessionTitle: (number) => this.translate("session.defaultTitle", { number }),
+      getFallbackSessionTitle: () => this.translate("session.fallbackTitle")
+    });
     this.timelineRenderer = new MessageTimelineRenderer({
       getDebugActivity: () => this.plugin.settings.debugActivity,
+      translate: (key, params) => this.translate(key, params),
       renderMarkdownContent: (containerEl, text) => this.renderMarkdownContent(containerEl, text)
     });
     this.messageEls = new WeakMap();
@@ -57,6 +62,10 @@ class AgentDockView extends ItemView {
     return "bot";
   }
 
+  translate(key, params) {
+    return t(this.plugin.settings, key, params);
+  }
+
   async onOpen() {
     await this.loadPersistedSessions();
     this.ensureActiveSession();
@@ -83,14 +92,17 @@ class AgentDockView extends ItemView {
     const actions = header.createDiv({ cls: "codex-dock__actions" });
     const terminalButton = actions.createEl("button", {
       cls: "codex-dock__icon-button",
-      attr: { "aria-label": "Open interactive agent in Terminal", title: "Open interactive agent in Terminal" }
+      attr: {
+        "aria-label": this.translate("view.openInteractiveTerminal"),
+        title: this.translate("view.openInteractiveTerminal")
+      }
     });
-    terminalButton.setText("Terminal");
+    terminalButton.setText(this.translate("view.terminalButton"));
     terminalButton.addEventListener("click", async () => {
       try {
         await this.plugin.openInteractiveAgent();
       } catch (error) {
-        new Notice(`Could not open Terminal: ${error.message}`);
+        new Notice(this.translate("notice.openTerminalFailed", { message: error.message }));
       }
     });
 
@@ -125,6 +137,7 @@ class AgentDockView extends ItemView {
         this.createSession();
         this.render();
       },
+      translate: (key, params) => this.translate(key, params),
       addGlobalPointerListener: (listener) => this.addGlobalPointerListener(listener),
       removeGlobalPointerListener: (listener) => this.removeGlobalPointerListener(listener)
     });
@@ -143,6 +156,7 @@ class AgentDockView extends ItemView {
       onDraftChanged: (session) => this.persistSessionChange(session),
       submit: () => this.submit(),
       cancelActiveSession: () => this.cancelActiveSession(),
+      translate: (key, params) => this.translate(key, params),
       addGlobalPointerListener: (listener) => this.addGlobalPointerListener(listener),
       removeGlobalPointerListener: (listener) => this.removeGlobalPointerListener(listener)
     });
@@ -167,8 +181,8 @@ class AgentDockView extends ItemView {
 
     if (messages.length === 0) {
       const empty = this.messageList.createDiv({ cls: "codex-dock__empty" });
-      empty.createDiv({ text: "Open a side conversation with an agent." });
-      empty.createDiv({ text: "The active note can be included automatically." });
+      empty.createDiv({ text: this.translate("view.emptyLine1") });
+      empty.createDiv({ text: this.translate("view.emptyLine2") });
       this.updateContextStatus();
       return;
     }
@@ -188,7 +202,7 @@ class AgentDockView extends ItemView {
     item.className = `codex-dock__message codex-dock__message--${message.role}`;
     item.createDiv({
       cls: "codex-dock__role",
-      text: message.role === "user" ? "You" : this.plugin.agent.label
+      text: message.role === "user" ? this.translate("view.you") : this.plugin.agent.label
     });
     if (message.timeline && message.timeline.length > 0) {
       const timeline = item.createDiv({ cls: "codex-dock__timeline" });
@@ -313,7 +327,7 @@ class AgentDockView extends ItemView {
       text.createSpan({ cls: "codex-dock__mention-name", text: suggestion.name });
       text.createSpan({
         cls: "codex-dock__mention-path",
-        text: suggestion.kind === "folder" ? "Folder" : suggestion.folder || "Vault root"
+        text: suggestion.kind === "folder" ? this.translate("view.folder") : suggestion.folder || this.translate("view.vaultRoot")
       });
       option.addEventListener("mousedown", (event) => {
         event.preventDefault();
@@ -433,7 +447,7 @@ class AgentDockView extends ItemView {
   async submit() {
     const session = this.ensureActiveSession();
     if (session.currentRun) {
-      new Notice(`${this.plugin.agent.label} is still working in this conversation.`);
+      new Notice(this.translate("notice.agentStillWorking", { agent: this.plugin.agent.label }));
       return;
     }
 
@@ -493,7 +507,7 @@ class AgentDockView extends ItemView {
       assistantMessage.isLoading = false;
       assistantMessage.isComplete = true;
       if (!assistantMessage.content.trim()) {
-        const emptyText = `(${this.plugin.agent.label} finished without text output.)`;
+        const emptyText = this.translate("view.agentFinishedEmpty", { agent: this.plugin.agent.label });
         assistantMessage.content = emptyText;
         appendTimelineContent(assistantMessage, emptyText);
       }
@@ -503,22 +517,22 @@ class AgentDockView extends ItemView {
       assistantMessage.isLoading = false;
       assistantMessage.isComplete = true;
       const errorText = error.name === "AbortError"
-        ? `(${this.plugin.agent.label} stopped.)`
+        ? this.translate("view.agentStopped", { agent: this.plugin.agent.label })
         : [
-            `${this.plugin.agent.label} could not run.`,
+            this.translate("view.agentRunFailed", { agent: this.plugin.agent.label }),
             "",
             error.message,
             "",
-            "Check the executable path in plugin settings and make sure the CLI is installed and allowed by macOS."
+            this.translate("view.agentRunFailedHint")
           ].join("\n");
       assistantMessage.content = errorText;
       appendTimelineContent(assistantMessage, errorText);
       this.sessionStore.touchSession(session);
       this.renderSessionIfActive(session);
       if (error.name === "AbortError") {
-        new Notice(`${this.plugin.agent.label} stopped.`);
+        new Notice(this.translate("notice.agentStopped", { agent: this.plugin.agent.label }));
       } else {
-        new Notice(`${this.plugin.agent.label} command failed.`);
+        new Notice(this.translate("notice.agentCommandFailed", { agent: this.plugin.agent.label }));
       }
     } finally {
       if (session.currentRun === run) {
@@ -549,19 +563,19 @@ class AgentDockView extends ItemView {
     const contentEl = containerEl.createDiv({ cls: "codex-dock__content markdown-rendered" });
     const copyButton = contentEl.createEl("button", {
       cls: "codex-dock__copy-button",
-      text: "Copy",
+      text: this.translate("view.copy"),
       attr: {
         type: "button",
-        "aria-label": "Copy message text",
-        title: "Copy message text"
+        "aria-label": this.translate("view.copyMessageText"),
+        title: this.translate("view.copyMessageText")
       }
     });
     copyButton.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopPropagation();
       await copyText(text || "");
-      copyButton.setText("Copied");
-      window.setTimeout(() => copyButton.setText("Copy"), 1200);
+      copyButton.setText(this.translate("view.copied"));
+      window.setTimeout(() => copyButton.setText(this.translate("view.copy")), 1200);
     });
 
     const markdownEl = contentEl.createDiv({ cls: "codex-dock__content-body" });
@@ -585,7 +599,11 @@ class AgentDockView extends ItemView {
     this.contextStatusEl.setText(`${percent}%`);
     this.contextStatusEl.setAttr(
       "title",
-      `Context ${percent}% · ${formatCompactNumber(used)} / ${formatCompactNumber(limit)} chars`
+      this.translate("view.contextTitle", {
+        percent,
+        used: formatCompactNumber(used),
+        limit: formatCompactNumber(limit)
+      })
     );
   }
 
@@ -618,11 +636,11 @@ class AgentDockView extends ItemView {
     }
 
     if (session.currentRun) {
-      new Notice("Stop this conversation before deleting it.");
+      new Notice(this.translate("notice.stopBeforeDeleting"));
       return;
     }
 
-    if (!window.confirm(`Delete "${session.title}"?`)) {
+    if (!window.confirm(this.translate("view.deleteSessionConfirm", { title: session.title }))) {
       return;
     }
 

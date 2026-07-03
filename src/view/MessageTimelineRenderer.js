@@ -9,6 +9,7 @@ const {
 class MessageTimelineRenderer {
   constructor(options) {
     this.getDebugActivity = options.getDebugActivity;
+    this.translate = options.translate;
     this.renderMarkdownContent = options.renderMarkdownContent;
   }
 
@@ -25,7 +26,7 @@ class MessageTimelineRenderer {
       return;
     }
 
-    for (const group of groupLiveTimeline(message.timeline, this.getDebugActivity())) {
+    for (const group of groupLiveTimeline(message.timeline, this.getDebugActivity(), this.translate)) {
       if (group.type === "eventGroup") {
         this.renderEventGroup(containerEl, group.entries, group.label, false);
       } else {
@@ -60,13 +61,13 @@ class MessageTimelineRenderer {
     details.open = false;
     details.createEl("summary", {
       cls: "codex-dock__event-group-summary",
-      text: `已处理 ${entries.length} 项`
+      text: this.translate("timeline.processed", { count: entries.length })
     });
 
     const body = details.createDiv({ cls: "codex-dock__event-group-body" });
     for (const group of groupProcessedEntries(entries)) {
       if (group.type === "eventGroup") {
-        this.renderEventGroup(body, group.entries, getEventGroupLabel(group.entries), false);
+        this.renderEventGroup(body, group.entries, getEventGroupLabel(group.entries, this.translate), false);
       } else {
         this.renderTimelineEntry(body, group.entry);
       }
@@ -100,7 +101,7 @@ class MessageTimelineRenderer {
     }
 
     const eventEl = containerEl.createDiv({ cls: `codex-dock__event codex-dock__event--${entry.kind || "activity"}` });
-    eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || "Event" });
+    eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || this.translate("timeline.event") });
     if (entry.summary && !this.getDebugActivity()) {
       eventEl.createDiv({ cls: "codex-dock__event-summary", text: entry.summary });
     }

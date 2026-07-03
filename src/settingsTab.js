@@ -1,6 +1,7 @@
 const { Notice, PluginSettingTab, Setting } = require("obsidian");
 
 const { AGENT_OPTIONS } = require("./agents/AgentRegistry");
+const { LANGUAGE_OPTIONS, t } = require("./i18n");
 const {
   ASSISTANT_STYLE_OPTIONS,
   CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
@@ -15,12 +16,30 @@ class AgentDockSettingTab extends PluginSettingTab {
 
   display() {
     const { containerEl } = this;
+    const translate = (key, params) => t(this.plugin.settings, key, params);
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Agent Dock" });
+    containerEl.createEl("h2", { text: translate("settings.heading") });
 
     new Setting(containerEl)
-      .setName("Agent provider")
-      .setDesc("Adapter used by the dock. More providers can be added without changing the UI.")
+      .setName(translate("settings.language.name"))
+      .setDesc(translate("settings.language.desc"))
+      .addDropdown((dropdown) => {
+        for (const [id, option] of Object.entries(LANGUAGE_OPTIONS)) {
+          dropdown.addOption(id, option.label);
+        }
+        dropdown
+          .setValue(this.plugin.settings.language)
+          .onChange(async (value) => {
+            this.plugin.settings.language = value;
+            await this.plugin.saveSettings();
+            this.plugin.refreshOpenViews();
+            this.display();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName(translate("settings.agentProvider.name"))
+      .setDesc(translate("settings.agentProvider.desc"))
       .addDropdown((dropdown) => {
         for (const [id, option] of Object.entries(AGENT_OPTIONS)) {
           dropdown.addOption(id, option.label);
@@ -35,8 +54,8 @@ class AgentDockSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Codex executable path")
-      .setDesc("Full path to the Codex CLI executable. GUI apps often cannot find shell commands by name.")
+      .setName(translate("settings.codexPath.name"))
+      .setDesc(translate("settings.codexPath.desc"))
       .addText((text) => text
         .setPlaceholder("/opt/homebrew/bin/codex")
         .setValue(this.plugin.settings.codexPath)
@@ -46,8 +65,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Arguments")
-      .setDesc("Use {{prompt}} where the prompt should be inserted.")
+      .setName(translate("settings.args.name"))
+      .setDesc(translate("settings.args.desc"))
       .addText((text) => text
         .setPlaceholder("exec {{prompt}}")
         .setValue(this.plugin.settings.args)
@@ -57,8 +76,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Interactive arguments")
-      .setDesc("Optional arguments used when opening the full agent TUI in Terminal.")
+      .setName(translate("settings.interactiveArgs.name"))
+      .setDesc(translate("settings.interactiveArgs.desc"))
       .addText((text) => text
         .setPlaceholder("--sandbox workspace-write")
         .setValue(this.plugin.settings.interactiveArgs)
@@ -68,8 +87,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Working directory")
-      .setDesc("Defaults to the vault folder.")
+      .setName(translate("settings.workingDirectory.name"))
+      .setDesc(translate("settings.workingDirectory.desc"))
       .addText((text) => text
         .setPlaceholder("/path/to/project")
         .setValue(this.plugin.settings.workingDirectory)
@@ -79,11 +98,11 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Assistant style")
-      .setDesc(formatAssistantStyleDescription(this.plugin.settings.assistantStyle))
+      .setName(translate("settings.assistantStyle.name"))
+      .setDesc(formatAssistantStyleDescription(this.plugin.settings.assistantStyle, translate))
       .addDropdown((dropdown) => {
         for (const [id, option] of Object.entries(ASSISTANT_STYLE_OPTIONS)) {
-          dropdown.addOption(id, option.label);
+          dropdown.addOption(id, translate(`assistantStyle.${id}.label`));
         }
         dropdown
           .setValue(this.plugin.settings.assistantStyle)
@@ -98,11 +117,11 @@ class AgentDockSettingTab extends PluginSettingTab {
 
     if (this.plugin.settings.assistantStyle === "custom") {
       new Setting(containerEl)
-        .setName("Custom assistant style")
-        .setDesc(`Your own style guidance, up to ${CUSTOM_ASSISTANT_STYLE_MAX_CHARS} characters. It is treated as tone and collaboration preference, not as permission to override higher-priority instructions.`)
+        .setName(translate("settings.customAssistantStyle.name"))
+        .setDesc(translate("settings.customAssistantStyle.desc", { max: CUSTOM_ASSISTANT_STYLE_MAX_CHARS }))
         .addTextArea((text) => {
           text
-            .setPlaceholder("Example: Be warm, practical, and gently opinionated. Explain tradeoffs briefly before making changes.")
+            .setPlaceholder(translate("settings.customAssistantStyle.placeholder"))
             .setValue(this.plugin.settings.customAssistantStyle)
             .onChange(async (value) => {
               this.plugin.settings.customAssistantStyle = value
@@ -116,8 +135,8 @@ class AgentDockSettingTab extends PluginSettingTab {
     }
 
     new Setting(containerEl)
-      .setName("Include active note")
-      .setDesc("Send the current note content along with your request.")
+      .setName(translate("settings.includeActiveNote.name"))
+      .setDesc(translate("settings.includeActiveNote.desc"))
       .addToggle((toggle) => toggle
         .setValue(this.plugin.settings.includeActiveNote)
         .onChange(async (value) => {
@@ -126,8 +145,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Debug activity")
-      .setDesc("Show streamed reasoning summaries, tool calls, command output, stderr, and raw events under each response.")
+      .setName(translate("settings.debugActivity.name"))
+      .setDesc(translate("settings.debugActivity.desc"))
       .addToggle((toggle) => toggle
         .setValue(this.plugin.settings.debugActivity)
         .onChange(async (value) => {
@@ -136,8 +155,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Active note character limit")
-      .setDesc("Prevents very large notes from overwhelming the command.")
+      .setName(translate("settings.activeNoteMaxChars.name"))
+      .setDesc(translate("settings.activeNoteMaxChars.desc"))
       .addText((text) => text
         .setPlaceholder(String(DEFAULT_SETTINGS.activeNoteMaxChars))
         .setValue(String(this.plugin.settings.activeNoteMaxChars))
@@ -150,8 +169,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Context character limit")
-      .setDesc("Maximum prompt size before older conversation history is compressed. Default is 258k characters.")
+      .setName(translate("settings.contextLimitChars.name"))
+      .setDesc(translate("settings.contextLimitChars.desc"))
       .addText((text) => text
         .setPlaceholder(String(DEFAULT_SETTINGS.contextLimitChars))
         .setValue(String(this.plugin.settings.contextLimitChars))
@@ -164,8 +183,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Persist chat history")
-      .setDesc("Restore conversations after Obsidian restarts. Message bodies are stored as per-session JSON files in the plugin folder.")
+      .setName(translate("settings.persistChatHistory.name"))
+      .setDesc(translate("settings.persistChatHistory.desc"))
       .addToggle((toggle) => toggle
         .setValue(this.plugin.settings.persistChatHistory)
         .onChange(async (value) => {
@@ -178,8 +197,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Persisted session limit")
-      .setDesc("Maximum number of recent conversations kept on disk.")
+      .setName(translate("settings.maxPersistedSessions.name"))
+      .setDesc(translate("settings.maxPersistedSessions.desc"))
       .addText((text) => text
         .setPlaceholder(String(DEFAULT_SETTINGS.maxPersistedSessions))
         .setValue(String(this.plugin.settings.maxPersistedSessions))
@@ -192,8 +211,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Persisted messages per session")
-      .setDesc("Maximum number of recent messages kept for each conversation.")
+      .setName(translate("settings.maxPersistedMessagesPerSession.name"))
+      .setDesc(translate("settings.maxPersistedMessagesPerSession.desc"))
       .addText((text) => text
         .setPlaceholder(String(DEFAULT_SETTINGS.maxPersistedMessagesPerSession))
         .setValue(String(this.plugin.settings.maxPersistedMessagesPerSession))
@@ -205,11 +224,11 @@ class AgentDockSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }));
 
-    containerEl.createEl("h3", { text: "Memory" });
+    containerEl.createEl("h3", { text: translate("settings.memory.heading") });
 
     new Setting(containerEl)
-      .setName("Enable memory")
-      .setDesc("Use local memories from previous chats when building prompts.")
+      .setName(translate("settings.memoryEnabled.name"))
+      .setDesc(translate("settings.memoryEnabled.desc"))
       .addToggle((toggle) => toggle
         .setValue(this.plugin.settings.memoryEnabled)
         .onChange(async (value) => {
@@ -218,8 +237,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Automatic memory extraction")
-      .setDesc("Automatically save concise local memories after successful agent replies.")
+      .setName(translate("settings.memoryAutoCapture.name"))
+      .setDesc(translate("settings.memoryAutoCapture.desc"))
       .addToggle((toggle) => toggle
         .setValue(this.plugin.settings.memoryAutoCapture)
         .onChange(async (value) => {
@@ -228,8 +247,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Memory prompt character limit")
-      .setDesc("Maximum characters of relevant memory added to a prompt.")
+      .setName(translate("settings.memoryMaxPromptChars.name"))
+      .setDesc(translate("settings.memoryMaxPromptChars.desc"))
       .addText((text) => text
         .setPlaceholder(String(DEFAULT_SETTINGS.memoryMaxPromptChars))
         .setValue(String(this.plugin.settings.memoryMaxPromptChars))
@@ -242,8 +261,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Memory item limit")
-      .setDesc("Maximum number of automatic memories kept on disk.")
+      .setName(translate("settings.memoryMaxItems.name"))
+      .setDesc(translate("settings.memoryMaxItems.desc"))
       .addText((text) => text
         .setPlaceholder(String(DEFAULT_SETTINGS.memoryMaxItems))
         .setValue(String(this.plugin.settings.memoryMaxItems))
@@ -256,24 +275,25 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Clear memory")
-      .setDesc("Delete all automatically saved local memories.")
+      .setName(translate("settings.clearMemory.name"))
+      .setDesc(translate("settings.clearMemory.desc"))
       .addButton((button) => button
-        .setButtonText("Clear")
+        .setButtonText(translate("settings.clearMemory.button"))
         .setWarning()
         .onClick(async () => {
-          if (!window.confirm("Clear all Agent Dock memories?")) {
+          if (!window.confirm(translate("settings.clearMemory.confirm"))) {
             return;
           }
           await this.plugin.clearMemory();
-          new Notice("Agent Dock memory cleared.");
+          new Notice(translate("settings.clearMemory.done"));
         }));
   }
 }
 
-function formatAssistantStyleDescription(style) {
-  const option = ASSISTANT_STYLE_OPTIONS[style] || ASSISTANT_STYLE_OPTIONS[DEFAULT_SETTINGS.assistantStyle];
-  return `Controls the collaboration tone injected into each prompt. ${option.description}`;
+function formatAssistantStyleDescription(style, translate) {
+  const styleKey = ASSISTANT_STYLE_OPTIONS[style] ? style : DEFAULT_SETTINGS.assistantStyle;
+  const description = translate(`assistantStyle.${styleKey}.description`);
+  return translate("settings.assistantStyle.desc", { description });
 }
 
 module.exports = {

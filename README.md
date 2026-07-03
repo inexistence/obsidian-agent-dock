@@ -35,6 +35,10 @@ Use the conversation selector below the header to switch chats, or `New` to
 start another chat. Conversation sessions are restored after Obsidian restarts
 when Settings -> Agent Dock -> Persist chat history is enabled.
 
+Agent Dock's UI language can be changed in Settings -> Agent Dock -> Language.
+English and Chinese are included; additional languages can be added by extending
+the translation dictionary in `src/i18n.js`.
+
 Chat history uses the plugin data folder:
 
 - `data.json` stores settings, the active session id, and a lightweight session index.

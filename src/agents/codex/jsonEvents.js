@@ -1,4 +1,4 @@
-function codexJsonEventToUpdates(event) {
+function codexJsonEventToUpdates(event, translate = defaultTranslate) {
   if (!event || typeof event !== "object") {
     return [];
   }
@@ -7,23 +7,23 @@ function codexJsonEventToUpdates(event) {
   const item = event.item;
 
   if (type === "error") {
-    return [{ kind: "error", title: "Error", detail: extractText(event) || compactJson(event) }];
+    return [{ kind: "error", title: translate("codex.error"), detail: extractText(event) || compactJson(event) }];
   }
 
   if (type === "thread.started") {
-    return [{ kind: "activity", title: "Thread started", detail: event.thread_id || "" }];
+    return [{ kind: "activity", title: translate("codex.threadStarted"), detail: event.thread_id || "" }];
   }
 
   if (type === "turn.started") {
-    return [{ kind: "activity", title: "Turn started", detail: "" }];
+    return [{ kind: "activity", title: translate("codex.turnStarted"), detail: "" }];
   }
 
   if (type === "turn.completed") {
-    return [{ kind: "activity", title: "Turn completed", detail: formatUsage(event.usage) }];
+    return [{ kind: "activity", title: translate("codex.turnCompleted"), detail: formatUsage(event.usage) }];
   }
 
   if (type === "turn.failed") {
-    return [{ kind: "error", title: "Turn failed", detail: extractText(event) || compactJson(event) }];
+    return [{ kind: "error", title: translate("codex.turnFailed"), detail: extractText(event) || compactJson(event) }];
   }
 
   if (!item || typeof item !== "object") {
@@ -38,7 +38,7 @@ function codexJsonEventToUpdates(event) {
   if (item.type === "reasoning") {
     return [{
       kind: "reasoning",
-      title: type === "item.started" ? "Thinking..." : "Thinking",
+      title: type === "item.started" ? translate("codex.thinkingStarted") : translate("codex.thinking"),
       detail: extractText(item) || summarizeItem(item)
     }];
   }
@@ -46,9 +46,9 @@ function codexJsonEventToUpdates(event) {
   if (item.type === "command_execution") {
     return [{
       kind: "tool",
-      title: formatCommandTitle(type, item),
-      summary: formatCommandSummary(item),
-      detail: formatCommandExecution(item)
+      title: formatCommandTitle(type, item, translate),
+      summary: formatCommandSummary(item, translate),
+      detail: formatCommandExecution(item, translate)
     }];
   }
 
@@ -56,7 +56,7 @@ function codexJsonEventToUpdates(event) {
     const summary = extractText(item) || summarizeItem(item);
     return [{
       kind: "tool",
-      title: formatEventTitle(type, formatToolTitle(item)),
+      title: formatEventTitle(type, formatToolTitle(item), translate),
       summary: compactOneLine(summary),
       detail: summary
     }];
@@ -66,7 +66,7 @@ function codexJsonEventToUpdates(event) {
     const summary = extractText(item) || summarizeItem(item);
     return [{
       kind: "tool",
-      title: formatEventTitle(type, "Web search"),
+      title: formatEventTitle(type, translate("codex.webSearch"), translate),
       summary: compactOneLine(summary),
       detail: summary
     }];
@@ -75,7 +75,7 @@ function codexJsonEventToUpdates(event) {
   if (type.startsWith("item.")) {
     return [{
       kind: "activity",
-      title: formatEventTitle(type, item.type || "Item"),
+      title: formatEventTitle(type, item.type || translate("codex.item"), translate),
       detail: extractText(item) || summarizeItem(item)
     }];
   }
@@ -122,33 +122,33 @@ function formatToolTitle(item) {
   return item.name || item.tool_name || item.server_name || item.type || "Tool";
 }
 
-function formatEventTitle(eventType, label) {
+function formatEventTitle(eventType, label, translate = defaultTranslate) {
   if (eventType === "item.started") {
-    return `${label} started`;
+    return translate("codex.started", { label });
   }
   if (eventType === "item.completed") {
-    return `${label} completed`;
+    return translate("codex.completed", { label });
   }
   if (eventType === "item.failed") {
-    return `${label} failed`;
+    return translate("codex.failed", { label });
   }
   return label;
 }
 
-function formatCommandTitle(eventType, item) {
+function formatCommandTitle(eventType, item, translate = defaultTranslate) {
   const command = formatCommand(item.command);
-  const label = command ? `$ ${compactOneLine(command)}` : "Command";
-  return formatEventTitle(eventType, label);
+  const label = command ? `$ ${compactOneLine(command)}` : translate("codex.command");
+  return formatEventTitle(eventType, label, translate);
 }
 
-function formatCommandSummary(item) {
+function formatCommandSummary(item, translate = defaultTranslate) {
   const parts = [];
   const command = formatCommand(item.command);
   if (command) {
     parts.push(command);
   }
   if (item.exit_code !== undefined) {
-    parts.push(`exit code: ${item.exit_code}`);
+    parts.push(translate("codex.exitCode", { code: item.exit_code }));
   }
   const text = extractText(item);
   if (text) {
@@ -157,14 +157,14 @@ function formatCommandSummary(item) {
   return compactOneLine(parts.join(" | "));
 }
 
-function formatCommandExecution(item) {
+function formatCommandExecution(item, translate = defaultTranslate) {
   const parts = [];
   const command = formatCommand(item.command);
   if (command) {
     parts.push(`$ ${command}`);
   }
   if (item.exit_code !== undefined) {
-    parts.push(`exit code: ${item.exit_code}`);
+    parts.push(translate("codex.exitCode", { code: item.exit_code }));
   }
   const text = extractText(item);
   if (text) {
@@ -220,6 +220,28 @@ function compactJson(value) {
   } catch {
     return String(value);
   }
+}
+
+function defaultTranslate(key, params = {}) {
+  const defaults = {
+    "codex.error": "Error",
+    "codex.threadStarted": "Thread started",
+    "codex.turnStarted": "Turn started",
+    "codex.turnCompleted": "Turn completed",
+    "codex.turnFailed": "Turn failed",
+    "codex.thinkingStarted": "Thinking...",
+    "codex.thinking": "Thinking",
+    "codex.webSearch": "Web search",
+    "codex.item": "Item",
+    "codex.command": "Command",
+    "codex.started": "{label} started",
+    "codex.completed": "{label} completed",
+    "codex.failed": "{label} failed",
+    "codex.exitCode": "exit code: {code}"
+  };
+  return String(defaults[key] || key).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => (
+    params[name] === undefined ? match : String(params[name])
+  ));
 }
 
 module.exports = {

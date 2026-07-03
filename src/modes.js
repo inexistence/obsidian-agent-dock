@@ -52,12 +52,21 @@ function applyModeArgs(args, mode, defaultMode) {
   ];
 }
 
-function getModeDescription(mode, defaultMode) {
-  return (MODE_OPTIONS[mode] || MODE_OPTIONS[defaultMode]).description;
+function getModeLabel(mode, defaultMode, translate) {
+  const resolvedMode = MODE_OPTIONS[mode] ? mode : defaultMode;
+  const option = MODE_OPTIONS[resolvedMode] || MODE_OPTIONS.readOnly;
+  return translate ? translate(`mode.${resolvedMode}.label`) : option.label;
+}
+
+function getModeDescription(mode, defaultMode, translate) {
+  const resolvedMode = MODE_OPTIONS[mode] ? mode : defaultMode;
+  const option = MODE_OPTIONS[resolvedMode] || MODE_OPTIONS.readOnly;
+  return translate ? translate(`mode.${resolvedMode}.description`) : option.description;
 }
 
 module.exports = {
   MODE_OPTIONS,
   applyModeArgs,
+  getModeLabel,
   getModeDescription
 };

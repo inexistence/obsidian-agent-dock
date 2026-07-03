@@ -1,7 +1,9 @@
 class SessionStore {
-  constructor() {
+  constructor(options = {}) {
     this.sessions = [];
     this.activeSessionId = "";
+    this.getUntitledSessionTitle = options.getUntitledSessionTitle || ((number) => `Chat ${number}`);
+    this.getFallbackSessionTitle = options.getFallbackSessionTitle || (() => "Chat");
   }
 
   ensureActiveSession() {
@@ -22,7 +24,7 @@ class SessionStore {
     const now = Date.now();
     const session = {
       id: `session-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      title: `Chat ${this.sessions.length + 1}`,
+      title: this.getUntitledSessionTitle(this.sessions.length + 1),
       isUntitled: true,
       currentRun: null,
       draft: "",
@@ -74,7 +76,7 @@ class SessionStore {
 
   loadState(state) {
     const sessions = Array.isArray(state?.sessions) ? state.sessions : [];
-    this.sessions = sessions.map(normalizeSession).filter(Boolean);
+    this.sessions = sessions.map((session) => normalizeSession(session, this.getFallbackSessionTitle())).filter(Boolean);
     this.activeSessionId = typeof state?.activeSessionId === "string" ? state.activeSessionId : "";
     this.ensureActiveSession();
   }
@@ -93,14 +95,14 @@ class SessionStore {
   }
 }
 
-function normalizeSession(session) {
+function normalizeSession(session, fallbackTitle = "Chat") {
   if (!session || typeof session !== "object" || typeof session.id !== "string" || !session.id) {
     return null;
   }
 
   return {
     id: session.id,
-    title: typeof session.title === "string" && session.title ? session.title : "Chat",
+    title: typeof session.title === "string" && session.title ? session.title : fallbackTitle,
     isUntitled: session.isUntitled === true,
     currentRun: null,
     draft: typeof session.draft === "string" ? session.draft : "",

@@ -120,6 +120,322 @@ module.exports = {
 };
 
 },
+"src/i18n.js": function(module, exports, __require) {
+const DEFAULT_LANGUAGE = "en";
+
+const LANGUAGE_OPTIONS = {
+  en: {
+    label: "English"
+  },
+  zh: {
+    label: "中文"
+  }
+};
+
+const TRANSLATIONS = {
+  en: {
+    "settings.heading": "Agent Dock",
+    "settings.language.name": "Language",
+    "settings.language.desc": "Language used by Agent Dock UI.",
+    "settings.agentProvider.name": "Agent provider",
+    "settings.agentProvider.desc": "Adapter used by the dock. More providers can be added without changing the UI.",
+    "settings.codexPath.name": "Codex executable path",
+    "settings.codexPath.desc": "Full path to the Codex CLI executable. GUI apps often cannot find shell commands by name.",
+    "settings.args.name": "Arguments",
+    "settings.args.desc": "Use {{prompt}} where the prompt should be inserted.",
+    "settings.interactiveArgs.name": "Interactive arguments",
+    "settings.interactiveArgs.desc": "Optional arguments used when opening the full agent TUI in Terminal.",
+    "settings.workingDirectory.name": "Working directory",
+    "settings.workingDirectory.desc": "Defaults to the vault folder.",
+    "settings.assistantStyle.name": "Assistant style",
+    "settings.assistantStyle.desc": "Controls the collaboration tone injected into each prompt. {description}",
+    "settings.customAssistantStyle.name": "Custom assistant style",
+    "settings.customAssistantStyle.desc": "Your own style guidance, up to {max} characters. It is treated as tone and collaboration preference, not as permission to override higher-priority instructions.",
+    "settings.customAssistantStyle.placeholder": "Example: Be warm, practical, and gently opinionated. Explain tradeoffs briefly before making changes.",
+    "settings.includeActiveNote.name": "Include active note",
+    "settings.includeActiveNote.desc": "Send the current note content along with your request.",
+    "settings.debugActivity.name": "Debug activity",
+    "settings.debugActivity.desc": "Show streamed reasoning summaries, tool calls, command output, stderr, and raw events under each response.",
+    "settings.activeNoteMaxChars.name": "Active note character limit",
+    "settings.activeNoteMaxChars.desc": "Prevents very large notes from overwhelming the command.",
+    "settings.contextLimitChars.name": "Context character limit",
+    "settings.contextLimitChars.desc": "Maximum prompt size before older conversation history is compressed. Default is 258k characters.",
+    "settings.persistChatHistory.name": "Persist chat history",
+    "settings.persistChatHistory.desc": "Restore conversations after Obsidian restarts. Message bodies are stored as per-session JSON files in the plugin folder.",
+    "settings.maxPersistedSessions.name": "Persisted session limit",
+    "settings.maxPersistedSessions.desc": "Maximum number of recent conversations kept on disk.",
+    "settings.maxPersistedMessagesPerSession.name": "Persisted messages per session",
+    "settings.maxPersistedMessagesPerSession.desc": "Maximum number of recent messages kept for each conversation.",
+    "settings.memory.heading": "Memory",
+    "settings.memoryEnabled.name": "Enable memory",
+    "settings.memoryEnabled.desc": "Use local memories from previous chats when building prompts.",
+    "settings.memoryAutoCapture.name": "Automatic memory extraction",
+    "settings.memoryAutoCapture.desc": "Automatically save concise local memories after successful agent replies.",
+    "settings.memoryMaxPromptChars.name": "Memory prompt character limit",
+    "settings.memoryMaxPromptChars.desc": "Maximum characters of relevant memory added to a prompt.",
+    "settings.memoryMaxItems.name": "Memory item limit",
+    "settings.memoryMaxItems.desc": "Maximum number of automatic memories kept on disk.",
+    "settings.clearMemory.name": "Clear memory",
+    "settings.clearMemory.desc": "Delete all automatically saved local memories.",
+    "settings.clearMemory.button": "Clear",
+    "settings.clearMemory.confirm": "Clear all Agent Dock memories?",
+    "settings.clearMemory.done": "Agent Dock memory cleared.",
+    "assistantStyle.concise.label": "Concise",
+    "assistantStyle.concise.description": "Direct and economical. Leads with the answer or action taken, with only necessary explanation.",
+    "assistantStyle.collaborative.label": "Collaborative",
+    "assistantStyle.collaborative.description": "Warm, capable, and practical. Shares brief progress, makes decisions, and grounds the final answer in what was done.",
+    "assistantStyle.teaching.label": "Teaching",
+    "assistantStyle.teaching.description": "Patient and explanatory. Explains important choices, local concepts, tradeoffs, and useful examples.",
+    "assistantStyle.review.label": "Review",
+    "assistantStyle.review.description": "Code-review posture. Prioritizes bugs, regressions, data loss, privacy or security risks, and missing verification.",
+    "assistantStyle.custom.label": "Custom",
+    "assistantStyle.custom.description": "Uses your own style guidance below as tone and collaboration preference.",
+    "mode.readOnly.label": "Read only",
+    "mode.readOnly.description": "Inspect vault files but do not write.",
+    "mode.workspaceWrite.label": "Workspace write",
+    "mode.workspaceWrite.description": "Allow edits inside the vault or working directory.",
+    "mode.fullAccess.label": "Full access",
+    "mode.fullAccess.description": "Allow broad local access. Use carefully.",
+    "command.openDock": "Open Agent Dock",
+    "command.openInteractive": "Open interactive agent in Terminal",
+    "notice.saveChatHistoryFailed": "Agent Dock could not save chat history. Check the console for details.",
+    "notice.openTerminalFailed": "Could not open Terminal: {message}",
+    "notice.agentStillWorking": "{agent} is still working in this conversation.",
+    "notice.agentStopped": "{agent} stopped.",
+    "notice.agentCommandFailed": "{agent} command failed.",
+    "notice.stopBeforeDeleting": "Stop this conversation before deleting it.",
+    "view.terminalButton": "Terminal",
+    "view.openInteractiveTerminal": "Open interactive agent in Terminal",
+    "view.emptyLine1": "Open a side conversation with an agent.",
+    "view.emptyLine2": "The active note can be included automatically.",
+    "view.you": "You",
+    "view.folder": "Folder",
+    "view.vaultRoot": "Vault root",
+    "view.agentFinishedEmpty": "({agent} finished without text output.)",
+    "view.agentStopped": "({agent} stopped.)",
+    "view.agentRunFailed": "{agent} could not run.",
+    "view.agentRunFailedHint": "Check the executable path in plugin settings and make sure the CLI is installed and allowed by macOS.",
+    "view.copy": "Copy",
+    "view.copied": "Copied",
+    "view.copyMessageText": "Copy message text",
+    "view.contextTitle": "Context {percent}% · {used} / {limit} chars",
+    "view.deleteSessionConfirm": "Delete \"{title}\"?",
+    "composer.placeholder": "Ask the agent about this vault or the active note...",
+    "composer.toggleActiveNote": "Toggle active note context",
+    "composer.mode": "Mode",
+    "composer.stopAgent": "Stop agent",
+    "composer.sendMessage": "Send message",
+    "session.switchConversation": "Switch conversation",
+    "session.conversations": "Conversations",
+    "session.deleteConversation": "Delete conversation",
+    "session.deleteNamedConversation": "Delete {title}",
+    "session.newConversation": "New conversation",
+    "session.defaultTitle": "Chat {number}",
+    "session.fallbackTitle": "Chat",
+    "timeline.processed": "Processed {count} items",
+    "timeline.needsAttention": "Needs attention {count} items",
+    "timeline.toolCalls": "Tool calls",
+    "timeline.reasoning": "Thinking",
+    "timeline.notice": "Notice",
+    "timeline.activity": "Activity",
+    "timeline.groupLabel": "{label} {count} items",
+    "timeline.event": "Event",
+    "codex.error": "Error",
+    "codex.threadStarted": "Thread started",
+    "codex.turnStarted": "Turn started",
+    "codex.turnCompleted": "Turn completed",
+    "codex.turnFailed": "Turn failed",
+    "codex.thinkingStarted": "Thinking...",
+    "codex.thinking": "Thinking",
+    "codex.rawOutput": "Raw output",
+    "codex.webSearch": "Web search",
+    "codex.item": "Item",
+    "codex.command": "Command",
+    "codex.started": "{label} started",
+    "codex.completed": "{label} completed",
+    "codex.failed": "{label} failed",
+    "codex.exitCode": "exit code: {code}",
+    "codex.exitedWithCode": "Codex exited with code {code}",
+    "codex.terminalMacOnly": "Interactive Codex launch is currently implemented for macOS Terminal.",
+    "codex.terminalExitedWithCode": "Terminal exited with code {code}",
+    "codex.memoryReferenced.title": "Local memory referenced",
+    "codex.memoryReferenced.summary": "Referenced {count} relevant local historical {noteLabel} in the prompt.",
+    "codex.memoryReferenced.more": "- ... {count} more",
+    "codex.contextCompressed.title": "Context compressed",
+    "codex.contextCompressed.summary": "Compressed {original} chars into {prompt} / {limit} chars.",
+    "codex.memoryUpdated.title": "Memory updated",
+    "codex.memoryUpdated.summary": "Updated {count} local historical {noteLabel} for future chats.",
+    "codex.memorySkipped.title": "Memory skipped",
+    "codex.memorySkipped.summary": "Agent Dock could not save automatic memory. Check the console for details.",
+    "codex.abortError": "Codex run was stopped."
+  },
+  zh: {
+    "settings.heading": "Agent Dock",
+    "settings.language.name": "语言",
+    "settings.language.desc": "Agent Dock 界面使用的语言。",
+    "settings.agentProvider.name": "Agent 提供方",
+    "settings.agentProvider.desc": "Dock 使用的适配器。以后可以在不改 UI 的情况下添加更多提供方。",
+    "settings.codexPath.name": "Codex 可执行文件路径",
+    "settings.codexPath.desc": "Codex CLI 可执行文件的完整路径。图形界面应用通常无法直接找到 shell 命令。",
+    "settings.args.name": "参数",
+    "settings.args.desc": "使用 {{prompt}} 标记提示词插入的位置。",
+    "settings.interactiveArgs.name": "交互式参数",
+    "settings.interactiveArgs.desc": "在终端打开完整 agent TUI 时使用的可选参数。",
+    "settings.workingDirectory.name": "工作目录",
+    "settings.workingDirectory.desc": "默认使用当前 vault 文件夹。",
+    "settings.assistantStyle.name": "助手风格",
+    "settings.assistantStyle.desc": "控制注入每次提示词的协作语气。{description}",
+    "settings.customAssistantStyle.name": "自定义助手风格",
+    "settings.customAssistantStyle.desc": "你的自定义风格指引，最多 {max} 个字符。它只会作为语气和协作偏好，不会覆盖更高优先级指令。",
+    "settings.customAssistantStyle.placeholder": "例如：温暖、务实，并适度给出观点。修改前简短说明取舍。",
+    "settings.includeActiveNote.name": "包含当前笔记",
+    "settings.includeActiveNote.desc": "发送请求时附带当前笔记内容。",
+    "settings.debugActivity.name": "调试活动",
+    "settings.debugActivity.desc": "在每条回复下显示推理摘要、工具调用、命令输出、stderr 和原始事件。",
+    "settings.activeNoteMaxChars.name": "当前笔记字符限制",
+    "settings.activeNoteMaxChars.desc": "避免过大的笔记淹没命令输入。",
+    "settings.contextLimitChars.name": "上下文字符限制",
+    "settings.contextLimitChars.desc": "旧对话历史被压缩前的最大提示词大小。默认 258k 字符。",
+    "settings.persistChatHistory.name": "持久化聊天历史",
+    "settings.persistChatHistory.desc": "Obsidian 重启后恢复对话。消息正文会按会话存为插件文件夹里的 JSON 文件。",
+    "settings.maxPersistedSessions.name": "持久化会话数量限制",
+    "settings.maxPersistedSessions.desc": "磁盘上保留的最近对话最大数量。",
+    "settings.maxPersistedMessagesPerSession.name": "每个会话的持久化消息数",
+    "settings.maxPersistedMessagesPerSession.desc": "每个对话保留的最近消息最大数量。",
+    "settings.memory.heading": "记忆",
+    "settings.memoryEnabled.name": "启用记忆",
+    "settings.memoryEnabled.desc": "构建提示词时使用之前聊天中保存的本地记忆。",
+    "settings.memoryAutoCapture.name": "自动提取记忆",
+    "settings.memoryAutoCapture.desc": "Agent 成功回复后，自动保存简洁的本地记忆。",
+    "settings.memoryMaxPromptChars.name": "记忆提示词字符限制",
+    "settings.memoryMaxPromptChars.desc": "添加到提示词中的相关记忆最大字符数。",
+    "settings.memoryMaxItems.name": "记忆条目限制",
+    "settings.memoryMaxItems.desc": "磁盘上保留的自动记忆最大数量。",
+    "settings.clearMemory.name": "清空记忆",
+    "settings.clearMemory.desc": "删除所有自动保存的本地记忆。",
+    "settings.clearMemory.button": "清空",
+    "settings.clearMemory.confirm": "清空所有 Agent Dock 记忆？",
+    "settings.clearMemory.done": "Agent Dock 记忆已清空。",
+    "assistantStyle.concise.label": "简洁",
+    "assistantStyle.concise.description": "直接、精炼。先给答案或已执行的动作，只保留必要说明。",
+    "assistantStyle.collaborative.label": "协作",
+    "assistantStyle.collaborative.description": "温暖、可靠、务实。简短同步进展，做出判断，并在最终回复中说明完成了什么。",
+    "assistantStyle.teaching.label": "讲解",
+    "assistantStyle.teaching.description": "耐心解释重要选择、本地概念、取舍和有用示例。",
+    "assistantStyle.review.label": "审查",
+    "assistantStyle.review.description": "代码审查姿态。优先指出 bug、回归、数据丢失、隐私或安全风险，以及缺失的验证。",
+    "assistantStyle.custom.label": "自定义",
+    "assistantStyle.custom.description": "使用下方自定义风格作为语气和协作偏好。",
+    "mode.readOnly.label": "只读",
+    "mode.readOnly.description": "检查 vault 文件，但不写入。",
+    "mode.workspaceWrite.label": "工作区写入",
+    "mode.workspaceWrite.description": "允许在 vault 或工作目录内编辑。",
+    "mode.fullAccess.label": "完全访问",
+    "mode.fullAccess.description": "允许广泛的本地访问。请谨慎使用。",
+    "command.openDock": "打开 Agent Dock",
+    "command.openInteractive": "在终端打开交互式 Agent",
+    "notice.saveChatHistoryFailed": "Agent Dock 无法保存聊天历史。请查看控制台详情。",
+    "notice.openTerminalFailed": "无法打开终端：{message}",
+    "notice.agentStillWorking": "{agent} 仍在此对话中工作。",
+    "notice.agentStopped": "{agent} 已停止。",
+    "notice.agentCommandFailed": "{agent} 命令运行失败。",
+    "notice.stopBeforeDeleting": "删除前请先停止此对话。",
+    "view.terminalButton": "终端",
+    "view.openInteractiveTerminal": "在终端打开交互式 Agent",
+    "view.emptyLine1": "开启一个侧边 Agent 对话。",
+    "view.emptyLine2": "当前笔记可以自动附加到请求中。",
+    "view.you": "你",
+    "view.folder": "文件夹",
+    "view.vaultRoot": "Vault 根目录",
+    "view.agentFinishedEmpty": "（{agent} 已完成，但没有文本输出。）",
+    "view.agentStopped": "（{agent} 已停止。）",
+    "view.agentRunFailed": "{agent} 无法运行。",
+    "view.agentRunFailedHint": "请在插件设置中检查可执行文件路径，并确认 CLI 已安装且未被 macOS 阻止。",
+    "view.copy": "复制",
+    "view.copied": "已复制",
+    "view.copyMessageText": "复制消息文本",
+    "view.contextTitle": "上下文 {percent}% · {used} / {limit} 字符",
+    "view.deleteSessionConfirm": "删除“{title}”？",
+    "composer.placeholder": "询问 agent 关于此 vault 或当前笔记的问题...",
+    "composer.toggleActiveNote": "切换当前笔记上下文",
+    "composer.mode": "模式",
+    "composer.stopAgent": "停止 agent",
+    "composer.sendMessage": "发送消息",
+    "session.switchConversation": "切换对话",
+    "session.conversations": "对话",
+    "session.deleteConversation": "删除对话",
+    "session.deleteNamedConversation": "删除 {title}",
+    "session.newConversation": "新建对话",
+    "session.defaultTitle": "对话 {number}",
+    "session.fallbackTitle": "对话",
+    "timeline.processed": "已处理 {count} 项",
+    "timeline.needsAttention": "需要关注 {count} 项",
+    "timeline.toolCalls": "工具调用",
+    "timeline.reasoning": "思考",
+    "timeline.notice": "提示",
+    "timeline.activity": "活动",
+    "timeline.groupLabel": "{label} {count} 项",
+    "timeline.event": "事件",
+    "codex.error": "错误",
+    "codex.threadStarted": "线程已开始",
+    "codex.turnStarted": "回合已开始",
+    "codex.turnCompleted": "回合已完成",
+    "codex.turnFailed": "回合失败",
+    "codex.thinkingStarted": "思考中...",
+    "codex.thinking": "思考",
+    "codex.rawOutput": "原始输出",
+    "codex.webSearch": "网页搜索",
+    "codex.item": "项目",
+    "codex.command": "命令",
+    "codex.started": "{label} 已开始",
+    "codex.completed": "{label} 已完成",
+    "codex.failed": "{label} 失败",
+    "codex.exitCode": "退出码：{code}",
+    "codex.exitedWithCode": "Codex 退出，代码 {code}",
+    "codex.terminalMacOnly": "交互式 Codex 启动目前仅支持 macOS Terminal。",
+    "codex.terminalExitedWithCode": "终端退出，代码 {code}",
+    "codex.memoryReferenced.title": "已引用本地记忆",
+    "codex.memoryReferenced.summary": "提示词中引用了 {count} 条相关本地历史记录。",
+    "codex.memoryReferenced.more": "- ... 还有 {count} 条",
+    "codex.contextCompressed.title": "上下文已压缩",
+    "codex.contextCompressed.summary": "已将 {original} 字符压缩为 {prompt} / {limit} 字符。",
+    "codex.memoryUpdated.title": "记忆已更新",
+    "codex.memoryUpdated.summary": "已为之后的聊天更新 {count} 条本地历史记录。",
+    "codex.memorySkipped.title": "已跳过记忆",
+    "codex.memorySkipped.summary": "Agent Dock 无法保存自动记忆。请查看控制台详情。",
+    "codex.abortError": "Codex 运行已停止。"
+  }
+};
+
+function normalizeLanguage(language) {
+  return LANGUAGE_OPTIONS[language] ? language : DEFAULT_LANGUAGE;
+}
+
+function t(settingsOrLanguage, key, params = {}) {
+  const language = normalizeLanguage(
+    typeof settingsOrLanguage === "string" ? settingsOrLanguage : settingsOrLanguage?.language
+  );
+  const defaultDictionary = TRANSLATIONS[DEFAULT_LANGUAGE] || {};
+  const dictionary = TRANSLATIONS[language] || defaultDictionary;
+  const template = dictionary[key] || defaultDictionary[key] || key;
+  return formatTemplate(template, params);
+}
+
+function formatTemplate(template, params) {
+  return String(template).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, key) => {
+    const value = params[key];
+    return value === undefined || value === null ? match : String(value);
+  });
+}
+
+module.exports = {
+  DEFAULT_LANGUAGE,
+  LANGUAGE_OPTIONS,
+  normalizeLanguage,
+  t
+};
+
+},
 "src/modes.js": function(module, exports, __require) {
 const MODE_OPTIONS = {
   readOnly: {
@@ -175,13 +491,22 @@ function applyModeArgs(args, mode, defaultMode) {
   ];
 }
 
-function getModeDescription(mode, defaultMode) {
-  return (MODE_OPTIONS[mode] || MODE_OPTIONS[defaultMode]).description;
+function getModeLabel(mode, defaultMode, translate) {
+  const resolvedMode = MODE_OPTIONS[mode] ? mode : defaultMode;
+  const option = MODE_OPTIONS[resolvedMode] || MODE_OPTIONS.readOnly;
+  return translate ? translate(`mode.${resolvedMode}.label`) : option.label;
+}
+
+function getModeDescription(mode, defaultMode, translate) {
+  const resolvedMode = MODE_OPTIONS[mode] ? mode : defaultMode;
+  const option = MODE_OPTIONS[resolvedMode] || MODE_OPTIONS.readOnly;
+  return translate ? translate(`mode.${resolvedMode}.description`) : option.description;
 }
 
 module.exports = {
   MODE_OPTIONS,
   applyModeArgs,
+  getModeLabel,
   getModeDescription
 };
 
@@ -1104,6 +1429,7 @@ module.exports = {
 },
 "src/settings.js": function(module, exports, __require) {
 const { MODE_OPTIONS } = __require("src/modes.js");
+const { DEFAULT_LANGUAGE, normalizeLanguage } = __require("src/i18n.js");
 
 const CUSTOM_ASSISTANT_STYLE_MAX_CHARS = 4000;
 
@@ -1131,6 +1457,7 @@ const ASSISTANT_STYLE_OPTIONS = {
 };
 
 const DEFAULT_SETTINGS = {
+  language: DEFAULT_LANGUAGE,
   agentId: "codex",
   codexPath: "/opt/homebrew/bin/codex",
   args: "exec {{prompt}}",
@@ -1167,6 +1494,8 @@ function normalizeSettings(savedSettings) {
   if (!MODE_OPTIONS[settings.mode]) {
     settings.mode = DEFAULT_SETTINGS.mode;
   }
+
+  settings.language = normalizeLanguage(settings.language);
 
   if (!settings.agentId) {
     settings.agentId = DEFAULT_SETTINGS.agentId;
@@ -1286,7 +1615,7 @@ module.exports = {
 
 },
 "src/agents/codex/jsonEvents.js": function(module, exports, __require) {
-function codexJsonEventToUpdates(event) {
+function codexJsonEventToUpdates(event, translate = defaultTranslate) {
   if (!event || typeof event !== "object") {
     return [];
   }
@@ -1295,23 +1624,23 @@ function codexJsonEventToUpdates(event) {
   const item = event.item;
 
   if (type === "error") {
-    return [{ kind: "error", title: "Error", detail: extractText(event) || compactJson(event) }];
+    return [{ kind: "error", title: translate("codex.error"), detail: extractText(event) || compactJson(event) }];
   }
 
   if (type === "thread.started") {
-    return [{ kind: "activity", title: "Thread started", detail: event.thread_id || "" }];
+    return [{ kind: "activity", title: translate("codex.threadStarted"), detail: event.thread_id || "" }];
   }
 
   if (type === "turn.started") {
-    return [{ kind: "activity", title: "Turn started", detail: "" }];
+    return [{ kind: "activity", title: translate("codex.turnStarted"), detail: "" }];
   }
 
   if (type === "turn.completed") {
-    return [{ kind: "activity", title: "Turn completed", detail: formatUsage(event.usage) }];
+    return [{ kind: "activity", title: translate("codex.turnCompleted"), detail: formatUsage(event.usage) }];
   }
 
   if (type === "turn.failed") {
-    return [{ kind: "error", title: "Turn failed", detail: extractText(event) || compactJson(event) }];
+    return [{ kind: "error", title: translate("codex.turnFailed"), detail: extractText(event) || compactJson(event) }];
   }
 
   if (!item || typeof item !== "object") {
@@ -1326,7 +1655,7 @@ function codexJsonEventToUpdates(event) {
   if (item.type === "reasoning") {
     return [{
       kind: "reasoning",
-      title: type === "item.started" ? "Thinking..." : "Thinking",
+      title: type === "item.started" ? translate("codex.thinkingStarted") : translate("codex.thinking"),
       detail: extractText(item) || summarizeItem(item)
     }];
   }
@@ -1334,9 +1663,9 @@ function codexJsonEventToUpdates(event) {
   if (item.type === "command_execution") {
     return [{
       kind: "tool",
-      title: formatCommandTitle(type, item),
-      summary: formatCommandSummary(item),
-      detail: formatCommandExecution(item)
+      title: formatCommandTitle(type, item, translate),
+      summary: formatCommandSummary(item, translate),
+      detail: formatCommandExecution(item, translate)
     }];
   }
 
@@ -1344,7 +1673,7 @@ function codexJsonEventToUpdates(event) {
     const summary = extractText(item) || summarizeItem(item);
     return [{
       kind: "tool",
-      title: formatEventTitle(type, formatToolTitle(item)),
+      title: formatEventTitle(type, formatToolTitle(item), translate),
       summary: compactOneLine(summary),
       detail: summary
     }];
@@ -1354,7 +1683,7 @@ function codexJsonEventToUpdates(event) {
     const summary = extractText(item) || summarizeItem(item);
     return [{
       kind: "tool",
-      title: formatEventTitle(type, "Web search"),
+      title: formatEventTitle(type, translate("codex.webSearch"), translate),
       summary: compactOneLine(summary),
       detail: summary
     }];
@@ -1363,7 +1692,7 @@ function codexJsonEventToUpdates(event) {
   if (type.startsWith("item.")) {
     return [{
       kind: "activity",
-      title: formatEventTitle(type, item.type || "Item"),
+      title: formatEventTitle(type, item.type || translate("codex.item"), translate),
       detail: extractText(item) || summarizeItem(item)
     }];
   }
@@ -1410,33 +1739,33 @@ function formatToolTitle(item) {
   return item.name || item.tool_name || item.server_name || item.type || "Tool";
 }
 
-function formatEventTitle(eventType, label) {
+function formatEventTitle(eventType, label, translate = defaultTranslate) {
   if (eventType === "item.started") {
-    return `${label} started`;
+    return translate("codex.started", { label });
   }
   if (eventType === "item.completed") {
-    return `${label} completed`;
+    return translate("codex.completed", { label });
   }
   if (eventType === "item.failed") {
-    return `${label} failed`;
+    return translate("codex.failed", { label });
   }
   return label;
 }
 
-function formatCommandTitle(eventType, item) {
+function formatCommandTitle(eventType, item, translate = defaultTranslate) {
   const command = formatCommand(item.command);
-  const label = command ? `$ ${compactOneLine(command)}` : "Command";
-  return formatEventTitle(eventType, label);
+  const label = command ? `$ ${compactOneLine(command)}` : translate("codex.command");
+  return formatEventTitle(eventType, label, translate);
 }
 
-function formatCommandSummary(item) {
+function formatCommandSummary(item, translate = defaultTranslate) {
   const parts = [];
   const command = formatCommand(item.command);
   if (command) {
     parts.push(command);
   }
   if (item.exit_code !== undefined) {
-    parts.push(`exit code: ${item.exit_code}`);
+    parts.push(translate("codex.exitCode", { code: item.exit_code }));
   }
   const text = extractText(item);
   if (text) {
@@ -1445,14 +1774,14 @@ function formatCommandSummary(item) {
   return compactOneLine(parts.join(" | "));
 }
 
-function formatCommandExecution(item) {
+function formatCommandExecution(item, translate = defaultTranslate) {
   const parts = [];
   const command = formatCommand(item.command);
   if (command) {
     parts.push(`$ ${command}`);
   }
   if (item.exit_code !== undefined) {
-    parts.push(`exit code: ${item.exit_code}`);
+    parts.push(translate("codex.exitCode", { code: item.exit_code }));
   }
   const text = extractText(item);
   if (text) {
@@ -1510,6 +1839,28 @@ function compactJson(value) {
   }
 }
 
+function defaultTranslate(key, params = {}) {
+  const defaults = {
+    "codex.error": "Error",
+    "codex.threadStarted": "Thread started",
+    "codex.turnStarted": "Turn started",
+    "codex.turnCompleted": "Turn completed",
+    "codex.turnFailed": "Turn failed",
+    "codex.thinkingStarted": "Thinking...",
+    "codex.thinking": "Thinking",
+    "codex.webSearch": "Web search",
+    "codex.item": "Item",
+    "codex.command": "Command",
+    "codex.started": "{label} started",
+    "codex.completed": "{label} completed",
+    "codex.failed": "{label} failed",
+    "codex.exitCode": "exit code: {code}"
+  };
+  return String(defaults[key] || key).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => (
+    params[name] === undefined ? match : String(params[name])
+  ));
+}
+
 module.exports = {
   codexJsonEventToUpdates
 };
@@ -1525,6 +1876,7 @@ const path = require("path");
 const { parseArgsTemplate, withJsonOutput, withOutputLastMessage } = __require("src/cli/args.js");
 const { buildCliPath } = __require("src/cli/env.js");
 const { escapeAppleScriptString, shellQuote } = __require("src/cli/shell.js");
+const { t } = __require("src/i18n.js");
 const { applyModeArgs } = __require("src/modes.js");
 const { buildPromptWithMetadata } = __require("src/prompt.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
@@ -1541,6 +1893,7 @@ class CodexAgent {
 
   async run(prompt, onUpdate, conversation, options = {}) {
     const settings = this.plugin.settings;
+    const translate = (key, params) => t(settings, key, params);
     const cwd = this.getWorkingDirectory();
     const activeFilePath = this.plugin.app.workspace.getActiveFile()?.path || "";
     const memories = await this.plugin.memoryStore.getRelevantMemories(prompt, settings, {
@@ -1550,10 +1903,10 @@ class CodexAgent {
     const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, { memories });
     const finalPrompt = promptResult.prompt;
     if (promptResult.context.memoryCount > 0) {
-      const memorySummary = formatMemoryNoticeSummary(memories);
+      const memorySummary = formatMemoryNoticeSummary(memories, translate);
       onUpdate({
         kind: "notice",
-        title: "Local memory referenced",
+        title: translate("codex.memoryReferenced.title"),
         summary: memorySummary,
         detail: memories.map(formatMemoryLine).join("\n")
       });
@@ -1561,8 +1914,12 @@ class CodexAgent {
     if (promptResult.context.compressed) {
       onUpdate({
         kind: "notice",
-        title: "Context compressed",
-        summary: `Compressed ${formatNumber(promptResult.context.originalChars)} chars into ${formatNumber(promptResult.context.promptChars)} / ${formatNumber(promptResult.context.limitChars)} chars.`
+        title: translate("codex.contextCompressed.title"),
+        summary: translate("codex.contextCompressed.summary", {
+          original: formatNumber(promptResult.context.originalChars),
+          prompt: formatNumber(promptResult.context.promptChars),
+          limit: formatNumber(promptResult.context.limitChars)
+        })
       });
     }
     const outputPath = path.join(
@@ -1631,7 +1988,7 @@ class CodexAgent {
 
         try {
           const event = JSON.parse(line);
-          const updates = codexJsonEventToUpdates(event);
+          const updates = codexJsonEventToUpdates(event, translate);
           for (const update of updates) {
             if (update.kind === "content") {
               finalOutput += update.text;
@@ -1639,7 +1996,7 @@ class CodexAgent {
             onUpdate(update);
           }
         } catch {
-          onUpdate({ kind: "activity", title: "Raw output", detail: line });
+          onUpdate({ kind: "activity", title: translate("codex.rawOutput"), detail: line });
         }
       };
 
@@ -1673,7 +2030,7 @@ class CodexAgent {
         }
 
         if (aborted) {
-          settle(reject, createAbortError());
+          settle(reject, createAbortError(translate));
           return;
         }
 
@@ -1691,7 +2048,7 @@ class CodexAgent {
         const details = [errorOutput.trim(), fileOutput.trim()]
           .filter(Boolean)
           .join("\n\n");
-        settle(reject, new Error(details || `Codex exited with code ${code}`));
+        settle(reject, new Error(details || translate("codex.exitedWithCode", { code })));
       });
     });
   }
@@ -1705,7 +2062,7 @@ class CodexAgent {
 
   async openInteractive() {
     if (process.platform !== "darwin") {
-      new Notice("Interactive Codex launch is currently implemented for macOS Terminal.");
+      new Notice(t(this.plugin.settings, "codex.terminalMacOnly"));
       return;
     }
 
@@ -1741,7 +2098,7 @@ class CodexAgent {
           return;
         }
 
-        reject(new Error(errorOutput.trim() || `Terminal exited with code ${code}`));
+        reject(new Error(errorOutput.trim() || t(settings, "codex.terminalExitedWithCode", { code })));
       });
     });
   }
@@ -1756,16 +2113,19 @@ class CodexAgent {
       if (saved.length > 0) {
         onUpdate({
           kind: "notice",
-          title: "Memory updated",
-          summary: `Updated ${saved.length} local historical ${saved.length === 1 ? "note" : "notes"} for future chats.`
+          title: t(settings, "codex.memoryUpdated.title"),
+          summary: t(settings, "codex.memoryUpdated.summary", {
+            count: saved.length,
+            noteLabel: saved.length === 1 ? "note" : "notes"
+          })
         });
       }
     } catch (error) {
       console.warn("Agent Dock could not update memory:", error);
       onUpdate({
         kind: "notice",
-        title: "Memory skipped",
-        summary: "Agent Dock could not save automatic memory. Check the console for details."
+        title: t(settings, "codex.memorySkipped.title"),
+        summary: t(settings, "codex.memorySkipped.summary")
       });
     }
   }
@@ -1785,21 +2145,24 @@ function formatNumber(value) {
   return new Intl.NumberFormat().format(value);
 }
 
-function formatMemoryNoticeSummary(memories) {
+function formatMemoryNoticeSummary(memories, translate) {
   const count = memories.length;
   const lines = [
-    `Referenced ${count} relevant local historical ${count === 1 ? "note" : "notes"} in the prompt.`
+    translate("codex.memoryReferenced.summary", {
+      count,
+      noteLabel: count === 1 ? "note" : "notes"
+    })
   ];
   const visibleMemories = memories.slice(0, 5).map(formatMemoryLine);
   lines.push(...visibleMemories);
   if (memories.length > visibleMemories.length) {
-    lines.push(`- ... ${memories.length - visibleMemories.length} more`);
+    lines.push(translate("codex.memoryReferenced.more", { count: memories.length - visibleMemories.length }));
   }
   return lines.join("\n");
 }
 
-function createAbortError() {
-  const error = new Error("Codex run was stopped.");
+function createAbortError(translate) {
+  const error = new Error(translate("codex.abortError"));
   error.name = "AbortError";
   return error;
 }
@@ -1845,6 +2208,7 @@ module.exports = {
 const { Notice, PluginSettingTab, Setting } = require("obsidian");
 
 const { AGENT_OPTIONS } = __require("src/agents/AgentRegistry.js");
+const { LANGUAGE_OPTIONS, t } = __require("src/i18n.js");
 const {
   ASSISTANT_STYLE_OPTIONS,
   CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
@@ -1859,12 +2223,30 @@ class AgentDockSettingTab extends PluginSettingTab {
 
   display() {
     const { containerEl } = this;
+    const translate = (key, params) => t(this.plugin.settings, key, params);
     containerEl.empty();
-    containerEl.createEl("h2", { text: "Agent Dock" });
+    containerEl.createEl("h2", { text: translate("settings.heading") });
 
     new Setting(containerEl)
-      .setName("Agent provider")
-      .setDesc("Adapter used by the dock. More providers can be added without changing the UI.")
+      .setName(translate("settings.language.name"))
+      .setDesc(translate("settings.language.desc"))
+      .addDropdown((dropdown) => {
+        for (const [id, option] of Object.entries(LANGUAGE_OPTIONS)) {
+          dropdown.addOption(id, option.label);
+        }
+        dropdown
+          .setValue(this.plugin.settings.language)
+          .onChange(async (value) => {
+            this.plugin.settings.language = value;
+            await this.plugin.saveSettings();
+            this.plugin.refreshOpenViews();
+            this.display();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName(translate("settings.agentProvider.name"))
+      .setDesc(translate("settings.agentProvider.desc"))
       .addDropdown((dropdown) => {
         for (const [id, option] of Object.entries(AGENT_OPTIONS)) {
           dropdown.addOption(id, option.label);
@@ -1879,8 +2261,8 @@ class AgentDockSettingTab extends PluginSettingTab {
       });
 
     new Setting(containerEl)
-      .setName("Codex executable path")
-      .setDesc("Full path to the Codex CLI executable. GUI apps often cannot find shell commands by name.")
+      .setName(translate("settings.codexPath.name"))
+      .setDesc(translate("settings.codexPath.desc"))
       .addText((text) => text
         .setPlaceholder("/opt/homebrew/bin/codex")
         .setValue(this.plugin.settings.codexPath)
@@ -1890,8 +2272,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Arguments")
-      .setDesc("Use {{prompt}} where the prompt should be inserted.")
+      .setName(translate("settings.args.name"))
+      .setDesc(translate("settings.args.desc"))
       .addText((text) => text
         .setPlaceholder("exec {{prompt}}")
         .setValue(this.plugin.settings.args)
@@ -1901,8 +2283,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Interactive arguments")
-      .setDesc("Optional arguments used when opening the full agent TUI in Terminal.")
+      .setName(translate("settings.interactiveArgs.name"))
+      .setDesc(translate("settings.interactiveArgs.desc"))
       .addText((text) => text
         .setPlaceholder("--sandbox workspace-write")
         .setValue(this.plugin.settings.interactiveArgs)
@@ -1912,8 +2294,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Working directory")
-      .setDesc("Defaults to the vault folder.")
+      .setName(translate("settings.workingDirectory.name"))
+      .setDesc(translate("settings.workingDirectory.desc"))
       .addText((text) => text
         .setPlaceholder("/path/to/project")
         .setValue(this.plugin.settings.workingDirectory)
@@ -1923,11 +2305,11 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Assistant style")
-      .setDesc(formatAssistantStyleDescription(this.plugin.settings.assistantStyle))
+      .setName(translate("settings.assistantStyle.name"))
+      .setDesc(formatAssistantStyleDescription(this.plugin.settings.assistantStyle, translate))
       .addDropdown((dropdown) => {
         for (const [id, option] of Object.entries(ASSISTANT_STYLE_OPTIONS)) {
-          dropdown.addOption(id, option.label);
+          dropdown.addOption(id, translate(`assistantStyle.${id}.label`));
         }
         dropdown
           .setValue(this.plugin.settings.assistantStyle)
@@ -1942,11 +2324,11 @@ class AgentDockSettingTab extends PluginSettingTab {
 
     if (this.plugin.settings.assistantStyle === "custom") {
       new Setting(containerEl)
-        .setName("Custom assistant style")
-        .setDesc(`Your own style guidance, up to ${CUSTOM_ASSISTANT_STYLE_MAX_CHARS} characters. It is treated as tone and collaboration preference, not as permission to override higher-priority instructions.`)
+        .setName(translate("settings.customAssistantStyle.name"))
+        .setDesc(translate("settings.customAssistantStyle.desc", { max: CUSTOM_ASSISTANT_STYLE_MAX_CHARS }))
         .addTextArea((text) => {
           text
-            .setPlaceholder("Example: Be warm, practical, and gently opinionated. Explain tradeoffs briefly before making changes.")
+            .setPlaceholder(translate("settings.customAssistantStyle.placeholder"))
             .setValue(this.plugin.settings.customAssistantStyle)
             .onChange(async (value) => {
               this.plugin.settings.customAssistantStyle = value
@@ -1960,8 +2342,8 @@ class AgentDockSettingTab extends PluginSettingTab {
     }
 
     new Setting(containerEl)
-      .setName("Include active note")
-      .setDesc("Send the current note content along with your request.")
+      .setName(translate("settings.includeActiveNote.name"))
+      .setDesc(translate("settings.includeActiveNote.desc"))
       .addToggle((toggle) => toggle
         .setValue(this.plugin.settings.includeActiveNote)
         .onChange(async (value) => {
@@ -1970,8 +2352,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Debug activity")
-      .setDesc("Show streamed reasoning summaries, tool calls, command output, stderr, and raw events under each response.")
+      .setName(translate("settings.debugActivity.name"))
+      .setDesc(translate("settings.debugActivity.desc"))
       .addToggle((toggle) => toggle
         .setValue(this.plugin.settings.debugActivity)
         .onChange(async (value) => {
@@ -1980,8 +2362,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Active note character limit")
-      .setDesc("Prevents very large notes from overwhelming the command.")
+      .setName(translate("settings.activeNoteMaxChars.name"))
+      .setDesc(translate("settings.activeNoteMaxChars.desc"))
       .addText((text) => text
         .setPlaceholder(String(DEFAULT_SETTINGS.activeNoteMaxChars))
         .setValue(String(this.plugin.settings.activeNoteMaxChars))
@@ -1994,8 +2376,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Context character limit")
-      .setDesc("Maximum prompt size before older conversation history is compressed. Default is 258k characters.")
+      .setName(translate("settings.contextLimitChars.name"))
+      .setDesc(translate("settings.contextLimitChars.desc"))
       .addText((text) => text
         .setPlaceholder(String(DEFAULT_SETTINGS.contextLimitChars))
         .setValue(String(this.plugin.settings.contextLimitChars))
@@ -2008,8 +2390,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Persist chat history")
-      .setDesc("Restore conversations after Obsidian restarts. Message bodies are stored as per-session JSON files in the plugin folder.")
+      .setName(translate("settings.persistChatHistory.name"))
+      .setDesc(translate("settings.persistChatHistory.desc"))
       .addToggle((toggle) => toggle
         .setValue(this.plugin.settings.persistChatHistory)
         .onChange(async (value) => {
@@ -2022,8 +2404,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Persisted session limit")
-      .setDesc("Maximum number of recent conversations kept on disk.")
+      .setName(translate("settings.maxPersistedSessions.name"))
+      .setDesc(translate("settings.maxPersistedSessions.desc"))
       .addText((text) => text
         .setPlaceholder(String(DEFAULT_SETTINGS.maxPersistedSessions))
         .setValue(String(this.plugin.settings.maxPersistedSessions))
@@ -2036,8 +2418,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Persisted messages per session")
-      .setDesc("Maximum number of recent messages kept for each conversation.")
+      .setName(translate("settings.maxPersistedMessagesPerSession.name"))
+      .setDesc(translate("settings.maxPersistedMessagesPerSession.desc"))
       .addText((text) => text
         .setPlaceholder(String(DEFAULT_SETTINGS.maxPersistedMessagesPerSession))
         .setValue(String(this.plugin.settings.maxPersistedMessagesPerSession))
@@ -2049,11 +2431,11 @@ class AgentDockSettingTab extends PluginSettingTab {
           await this.plugin.saveSettings();
         }));
 
-    containerEl.createEl("h3", { text: "Memory" });
+    containerEl.createEl("h3", { text: translate("settings.memory.heading") });
 
     new Setting(containerEl)
-      .setName("Enable memory")
-      .setDesc("Use local memories from previous chats when building prompts.")
+      .setName(translate("settings.memoryEnabled.name"))
+      .setDesc(translate("settings.memoryEnabled.desc"))
       .addToggle((toggle) => toggle
         .setValue(this.plugin.settings.memoryEnabled)
         .onChange(async (value) => {
@@ -2062,8 +2444,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Automatic memory extraction")
-      .setDesc("Automatically save concise local memories after successful agent replies.")
+      .setName(translate("settings.memoryAutoCapture.name"))
+      .setDesc(translate("settings.memoryAutoCapture.desc"))
       .addToggle((toggle) => toggle
         .setValue(this.plugin.settings.memoryAutoCapture)
         .onChange(async (value) => {
@@ -2072,8 +2454,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Memory prompt character limit")
-      .setDesc("Maximum characters of relevant memory added to a prompt.")
+      .setName(translate("settings.memoryMaxPromptChars.name"))
+      .setDesc(translate("settings.memoryMaxPromptChars.desc"))
       .addText((text) => text
         .setPlaceholder(String(DEFAULT_SETTINGS.memoryMaxPromptChars))
         .setValue(String(this.plugin.settings.memoryMaxPromptChars))
@@ -2086,8 +2468,8 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Memory item limit")
-      .setDesc("Maximum number of automatic memories kept on disk.")
+      .setName(translate("settings.memoryMaxItems.name"))
+      .setDesc(translate("settings.memoryMaxItems.desc"))
       .addText((text) => text
         .setPlaceholder(String(DEFAULT_SETTINGS.memoryMaxItems))
         .setValue(String(this.plugin.settings.memoryMaxItems))
@@ -2100,24 +2482,25 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
-      .setName("Clear memory")
-      .setDesc("Delete all automatically saved local memories.")
+      .setName(translate("settings.clearMemory.name"))
+      .setDesc(translate("settings.clearMemory.desc"))
       .addButton((button) => button
-        .setButtonText("Clear")
+        .setButtonText(translate("settings.clearMemory.button"))
         .setWarning()
         .onClick(async () => {
-          if (!window.confirm("Clear all Agent Dock memories?")) {
+          if (!window.confirm(translate("settings.clearMemory.confirm"))) {
             return;
           }
           await this.plugin.clearMemory();
-          new Notice("Agent Dock memory cleared.");
+          new Notice(translate("settings.clearMemory.done"));
         }));
   }
 }
 
-function formatAssistantStyleDescription(style) {
-  const option = ASSISTANT_STYLE_OPTIONS[style] || ASSISTANT_STYLE_OPTIONS[DEFAULT_SETTINGS.assistantStyle];
-  return `Controls the collaboration tone injected into each prompt. ${option.description}`;
+function formatAssistantStyleDescription(style, translate) {
+  const styleKey = ASSISTANT_STYLE_OPTIONS[style] ? style : DEFAULT_SETTINGS.assistantStyle;
+  const description = translate(`assistantStyle.${styleKey}.description`);
+  return translate("settings.assistantStyle.desc", { description });
 }
 
 module.exports = {
@@ -2387,7 +2770,7 @@ module.exports = {
 "src/view/ComposerRenderer.js": function(module, exports, __require) {
 const { setIcon } = require("obsidian");
 
-const { MODE_OPTIONS, getModeDescription } = __require("src/modes.js");
+const { MODE_OPTIONS, getModeDescription, getModeLabel } = __require("src/modes.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
 
 function renderComposerContent(composer, options) {
@@ -2403,6 +2786,7 @@ function renderComposerContent(composer, options) {
     onDraftChanged,
     submit,
     cancelActiveSession,
+    translate,
     addGlobalPointerListener,
     removeGlobalPointerListener
   } = options;
@@ -2412,7 +2796,7 @@ function renderComposerContent(composer, options) {
     cls: "codex-dock__input",
     attr: {
       rows: "4",
-      placeholder: "Ask the agent about this vault or the active note..."
+      placeholder: translate("composer.placeholder")
     }
   });
   inputEl.value = draft || "";
@@ -2454,8 +2838,8 @@ function renderComposerContent(composer, options) {
     cls: "codex-dock__composer-icon-button",
     attr: {
       type: "button",
-      "aria-label": "Toggle active note context",
-      title: "Toggle active note context"
+      "aria-label": translate("composer.toggleActiveNote"),
+      title: translate("composer.toggleActiveNote")
     }
   });
   setIcon(activeNoteButton, "plus");
@@ -2471,15 +2855,15 @@ function renderComposerContent(composer, options) {
   const modeSummary = modePill.createEl("summary", {
     cls: "codex-dock__mode-summary",
     attr: {
-      "aria-label": "Mode",
-      title: getModeDescription(plugin.settings.mode, DEFAULT_SETTINGS.mode)
+      "aria-label": translate("composer.mode"),
+      title: getModeDescription(plugin.settings.mode, DEFAULT_SETTINGS.mode, translate)
     }
   });
   const modeIcon = modeSummary.createSpan({ cls: "codex-dock__mode-icon", attr: { "aria-hidden": "true" } });
   setIcon(modeIcon, "shield");
   const modeLabel = modeSummary.createSpan({
     cls: "codex-dock__mode-label",
-    text: getModeLabel(plugin.settings.mode)
+    text: getModeLabel(plugin.settings.mode, DEFAULT_SETTINGS.mode, translate)
   });
   const modeChevron = modeSummary.createSpan({ cls: "codex-dock__mode-chevron", attr: { "aria-hidden": "true" } });
   setIcon(modeChevron, "chevron-down");
@@ -2505,19 +2889,19 @@ function renderComposerContent(composer, options) {
   for (const [value, option] of Object.entries(MODE_OPTIONS)) {
     const optionButton = modeMenu.createEl("button", {
       cls: "codex-dock__mode-option",
-      text: option.label,
+      text: getModeLabel(value, DEFAULT_SETTINGS.mode, translate),
       attr: {
         type: "button",
         role: "menuitemradio",
         "aria-checked": String(value === plugin.settings.mode),
-        title: option.description
+        title: getModeDescription(value, DEFAULT_SETTINGS.mode, translate)
       }
     });
     optionButton.toggleClass("is-selected", value === plugin.settings.mode);
     optionButton.addEventListener("click", async () => {
       plugin.settings.mode = value;
-      modeLabel.setText(option.label);
-      modeSummary.setAttr("title", option.description);
+      modeLabel.setText(getModeLabel(value, DEFAULT_SETTINGS.mode, translate));
+      modeSummary.setAttr("title", getModeDescription(value, DEFAULT_SETTINGS.mode, translate));
       for (const button of modeMenu.querySelectorAll(".codex-dock__mode-option")) {
         const isSelected = button === optionButton;
         button.classList.toggle("is-selected", isSelected);
@@ -2537,13 +2921,13 @@ function renderComposerContent(composer, options) {
     attr: { type: "button" }
   });
   if (getActiveSession()?.currentRun) {
-    sendButton.setAttr("aria-label", "Stop agent");
-    sendButton.setAttr("title", "Stop agent");
+    sendButton.setAttr("aria-label", translate("composer.stopAgent"));
+    sendButton.setAttr("title", translate("composer.stopAgent"));
     setIcon(sendButton, "square");
     sendButton.addEventListener("click", cancelActiveSession);
   } else {
-    sendButton.setAttr("aria-label", "Send message");
-    sendButton.setAttr("title", "Send message");
+    sendButton.setAttr("aria-label", translate("composer.sendMessage"));
+    sendButton.setAttr("title", translate("composer.sendMessage"));
     setIcon(sendButton, "arrow-up");
     sendButton.addEventListener("click", submit);
   }
@@ -2553,10 +2937,6 @@ function renderComposerContent(composer, options) {
     inputEl,
     mentionMenuEl
   };
-}
-
-function getModeLabel(mode) {
-  return (MODE_OPTIONS[mode] || MODE_OPTIONS[DEFAULT_SETTINGS.mode]).label;
 }
 
 module.exports = {
@@ -2679,7 +3059,7 @@ function findLastContentIndex(timeline) {
   return -1;
 }
 
-function groupLiveTimeline(timeline, debugActivity) {
+function groupLiveTimeline(timeline, debugActivity, translate) {
   const groups = [];
   let pendingEvents = [];
 
@@ -2690,7 +3070,7 @@ function groupLiveTimeline(timeline, debugActivity) {
 
     groups.push({
       type: "eventGroup",
-      label: getEventGroupLabel(pendingEvents),
+      label: getEventGroupLabel(pendingEvents, translate),
       entries: pendingEvents
     });
     pendingEvents = [];
@@ -2747,17 +3127,40 @@ function groupProcessedEntries(entries) {
   return groups;
 }
 
-function getEventGroupLabel(entries) {
+function getEventGroupLabel(entries, translate = defaultTranslate) {
   const hasError = entries.some((entry) => entry.kind === "error");
   if (hasError) {
-    return `需要关注 ${entries.length} 项`;
+    return translate("timeline.needsAttention", { count: entries.length });
   }
 
   const hasTool = entries.some((entry) => entry.kind === "tool");
   const hasReasoning = entries.some((entry) => entry.kind === "reasoning");
   const hasNotice = entries.some((entry) => entry.kind === "notice");
-  const label = hasTool ? "工具调用" : hasReasoning ? "思考" : hasNotice ? "提示" : "活动";
-  return `${label} ${entries.length} 项`;
+  const labelKey = hasTool
+    ? "timeline.toolCalls"
+    : hasReasoning
+      ? "timeline.reasoning"
+      : hasNotice
+        ? "timeline.notice"
+        : "timeline.activity";
+  return translate("timeline.groupLabel", {
+    label: translate(labelKey),
+    count: entries.length
+  });
+}
+
+function defaultTranslate(key, params = {}) {
+  const defaults = {
+    "timeline.needsAttention": "Needs attention {count} items",
+    "timeline.toolCalls": "Tool calls",
+    "timeline.reasoning": "Thinking",
+    "timeline.notice": "Notice",
+    "timeline.activity": "Activity",
+    "timeline.groupLabel": "{label} {count} items"
+  };
+  return String(defaults[key] || key).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => (
+    params[name] === undefined ? match : String(params[name])
+  ));
 }
 
 module.exports = {
@@ -2782,6 +3185,7 @@ const {
 class MessageTimelineRenderer {
   constructor(options) {
     this.getDebugActivity = options.getDebugActivity;
+    this.translate = options.translate;
     this.renderMarkdownContent = options.renderMarkdownContent;
   }
 
@@ -2798,7 +3202,7 @@ class MessageTimelineRenderer {
       return;
     }
 
-    for (const group of groupLiveTimeline(message.timeline, this.getDebugActivity())) {
+    for (const group of groupLiveTimeline(message.timeline, this.getDebugActivity(), this.translate)) {
       if (group.type === "eventGroup") {
         this.renderEventGroup(containerEl, group.entries, group.label, false);
       } else {
@@ -2833,13 +3237,13 @@ class MessageTimelineRenderer {
     details.open = false;
     details.createEl("summary", {
       cls: "codex-dock__event-group-summary",
-      text: `已处理 ${entries.length} 项`
+      text: this.translate("timeline.processed", { count: entries.length })
     });
 
     const body = details.createDiv({ cls: "codex-dock__event-group-body" });
     for (const group of groupProcessedEntries(entries)) {
       if (group.type === "eventGroup") {
-        this.renderEventGroup(body, group.entries, getEventGroupLabel(group.entries), false);
+        this.renderEventGroup(body, group.entries, getEventGroupLabel(group.entries, this.translate), false);
       } else {
         this.renderTimelineEntry(body, group.entry);
       }
@@ -2873,7 +3277,7 @@ class MessageTimelineRenderer {
     }
 
     const eventEl = containerEl.createDiv({ cls: `codex-dock__event codex-dock__event--${entry.kind || "activity"}` });
-    eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || "Event" });
+    eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || this.translate("timeline.event") });
     if (entry.summary && !this.getDebugActivity()) {
       eventEl.createDiv({ cls: "codex-dock__event-summary", text: entry.summary });
     }
@@ -2956,6 +3360,7 @@ function renderSessionSwitcher(options) {
     onSwitchSession,
     onDeleteSession,
     onNewSession,
+    translate,
     addGlobalPointerListener,
     removeGlobalPointerListener
   } = options;
@@ -2965,8 +3370,8 @@ function renderSessionSwitcher(options) {
   const summary = switcher.createEl("summary", {
     cls: "codex-dock__conversation-summary",
     attr: {
-      "aria-label": "Switch conversation",
-      title: "Switch conversation"
+      "aria-label": translate("session.switchConversation"),
+      title: translate("session.switchConversation")
     }
   });
   summary.createSpan({ cls: "codex-dock__conversation-title", text: activeSession.title });
@@ -2974,7 +3379,7 @@ function renderSessionSwitcher(options) {
   setIcon(chevron, "chevron-down");
 
   const menu = switcher.createDiv({ cls: "codex-dock__conversation-menu" });
-  menu.createDiv({ cls: "codex-dock__conversation-menu-title", text: "Conversations" });
+  menu.createDiv({ cls: "codex-dock__conversation-menu-title", text: translate("session.conversations") });
   const list = menu.createDiv({ cls: "codex-dock__conversation-list" });
   for (const session of sessions) {
     const item = list.createDiv({
@@ -3001,8 +3406,8 @@ function renderSessionSwitcher(options) {
       cls: "codex-dock__conversation-delete",
       attr: {
         type: "button",
-        "aria-label": `Delete ${session.title}`,
-        title: "Delete conversation"
+        "aria-label": translate("session.deleteNamedConversation", { title: session.title }),
+        title: translate("session.deleteConversation")
       }
     });
     setIcon(deleteButton, "trash-2");
@@ -3017,8 +3422,8 @@ function renderSessionSwitcher(options) {
     cls: "codex-dock__conversation-new",
     attr: {
       type: "button",
-      "aria-label": "New conversation",
-      title: "New conversation"
+      "aria-label": translate("session.newConversation"),
+      title: translate("session.newConversation")
     }
   });
   setIcon(newSessionButton, "plus");
@@ -3050,9 +3455,11 @@ module.exports = {
 },
 "src/view/SessionStore.js": function(module, exports, __require) {
 class SessionStore {
-  constructor() {
+  constructor(options = {}) {
     this.sessions = [];
     this.activeSessionId = "";
+    this.getUntitledSessionTitle = options.getUntitledSessionTitle || ((number) => `Chat ${number}`);
+    this.getFallbackSessionTitle = options.getFallbackSessionTitle || (() => "Chat");
   }
 
   ensureActiveSession() {
@@ -3073,7 +3480,7 @@ class SessionStore {
     const now = Date.now();
     const session = {
       id: `session-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      title: `Chat ${this.sessions.length + 1}`,
+      title: this.getUntitledSessionTitle(this.sessions.length + 1),
       isUntitled: true,
       currentRun: null,
       draft: "",
@@ -3125,7 +3532,7 @@ class SessionStore {
 
   loadState(state) {
     const sessions = Array.isArray(state?.sessions) ? state.sessions : [];
-    this.sessions = sessions.map(normalizeSession).filter(Boolean);
+    this.sessions = sessions.map((session) => normalizeSession(session, this.getFallbackSessionTitle())).filter(Boolean);
     this.activeSessionId = typeof state?.activeSessionId === "string" ? state.activeSessionId : "";
     this.ensureActiveSession();
   }
@@ -3144,14 +3551,14 @@ class SessionStore {
   }
 }
 
-function normalizeSession(session) {
+function normalizeSession(session, fallbackTitle = "Chat") {
   if (!session || typeof session !== "object" || typeof session.id !== "string" || !session.id) {
     return null;
   }
 
   return {
     id: session.id,
-    title: typeof session.title === "string" && session.title ? session.title : "Chat",
+    title: typeof session.title === "string" && session.title ? session.title : fallbackTitle,
     isUntitled: session.isUntitled === true,
     currentRun: null,
     draft: typeof session.draft === "string" ? session.draft : "",
@@ -3198,6 +3605,7 @@ module.exports = {
 const { ItemView, MarkdownRenderer, Notice, setIcon } = require("obsidian");
 
 const { VIEW_TYPE_AGENT_DOCK } = __require("src/constants.js");
+const { t } = __require("src/i18n.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
 const { renderComposerContent } = __require("src/view/ComposerRenderer.js");
 const { copyText } = __require("src/view/clipboard.js");
@@ -3217,9 +3625,13 @@ class AgentDockView extends ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
-    this.sessionStore = new SessionStore();
+    this.sessionStore = new SessionStore({
+      getUntitledSessionTitle: (number) => this.translate("session.defaultTitle", { number }),
+      getFallbackSessionTitle: () => this.translate("session.fallbackTitle")
+    });
     this.timelineRenderer = new MessageTimelineRenderer({
       getDebugActivity: () => this.plugin.settings.debugActivity,
+      translate: (key, params) => this.translate(key, params),
       renderMarkdownContent: (containerEl, text) => this.renderMarkdownContent(containerEl, text)
     });
     this.messageEls = new WeakMap();
@@ -3254,6 +3666,10 @@ class AgentDockView extends ItemView {
     return "bot";
   }
 
+  translate(key, params) {
+    return t(this.plugin.settings, key, params);
+  }
+
   async onOpen() {
     await this.loadPersistedSessions();
     this.ensureActiveSession();
@@ -3280,14 +3696,17 @@ class AgentDockView extends ItemView {
     const actions = header.createDiv({ cls: "codex-dock__actions" });
     const terminalButton = actions.createEl("button", {
       cls: "codex-dock__icon-button",
-      attr: { "aria-label": "Open interactive agent in Terminal", title: "Open interactive agent in Terminal" }
+      attr: {
+        "aria-label": this.translate("view.openInteractiveTerminal"),
+        title: this.translate("view.openInteractiveTerminal")
+      }
     });
-    terminalButton.setText("Terminal");
+    terminalButton.setText(this.translate("view.terminalButton"));
     terminalButton.addEventListener("click", async () => {
       try {
         await this.plugin.openInteractiveAgent();
       } catch (error) {
-        new Notice(`Could not open Terminal: ${error.message}`);
+        new Notice(this.translate("notice.openTerminalFailed", { message: error.message }));
       }
     });
 
@@ -3322,6 +3741,7 @@ class AgentDockView extends ItemView {
         this.createSession();
         this.render();
       },
+      translate: (key, params) => this.translate(key, params),
       addGlobalPointerListener: (listener) => this.addGlobalPointerListener(listener),
       removeGlobalPointerListener: (listener) => this.removeGlobalPointerListener(listener)
     });
@@ -3340,6 +3760,7 @@ class AgentDockView extends ItemView {
       onDraftChanged: (session) => this.persistSessionChange(session),
       submit: () => this.submit(),
       cancelActiveSession: () => this.cancelActiveSession(),
+      translate: (key, params) => this.translate(key, params),
       addGlobalPointerListener: (listener) => this.addGlobalPointerListener(listener),
       removeGlobalPointerListener: (listener) => this.removeGlobalPointerListener(listener)
     });
@@ -3364,8 +3785,8 @@ class AgentDockView extends ItemView {
 
     if (messages.length === 0) {
       const empty = this.messageList.createDiv({ cls: "codex-dock__empty" });
-      empty.createDiv({ text: "Open a side conversation with an agent." });
-      empty.createDiv({ text: "The active note can be included automatically." });
+      empty.createDiv({ text: this.translate("view.emptyLine1") });
+      empty.createDiv({ text: this.translate("view.emptyLine2") });
       this.updateContextStatus();
       return;
     }
@@ -3385,7 +3806,7 @@ class AgentDockView extends ItemView {
     item.className = `codex-dock__message codex-dock__message--${message.role}`;
     item.createDiv({
       cls: "codex-dock__role",
-      text: message.role === "user" ? "You" : this.plugin.agent.label
+      text: message.role === "user" ? this.translate("view.you") : this.plugin.agent.label
     });
     if (message.timeline && message.timeline.length > 0) {
       const timeline = item.createDiv({ cls: "codex-dock__timeline" });
@@ -3510,7 +3931,7 @@ class AgentDockView extends ItemView {
       text.createSpan({ cls: "codex-dock__mention-name", text: suggestion.name });
       text.createSpan({
         cls: "codex-dock__mention-path",
-        text: suggestion.kind === "folder" ? "Folder" : suggestion.folder || "Vault root"
+        text: suggestion.kind === "folder" ? this.translate("view.folder") : suggestion.folder || this.translate("view.vaultRoot")
       });
       option.addEventListener("mousedown", (event) => {
         event.preventDefault();
@@ -3630,7 +4051,7 @@ class AgentDockView extends ItemView {
   async submit() {
     const session = this.ensureActiveSession();
     if (session.currentRun) {
-      new Notice(`${this.plugin.agent.label} is still working in this conversation.`);
+      new Notice(this.translate("notice.agentStillWorking", { agent: this.plugin.agent.label }));
       return;
     }
 
@@ -3690,7 +4111,7 @@ class AgentDockView extends ItemView {
       assistantMessage.isLoading = false;
       assistantMessage.isComplete = true;
       if (!assistantMessage.content.trim()) {
-        const emptyText = `(${this.plugin.agent.label} finished without text output.)`;
+        const emptyText = this.translate("view.agentFinishedEmpty", { agent: this.plugin.agent.label });
         assistantMessage.content = emptyText;
         appendTimelineContent(assistantMessage, emptyText);
       }
@@ -3700,22 +4121,22 @@ class AgentDockView extends ItemView {
       assistantMessage.isLoading = false;
       assistantMessage.isComplete = true;
       const errorText = error.name === "AbortError"
-        ? `(${this.plugin.agent.label} stopped.)`
+        ? this.translate("view.agentStopped", { agent: this.plugin.agent.label })
         : [
-            `${this.plugin.agent.label} could not run.`,
+            this.translate("view.agentRunFailed", { agent: this.plugin.agent.label }),
             "",
             error.message,
             "",
-            "Check the executable path in plugin settings and make sure the CLI is installed and allowed by macOS."
+            this.translate("view.agentRunFailedHint")
           ].join("\n");
       assistantMessage.content = errorText;
       appendTimelineContent(assistantMessage, errorText);
       this.sessionStore.touchSession(session);
       this.renderSessionIfActive(session);
       if (error.name === "AbortError") {
-        new Notice(`${this.plugin.agent.label} stopped.`);
+        new Notice(this.translate("notice.agentStopped", { agent: this.plugin.agent.label }));
       } else {
-        new Notice(`${this.plugin.agent.label} command failed.`);
+        new Notice(this.translate("notice.agentCommandFailed", { agent: this.plugin.agent.label }));
       }
     } finally {
       if (session.currentRun === run) {
@@ -3746,19 +4167,19 @@ class AgentDockView extends ItemView {
     const contentEl = containerEl.createDiv({ cls: "codex-dock__content markdown-rendered" });
     const copyButton = contentEl.createEl("button", {
       cls: "codex-dock__copy-button",
-      text: "Copy",
+      text: this.translate("view.copy"),
       attr: {
         type: "button",
-        "aria-label": "Copy message text",
-        title: "Copy message text"
+        "aria-label": this.translate("view.copyMessageText"),
+        title: this.translate("view.copyMessageText")
       }
     });
     copyButton.addEventListener("click", async (event) => {
       event.preventDefault();
       event.stopPropagation();
       await copyText(text || "");
-      copyButton.setText("Copied");
-      window.setTimeout(() => copyButton.setText("Copy"), 1200);
+      copyButton.setText(this.translate("view.copied"));
+      window.setTimeout(() => copyButton.setText(this.translate("view.copy")), 1200);
     });
 
     const markdownEl = contentEl.createDiv({ cls: "codex-dock__content-body" });
@@ -3782,7 +4203,11 @@ class AgentDockView extends ItemView {
     this.contextStatusEl.setText(`${percent}%`);
     this.contextStatusEl.setAttr(
       "title",
-      `Context ${percent}% · ${formatCompactNumber(used)} / ${formatCompactNumber(limit)} chars`
+      this.translate("view.contextTitle", {
+        percent,
+        used: formatCompactNumber(used),
+        limit: formatCompactNumber(limit)
+      })
     );
   }
 
@@ -3815,11 +4240,11 @@ class AgentDockView extends ItemView {
     }
 
     if (session.currentRun) {
-      new Notice("Stop this conversation before deleting it.");
+      new Notice(this.translate("notice.stopBeforeDeleting"));
       return;
     }
 
-    if (!window.confirm(`Delete "${session.title}"?`)) {
+    if (!window.confirm(this.translate("view.deleteSessionConfirm", { title: session.title }))) {
       return;
     }
 
@@ -3964,6 +4389,7 @@ const { Notice, Plugin } = require("obsidian");
 
 const { createAgent } = __require("src/agents/AgentRegistry.js");
 const { VIEW_TYPE_AGENT_DOCK } = __require("src/constants.js");
+const { t } = __require("src/i18n.js");
 const { normalizePluginData } = __require("src/settings.js");
 const { AgentDockSettingTab } = __require("src/settingsTab.js");
 const { ChatStorage } = __require("src/storage/ChatStorage.js");
@@ -3989,15 +4415,15 @@ module.exports = class AgentDockPlugin extends Plugin {
       (leaf) => new AgentDockView(leaf, this)
     );
 
-    this.addRibbonIcon("bot", "Open Agent Dock", () => this.activateView());
+    this.addRibbonIcon("bot", t(this.settings, "command.openDock"), () => this.activateView());
     this.addCommand({
       id: "open-agent-dock",
-      name: "Open Agent Dock",
+      name: t(this.settings, "command.openDock"),
       callback: () => this.activateView()
     });
     this.addCommand({
       id: "open-interactive-agent",
-      name: "Open interactive agent in Terminal",
+      name: t(this.settings, "command.openInteractive"),
       callback: () => this.openInteractiveAgent()
     });
 
@@ -4073,7 +4499,7 @@ module.exports = class AgentDockPlugin extends Plugin {
           console.warn("Agent Dock could not save chat history:", error);
           if (!this.chatSaveFailureNotified) {
             this.chatSaveFailureNotified = true;
-            new Notice("Agent Dock could not save chat history. Check the console for details.");
+            new Notice(t(this.settings, "notice.saveChatHistoryFailed"));
           }
           this.chatSaveRequested = false;
         }
@@ -4118,6 +4544,15 @@ module.exports = class AgentDockPlugin extends Plugin {
 
   async openInteractiveAgent() {
     return this.agent.openInteractive();
+  }
+
+  refreshOpenViews() {
+    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_AGENT_DOCK)) {
+      const view = leaf.view;
+      if (view instanceof AgentDockView) {
+        view.render();
+      }
+    }
   }
 };
 

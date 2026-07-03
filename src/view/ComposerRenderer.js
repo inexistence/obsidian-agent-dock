@@ -1,6 +1,6 @@
 const { setIcon } = require("obsidian");
 
-const { MODE_OPTIONS, getModeDescription } = require("../modes");
+const { MODE_OPTIONS, getModeDescription, getModeLabel } = require("../modes");
 const { DEFAULT_SETTINGS } = require("../settings");
 
 function renderComposerContent(composer, options) {
@@ -16,6 +16,7 @@ function renderComposerContent(composer, options) {
     onDraftChanged,
     submit,
     cancelActiveSession,
+    translate,
     addGlobalPointerListener,
     removeGlobalPointerListener
   } = options;
@@ -25,7 +26,7 @@ function renderComposerContent(composer, options) {
     cls: "codex-dock__input",
     attr: {
       rows: "4",
-      placeholder: "Ask the agent about this vault or the active note..."
+      placeholder: translate("composer.placeholder")
     }
   });
   inputEl.value = draft || "";
@@ -67,8 +68,8 @@ function renderComposerContent(composer, options) {
     cls: "codex-dock__composer-icon-button",
     attr: {
       type: "button",
-      "aria-label": "Toggle active note context",
-      title: "Toggle active note context"
+      "aria-label": translate("composer.toggleActiveNote"),
+      title: translate("composer.toggleActiveNote")
     }
   });
   setIcon(activeNoteButton, "plus");
@@ -84,15 +85,15 @@ function renderComposerContent(composer, options) {
   const modeSummary = modePill.createEl("summary", {
     cls: "codex-dock__mode-summary",
     attr: {
-      "aria-label": "Mode",
-      title: getModeDescription(plugin.settings.mode, DEFAULT_SETTINGS.mode)
+      "aria-label": translate("composer.mode"),
+      title: getModeDescription(plugin.settings.mode, DEFAULT_SETTINGS.mode, translate)
     }
   });
   const modeIcon = modeSummary.createSpan({ cls: "codex-dock__mode-icon", attr: { "aria-hidden": "true" } });
   setIcon(modeIcon, "shield");
   const modeLabel = modeSummary.createSpan({
     cls: "codex-dock__mode-label",
-    text: getModeLabel(plugin.settings.mode)
+    text: getModeLabel(plugin.settings.mode, DEFAULT_SETTINGS.mode, translate)
   });
   const modeChevron = modeSummary.createSpan({ cls: "codex-dock__mode-chevron", attr: { "aria-hidden": "true" } });
   setIcon(modeChevron, "chevron-down");
@@ -118,19 +119,19 @@ function renderComposerContent(composer, options) {
   for (const [value, option] of Object.entries(MODE_OPTIONS)) {
     const optionButton = modeMenu.createEl("button", {
       cls: "codex-dock__mode-option",
-      text: option.label,
+      text: getModeLabel(value, DEFAULT_SETTINGS.mode, translate),
       attr: {
         type: "button",
         role: "menuitemradio",
         "aria-checked": String(value === plugin.settings.mode),
-        title: option.description
+        title: getModeDescription(value, DEFAULT_SETTINGS.mode, translate)
       }
     });
     optionButton.toggleClass("is-selected", value === plugin.settings.mode);
     optionButton.addEventListener("click", async () => {
       plugin.settings.mode = value;
-      modeLabel.setText(option.label);
-      modeSummary.setAttr("title", option.description);
+      modeLabel.setText(getModeLabel(value, DEFAULT_SETTINGS.mode, translate));
+      modeSummary.setAttr("title", getModeDescription(value, DEFAULT_SETTINGS.mode, translate));
       for (const button of modeMenu.querySelectorAll(".codex-dock__mode-option")) {
         const isSelected = button === optionButton;
         button.classList.toggle("is-selected", isSelected);
@@ -150,13 +151,13 @@ function renderComposerContent(composer, options) {
     attr: { type: "button" }
   });
   if (getActiveSession()?.currentRun) {
-    sendButton.setAttr("aria-label", "Stop agent");
-    sendButton.setAttr("title", "Stop agent");
+    sendButton.setAttr("aria-label", translate("composer.stopAgent"));
+    sendButton.setAttr("title", translate("composer.stopAgent"));
     setIcon(sendButton, "square");
     sendButton.addEventListener("click", cancelActiveSession);
   } else {
-    sendButton.setAttr("aria-label", "Send message");
-    sendButton.setAttr("title", "Send message");
+    sendButton.setAttr("aria-label", translate("composer.sendMessage"));
+    sendButton.setAttr("title", translate("composer.sendMessage"));
     setIcon(sendButton, "arrow-up");
     sendButton.addEventListener("click", submit);
   }
@@ -166,10 +167,6 @@ function renderComposerContent(composer, options) {
     inputEl,
     mentionMenuEl
   };
-}
-
-function getModeLabel(mode) {
-  return (MODE_OPTIONS[mode] || MODE_OPTIONS[DEFAULT_SETTINGS.mode]).label;
 }
 
 module.exports = {

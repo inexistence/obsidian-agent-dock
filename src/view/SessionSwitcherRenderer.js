@@ -9,6 +9,7 @@ function renderSessionSwitcher(options) {
     onSwitchSession,
     onDeleteSession,
     onNewSession,
+    translate,
     addGlobalPointerListener,
     removeGlobalPointerListener
   } = options;
@@ -18,8 +19,8 @@ function renderSessionSwitcher(options) {
   const summary = switcher.createEl("summary", {
     cls: "codex-dock__conversation-summary",
     attr: {
-      "aria-label": "Switch conversation",
-      title: "Switch conversation"
+      "aria-label": translate("session.switchConversation"),
+      title: translate("session.switchConversation")
     }
   });
   summary.createSpan({ cls: "codex-dock__conversation-title", text: activeSession.title });
@@ -27,7 +28,7 @@ function renderSessionSwitcher(options) {
   setIcon(chevron, "chevron-down");
 
   const menu = switcher.createDiv({ cls: "codex-dock__conversation-menu" });
-  menu.createDiv({ cls: "codex-dock__conversation-menu-title", text: "Conversations" });
+  menu.createDiv({ cls: "codex-dock__conversation-menu-title", text: translate("session.conversations") });
   const list = menu.createDiv({ cls: "codex-dock__conversation-list" });
   for (const session of sessions) {
     const item = list.createDiv({
@@ -54,8 +55,8 @@ function renderSessionSwitcher(options) {
       cls: "codex-dock__conversation-delete",
       attr: {
         type: "button",
-        "aria-label": `Delete ${session.title}`,
-        title: "Delete conversation"
+        "aria-label": translate("session.deleteNamedConversation", { title: session.title }),
+        title: translate("session.deleteConversation")
       }
     });
     setIcon(deleteButton, "trash-2");
@@ -70,8 +71,8 @@ function renderSessionSwitcher(options) {
     cls: "codex-dock__conversation-new",
     attr: {
       type: "button",
-      "aria-label": "New conversation",
-      title: "New conversation"
+      "aria-label": translate("session.newConversation"),
+      title: translate("session.newConversation")
     }
   });
   setIcon(newSessionButton, "plus");

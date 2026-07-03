@@ -1,4 +1,5 @@
 const { MODE_OPTIONS } = require("./modes");
+const { DEFAULT_LANGUAGE, normalizeLanguage } = require("./i18n");
 
 const CUSTOM_ASSISTANT_STYLE_MAX_CHARS = 4000;
 
@@ -26,6 +27,7 @@ const ASSISTANT_STYLE_OPTIONS = {
 };
 
 const DEFAULT_SETTINGS = {
+  language: DEFAULT_LANGUAGE,
   agentId: "codex",
   codexPath: "/opt/homebrew/bin/codex",
   args: "exec {{prompt}}",
@@ -62,6 +64,8 @@ function normalizeSettings(savedSettings) {
   if (!MODE_OPTIONS[settings.mode]) {
     settings.mode = DEFAULT_SETTINGS.mode;
   }
+
+  settings.language = normalizeLanguage(settings.language);
 
   if (!settings.agentId) {
     settings.agentId = DEFAULT_SETTINGS.agentId;
