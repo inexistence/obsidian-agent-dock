@@ -1,0 +1,29 @@
+src/view/MessageTimelineRenderer.js
+  s_972bb6c1faa744::t_d7507edc216159 14,26,32-33,40-41,48,56,61-63,73-74,81-84,94-127,129
+  s_972bb6c1faa744::t_6e7cbbca542ea2 128
+  s_972bb6c1faa744::t_8a91ba24f9b132 130-131
+src/view/AgentDockView.js
+  s_972bb6c1faa744::t_a48c6cea43f9ed 40,182-184,204-208,679,905,907-909,912-928
+  s_972bb6c1faa744::t_cff388cadb45eb 929-930
+main.js
+  s_972bb6c1faa744::t_e4c0b55c704171 4064,4206-4208,4228-4232,4703,4929,4931-4933,4936-4952
+  s_972bb6c1faa744::t_2921369854f3e8 3535,3547,3553-3554,3561-3562,3569,3577,3582-3584,3594-3595,3602-3605,3615-3648,3650
+  s_972bb6c1faa744::t_995abe9b2c1035 3649,3651-3652,4953-4954
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "6e54c4b3be7e90e86f1a39f8ddc1330d1e6647d7",
+  "prompts": {},
+  "logical_commit_id": "6e54c4b3be7e90e86f1a39f8ddc1330d1e6647d7",
+  "sessions": {
+    "s_972bb6c1faa744": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2787-c62a-7d51-92e5-e0f8f77b67b7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
