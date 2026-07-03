@@ -37,6 +37,7 @@ class AgentDockView extends ItemView {
     this.pendingMessageRenderTarget = null;
     this.globalPointerListeners = new Set();
     this.hasLoadedPersistedSessions = false;
+    this.autoScrollThresholdPx = 48;
   }
 
   get sessions() {
@@ -178,7 +179,9 @@ class AgentDockView extends ItemView {
     this.updateContextStatus();
   }
 
-  renderMessages() {
+  renderMessages(options = {}) {
+    const shouldScrollToBottom = options.forceScrollToBottom || this.isMessageListNearBottom();
+    const previousScrollTop = this.messageList.scrollTop;
     this.messageList.empty();
     this.messageEls = new WeakMap();
     const session = this.ensureActiveSession();
@@ -198,7 +201,11 @@ class AgentDockView extends ItemView {
       this.messageEls.set(message, item);
     }
 
-    this.messageList.scrollTop = this.messageList.scrollHeight;
+    if (shouldScrollToBottom) {
+      this.scrollMessagesToBottom();
+    } else {
+      this.messageList.scrollTop = previousScrollTop;
+    }
     this.updateContextStatus();
   }
 
@@ -669,7 +676,7 @@ class AgentDockView extends ItemView {
       assistantMessage
     };
     session.currentRun = run;
-    this.renderMessages();
+    this.renderMessages({ forceScrollToBottom: true });
     this.renderComposer();
     this.persistChatSessions({ immediate: true });
 
@@ -895,10 +902,30 @@ class AgentDockView extends ItemView {
       return false;
     }
 
+    const shouldScrollToBottom = this.isMessageListNearBottom();
     this.renderMessageItem(item, message);
-    this.messageList.scrollTop = this.messageList.scrollHeight;
+    if (shouldScrollToBottom) {
+      this.scrollMessagesToBottom();
+    }
     this.updateContextStatus();
     return true;
+  }
+
+  isMessageListNearBottom() {
+    if (!this.messageList) {
+      return true;
+    }
+
+    const distanceFromBottom = this.messageList.scrollHeight
+      - this.messageList.scrollTop
+      - this.messageList.clientHeight;
+    return distanceFromBottom <= this.autoScrollThresholdPx;
+  }
+
+  scrollMessagesToBottom() {
+    if (this.messageList) {
+      this.messageList.scrollTop = this.messageList.scrollHeight;
+    }
   }
 
   cancelPendingMessageRender() {

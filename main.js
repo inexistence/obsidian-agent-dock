@@ -3532,6 +3532,7 @@ class MessageTimelineRenderer {
     this.getDebugActivity = options.getDebugActivity;
     this.translate = options.translate;
     this.renderMarkdownContent = options.renderMarkdownContent;
+    this.groupOpenStates = new WeakMap();
   }
 
   renderTimeline(containerEl, message) {
@@ -3543,27 +3544,29 @@ class MessageTimelineRenderer {
     }
 
     if (message.isComplete) {
-      this.renderCompletedTimeline(containerEl, message.timeline);
+      this.renderCompletedTimeline(containerEl, message);
       return;
     }
 
     for (const group of groupLiveTimeline(message.timeline, this.getDebugActivity(), this.translate)) {
       if (group.type === "eventGroup") {
-        this.renderEventGroup(containerEl, group.entries, group.label, false);
+        const key = this.getTimelineGroupKey("live", message.timeline, group.entries);
+        this.renderEventGroup(containerEl, message, key, group.entries, group.label, false);
       } else {
         this.renderTimelineEntry(containerEl, group.entry);
       }
     }
   }
 
-  renderCompletedTimeline(containerEl, timeline) {
+  renderCompletedTimeline(containerEl, message) {
+    const timeline = message.timeline;
     const { processedEntries, finalEntry } = getCompletedTimelineSections(
       timeline,
       this.getDebugActivity()
     );
 
     if (processedEntries.length > 0) {
-      this.renderProcessedGroup(containerEl, processedEntries);
+      this.renderProcessedGroup(containerEl, message, processedEntries);
     }
 
     if (finalEntry) {
@@ -3571,15 +3574,15 @@ class MessageTimelineRenderer {
     }
   }
 
-  renderProcessedGroup(containerEl, entries) {
+  renderProcessedGroup(containerEl, message, entries) {
     if (entries.length === 0) {
       return;
     }
 
-    const details = containerEl.createEl("details", {
-      cls: "codex-dock__event-group codex-dock__event-group--processed"
+    const details = this.renderDetails(containerEl, message, "processed", {
+      cls: "codex-dock__event-group codex-dock__event-group--processed",
+      defaultOpen: false
     });
-    details.open = false;
     details.createEl("summary", {
       cls: "codex-dock__event-group-summary",
       text: this.translate("timeline.processed", { count: entries.length })
@@ -3588,18 +3591,19 @@ class MessageTimelineRenderer {
     const body = details.createDiv({ cls: "codex-dock__event-group-body" });
     for (const group of groupProcessedEntries(entries)) {
       if (group.type === "eventGroup") {
-        this.renderEventGroup(body, group.entries, getEventGroupLabel(group.entries, this.translate), false);
+        const key = this.getTimelineGroupKey("processed", message.timeline, group.entries);
+        this.renderEventGroup(body, message, key, group.entries, getEventGroupLabel(group.entries, this.translate), false);
       } else {
         this.renderTimelineEntry(body, group.entry);
       }
     }
   }
 
-  renderEventGroup(containerEl, entries, label, open) {
-    const details = containerEl.createEl("details", {
-      cls: "codex-dock__event-group"
+  renderEventGroup(containerEl, message, key, entries, label, open) {
+    const details = this.renderDetails(containerEl, message, key, {
+      cls: "codex-dock__event-group",
+      defaultOpen: open
     });
-    details.open = open;
     details.createEl("summary", {
       cls: "codex-dock__event-group-summary",
       text: label
@@ -3609,6 +3613,41 @@ class MessageTimelineRenderer {
     for (const entry of entries) {
       this.renderTimelineEntry(body, entry);
     }
+  }
+
+  renderDetails(containerEl, message, key, options) {
+    const details = containerEl.createEl("details", {
+      cls: options.cls
+    });
+    details.open = this.getStoredOpenState(message, key, options.defaultOpen);
+    details.addEventListener("toggle", () => {
+      this.setStoredOpenState(message, key, details.open);
+    });
+    return details;
+  }
+
+  getTimelineGroupKey(prefix, timeline, entries) {
+    const firstEntry = entries[0];
+    const firstIndex = firstEntry ? timeline.indexOf(firstEntry) : -1;
+    const kind = firstEntry?.kind || "activity";
+    return `${prefix}:${firstIndex}:${kind}`;
+  }
+
+  getStoredOpenState(message, key, defaultOpen) {
+    const states = this.groupOpenStates.get(message);
+    if (!states || !states.has(key)) {
+      return defaultOpen;
+    }
+    return states.get(key);
+  }
+
+  setStoredOpenState(message, key, open) {
+    let states = this.groupOpenStates.get(message);
+    if (!states) {
+      states = new Map();
+      this.groupOpenStates.set(message, states);
+    }
+    states.set(key, open);
   }
 
   renderTimelineEntry(containerEl, entry) {
@@ -4022,6 +4061,7 @@ class AgentDockView extends ItemView {
     this.pendingMessageRenderTarget = null;
     this.globalPointerListeners = new Set();
     this.hasLoadedPersistedSessions = false;
+    this.autoScrollThresholdPx = 48;
   }
 
   get sessions() {
@@ -4163,7 +4203,9 @@ class AgentDockView extends ItemView {
     this.updateContextStatus();
   }
 
-  renderMessages() {
+  renderMessages(options = {}) {
+    const shouldScrollToBottom = options.forceScrollToBottom || this.isMessageListNearBottom();
+    const previousScrollTop = this.messageList.scrollTop;
     this.messageList.empty();
     this.messageEls = new WeakMap();
     const session = this.ensureActiveSession();
@@ -4183,7 +4225,11 @@ class AgentDockView extends ItemView {
       this.messageEls.set(message, item);
     }
 
-    this.messageList.scrollTop = this.messageList.scrollHeight;
+    if (shouldScrollToBottom) {
+      this.scrollMessagesToBottom();
+    } else {
+      this.messageList.scrollTop = previousScrollTop;
+    }
     this.updateContextStatus();
   }
 
@@ -4654,7 +4700,7 @@ class AgentDockView extends ItemView {
       assistantMessage
     };
     session.currentRun = run;
-    this.renderMessages();
+    this.renderMessages({ forceScrollToBottom: true });
     this.renderComposer();
     this.persistChatSessions({ immediate: true });
 
@@ -4880,10 +4926,30 @@ class AgentDockView extends ItemView {
       return false;
     }
 
+    const shouldScrollToBottom = this.isMessageListNearBottom();
     this.renderMessageItem(item, message);
-    this.messageList.scrollTop = this.messageList.scrollHeight;
+    if (shouldScrollToBottom) {
+      this.scrollMessagesToBottom();
+    }
     this.updateContextStatus();
     return true;
+  }
+
+  isMessageListNearBottom() {
+    if (!this.messageList) {
+      return true;
+    }
+
+    const distanceFromBottom = this.messageList.scrollHeight
+      - this.messageList.scrollTop
+      - this.messageList.clientHeight;
+    return distanceFromBottom <= this.autoScrollThresholdPx;
+  }
+
+  scrollMessagesToBottom() {
+    if (this.messageList) {
+      this.messageList.scrollTop = this.messageList.scrollHeight;
+    }
   }
 
   cancelPendingMessageRender() {
