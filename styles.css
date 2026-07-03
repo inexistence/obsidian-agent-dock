@@ -475,6 +475,7 @@
   font-size: var(--font-ui-smaller);
   line-height: 1.35;
   overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .codex-dock__event-detail {

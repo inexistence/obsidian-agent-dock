@@ -10,6 +10,7 @@ const { escapeAppleScriptString, shellQuote } = require("../../cli/shell");
 const { applyModeArgs } = require("../../modes");
 const { buildPromptWithMetadata } = require("../../prompt");
 const { DEFAULT_SETTINGS } = require("../../settings");
+const { formatMemoryLine } = require("../../storage/MemoryStore");
 const { codexJsonEventToUpdates } = require("./jsonEvents");
 
 class CodexAgent {
@@ -31,10 +32,12 @@ class CodexAgent {
     const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, { memories });
     const finalPrompt = promptResult.prompt;
     if (promptResult.context.memoryCount > 0) {
+      const memorySummary = formatMemoryNoticeSummary(memories);
       onUpdate({
         kind: "notice",
         title: "Memory included",
-        summary: `Added ${promptResult.context.memoryCount} relevant local ${promptResult.context.memoryCount === 1 ? "memory" : "memories"} to the prompt.`
+        summary: memorySummary,
+        detail: memories.map(formatMemoryLine).join("\n")
       });
     }
     if (promptResult.context.compressed) {
@@ -262,6 +265,19 @@ async function readOutputFile(outputPath) {
 
 function formatNumber(value) {
   return new Intl.NumberFormat().format(value);
+}
+
+function formatMemoryNoticeSummary(memories) {
+  const count = memories.length;
+  const lines = [
+    `Added ${count} relevant local ${count === 1 ? "memory" : "memories"} to the prompt.`
+  ];
+  const visibleMemories = memories.slice(0, 5).map(formatMemoryLine);
+  lines.push(...visibleMemories);
+  if (memories.length > visibleMemories.length) {
+    lines.push(`- ... ${memories.length - visibleMemories.length} more`);
+  }
+  return lines.join("\n");
 }
 
 function createAbortError() {
