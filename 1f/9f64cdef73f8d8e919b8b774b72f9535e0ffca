@@ -1,0 +1,22 @@
+main.js
+  s_867531e3a2303c::t_739443da7196b6 2247-2248
+src/view/ComposerRenderer.js
+  s_867531e3a2303c::t_fbf7d6a5c69fd1 38-39
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "1f9f64cdef73f8d8e919b8b774b72f9535e0ffca",
+  "prompts": {},
+  "logical_commit_id": "1f9f64cdef73f8d8e919b8b774b72f9535e0ffca",
+  "sessions": {
+    "s_867531e3a2303c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f26df-bfb6-7603-8404-b50e6245ddee",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <huangjianbin@imo.im>"
+    }
+  }
+}
