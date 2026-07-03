@@ -53,11 +53,11 @@ concise local memories such as user preferences, explicit "remember" requests,
 agent identity notes, shared collaboration notes, recent tasks, and
 decision-like notes. Future prompts include relevant memories grouped as user,
 agent self, shared collaboration, and project memory within the configured
-memory prompt limit. The default extractor is local and rule-based, with the
-extraction logic isolated from storage so a future model-assisted or multilingual
-provider can be added without changing memory persistence. Settings -> Agent
-Dock -> Memory can disable memory, disable automatic extraction, adjust limits,
-or clear saved memory.
+memory prompt limit. The default extractor is local and rule-based, with a
+candidate extraction and classification pipeline isolated from storage so a
+future model-assisted or multilingual provider can be added without changing
+memory persistence. Settings -> Agent Dock -> Memory can disable memory,
+disable automatic extraction, adjust limits, or clear saved memory.
 
 ## Architecture
 

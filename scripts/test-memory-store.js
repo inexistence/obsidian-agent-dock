@@ -92,4 +92,29 @@ assert.equal(
   "shared memory should require a query match instead of global recall"
 );
 
+{
+  const customExtractor = new RuleBasedMemoryExtractor({
+    candidateExtractor: {
+      extractCandidates() {
+        return [{ kind: "fact", scope: "user", text: "Injected candidate", confidence: 0.7 }];
+      }
+    },
+    classifier: {
+      classifyCandidates(candidates, context) {
+        return candidates.map((candidate) => Object.assign({}, candidate, {
+          source: "test",
+          sourceSessionId: context.sourceSessionId
+        }));
+      }
+    }
+  });
+  const items = customExtractor.extractTurn({ sessionId: "inject-session" });
+  assert.equal(
+    hasMemory(items, "fact", "user", /Injected candidate/),
+    true,
+    "extractor should allow candidate and classifier injection"
+  );
+  assert.equal(items[0].sourceSessionId, "inject-session");
+}
+
 console.log("MemoryStore tests passed");
