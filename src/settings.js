@@ -36,9 +36,7 @@ const DEFAULT_SETTINGS = {
   workingDirectory: "",
   assistantStyle: "collaborative",
   customAssistantStyle: "",
-  includeActiveNote: true,
   debugActivity: false,
-  activeNoteMaxChars: 6000,
   contextLimitChars: 258000,
   persistChatHistory: true,
   maxPersistedSessions: 20,
@@ -79,10 +77,6 @@ function normalizeSettings(savedSettings) {
     CUSTOM_ASSISTANT_STYLE_MAX_CHARS
   );
 
-  settings.activeNoteMaxChars = normalizePositiveInteger(
-    settings.activeNoteMaxChars,
-    DEFAULT_SETTINGS.activeNoteMaxChars
-  );
   settings.contextLimitChars = normalizePositiveInteger(
     settings.contextLimitChars,
     DEFAULT_SETTINGS.contextLimitChars
@@ -112,6 +106,8 @@ function normalizeSettings(savedSettings) {
   );
 
   delete settings.command;
+  delete settings.includeActiveNote;
+  delete settings.activeNoteMaxChars;
   return settings;
 }
 

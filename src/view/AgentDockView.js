@@ -158,6 +158,7 @@ class AgentDockView extends ItemView {
       updateMentionChips: () => this.referenceController.updateMentionChips(),
       updateMentionSuggestions: () => this.referenceController.updateMentionSuggestions(),
       hideMentionSuggestions: () => this.referenceController.hideMentionSuggestions(),
+      insertActiveNoteReference: () => this.insertActiveNoteReference(),
       onDraftChanged: (session) => this.persistSessionChange(session),
       handleReferenceDrop: (dataTransfer) => this.referenceController.handleReferenceDrop(dataTransfer),
       submit: () => this.submit(),
@@ -176,6 +177,14 @@ class AgentDockView extends ItemView {
       mentionMenuEl: this.mentionMenuEl
     });
     this.updateContextStatus();
+  }
+
+  insertActiveNoteReference() {
+    if (this.referenceController.insertActiveFileReference()) {
+      return true;
+    }
+    new Notice(this.translate("notice.noActiveNote"));
+    return false;
   }
 
   renderMessages(options = {}) {

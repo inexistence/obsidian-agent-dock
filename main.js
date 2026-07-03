@@ -142,12 +142,8 @@ module.exports = {
     "settings.customAssistantStyle.name": "Custom assistant style",
     "settings.customAssistantStyle.desc": "Your own style guidance, up to {max} characters. It is treated as tone and collaboration preference, not as permission to override higher-priority instructions.",
     "settings.customAssistantStyle.placeholder": "Example: Be warm, practical, and gently opinionated. Explain tradeoffs briefly before making changes.",
-    "settings.includeActiveNote.name": "Include active note",
-    "settings.includeActiveNote.desc": "Send the current note content along with your request.",
     "settings.debugActivity.name": "Debug activity",
     "settings.debugActivity.desc": "Show streamed reasoning summaries, tool calls, command output, stderr, and raw events under each response.",
-    "settings.activeNoteMaxChars.name": "Active note character limit",
-    "settings.activeNoteMaxChars.desc": "Prevents very large notes from overwhelming the command.",
     "settings.contextLimitChars.name": "Context character limit",
     "settings.contextLimitChars.desc": "Maximum prompt size before older conversation history is compressed. Default is 258k characters.",
     "settings.persistChatHistory.name": "Persist chat history",
@@ -194,10 +190,11 @@ module.exports = {
     "notice.agentStopped": "{agent} stopped.",
     "notice.agentCommandFailed": "{agent} command failed.",
     "notice.stopBeforeDeleting": "Stop this conversation before deleting it.",
+    "notice.noActiveNote": "No active note to reference.",
     "view.terminalButton": "Terminal",
     "view.openInteractiveTerminal": "Open interactive agent in Terminal",
     "view.emptyLine1": "Open a side conversation with an agent.",
-    "view.emptyLine2": "The active note can be included automatically.",
+    "view.emptyLine2": "Click the file button to reference the active note.",
     "view.you": "You",
     "view.folder": "Folder",
     "view.vaultRoot": "Vault root",
@@ -211,9 +208,7 @@ module.exports = {
     "view.contextTitle": "Context {percent}% · {used} / {limit} chars",
     "view.deleteSessionConfirm": "Delete \"{title}\"?",
     "composer.placeholder": "Ask the agent about this vault or the active note...",
-    "composer.toggleActiveNote": "Toggle active note context",
-    "composer.activeNoteIncluded": "Active note will be sent. Click to exclude it.",
-    "composer.activeNoteExcluded": "Active note will not be sent. Click to include it.",
+    "composer.attachActiveNote": "Attach active note as a reference",
     "composer.referencedFiles": "Referenced files",
     "composer.mode": "Mode",
     "composer.stopAgent": "Stop agent",
@@ -287,12 +282,8 @@ module.exports = {
     "settings.customAssistantStyle.name": "自定义助手风格",
     "settings.customAssistantStyle.desc": "你的自定义风格指引，最多 {max} 个字符。它只会作为语气和协作偏好，不会覆盖更高优先级指令。",
     "settings.customAssistantStyle.placeholder": "例如：温暖、务实，并适度给出观点。修改前简短说明取舍。",
-    "settings.includeActiveNote.name": "包含当前笔记",
-    "settings.includeActiveNote.desc": "发送请求时附带当前笔记内容。",
     "settings.debugActivity.name": "调试活动",
     "settings.debugActivity.desc": "在每条回复下显示推理摘要、工具调用、命令输出、stderr 和原始事件。",
-    "settings.activeNoteMaxChars.name": "当前笔记字符限制",
-    "settings.activeNoteMaxChars.desc": "避免过大的笔记淹没命令输入。",
     "settings.contextLimitChars.name": "上下文字符限制",
     "settings.contextLimitChars.desc": "旧对话历史被压缩前的最大提示词大小。默认 258k 字符。",
     "settings.persistChatHistory.name": "持久化聊天历史",
@@ -339,10 +330,11 @@ module.exports = {
     "notice.agentStopped": "{agent} 已停止。",
     "notice.agentCommandFailed": "{agent} 命令运行失败。",
     "notice.stopBeforeDeleting": "删除前请先停止此对话。",
+    "notice.noActiveNote": "没有可引用的当前笔记。",
     "view.terminalButton": "终端",
     "view.openInteractiveTerminal": "在终端打开交互式 Agent",
     "view.emptyLine1": "开启一个侧边 Agent 对话。",
-    "view.emptyLine2": "当前笔记可以自动附加到请求中。",
+    "view.emptyLine2": "点击文件按钮即可引用当前笔记。",
     "view.you": "你",
     "view.folder": "文件夹",
     "view.vaultRoot": "Vault 根目录",
@@ -356,9 +348,7 @@ module.exports = {
     "view.contextTitle": "上下文 {percent}% · {used} / {limit} 字符",
     "view.deleteSessionConfirm": "删除“{title}”？",
     "composer.placeholder": "询问 agent 关于此 vault 或当前笔记的问题...",
-    "composer.toggleActiveNote": "切换当前笔记上下文",
-    "composer.activeNoteIncluded": "当前笔记会附带发送，点击后不附带",
-    "composer.activeNoteExcluded": "当前笔记不会发送，点击后附带当前笔记",
+    "composer.attachActiveNote": "将当前笔记附加为引用",
     "composer.referencedFiles": "提及的文件",
     "composer.mode": "模式",
     "composer.stopAgent": "停止 agent",
@@ -1215,59 +1205,16 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
   const promptParts = [];
   const contextLimit = Number(settings.contextLimitChars) || 258000;
   const stylePrompt = formatAssistantStylePrompt(settings);
-  const referencedPrompt = await buildReferencedPathsPrompt(app, prompt, contextLimit);
+  const referencedPrompt = buildReferencedPathsPrompt(app, prompt, contextLimit);
   const memoryPrompt = formatMemoryPrompt(options.memories || []);
-
-  if (!settings.includeActiveNote) {
-    const conversationBudget = Math.max(
-      1000,
-      contextLimit - stylePrompt.length - referencedPrompt.length - memoryPrompt.length
-    );
-    promptParts.push(
-      stylePrompt,
-      memoryPrompt,
-      referencedPrompt,
-      formatConversationPrompt(prompt, conversation, conversationBudget)
-    );
-    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || [], stylePrompt);
-  }
-
-  const file = app.workspace.getActiveFile();
-  if (!file) {
-    const conversationBudget = Math.max(
-      1000,
-      contextLimit - stylePrompt.length - referencedPrompt.length - memoryPrompt.length
-    );
-    promptParts.push(
-      stylePrompt,
-      memoryPrompt,
-      referencedPrompt,
-      formatConversationPrompt(prompt, conversation, conversationBudget)
-    );
-    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || [], stylePrompt);
-  }
-
-  const note = await app.vault.cachedRead(file);
-  const maxChars = Number(settings.activeNoteMaxChars) || 6000;
-  const clippedNote = note.length > maxChars
-    ? `${note.slice(0, maxChars)}\n\n[Note clipped]`
-    : note;
-
-  const notePrompt = [
-    `Active Obsidian note: ${file.path}`,
-    "",
-    clippedNote,
-    ""
-  ].join("\n");
   const conversationBudget = Math.max(
     1000,
-    contextLimit - stylePrompt.length - notePrompt.length - referencedPrompt.length - memoryPrompt.length
+    contextLimit - stylePrompt.length - referencedPrompt.length - memoryPrompt.length
   );
 
   promptParts.push(
     stylePrompt,
     memoryPrompt,
-    notePrompt,
     referencedPrompt,
     formatConversationPrompt(prompt, conversation, conversationBudget)
   );
@@ -1378,75 +1325,32 @@ function formatConversationPrompt(prompt, conversation, maxChars) {
   ].join("\n");
 }
 
-async function buildReferencedPathsPrompt(app, prompt, contextLimit) {
+function buildReferencedPathsPrompt(app, prompt, contextLimit) {
   const paths = extractMentionPaths(prompt, app);
   if (paths.length === 0) {
     return "";
   }
 
-  const maxChars = Math.min(16000, Math.max(4000, Math.floor(contextLimit * 0.15)));
-  const parts = ["Referenced Obsidian paths:"];
-  let used = parts[0].length;
+  const maxChars = Math.min(8000, Math.max(2000, Math.floor(contextLimit * 0.05)));
+  const parts = [
+    "Referenced Obsidian paths:",
+    "Only paths are included here; file contents are not embedded in this prompt."
+  ];
+  let used = parts.join("\n").length;
 
   for (const mentionPath of paths) {
     const entry = resolveReferencedEntry(app, mentionPath);
-    if (!entry) {
-      const missing = [`Path: ${mentionPath}`, "[Not found in vault]"].join("\n");
-      if (!appendReferencedPart(parts, missing, maxChars, used)) {
-        break;
-      }
-      used += missing.length + 2;
-      continue;
-    }
-
-    const part = entry.children
-      ? formatReferencedFolder(entry)
-      : await formatReferencedFile(app, entry);
+    const kind = entry?.children ? "folder" : "file";
+    const status = entry ? kind : "not found in vault";
+    const part = `- ${entry?.path || mentionPath} (${status})`;
     if (!appendReferencedPart(parts, part, maxChars, used)) {
       parts.push("[Additional referenced paths omitted]");
       break;
     }
-    used += part.length + 2;
+    used += part.length + 1;
   }
 
-  return `${parts.join("\n\n")}\n`;
-}
-
-async function formatReferencedFile(app, file) {
-  const maxFileChars = 3000;
-  const content = await app.vault.cachedRead(file);
-  const clippedContent = content.length > maxFileChars
-    ? `${content.slice(0, maxFileChars)}\n\n[Referenced file clipped]`
-    : content;
-  return [
-    `File: ${file.path}`,
-    "```",
-    clippedContent,
-    "```"
-  ].join("\n");
-}
-
-function formatReferencedFolder(folder) {
-  const maxEntries = 200;
-  const paths = [];
-  collectFolderPaths(folder, paths, maxEntries);
-  const omitted = paths.length >= maxEntries ? "\n[Folder listing clipped]" : "";
-  return [
-    `Folder: ${folder.path}`,
-    paths.map((path) => `- ${path}`).join("\n") + omitted
-  ].filter(Boolean).join("\n");
-}
-
-function collectFolderPaths(folder, paths, maxEntries) {
-  for (const child of folder.children || []) {
-    if (paths.length >= maxEntries) {
-      return;
-    }
-    paths.push(child.children ? `${child.path}/` : child.path);
-    if (child.children) {
-      collectFolderPaths(child, paths, maxEntries);
-    }
-  }
+  return `${parts.join("\n")}\n`;
 }
 
 function appendReferencedPart(parts, part, maxChars, used) {
@@ -1758,9 +1662,7 @@ const DEFAULT_SETTINGS = {
   workingDirectory: "",
   assistantStyle: "collaborative",
   customAssistantStyle: "",
-  includeActiveNote: true,
   debugActivity: false,
-  activeNoteMaxChars: 6000,
   contextLimitChars: 258000,
   persistChatHistory: true,
   maxPersistedSessions: 20,
@@ -1801,10 +1703,6 @@ function normalizeSettings(savedSettings) {
     CUSTOM_ASSISTANT_STYLE_MAX_CHARS
   );
 
-  settings.activeNoteMaxChars = normalizePositiveInteger(
-    settings.activeNoteMaxChars,
-    DEFAULT_SETTINGS.activeNoteMaxChars
-  );
   settings.contextLimitChars = normalizePositiveInteger(
     settings.contextLimitChars,
     DEFAULT_SETTINGS.contextLimitChars
@@ -1834,6 +1732,8 @@ function normalizeSettings(savedSettings) {
   );
 
   delete settings.command;
+  delete settings.includeActiveNote;
+  delete settings.activeNoteMaxChars;
   return settings;
 }
 
@@ -2634,36 +2534,12 @@ class AgentDockSettingTab extends PluginSettingTab {
     }
 
     new Setting(containerEl)
-      .setName(translate("settings.includeActiveNote.name"))
-      .setDesc(translate("settings.includeActiveNote.desc"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.includeActiveNote)
-        .onChange(async (value) => {
-          this.plugin.settings.includeActiveNote = value;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
       .setName(translate("settings.debugActivity.name"))
       .setDesc(translate("settings.debugActivity.desc"))
       .addToggle((toggle) => toggle
         .setValue(this.plugin.settings.debugActivity)
         .onChange(async (value) => {
           this.plugin.settings.debugActivity = value;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.activeNoteMaxChars.name"))
-      .setDesc(translate("settings.activeNoteMaxChars.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.activeNoteMaxChars))
-        .setValue(String(this.plugin.settings.activeNoteMaxChars))
-        .onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.activeNoteMaxChars = Number.isFinite(parsed) && parsed > 0
-            ? parsed
-            : DEFAULT_SETTINGS.activeNoteMaxChars;
           await this.plugin.saveSettings();
         }));
 
@@ -3076,6 +2952,7 @@ function renderComposerContent(composer, options) {
     updateMentionChips,
     updateMentionSuggestions,
     hideMentionSuggestions,
+    insertActiveNoteReference,
     onDraftChanged,
     handleReferenceDrop,
     submit,
@@ -3173,26 +3050,16 @@ function renderComposerContent(composer, options) {
     }
   });
   const updateActiveNoteButton = () => {
-    const isIncluded = plugin.settings.includeActiveNote;
     activeNoteButton.empty();
-    setIcon(activeNoteButton, isIncluded ? "file-check-2" : "file-plus-2");
-    activeNoteButton.toggleClass("is-active", isIncluded);
-    activeNoteButton.setAttr("aria-pressed", String(isIncluded));
-    activeNoteButton.setAttr(
-      "aria-label",
-      translate(isIncluded ? "composer.activeNoteIncluded" : "composer.activeNoteExcluded")
-    );
-    activeNoteButton.setAttr(
-      "title",
-      translate(isIncluded ? "composer.activeNoteIncluded" : "composer.activeNoteExcluded")
-    );
+    setIcon(activeNoteButton, "file-plus-2");
+    activeNoteButton.setAttr("aria-label", translate("composer.attachActiveNote"));
+    activeNoteButton.setAttr("title", translate("composer.attachActiveNote"));
   };
   updateActiveNoteButton();
-  activeNoteButton.addEventListener("click", async () => {
-    plugin.settings.includeActiveNote = !plugin.settings.includeActiveNote;
-    updateActiveNoteButton();
-    await plugin.saveSettings();
-    updateContextStatus();
+  activeNoteButton.addEventListener("click", () => {
+    if (insertActiveNoteReference) {
+      insertActiveNoteReference();
+    }
   });
 
   const modePill = leftTools.createEl("details", { cls: "codex-dock__mode-pill" });
@@ -4356,6 +4223,29 @@ class ReferenceController {
     this.inputEl.focus();
   }
 
+  insertActiveFileReference() {
+    const file = this.plugin.app.workspace.getActiveFile();
+    const path = this.resolver.normalizeReferencedPath(file?.path || "");
+    if (!path) {
+      return false;
+    }
+
+    const existingPaths = new Set(
+      extractMentionReferences(this.inputEl?.value || "")
+        .map((reference) => this.resolver.normalizeReferencedPath(reference.path))
+        .filter(Boolean)
+    );
+    if (!existingPaths.has(path)) {
+      this.insertReferenceTokens([path]);
+    } else {
+      this.inputEl?.focus();
+    }
+    this.updateMentionChips();
+    this.updateContextStatus();
+    this.hideMentionSuggestions();
+    return true;
+  }
+
   insertReferenceTokens(paths) {
     const tokens = paths.map((path) => formatMentionToken(path));
     const value = this.inputEl.value;
@@ -5172,14 +5062,11 @@ function estimateContextChars(messages, draft, settings) {
     return total + String(message.content || "").length + 16;
   }, 0);
   const draftChars = String(draft || "").length + 16;
-  const noteChars = settings.includeActiveNote
-    ? (Number(settings.activeNoteMaxChars) || DEFAULT_SETTINGS.activeNoteMaxChars)
-    : 0;
   const memoryChars = settings.memoryEnabled
     ? (Number(settings.memoryMaxPromptChars) || DEFAULT_SETTINGS.memoryMaxPromptChars)
     : 0;
   const styleChars = estimateAssistantStyleChars(settings);
-  return transcriptChars + draftChars + noteChars + memoryChars + styleChars;
+  return transcriptChars + draftChars + memoryChars + styleChars;
 }
 
 function estimateAssistantStyleChars(settings) {
@@ -5366,6 +5253,7 @@ class AgentDockView extends ItemView {
       updateMentionChips: () => this.referenceController.updateMentionChips(),
       updateMentionSuggestions: () => this.referenceController.updateMentionSuggestions(),
       hideMentionSuggestions: () => this.referenceController.hideMentionSuggestions(),
+      insertActiveNoteReference: () => this.insertActiveNoteReference(),
       onDraftChanged: (session) => this.persistSessionChange(session),
       handleReferenceDrop: (dataTransfer) => this.referenceController.handleReferenceDrop(dataTransfer),
       submit: () => this.submit(),
@@ -5384,6 +5272,14 @@ class AgentDockView extends ItemView {
       mentionMenuEl: this.mentionMenuEl
     });
     this.updateContextStatus();
+  }
+
+  insertActiveNoteReference() {
+    if (this.referenceController.insertActiveFileReference()) {
+      return true;
+    }
+    new Notice(this.translate("notice.noActiveNote"));
+    return false;
   }
 
   renderMessages(options = {}) {

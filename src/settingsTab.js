@@ -135,36 +135,12 @@ class AgentDockSettingTab extends PluginSettingTab {
     }
 
     new Setting(containerEl)
-      .setName(translate("settings.includeActiveNote.name"))
-      .setDesc(translate("settings.includeActiveNote.desc"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.includeActiveNote)
-        .onChange(async (value) => {
-          this.plugin.settings.includeActiveNote = value;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
       .setName(translate("settings.debugActivity.name"))
       .setDesc(translate("settings.debugActivity.desc"))
       .addToggle((toggle) => toggle
         .setValue(this.plugin.settings.debugActivity)
         .onChange(async (value) => {
           this.plugin.settings.debugActivity = value;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.activeNoteMaxChars.name"))
-      .setDesc(translate("settings.activeNoteMaxChars.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.activeNoteMaxChars))
-        .setValue(String(this.plugin.settings.activeNoteMaxChars))
-        .onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.activeNoteMaxChars = Number.isFinite(parsed) && parsed > 0
-            ? parsed
-            : DEFAULT_SETTINGS.activeNoteMaxChars;
           await this.plugin.saveSettings();
         }));
 

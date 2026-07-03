@@ -184,6 +184,29 @@ class ReferenceController {
     this.inputEl.focus();
   }
 
+  insertActiveFileReference() {
+    const file = this.plugin.app.workspace.getActiveFile();
+    const path = this.resolver.normalizeReferencedPath(file?.path || "");
+    if (!path) {
+      return false;
+    }
+
+    const existingPaths = new Set(
+      extractMentionReferences(this.inputEl?.value || "")
+        .map((reference) => this.resolver.normalizeReferencedPath(reference.path))
+        .filter(Boolean)
+    );
+    if (!existingPaths.has(path)) {
+      this.insertReferenceTokens([path]);
+    } else {
+      this.inputEl?.focus();
+    }
+    this.updateMentionChips();
+    this.updateContextStatus();
+    this.hideMentionSuggestions();
+    return true;
+  }
+
   insertReferenceTokens(paths) {
     const tokens = paths.map((path) => formatMentionToken(path));
     const value = this.inputEl.value;

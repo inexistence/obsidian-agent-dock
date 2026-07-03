@@ -9,59 +9,16 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
   const promptParts = [];
   const contextLimit = Number(settings.contextLimitChars) || 258000;
   const stylePrompt = formatAssistantStylePrompt(settings);
-  const referencedPrompt = await buildReferencedPathsPrompt(app, prompt, contextLimit);
+  const referencedPrompt = buildReferencedPathsPrompt(app, prompt, contextLimit);
   const memoryPrompt = formatMemoryPrompt(options.memories || []);
-
-  if (!settings.includeActiveNote) {
-    const conversationBudget = Math.max(
-      1000,
-      contextLimit - stylePrompt.length - referencedPrompt.length - memoryPrompt.length
-    );
-    promptParts.push(
-      stylePrompt,
-      memoryPrompt,
-      referencedPrompt,
-      formatConversationPrompt(prompt, conversation, conversationBudget)
-    );
-    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || [], stylePrompt);
-  }
-
-  const file = app.workspace.getActiveFile();
-  if (!file) {
-    const conversationBudget = Math.max(
-      1000,
-      contextLimit - stylePrompt.length - referencedPrompt.length - memoryPrompt.length
-    );
-    promptParts.push(
-      stylePrompt,
-      memoryPrompt,
-      referencedPrompt,
-      formatConversationPrompt(prompt, conversation, conversationBudget)
-    );
-    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || [], stylePrompt);
-  }
-
-  const note = await app.vault.cachedRead(file);
-  const maxChars = Number(settings.activeNoteMaxChars) || 6000;
-  const clippedNote = note.length > maxChars
-    ? `${note.slice(0, maxChars)}\n\n[Note clipped]`
-    : note;
-
-  const notePrompt = [
-    `Active Obsidian note: ${file.path}`,
-    "",
-    clippedNote,
-    ""
-  ].join("\n");
   const conversationBudget = Math.max(
     1000,
-    contextLimit - stylePrompt.length - notePrompt.length - referencedPrompt.length - memoryPrompt.length
+    contextLimit - stylePrompt.length - referencedPrompt.length - memoryPrompt.length
   );
 
   promptParts.push(
     stylePrompt,
     memoryPrompt,
-    notePrompt,
     referencedPrompt,
     formatConversationPrompt(prompt, conversation, conversationBudget)
   );
@@ -172,75 +129,32 @@ function formatConversationPrompt(prompt, conversation, maxChars) {
   ].join("\n");
 }
 
-async function buildReferencedPathsPrompt(app, prompt, contextLimit) {
+function buildReferencedPathsPrompt(app, prompt, contextLimit) {
   const paths = extractMentionPaths(prompt, app);
   if (paths.length === 0) {
     return "";
   }
 
-  const maxChars = Math.min(16000, Math.max(4000, Math.floor(contextLimit * 0.15)));
-  const parts = ["Referenced Obsidian paths:"];
-  let used = parts[0].length;
+  const maxChars = Math.min(8000, Math.max(2000, Math.floor(contextLimit * 0.05)));
+  const parts = [
+    "Referenced Obsidian paths:",
+    "Only paths are included here; file contents are not embedded in this prompt."
+  ];
+  let used = parts.join("\n").length;
 
   for (const mentionPath of paths) {
     const entry = resolveReferencedEntry(app, mentionPath);
-    if (!entry) {
-      const missing = [`Path: ${mentionPath}`, "[Not found in vault]"].join("\n");
-      if (!appendReferencedPart(parts, missing, maxChars, used)) {
-        break;
-      }
-      used += missing.length + 2;
-      continue;
-    }
-
-    const part = entry.children
-      ? formatReferencedFolder(entry)
-      : await formatReferencedFile(app, entry);
+    const kind = entry?.children ? "folder" : "file";
+    const status = entry ? kind : "not found in vault";
+    const part = `- ${entry?.path || mentionPath} (${status})`;
     if (!appendReferencedPart(parts, part, maxChars, used)) {
       parts.push("[Additional referenced paths omitted]");
       break;
     }
-    used += part.length + 2;
+    used += part.length + 1;
   }
 
-  return `${parts.join("\n\n")}\n`;
-}
-
-async function formatReferencedFile(app, file) {
-  const maxFileChars = 3000;
-  const content = await app.vault.cachedRead(file);
-  const clippedContent = content.length > maxFileChars
-    ? `${content.slice(0, maxFileChars)}\n\n[Referenced file clipped]`
-    : content;
-  return [
-    `File: ${file.path}`,
-    "```",
-    clippedContent,
-    "```"
-  ].join("\n");
-}
-
-function formatReferencedFolder(folder) {
-  const maxEntries = 200;
-  const paths = [];
-  collectFolderPaths(folder, paths, maxEntries);
-  const omitted = paths.length >= maxEntries ? "\n[Folder listing clipped]" : "";
-  return [
-    `Folder: ${folder.path}`,
-    paths.map((path) => `- ${path}`).join("\n") + omitted
-  ].filter(Boolean).join("\n");
-}
-
-function collectFolderPaths(folder, paths, maxEntries) {
-  for (const child of folder.children || []) {
-    if (paths.length >= maxEntries) {
-      return;
-    }
-    paths.push(child.children ? `${child.path}/` : child.path);
-    if (child.children) {
-      collectFolderPaths(child, paths, maxEntries);
-    }
-  }
+  return `${parts.join("\n")}\n`;
 }
 
 function appendReferencedPart(parts, part, maxChars, used) {

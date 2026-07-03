@@ -8,14 +8,11 @@ function estimateContextChars(messages, draft, settings) {
     return total + String(message.content || "").length + 16;
   }, 0);
   const draftChars = String(draft || "").length + 16;
-  const noteChars = settings.includeActiveNote
-    ? (Number(settings.activeNoteMaxChars) || DEFAULT_SETTINGS.activeNoteMaxChars)
-    : 0;
   const memoryChars = settings.memoryEnabled
     ? (Number(settings.memoryMaxPromptChars) || DEFAULT_SETTINGS.memoryMaxPromptChars)
     : 0;
   const styleChars = estimateAssistantStyleChars(settings);
-  return transcriptChars + draftChars + noteChars + memoryChars + styleChars;
+  return transcriptChars + draftChars + memoryChars + styleChars;
 }
 
 function estimateAssistantStyleChars(settings) {

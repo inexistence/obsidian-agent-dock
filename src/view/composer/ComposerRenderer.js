@@ -14,6 +14,7 @@ function renderComposerContent(composer, options) {
     updateMentionChips,
     updateMentionSuggestions,
     hideMentionSuggestions,
+    insertActiveNoteReference,
     onDraftChanged,
     handleReferenceDrop,
     submit,
@@ -111,26 +112,16 @@ function renderComposerContent(composer, options) {
     }
   });
   const updateActiveNoteButton = () => {
-    const isIncluded = plugin.settings.includeActiveNote;
     activeNoteButton.empty();
-    setIcon(activeNoteButton, isIncluded ? "file-check-2" : "file-plus-2");
-    activeNoteButton.toggleClass("is-active", isIncluded);
-    activeNoteButton.setAttr("aria-pressed", String(isIncluded));
-    activeNoteButton.setAttr(
-      "aria-label",
-      translate(isIncluded ? "composer.activeNoteIncluded" : "composer.activeNoteExcluded")
-    );
-    activeNoteButton.setAttr(
-      "title",
-      translate(isIncluded ? "composer.activeNoteIncluded" : "composer.activeNoteExcluded")
-    );
+    setIcon(activeNoteButton, "file-plus-2");
+    activeNoteButton.setAttr("aria-label", translate("composer.attachActiveNote"));
+    activeNoteButton.setAttr("title", translate("composer.attachActiveNote"));
   };
   updateActiveNoteButton();
-  activeNoteButton.addEventListener("click", async () => {
-    plugin.settings.includeActiveNote = !plugin.settings.includeActiveNote;
-    updateActiveNoteButton();
-    await plugin.saveSettings();
-    updateContextStatus();
+  activeNoteButton.addEventListener("click", () => {
+    if (insertActiveNoteReference) {
+      insertActiveNoteReference();
+    }
   });
 
   const modePill = leftTools.createEl("details", { cls: "codex-dock__mode-pill" });
