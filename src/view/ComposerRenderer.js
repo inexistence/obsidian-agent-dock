@@ -11,6 +11,7 @@ function renderComposerContent(composer, options) {
     handleMentionKeydown,
     replaceObsidianLinksInInput,
     updateContextStatus,
+    updateMentionChips,
     updateMentionSuggestions,
     hideMentionSuggestions,
     onDraftChanged,
@@ -22,10 +23,18 @@ function renderComposerContent(composer, options) {
   } = options;
 
   const shell = composer.createDiv({ cls: "codex-dock__composer-shell" });
-  const inputEl = shell.createEl("textarea", {
+  const inputWrap = shell.createDiv({ cls: "codex-dock__input-wrap" });
+  const mentionChipsEl = inputWrap.createDiv({
+    cls: "codex-dock__mention-chips",
+    attr: {
+      "aria-label": translate("composer.referencedFiles")
+    }
+  });
+  const inputEl = inputWrap.createEl("textarea", {
     cls: "codex-dock__input",
     attr: {
       rows: "4",
+      spellcheck: "false",
       placeholder: translate("composer.placeholder")
     }
   });
@@ -52,6 +61,7 @@ function renderComposerContent(composer, options) {
       onDraftChanged(session);
     }
     updateContextStatus();
+    updateMentionChips();
     updateMentionSuggestions();
   });
   inputEl.addEventListener("click", updateMentionSuggestions);
@@ -67,16 +77,28 @@ function renderComposerContent(composer, options) {
   const activeNoteButton = leftTools.createEl("button", {
     cls: "codex-dock__composer-icon-button",
     attr: {
-      type: "button",
-      "aria-label": translate("composer.toggleActiveNote"),
-      title: translate("composer.toggleActiveNote")
+      type: "button"
     }
   });
-  setIcon(activeNoteButton, "plus");
-  activeNoteButton.toggleClass("is-active", plugin.settings.includeActiveNote);
+  const updateActiveNoteButton = () => {
+    const isIncluded = plugin.settings.includeActiveNote;
+    activeNoteButton.empty();
+    setIcon(activeNoteButton, isIncluded ? "file-check-2" : "file-plus-2");
+    activeNoteButton.toggleClass("is-active", isIncluded);
+    activeNoteButton.setAttr("aria-pressed", String(isIncluded));
+    activeNoteButton.setAttr(
+      "aria-label",
+      translate(isIncluded ? "composer.activeNoteIncluded" : "composer.activeNoteExcluded")
+    );
+    activeNoteButton.setAttr(
+      "title",
+      translate(isIncluded ? "composer.activeNoteIncluded" : "composer.activeNoteExcluded")
+    );
+  };
+  updateActiveNoteButton();
   activeNoteButton.addEventListener("click", async () => {
     plugin.settings.includeActiveNote = !plugin.settings.includeActiveNote;
-    activeNoteButton.toggleClass("is-active", plugin.settings.includeActiveNote);
+    updateActiveNoteButton();
     await plugin.saveSettings();
     updateContextStatus();
   });
@@ -165,6 +187,7 @@ function renderComposerContent(composer, options) {
   return {
     contextStatusEl,
     inputEl,
+    mentionChipsEl,
     mentionMenuEl
   };
 }

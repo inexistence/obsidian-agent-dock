@@ -173,7 +173,7 @@ function formatConversationPrompt(prompt, conversation, maxChars) {
 }
 
 async function buildReferencedPathsPrompt(app, prompt, contextLimit) {
-  const paths = extractMentionPaths(prompt);
+  const paths = extractMentionPaths(prompt, app);
   if (paths.length === 0) {
     return "";
   }
@@ -183,7 +183,7 @@ async function buildReferencedPathsPrompt(app, prompt, contextLimit) {
   let used = parts[0].length;
 
   for (const mentionPath of paths) {
-    const entry = app.vault.getAbstractFileByPath(mentionPath);
+    const entry = resolveReferencedEntry(app, mentionPath);
     if (!entry) {
       const missing = [`Path: ${mentionPath}`, "[Not found in vault]"].join("\n");
       if (!appendReferencedPart(parts, missing, maxChars, used)) {
@@ -251,14 +251,14 @@ function appendReferencedPart(parts, part, maxChars, used) {
   return true;
 }
 
-function extractMentionPaths(prompt) {
+function extractMentionPaths(prompt, app) {
   const paths = [];
   const seen = new Set();
   const pattern = /@(?:"((?:\\"|[^"])*)"|([^\s]+))/g;
   let match;
 
   const addPath = (path) => {
-    const normalizedPath = String(path || "").replace(/\\"/g, "\"").trim();
+    const normalizedPath = normalizeReferencedPath(app, path);
     if (normalizedPath && !seen.has(normalizedPath)) {
       seen.add(normalizedPath);
       paths.push(normalizedPath);
@@ -297,10 +297,50 @@ function extractObsidianOpenFilePath(url) {
     if (parsed.protocol !== "obsidian:" || parsed.hostname !== "open") {
       return "";
     }
-    return parsed.searchParams.get("file") || "";
+    return parsed.searchParams.get("file") || parsed.searchParams.get("path") || "";
   } catch {
     return "";
   }
+}
+
+function normalizeReferencedPath(app, path) {
+  const normalizedPath = String(path || "")
+    .replace(/\\"/g, "\"")
+    .replace(/\\/g, "/")
+    .trim();
+  if (!normalizedPath) {
+    return "";
+  }
+
+  const vaultBasePath = String(app?.vault?.adapter?.basePath || "").replace(/\\/g, "/").replace(/\/+$/, "");
+  if (vaultBasePath && normalizedPath === vaultBasePath) {
+    return "";
+  }
+  if (vaultBasePath && normalizedPath.startsWith(`${vaultBasePath}/`)) {
+    return resolveReferencedPath(app, normalizedPath.slice(vaultBasePath.length + 1));
+  }
+
+  return resolveReferencedPath(app, normalizedPath.replace(/^\/+/, ""));
+}
+
+function resolveReferencedPath(app, path) {
+  const normalizedPath = String(path || "").trim();
+  if (!normalizedPath) {
+    return "";
+  }
+
+  const entry = resolveReferencedEntry(app, normalizedPath);
+  return entry?.path || normalizedPath;
+}
+
+function resolveReferencedEntry(app, path) {
+  const normalizedPath = String(path || "").trim();
+  if (!normalizedPath) {
+    return null;
+  }
+
+  return app.vault.getAbstractFileByPath(normalizedPath)
+    || (!/\.[^/]+$/.test(normalizedPath) ? app.vault.getAbstractFileByPath(`${normalizedPath}.md`) : null);
 }
 
 function formatConversationTranscript(conversation, maxChars) {

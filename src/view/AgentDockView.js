@@ -8,6 +8,7 @@ const { copyText } = require("./clipboard");
 const { estimateContextChars, formatCompactNumber } = require("./contextEstimate");
 const { MessageTimelineRenderer } = require("./MessageTimelineRenderer");
 const {
+  extractMentionReferences,
   formatMentionToken,
   getMentionMatch,
   getParentPath,
@@ -151,6 +152,7 @@ class AgentDockView extends ItemView {
       handleMentionKeydown: (event) => this.handleMentionKeydown(event),
       replaceObsidianLinksInInput: () => this.replaceObsidianLinksInInput(),
       updateContextStatus: () => this.updateContextStatus(),
+      updateMentionChips: () => this.updateMentionChips(),
       updateMentionSuggestions: () => this.updateMentionSuggestions(),
       hideMentionSuggestions: () => this.hideMentionSuggestions(),
       onDraftChanged: (session) => this.persistSessionChange(session),
@@ -161,6 +163,7 @@ class AgentDockView extends ItemView {
       removeGlobalPointerListener: (listener) => this.removeGlobalPointerListener(listener)
     });
     this.inputEl = refs.inputEl;
+    this.mentionChipsEl = refs.mentionChipsEl;
     this.mentionMenuEl = refs.mentionMenuEl;
     this.contextStatusEl = refs.contextStatusEl;
     this.mentionState = {
@@ -170,6 +173,7 @@ class AgentDockView extends ItemView {
       selectedIndex: 0,
       suggestions: []
     };
+    this.updateMentionChips();
     this.updateContextStatus();
   }
 
@@ -402,6 +406,7 @@ class AgentDockView extends ItemView {
       this.persistSessionChange(session);
     }
     this.hideMentionSuggestions();
+    this.updateMentionChips();
     this.updateContextStatus();
     this.inputEl.focus();
   }
@@ -424,7 +429,7 @@ class AgentDockView extends ItemView {
 
   replaceObsidianLinksInInput() {
     const value = this.inputEl.value;
-    const nextValue = replaceObsidianOpenLinks(value);
+    const nextValue = replaceObsidianOpenLinks(value, (path) => this.normalizeReferencedPath(path));
     if (nextValue === value) {
       return false;
     }
@@ -439,9 +444,84 @@ class AgentDockView extends ItemView {
       session.draft = nextValue;
       this.persistSessionChange(session);
     }
+    this.updateMentionChips();
     this.updateContextStatus();
     this.updateMentionSuggestions();
     return true;
+  }
+
+  updateMentionChips() {
+    if (!this.mentionChipsEl) {
+      return;
+    }
+
+    const references = extractMentionReferences(this.inputEl?.value || "")
+      .map((reference) => ({
+        path: this.normalizeReferencedPath(reference.path),
+        name: reference.name
+      }))
+      .filter((reference) => reference.path);
+    this.mentionChipsEl.empty();
+    this.mentionChipsEl.toggleClass("is-empty", references.length === 0);
+    this.mentionChipsEl.setAttr("aria-hidden", references.length === 0 ? "true" : "false");
+
+    for (const reference of references) {
+      const entry = this.resolveReferencedEntry(reference.path);
+      const isFolder = Boolean(entry?.children);
+      const chip = this.mentionChipsEl.createSpan({
+        cls: `codex-dock__mention-chip${isFolder ? " is-folder" : " is-file"}`,
+        attr: {
+          title: reference.path
+        }
+      });
+      if (isFolder) {
+        const icon = chip.createSpan({ cls: "codex-dock__mention-chip-icon", attr: { "aria-hidden": "true" } });
+        setIcon(icon, "folder");
+      } else {
+        chip.createSpan({
+          cls: "codex-dock__mention-chip-type",
+          text: getMentionFileType(reference.name)
+        });
+      }
+      chip.createSpan({ cls: "codex-dock__mention-chip-name", text: reference.name || reference.path });
+    }
+  }
+
+  normalizeReferencedPath(path) {
+    const normalizedPath = String(path || "").replace(/\\/g, "/").replace(/\\"/g, "\"").trim();
+    if (!normalizedPath) {
+      return "";
+    }
+
+    const vaultBasePath = String(this.app.vault.adapter.basePath || "").replace(/\\/g, "/").replace(/\/+$/, "");
+    if (vaultBasePath && normalizedPath === vaultBasePath) {
+      return "";
+    }
+    if (vaultBasePath && normalizedPath.startsWith(`${vaultBasePath}/`)) {
+      return this.resolveReferencedPath(normalizedPath.slice(vaultBasePath.length + 1));
+    }
+
+    return this.resolveReferencedPath(normalizedPath.replace(/^\/+/, ""));
+  }
+
+  resolveReferencedPath(path) {
+    const normalizedPath = String(path || "").trim();
+    if (!normalizedPath) {
+      return "";
+    }
+
+    const entry = this.resolveReferencedEntry(normalizedPath);
+    return entry?.path || normalizedPath;
+  }
+
+  resolveReferencedEntry(path) {
+    const normalizedPath = String(path || "").trim();
+    if (!normalizedPath) {
+      return null;
+    }
+
+    return this.app.vault.getAbstractFileByPath(normalizedPath)
+      || (!/\.[^/]+$/.test(normalizedPath) ? this.app.vault.getAbstractFileByPath(`${normalizedPath}.md`) : null);
   }
 
   async submit() {
@@ -460,6 +540,7 @@ class AgentDockView extends ItemView {
     this.updateSessionSwitcher();
     this.inputEl.value = "";
     session.draft = "";
+    this.updateMentionChips();
     this.sessionStore.touchSession(session);
     const now = Date.now();
     session.messages.push({
@@ -778,3 +859,11 @@ class AgentDockView extends ItemView {
 module.exports = {
   AgentDockView
 };
+
+function getMentionFileType(name) {
+  const extension = String(name || "").split(".").pop();
+  if (!extension || extension === name || extension.length > 4) {
+    return "FILE";
+  }
+  return extension.toUpperCase();
+}

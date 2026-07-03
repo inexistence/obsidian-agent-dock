@@ -212,6 +212,9 @@ module.exports = {
     "view.deleteSessionConfirm": "Delete \"{title}\"?",
     "composer.placeholder": "Ask the agent about this vault or the active note...",
     "composer.toggleActiveNote": "Toggle active note context",
+    "composer.activeNoteIncluded": "Active note will be sent. Click to exclude it.",
+    "composer.activeNoteExcluded": "Active note will not be sent. Click to include it.",
+    "composer.referencedFiles": "Referenced files",
     "composer.mode": "Mode",
     "composer.stopAgent": "Stop agent",
     "composer.sendMessage": "Send message",
@@ -354,6 +357,9 @@ module.exports = {
     "view.deleteSessionConfirm": "删除“{title}”？",
     "composer.placeholder": "询问 agent 关于此 vault 或当前笔记的问题...",
     "composer.toggleActiveNote": "切换当前笔记上下文",
+    "composer.activeNoteIncluded": "当前笔记会附带发送，点击后不附带",
+    "composer.activeNoteExcluded": "当前笔记不会发送，点击后附带当前笔记",
+    "composer.referencedFiles": "提及的文件",
     "composer.mode": "模式",
     "composer.stopAgent": "停止 agent",
     "composer.sendMessage": "发送消息",
@@ -1373,7 +1379,7 @@ function formatConversationPrompt(prompt, conversation, maxChars) {
 }
 
 async function buildReferencedPathsPrompt(app, prompt, contextLimit) {
-  const paths = extractMentionPaths(prompt);
+  const paths = extractMentionPaths(prompt, app);
   if (paths.length === 0) {
     return "";
   }
@@ -1383,7 +1389,7 @@ async function buildReferencedPathsPrompt(app, prompt, contextLimit) {
   let used = parts[0].length;
 
   for (const mentionPath of paths) {
-    const entry = app.vault.getAbstractFileByPath(mentionPath);
+    const entry = resolveReferencedEntry(app, mentionPath);
     if (!entry) {
       const missing = [`Path: ${mentionPath}`, "[Not found in vault]"].join("\n");
       if (!appendReferencedPart(parts, missing, maxChars, used)) {
@@ -1451,14 +1457,14 @@ function appendReferencedPart(parts, part, maxChars, used) {
   return true;
 }
 
-function extractMentionPaths(prompt) {
+function extractMentionPaths(prompt, app) {
   const paths = [];
   const seen = new Set();
   const pattern = /@(?:"((?:\\"|[^"])*)"|([^\s]+))/g;
   let match;
 
   const addPath = (path) => {
-    const normalizedPath = String(path || "").replace(/\\"/g, "\"").trim();
+    const normalizedPath = normalizeReferencedPath(app, path);
     if (normalizedPath && !seen.has(normalizedPath)) {
       seen.add(normalizedPath);
       paths.push(normalizedPath);
@@ -1497,10 +1503,50 @@ function extractObsidianOpenFilePath(url) {
     if (parsed.protocol !== "obsidian:" || parsed.hostname !== "open") {
       return "";
     }
-    return parsed.searchParams.get("file") || "";
+    return parsed.searchParams.get("file") || parsed.searchParams.get("path") || "";
   } catch {
     return "";
   }
+}
+
+function normalizeReferencedPath(app, path) {
+  const normalizedPath = String(path || "")
+    .replace(/\\"/g, "\"")
+    .replace(/\\/g, "/")
+    .trim();
+  if (!normalizedPath) {
+    return "";
+  }
+
+  const vaultBasePath = String(app?.vault?.adapter?.basePath || "").replace(/\\/g, "/").replace(/\/+$/, "");
+  if (vaultBasePath && normalizedPath === vaultBasePath) {
+    return "";
+  }
+  if (vaultBasePath && normalizedPath.startsWith(`${vaultBasePath}/`)) {
+    return resolveReferencedPath(app, normalizedPath.slice(vaultBasePath.length + 1));
+  }
+
+  return resolveReferencedPath(app, normalizedPath.replace(/^\/+/, ""));
+}
+
+function resolveReferencedPath(app, path) {
+  const normalizedPath = String(path || "").trim();
+  if (!normalizedPath) {
+    return "";
+  }
+
+  const entry = resolveReferencedEntry(app, normalizedPath);
+  return entry?.path || normalizedPath;
+}
+
+function resolveReferencedEntry(app, path) {
+  const normalizedPath = String(path || "").trim();
+  if (!normalizedPath) {
+    return null;
+  }
+
+  return app.vault.getAbstractFileByPath(normalizedPath)
+    || (!/\.[^/]+$/.test(normalizedPath) ? app.vault.getAbstractFileByPath(`${normalizedPath}.md`) : null);
 }
 
 function formatConversationTranscript(conversation, maxChars) {
@@ -2993,6 +3039,7 @@ function renderComposerContent(composer, options) {
     handleMentionKeydown,
     replaceObsidianLinksInInput,
     updateContextStatus,
+    updateMentionChips,
     updateMentionSuggestions,
     hideMentionSuggestions,
     onDraftChanged,
@@ -3004,10 +3051,18 @@ function renderComposerContent(composer, options) {
   } = options;
 
   const shell = composer.createDiv({ cls: "codex-dock__composer-shell" });
-  const inputEl = shell.createEl("textarea", {
+  const inputWrap = shell.createDiv({ cls: "codex-dock__input-wrap" });
+  const mentionChipsEl = inputWrap.createDiv({
+    cls: "codex-dock__mention-chips",
+    attr: {
+      "aria-label": translate("composer.referencedFiles")
+    }
+  });
+  const inputEl = inputWrap.createEl("textarea", {
     cls: "codex-dock__input",
     attr: {
       rows: "4",
+      spellcheck: "false",
       placeholder: translate("composer.placeholder")
     }
   });
@@ -3034,6 +3089,7 @@ function renderComposerContent(composer, options) {
       onDraftChanged(session);
     }
     updateContextStatus();
+    updateMentionChips();
     updateMentionSuggestions();
   });
   inputEl.addEventListener("click", updateMentionSuggestions);
@@ -3049,16 +3105,28 @@ function renderComposerContent(composer, options) {
   const activeNoteButton = leftTools.createEl("button", {
     cls: "codex-dock__composer-icon-button",
     attr: {
-      type: "button",
-      "aria-label": translate("composer.toggleActiveNote"),
-      title: translate("composer.toggleActiveNote")
+      type: "button"
     }
   });
-  setIcon(activeNoteButton, "plus");
-  activeNoteButton.toggleClass("is-active", plugin.settings.includeActiveNote);
+  const updateActiveNoteButton = () => {
+    const isIncluded = plugin.settings.includeActiveNote;
+    activeNoteButton.empty();
+    setIcon(activeNoteButton, isIncluded ? "file-check-2" : "file-plus-2");
+    activeNoteButton.toggleClass("is-active", isIncluded);
+    activeNoteButton.setAttr("aria-pressed", String(isIncluded));
+    activeNoteButton.setAttr(
+      "aria-label",
+      translate(isIncluded ? "composer.activeNoteIncluded" : "composer.activeNoteExcluded")
+    );
+    activeNoteButton.setAttr(
+      "title",
+      translate(isIncluded ? "composer.activeNoteIncluded" : "composer.activeNoteExcluded")
+    );
+  };
+  updateActiveNoteButton();
   activeNoteButton.addEventListener("click", async () => {
     plugin.settings.includeActiveNote = !plugin.settings.includeActiveNote;
-    activeNoteButton.toggleClass("is-active", plugin.settings.includeActiveNote);
+    updateActiveNoteButton();
     await plugin.saveSettings();
     updateContextStatus();
   });
@@ -3147,6 +3215,7 @@ function renderComposerContent(composer, options) {
   return {
     contextStatusEl,
     inputEl,
+    mentionChipsEl,
     mentionMenuEl
   };
 }
@@ -3528,14 +3597,49 @@ function formatMentionToken(path) {
   return /\s/.test(path) ? `@"${path.replace(/"/g, "\\\"")}"` : `@${path}`;
 }
 
+function extractMentionReferences(value) {
+  const references = [];
+  const seen = new Set();
+  const pattern = /@(?:"((?:\\"|[^"])*)"|([^\s]+))|obsidian:\/\/open\?[^\s<>"']+/g;
+  let match;
+
+  while ((match = pattern.exec(value)) !== null) {
+    const raw = match[0];
+    const path = raw.startsWith("obsidian://")
+      ? extractObsidianOpenFilePath(raw)
+      : match[1] || match[2] || "";
+    const normalizedPath = normalizeMentionPath(path);
+
+    if (normalizedPath && !seen.has(normalizedPath)) {
+      seen.add(normalizedPath);
+      references.push({
+        path: normalizedPath,
+        name: getPathName(normalizedPath)
+      });
+    }
+  }
+
+  return references;
+}
+
+function normalizeMentionPath(path) {
+  return String(path || "").replace(/\\"/g, "\"").trim();
+}
+
+function getPathName(path) {
+  const normalized = String(path || "").replace(/\/+$/, "");
+  const index = normalized.lastIndexOf("/");
+  return index >= 0 ? normalized.slice(index + 1) : normalized;
+}
+
 function getParentPath(path) {
   const index = path.lastIndexOf("/");
   return index >= 0 ? path.slice(0, index) : "";
 }
 
-function replaceObsidianOpenLinks(value) {
+function replaceObsidianOpenLinks(value, normalizePath = (path) => path) {
   return value.replace(/obsidian:\/\/open\?[^\s<>"']+/g, (url) => {
-    const filePath = extractObsidianOpenFilePath(url);
+    const filePath = normalizePath(extractObsidianOpenFilePath(url));
     return filePath ? formatMentionToken(filePath) : url;
   });
 }
@@ -3546,13 +3650,14 @@ function extractObsidianOpenFilePath(url) {
     if (parsed.protocol !== "obsidian:" || parsed.hostname !== "open") {
       return "";
     }
-    return parsed.searchParams.get("file") || "";
+    return parsed.searchParams.get("file") || parsed.searchParams.get("path") || "";
   } catch {
     return "";
   }
 }
 
 module.exports = {
+  extractMentionReferences,
   formatMentionToken,
   getMentionMatch,
   getParentPath,
@@ -3824,6 +3929,7 @@ const { copyText } = __require("src/view/clipboard.js");
 const { estimateContextChars, formatCompactNumber } = __require("src/view/contextEstimate.js");
 const { MessageTimelineRenderer } = __require("src/view/MessageTimelineRenderer.js");
 const {
+  extractMentionReferences,
   formatMentionToken,
   getMentionMatch,
   getParentPath,
@@ -3967,6 +4073,7 @@ class AgentDockView extends ItemView {
       handleMentionKeydown: (event) => this.handleMentionKeydown(event),
       replaceObsidianLinksInInput: () => this.replaceObsidianLinksInInput(),
       updateContextStatus: () => this.updateContextStatus(),
+      updateMentionChips: () => this.updateMentionChips(),
       updateMentionSuggestions: () => this.updateMentionSuggestions(),
       hideMentionSuggestions: () => this.hideMentionSuggestions(),
       onDraftChanged: (session) => this.persistSessionChange(session),
@@ -3977,6 +4084,7 @@ class AgentDockView extends ItemView {
       removeGlobalPointerListener: (listener) => this.removeGlobalPointerListener(listener)
     });
     this.inputEl = refs.inputEl;
+    this.mentionChipsEl = refs.mentionChipsEl;
     this.mentionMenuEl = refs.mentionMenuEl;
     this.contextStatusEl = refs.contextStatusEl;
     this.mentionState = {
@@ -3986,6 +4094,7 @@ class AgentDockView extends ItemView {
       selectedIndex: 0,
       suggestions: []
     };
+    this.updateMentionChips();
     this.updateContextStatus();
   }
 
@@ -4218,6 +4327,7 @@ class AgentDockView extends ItemView {
       this.persistSessionChange(session);
     }
     this.hideMentionSuggestions();
+    this.updateMentionChips();
     this.updateContextStatus();
     this.inputEl.focus();
   }
@@ -4240,7 +4350,7 @@ class AgentDockView extends ItemView {
 
   replaceObsidianLinksInInput() {
     const value = this.inputEl.value;
-    const nextValue = replaceObsidianOpenLinks(value);
+    const nextValue = replaceObsidianOpenLinks(value, (path) => this.normalizeReferencedPath(path));
     if (nextValue === value) {
       return false;
     }
@@ -4255,9 +4365,84 @@ class AgentDockView extends ItemView {
       session.draft = nextValue;
       this.persistSessionChange(session);
     }
+    this.updateMentionChips();
     this.updateContextStatus();
     this.updateMentionSuggestions();
     return true;
+  }
+
+  updateMentionChips() {
+    if (!this.mentionChipsEl) {
+      return;
+    }
+
+    const references = extractMentionReferences(this.inputEl?.value || "")
+      .map((reference) => ({
+        path: this.normalizeReferencedPath(reference.path),
+        name: reference.name
+      }))
+      .filter((reference) => reference.path);
+    this.mentionChipsEl.empty();
+    this.mentionChipsEl.toggleClass("is-empty", references.length === 0);
+    this.mentionChipsEl.setAttr("aria-hidden", references.length === 0 ? "true" : "false");
+
+    for (const reference of references) {
+      const entry = this.resolveReferencedEntry(reference.path);
+      const isFolder = Boolean(entry?.children);
+      const chip = this.mentionChipsEl.createSpan({
+        cls: `codex-dock__mention-chip${isFolder ? " is-folder" : " is-file"}`,
+        attr: {
+          title: reference.path
+        }
+      });
+      if (isFolder) {
+        const icon = chip.createSpan({ cls: "codex-dock__mention-chip-icon", attr: { "aria-hidden": "true" } });
+        setIcon(icon, "folder");
+      } else {
+        chip.createSpan({
+          cls: "codex-dock__mention-chip-type",
+          text: getMentionFileType(reference.name)
+        });
+      }
+      chip.createSpan({ cls: "codex-dock__mention-chip-name", text: reference.name || reference.path });
+    }
+  }
+
+  normalizeReferencedPath(path) {
+    const normalizedPath = String(path || "").replace(/\\/g, "/").replace(/\\"/g, "\"").trim();
+    if (!normalizedPath) {
+      return "";
+    }
+
+    const vaultBasePath = String(this.app.vault.adapter.basePath || "").replace(/\\/g, "/").replace(/\/+$/, "");
+    if (vaultBasePath && normalizedPath === vaultBasePath) {
+      return "";
+    }
+    if (vaultBasePath && normalizedPath.startsWith(`${vaultBasePath}/`)) {
+      return this.resolveReferencedPath(normalizedPath.slice(vaultBasePath.length + 1));
+    }
+
+    return this.resolveReferencedPath(normalizedPath.replace(/^\/+/, ""));
+  }
+
+  resolveReferencedPath(path) {
+    const normalizedPath = String(path || "").trim();
+    if (!normalizedPath) {
+      return "";
+    }
+
+    const entry = this.resolveReferencedEntry(normalizedPath);
+    return entry?.path || normalizedPath;
+  }
+
+  resolveReferencedEntry(path) {
+    const normalizedPath = String(path || "").trim();
+    if (!normalizedPath) {
+      return null;
+    }
+
+    return this.app.vault.getAbstractFileByPath(normalizedPath)
+      || (!/\.[^/]+$/.test(normalizedPath) ? this.app.vault.getAbstractFileByPath(`${normalizedPath}.md`) : null);
   }
 
   async submit() {
@@ -4276,6 +4461,7 @@ class AgentDockView extends ItemView {
     this.updateSessionSwitcher();
     this.inputEl.value = "";
     session.draft = "";
+    this.updateMentionChips();
     this.sessionStore.touchSession(session);
     const now = Date.now();
     session.messages.push({
@@ -4594,6 +4780,14 @@ class AgentDockView extends ItemView {
 module.exports = {
   AgentDockView
 };
+
+function getMentionFileType(name) {
+  const extension = String(name || "").split(".").pop();
+  if (!extension || extension === name || extension.length > 4) {
+    return "FILE";
+  }
+  return extension.toUpperCase();
+}
 
 },
 "src/plugin.js": function(module, exports, __require) {
