@@ -1,0 +1,44 @@
+src/settings.js
+  s_342285450a5942::t_b97cfd53068570 110
+  s_342285450a5942::t_f06333337dcc5d 109
+src/prompt.js
+  s_342285450a5942::t_e8d9570a538a4e 16
+  s_342285450a5942::t_19d59f58b5954b 12,132,138-143,147-149,154,157
+main.js
+  s_342285450a5942::t_979ab33259d742 193,211,333,351,2955,3054-3056,3059-3062,4224-4246,5256,5275-5282
+  s_342285450a5942::t_235439df383e3b 197,337,1212,1735
+  s_342285450a5942::t_b9cb5eca8616bd 1208,1328,1334-1339,1343-1345,1350,1353,1736,5069
+  s_342285450a5942::t_3a85020405aa7d 4247-4248,5283-5284
+src/view/composer/ComposerRenderer.js
+  s_342285450a5942::t_f5611e20f65e53 17,116-118,121-124
+src/view/AgentDockView.js
+  s_342285450a5942::t_5b21f6fc439ac4 161,180-187
+  s_342285450a5942::t_0dac2a9a60c60b 188-189
+src/i18n/en.js
+  s_342285450a5942::t_6da88058ae5fb4 74
+  s_342285450a5942::t_43b775ed74e7f5 70,88
+src/view/utils/contextEstimate.js
+  s_342285450a5942::t_2d1c511fce5f85 15
+src/view/reference/ReferenceController.js
+  s_342285450a5942::t_8fd5f96d289e9f 187-209
+src/i18n/zh.js
+  s_342285450a5942::t_2e66edda6db602 70,88
+  s_342285450a5942::t_969c8d478741bd 74
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "193237b18e4094f780a639e151b4e251594d5e14",
+  "prompts": {},
+  "logical_commit_id": "193237b18e4094f780a639e151b4e251594d5e14",
+  "sessions": {
+    "s_342285450a5942": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f27ca-bba8-7d80-aa80-161c10c3ecfe",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
