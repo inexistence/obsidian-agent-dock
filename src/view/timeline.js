@@ -70,7 +70,7 @@ function groupLiveTimeline(timeline, debugActivity) {
       continue;
     }
 
-    if (debugActivity || ["reasoning", "tool", "error"].includes(entry.kind)) {
+    if (debugActivity || ["reasoning", "tool", "error", "notice"].includes(entry.kind)) {
       const previous = pendingEvents[pendingEvents.length - 1];
       if (previous && previous.kind !== entry.kind) {
         flushPendingEvents();

@@ -13,7 +13,12 @@ const DEFAULT_SETTINGS = {
   contextLimitChars: 258000,
   persistChatHistory: true,
   maxPersistedSessions: 20,
-  maxPersistedMessagesPerSession: 200
+  maxPersistedMessagesPerSession: 200,
+  memoryEnabled: true,
+  memoryAutoCapture: true,
+  memoryMaxItems: 200,
+  memoryMaxPromptItems: 12,
+  memoryMaxPromptChars: 8000
 };
 
 function normalizeSettings(savedSettings) {
@@ -51,6 +56,20 @@ function normalizeSettings(savedSettings) {
   settings.maxPersistedMessagesPerSession = normalizePositiveInteger(
     settings.maxPersistedMessagesPerSession,
     DEFAULT_SETTINGS.maxPersistedMessagesPerSession
+  );
+  settings.memoryEnabled = settings.memoryEnabled !== false;
+  settings.memoryAutoCapture = settings.memoryAutoCapture !== false;
+  settings.memoryMaxItems = normalizePositiveInteger(
+    settings.memoryMaxItems,
+    DEFAULT_SETTINGS.memoryMaxItems
+  );
+  settings.memoryMaxPromptItems = normalizePositiveInteger(
+    settings.memoryMaxPromptItems,
+    DEFAULT_SETTINGS.memoryMaxPromptItems
+  );
+  settings.memoryMaxPromptChars = normalizePositiveInteger(
+    settings.memoryMaxPromptChars,
+    DEFAULT_SETTINGS.memoryMaxPromptChars
   );
 
   delete settings.command;

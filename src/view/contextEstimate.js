@@ -8,7 +8,10 @@ function estimateContextChars(messages, draft, settings) {
   const noteChars = settings.includeActiveNote
     ? (Number(settings.activeNoteMaxChars) || DEFAULT_SETTINGS.activeNoteMaxChars)
     : 0;
-  return transcriptChars + draftChars + noteChars;
+  const memoryChars = settings.memoryEnabled
+    ? (Number(settings.memoryMaxPromptChars) || DEFAULT_SETTINGS.memoryMaxPromptChars)
+    : 0;
+  return transcriptChars + draftChars + noteChars + memoryChars;
 }
 
 function formatCompactNumber(value) {

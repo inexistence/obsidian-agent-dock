@@ -31,6 +31,7 @@ should stay ready for other agent CLIs such as Claude Code or Cursor.
 - `src/prompt.js`: prompt construction, active note inclusion, and conversation transcript.
 - `src/cli/*.js`: CLI argument/env/shell helpers.
 - `src/storage/ChatStorage.js`: persisted chat session index/body storage.
+- `src/storage/MemoryStore.js`: automatic local memory extraction, storage, and retrieval.
 - `.agents/skills/code-review-expert/`: project-local reusable code review skill.
 - `.agents/skills/commit-hygiene/`: reusable pre-commit review, docs, verification, and Conventional Commit workflow.
 - `styles.css`: Obsidian plugin styles.
@@ -106,6 +107,17 @@ Users can change this in plugin settings.
   just to summarize history unless the project explicitly adds a summarization
   provider later.
 
+## Memory
+
+- `memoryEnabled` and `memoryAutoCapture` default to enabled.
+- Automatic memories are stored under `memory/memory.json` in the plugin data folder.
+- Memory extraction must stay local and deterministic unless a future setting
+  explicitly adds a model-assisted memory provider.
+- Do not store obvious secrets such as API keys, tokens, passwords, or private keys.
+- Prompt injection must label memories as historical notes that may be outdated.
+- Emit concise `notice` events when relevant memory is included or automatic
+  memory is updated.
+
 ## Normalized Agent Events
 
 Agent adapters must emit these UI events:
@@ -137,7 +149,7 @@ are runtime UI events and are not persisted by default.
 While a turn is running:
 
 - Render events in stream order.
-- Consecutive `reasoning`, `tool`, or `error` events are grouped into collapsed sections.
+- Consecutive `reasoning`, `tool`, `notice`, or `error` events are grouped into collapsed sections.
 - Content appears inline with those groups.
 - The loading indicator stays at the bottom until the whole turn completes or fails.
 - The loading indicator is only the animated dots; do not restore the `思考中...` text.
@@ -221,6 +233,7 @@ Do not put provider-specific parsing logic in `AgentDockView.js`.
 - It is symlinked during local development into an Obsidian vault plugin folder.
 - `data.json` is local Obsidian plugin data and should stay untracked.
 - `sessions/*.json` contains local persisted chat history and should stay untracked.
+- `memory/*.json` contains local automatically extracted memories and should stay untracked.
 - macOS Gatekeeper can block the Codex executable; users can fix this by installing
   Codex from its official source and configuring the executable path.
 

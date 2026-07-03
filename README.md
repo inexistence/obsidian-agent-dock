@@ -39,9 +39,17 @@ Chat history uses the plugin data folder:
 
 - `data.json` stores settings, the active session id, and a lightweight session index.
 - `sessions/<session-id>.json` stores each conversation's user and assistant message bodies.
+- `memory/memory.json` stores automatically extracted local memories when memory is enabled.
 
 Tool and reasoning timeline details are not persisted; restored conversations
 show the final Markdown message content and can continue as normal context.
+
+Memory is enabled by default. After a successful reply, Agent Dock saves a few
+concise local memories such as user preferences, explicit "remember" requests,
+recent tasks, and decision-like notes. Future prompts include relevant memories
+within the configured memory prompt limit. Settings -> Agent Dock -> Memory can
+disable memory, disable automatic extraction, adjust limits, or clear saved
+memory.
 
 ## Architecture
 
@@ -60,6 +68,7 @@ src/
     shell.js
   storage/
     ChatStorage.js
+    MemoryStore.js
   view/
     AgentDockView.js
   constants.js
@@ -128,6 +137,10 @@ The composer shows an estimated context usage percentage below the prompt box.
 If a send actually triggers compression, the response timeline includes a
 `Context compressed` notice.
 
+Relevant memory also counts toward the prompt budget. When memory is included,
+the response timeline shows a `Memory included` notice; when a successful turn
+saves new memories, it shows a `Memory updated` notice.
+
 For interactive Terminal launches, you can also set optional interactive arguments, for example:
 
 ```sh
@@ -139,3 +152,4 @@ For interactive Terminal launches, you can also set optional interactive argumen
 - This plugin is desktop-only because it runs a local CLI process.
 - The active note can be included automatically with each request.
 - Conversation history persistence is optional and defaults to enabled.
+- Automatic local memory is optional and defaults to enabled.

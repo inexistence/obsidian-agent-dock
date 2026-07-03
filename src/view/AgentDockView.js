@@ -485,7 +485,10 @@ class AgentDockView extends ItemView {
           assistantMessage.timeline.push(update);
         }
         this.scheduleSessionRenderIfActive(session, assistantMessage);
-      }, conversation, { signal: run.abortController.signal });
+      }, conversation, {
+        signal: run.abortController.signal,
+        sessionId: session.id
+      });
 
       assistantMessage.isLoading = false;
       assistantMessage.isComplete = true;

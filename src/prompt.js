@@ -1,30 +1,35 @@
+const { formatMemoryLine } = require("./storage/MemoryStore");
+
 async function buildPrompt(app, settings, prompt, conversation) {
   const result = await buildPromptWithMetadata(app, settings, prompt, conversation);
   return result.prompt;
 }
 
-async function buildPromptWithMetadata(app, settings, prompt, conversation) {
+async function buildPromptWithMetadata(app, settings, prompt, conversation, options = {}) {
   const promptParts = [];
   const contextLimit = Number(settings.contextLimitChars) || 258000;
   const referencedPrompt = await buildReferencedPathsPrompt(app, prompt, contextLimit);
+  const memoryPrompt = formatMemoryPrompt(options.memories || []);
 
   if (!settings.includeActiveNote) {
-    const conversationBudget = Math.max(1000, contextLimit - referencedPrompt.length);
+    const conversationBudget = Math.max(1000, contextLimit - referencedPrompt.length - memoryPrompt.length);
     promptParts.push(
+      memoryPrompt,
       referencedPrompt,
       formatConversationPrompt(prompt, conversation, conversationBudget)
     );
-    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit);
+    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || []);
   }
 
   const file = app.workspace.getActiveFile();
   if (!file) {
-    const conversationBudget = Math.max(1000, contextLimit - referencedPrompt.length);
+    const conversationBudget = Math.max(1000, contextLimit - referencedPrompt.length - memoryPrompt.length);
     promptParts.push(
+      memoryPrompt,
       referencedPrompt,
       formatConversationPrompt(prompt, conversation, conversationBudget)
     );
-    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit);
+    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || []);
   }
 
   const note = await app.vault.cachedRead(file);
@@ -39,15 +44,29 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation) {
     clippedNote,
     ""
   ].join("\n");
-  const conversationBudget = Math.max(1000, contextLimit - notePrompt.length - referencedPrompt.length);
+  const conversationBudget = Math.max(1000, contextLimit - notePrompt.length - referencedPrompt.length - memoryPrompt.length);
 
   promptParts.push(
+    memoryPrompt,
     notePrompt,
     referencedPrompt,
     formatConversationPrompt(prompt, conversation, conversationBudget)
   );
 
-  return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit);
+  return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || []);
+}
+
+function formatMemoryPrompt(memories) {
+  if (!Array.isArray(memories) || memories.length === 0) {
+    return "";
+  }
+
+  return [
+    "Relevant local memory:",
+    "These are automatically extracted historical notes. They may be outdated; prefer the latest user request and current files when they conflict.",
+    memories.map(formatMemoryLine).join("\n"),
+    ""
+  ].join("\n");
 }
 
 function formatConversationPrompt(prompt, conversation, maxChars) {
@@ -298,7 +317,7 @@ function limitPrompt(prompt, maxChars) {
   return `${notice}${prompt.slice(prompt.length - available)}`;
 }
 
-function buildPromptResult(rawPrompt, contextLimit) {
+function buildPromptResult(rawPrompt, contextLimit, memories = []) {
   const prompt = limitPrompt(rawPrompt, contextLimit);
   return {
     prompt,
@@ -306,6 +325,7 @@ function buildPromptResult(rawPrompt, contextLimit) {
       limitChars: contextLimit,
       originalChars: rawPrompt.length,
       promptChars: prompt.length,
+      memoryCount: memories.length,
       compressed: prompt.length < rawPrompt.length || rawPrompt.includes("[Earlier conversation compressed")
     }
   };

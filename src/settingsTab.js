@@ -1,4 +1,4 @@
-const { PluginSettingTab, Setting } = require("obsidian");
+const { Notice, PluginSettingTab, Setting } = require("obsidian");
 
 const { AGENT_OPTIONS } = require("./agents/AgentRegistry");
 const { DEFAULT_SETTINGS } = require("./settings");
@@ -162,6 +162,70 @@ class AgentDockSettingTab extends PluginSettingTab {
             ? parsed
             : DEFAULT_SETTINGS.maxPersistedMessagesPerSession;
           await this.plugin.saveSettings();
+        }));
+
+    containerEl.createEl("h3", { text: "Memory" });
+
+    new Setting(containerEl)
+      .setName("Enable memory")
+      .setDesc("Use local memories from previous chats when building prompts.")
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.memoryEnabled)
+        .onChange(async (value) => {
+          this.plugin.settings.memoryEnabled = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName("Automatic memory extraction")
+      .setDesc("Automatically save concise local memories after successful agent replies.")
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.memoryAutoCapture)
+        .onChange(async (value) => {
+          this.plugin.settings.memoryAutoCapture = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName("Memory prompt character limit")
+      .setDesc("Maximum characters of relevant memory added to a prompt.")
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.memoryMaxPromptChars))
+        .setValue(String(this.plugin.settings.memoryMaxPromptChars))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.memoryMaxPromptChars = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.memoryMaxPromptChars;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName("Memory item limit")
+      .setDesc("Maximum number of automatic memories kept on disk.")
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.memoryMaxItems))
+        .setValue(String(this.plugin.settings.memoryMaxItems))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.memoryMaxItems = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.memoryMaxItems;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName("Clear memory")
+      .setDesc("Delete all automatically saved local memories.")
+      .addButton((button) => button
+        .setButtonText("Clear")
+        .setWarning()
+        .onClick(async () => {
+          if (!window.confirm("Clear all Agent Dock memories?")) {
+            return;
+          }
+          await this.plugin.clearMemory();
+          new Notice("Agent Dock memory cleared.");
         }));
   }
 }

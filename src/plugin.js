@@ -5,6 +5,7 @@ const { VIEW_TYPE_AGENT_DOCK } = require("./constants");
 const { normalizePluginData } = require("./settings");
 const { AgentDockSettingTab } = require("./settingsTab");
 const { ChatStorage } = require("./storage/ChatStorage");
+const { MemoryStore } = require("./storage/MemoryStore");
 const { AgentDockView } = require("./view/AgentDockView");
 
 module.exports = class AgentDockPlugin extends Plugin {
@@ -18,6 +19,7 @@ module.exports = class AgentDockPlugin extends Plugin {
     this.chatSaveRequested = false;
     this.chatSaveFailureNotified = false;
     this.chatStorage = new ChatStorage(this);
+    this.memoryStore = new MemoryStore(this);
     this.refreshAgent();
 
     this.registerView(
@@ -130,6 +132,10 @@ module.exports = class AgentDockPlugin extends Plugin {
       sessionIndex: []
     };
     await this.savePluginData();
+  }
+
+  async clearMemory() {
+    await this.memoryStore.clearMemory();
   }
 
   async activateView() {

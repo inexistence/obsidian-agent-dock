@@ -23,8 +23,20 @@ class CodexAgent {
   async run(prompt, onUpdate, conversation, options = {}) {
     const settings = this.plugin.settings;
     const cwd = this.getWorkingDirectory();
-    const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation);
+    const activeFilePath = this.plugin.app.workspace.getActiveFile()?.path || "";
+    const memories = await this.plugin.memoryStore.getRelevantMemories(prompt, settings, {
+      activeFilePath,
+      workingDirectory: cwd
+    });
+    const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, { memories });
     const finalPrompt = promptResult.prompt;
+    if (promptResult.context.memoryCount > 0) {
+      onUpdate({
+        kind: "notice",
+        title: "Memory included",
+        summary: `Added ${promptResult.context.memoryCount} relevant local ${promptResult.context.memoryCount === 1 ? "memory" : "memories"} to the prompt.`
+      });
+    }
     if (promptResult.context.compressed) {
       onUpdate({
         kind: "notice",
@@ -145,6 +157,12 @@ class CodexAgent {
         }
 
         if (code === 0) {
+          await this.captureMemory({
+            prompt,
+            response: finalOutput.trim(),
+            activeFilePath,
+            sessionId: options.sessionId || ""
+          }, settings, onUpdate);
           settle(resolve, finalOutput.trim());
           return;
         }
@@ -209,6 +227,26 @@ class CodexAgent {
 
   getWorkingDirectory() {
     return this.plugin.settings.workingDirectory || this.plugin.app.vault.adapter.basePath;
+  }
+
+  async captureMemory(turn, settings, onUpdate) {
+    try {
+      const saved = await this.plugin.memoryStore.captureTurn(turn, settings);
+      if (saved.length > 0) {
+        onUpdate({
+          kind: "notice",
+          title: "Memory updated",
+          summary: `Saved ${saved.length} automatic ${saved.length === 1 ? "memory" : "memories"} for future chats.`
+        });
+      }
+    } catch (error) {
+      console.warn("Agent Dock could not update memory:", error);
+      onUpdate({
+        kind: "notice",
+        title: "Memory skipped",
+        summary: "Agent Dock could not save automatic memory. Check the console for details."
+      });
+    }
   }
 }
 
