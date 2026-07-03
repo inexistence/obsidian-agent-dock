@@ -5,10 +5,10 @@ const { t } = require("../i18n");
 const { DEFAULT_SETTINGS } = require("../settings");
 const { renderComposerContent } = require("./composer/ComposerRenderer");
 const { ReferenceController } = require("./reference/ReferenceController");
+const { runChatTurn } = require("./session/ChatTurnRunner");
 const { SessionStore } = require("./session/SessionStore");
 const { renderSessionSwitcher } = require("./session/SessionSwitcherRenderer");
 const { MessageTimelineRenderer } = require("./timeline/MessageTimelineRenderer");
-const { appendTimelineContent } = require("./timeline/timeline");
 const { copyText } = require("./utils/clipboard");
 const { estimateContextChars, formatCompactNumber } = require("./utils/contextEstimate");
 
@@ -248,87 +248,31 @@ class AgentDockView extends ItemView {
     session.draft = "";
     this.referenceController.updateMentionChips();
     this.sessionStore.touchSession(session);
-    const now = Date.now();
-    session.messages.push({
-      role: "user",
-      content: prompt,
-      createdAt: now,
-      timeline: [{ kind: "message", text: prompt }]
+
+    await runChatTurn({
+      session,
+      prompt,
+      agentLabel: this.plugin.agent.label,
+      runAgent: (agentPrompt, onUpdate, conversation, options) => (
+        this.plugin.runAgent(agentPrompt, onUpdate, conversation, options)
+      ),
+      translate: (key, params) => this.translate(key, params),
+      touchSession: (targetSession) => this.sessionStore.touchSession(targetSession),
+      onTurnStarted: () => {
+        this.renderMessages({ forceScrollToBottom: true });
+        this.renderComposer();
+      },
+      onTurnUpdate: (targetSession, assistantMessage) => {
+        this.scheduleSessionRenderIfActive(targetSession, assistantMessage);
+      },
+      onTurnFinished: (targetSession) => this.renderSessionIfActive(targetSession),
+      onComposerChanged: (targetSession) => this.renderComposerIfActive(targetSession),
+      persistChatSessions: (options) => this.persistChatSessions(options),
+      notify: (noticeKey) => {
+        const key = noticeKey === "agentStopped" ? "notice.agentStopped" : "notice.agentCommandFailed";
+        new Notice(this.translate(key, { agent: this.plugin.agent.label }));
+      }
     });
-    const assistantMessage = {
-      role: "assistant",
-      content: "",
-      timeline: [],
-      isLoading: true,
-      createdAt: now
-    };
-    session.messages.push(assistantMessage);
-    const run = {
-      abortController: new AbortController(),
-      assistantMessage
-    };
-    session.currentRun = run;
-    this.renderMessages({ forceScrollToBottom: true });
-    this.renderComposer();
-    this.persistChatSessions({ immediate: true });
-
-    try {
-      const conversation = session.messages.slice(0, -1);
-      await this.plugin.runAgent(prompt, (update) => {
-        if (assistantMessage.isComplete || session.currentRun !== run) {
-          return;
-        }
-
-        if (update.kind === "content") {
-          assistantMessage.content += update.text;
-          appendTimelineContent(assistantMessage, update.text);
-        } else {
-          assistantMessage.timeline.push(update);
-        }
-        this.scheduleSessionRenderIfActive(session, assistantMessage);
-      }, conversation, {
-        signal: run.abortController.signal,
-        sessionId: session.id
-      });
-
-      assistantMessage.isLoading = false;
-      assistantMessage.isComplete = true;
-      if (!assistantMessage.content.trim()) {
-        const emptyText = this.translate("view.agentFinishedEmpty", { agent: this.plugin.agent.label });
-        assistantMessage.content = emptyText;
-        appendTimelineContent(assistantMessage, emptyText);
-      }
-      this.sessionStore.touchSession(session);
-      this.renderSessionIfActive(session);
-    } catch (error) {
-      assistantMessage.isLoading = false;
-      assistantMessage.isComplete = true;
-      const errorText = error.name === "AbortError"
-        ? this.translate("view.agentStopped", { agent: this.plugin.agent.label })
-        : [
-            this.translate("view.agentRunFailed", { agent: this.plugin.agent.label }),
-            "",
-            error.message,
-            "",
-            this.translate("view.agentRunFailedHint")
-          ].join("\n");
-      assistantMessage.content = errorText;
-      appendTimelineContent(assistantMessage, errorText);
-      this.sessionStore.touchSession(session);
-      this.renderSessionIfActive(session);
-      if (error.name === "AbortError") {
-        new Notice(this.translate("notice.agentStopped", { agent: this.plugin.agent.label }));
-      } else {
-        new Notice(this.translate("notice.agentCommandFailed", { agent: this.plugin.agent.label }));
-      }
-    } finally {
-      if (session.currentRun === run) {
-        session.currentRun = null;
-      }
-      this.renderSessionIfActive(session);
-      this.renderComposerIfActive(session);
-      await this.persistChatSessions({ immediate: true });
-    }
   }
 
   renderComposer() {

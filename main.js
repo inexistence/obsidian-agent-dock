@@ -4447,6 +4447,283 @@ module.exports = {
 };
 
 },
+"src/view/timeline/timeline.js": function(module, exports, __require) {
+function shouldShowEvent(entry, debugActivity) {
+  if (debugActivity) {
+    return true;
+  }
+
+  return ["reasoning", "tool", "error", "notice"].includes(entry.kind);
+}
+
+function getCompletedTimelineSections(timeline, debugActivity) {
+  const finalContentIndex = findLastContentIndex(timeline);
+
+  if (finalContentIndex === -1) {
+    return {
+      processedEntries: timeline.filter((entry) => shouldShowEvent(entry, debugActivity)),
+      finalEntry: null
+    };
+  }
+
+  return {
+    processedEntries: timeline.filter((entry, index) => {
+      if (index === finalContentIndex) {
+        return false;
+      }
+      return entry.kind === "content" || shouldShowEvent(entry, debugActivity);
+    }),
+    finalEntry: timeline[finalContentIndex]
+  };
+}
+
+function appendTimelineContent(message, text) {
+  const lastEntry = message.timeline[message.timeline.length - 1];
+  if (lastEntry && lastEntry.kind === "content") {
+    lastEntry.text += text;
+    return;
+  }
+
+  message.timeline.push({ kind: "content", text });
+}
+
+function findLastContentIndex(timeline) {
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    if (timeline[index].kind === "content") {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function groupLiveTimeline(timeline, debugActivity, translate) {
+  const groups = [];
+  let pendingEvents = [];
+
+  const flushPendingEvents = () => {
+    if (pendingEvents.length === 0) {
+      return;
+    }
+
+    groups.push({
+      type: "eventGroup",
+      label: getEventGroupLabel(pendingEvents, translate),
+      entries: pendingEvents
+    });
+    pendingEvents = [];
+  };
+
+  for (const entry of timeline) {
+    if (entry.kind === "content") {
+      flushPendingEvents();
+      groups.push({ type: "entry", entry });
+      continue;
+    }
+
+    if (debugActivity || ["reasoning", "tool", "error", "notice"].includes(entry.kind)) {
+      const previous = pendingEvents[pendingEvents.length - 1];
+      if (previous && previous.kind !== entry.kind) {
+        flushPendingEvents();
+      }
+      pendingEvents.push(entry);
+    }
+  }
+
+  flushPendingEvents();
+  return groups;
+}
+
+function groupProcessedEntries(entries) {
+  const groups = [];
+  let pending = [];
+
+  const flush = () => {
+    if (pending.length === 0) {
+      return;
+    }
+
+    groups.push({ type: "eventGroup", entries: pending });
+    pending = [];
+  };
+
+  for (const entry of entries) {
+    if (entry.kind === "content") {
+      flush();
+      groups.push({ type: "entry", entry });
+      continue;
+    }
+
+    const previous = pending[pending.length - 1];
+    if (previous && previous.kind !== entry.kind) {
+      flush();
+    }
+    pending.push(entry);
+  }
+
+  flush();
+  return groups;
+}
+
+function getEventGroupLabel(entries, translate = defaultTranslate) {
+  const hasError = entries.some((entry) => entry.kind === "error");
+  if (hasError) {
+    return translate("timeline.needsAttention", { count: entries.length });
+  }
+
+  const hasTool = entries.some((entry) => entry.kind === "tool");
+  const hasReasoning = entries.some((entry) => entry.kind === "reasoning");
+  const hasNotice = entries.some((entry) => entry.kind === "notice");
+  const labelKey = hasTool
+    ? "timeline.toolCalls"
+    : hasReasoning
+      ? "timeline.reasoning"
+      : hasNotice
+        ? "timeline.notice"
+        : "timeline.activity";
+  return translate("timeline.groupLabel", {
+    label: translate(labelKey),
+    count: entries.length
+  });
+}
+
+function defaultTranslate(key, params = {}) {
+  const defaults = {
+    "timeline.needsAttention": "Needs attention {count} items",
+    "timeline.toolCalls": "Tool calls",
+    "timeline.reasoning": "Thinking",
+    "timeline.notice": "Notice",
+    "timeline.activity": "Activity",
+    "timeline.groupLabel": "{label} {count} items"
+  };
+  return String(defaults[key] || key).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => (
+    params[name] === undefined ? match : String(params[name])
+  ));
+}
+
+module.exports = {
+  appendTimelineContent,
+  getCompletedTimelineSections,
+  getEventGroupLabel,
+  groupLiveTimeline,
+  groupProcessedEntries,
+  shouldShowEvent
+};
+
+},
+"src/view/session/ChatTurnRunner.js": function(module, exports, __require) {
+const { appendTimelineContent } = __require("src/view/timeline/timeline.js");
+
+function createUserMessage(prompt, createdAt) {
+  return {
+    role: "user",
+    content: prompt,
+    createdAt,
+    timeline: [{ kind: "message", text: prompt }]
+  };
+}
+
+function createAssistantMessage(createdAt) {
+  return {
+    role: "assistant",
+    content: "",
+    timeline: [],
+    isLoading: true,
+    createdAt
+  };
+}
+
+async function runChatTurn({
+  session,
+  prompt,
+  agentLabel,
+  runAgent,
+  translate,
+  touchSession,
+  onTurnStarted,
+  onTurnUpdate,
+  onTurnFinished,
+  onComposerChanged,
+  persistChatSessions,
+  notify
+}) {
+  const now = Date.now();
+  session.messages.push(createUserMessage(prompt, now));
+  const assistantMessage = createAssistantMessage(now);
+  session.messages.push(assistantMessage);
+
+  const run = {
+    abortController: new AbortController(),
+    assistantMessage
+  };
+  session.currentRun = run;
+  touchSession(session);
+  onTurnStarted(session, assistantMessage);
+  persistChatSessions({ immediate: true });
+
+  try {
+    const conversation = session.messages.slice(0, -1);
+    await runAgent(prompt, (update) => {
+      if (assistantMessage.isComplete || session.currentRun !== run) {
+        return;
+      }
+
+      if (update.kind === "content") {
+        assistantMessage.content += update.text;
+        appendTimelineContent(assistantMessage, update.text);
+      } else {
+        assistantMessage.timeline.push(update);
+      }
+      onTurnUpdate(session, assistantMessage);
+    }, conversation, {
+      signal: run.abortController.signal,
+      sessionId: session.id
+    });
+
+    completeAssistantMessage(assistantMessage);
+    if (!assistantMessage.content.trim()) {
+      const emptyText = translate("view.agentFinishedEmpty", { agent: agentLabel });
+      assistantMessage.content = emptyText;
+      appendTimelineContent(assistantMessage, emptyText);
+    }
+    touchSession(session);
+    onTurnFinished(session);
+  } catch (error) {
+    completeAssistantMessage(assistantMessage);
+    const wasStopped = error.name === "AbortError";
+    const errorText = wasStopped
+      ? translate("view.agentStopped", { agent: agentLabel })
+      : [
+          translate("view.agentRunFailed", { agent: agentLabel }),
+          "",
+          error.message,
+          "",
+          translate("view.agentRunFailedHint")
+        ].join("\n");
+    assistantMessage.content = errorText;
+    appendTimelineContent(assistantMessage, errorText);
+    touchSession(session);
+    onTurnFinished(session);
+    notify(wasStopped ? "agentStopped" : "agentCommandFailed");
+  } finally {
+    if (session.currentRun === run) {
+      session.currentRun = null;
+    }
+    onTurnFinished(session);
+    onComposerChanged(session);
+    await persistChatSessions({ immediate: true });
+  }
+}
+
+function completeAssistantMessage(message) {
+  message.isLoading = false;
+  message.isComplete = true;
+}
+
+module.exports = {
+  runChatTurn
+};
+
+},
 "src/view/session/SessionStore.js": function(module, exports, __require) {
 class SessionStore {
   constructor(options = {}) {
@@ -4700,169 +4977,6 @@ module.exports = {
 };
 
 },
-"src/view/timeline/timeline.js": function(module, exports, __require) {
-function shouldShowEvent(entry, debugActivity) {
-  if (debugActivity) {
-    return true;
-  }
-
-  return ["reasoning", "tool", "error", "notice"].includes(entry.kind);
-}
-
-function getCompletedTimelineSections(timeline, debugActivity) {
-  const finalContentIndex = findLastContentIndex(timeline);
-
-  if (finalContentIndex === -1) {
-    return {
-      processedEntries: timeline.filter((entry) => shouldShowEvent(entry, debugActivity)),
-      finalEntry: null
-    };
-  }
-
-  return {
-    processedEntries: timeline.filter((entry, index) => {
-      if (index === finalContentIndex) {
-        return false;
-      }
-      return entry.kind === "content" || shouldShowEvent(entry, debugActivity);
-    }),
-    finalEntry: timeline[finalContentIndex]
-  };
-}
-
-function appendTimelineContent(message, text) {
-  const lastEntry = message.timeline[message.timeline.length - 1];
-  if (lastEntry && lastEntry.kind === "content") {
-    lastEntry.text += text;
-    return;
-  }
-
-  message.timeline.push({ kind: "content", text });
-}
-
-function findLastContentIndex(timeline) {
-  for (let index = timeline.length - 1; index >= 0; index -= 1) {
-    if (timeline[index].kind === "content") {
-      return index;
-    }
-  }
-  return -1;
-}
-
-function groupLiveTimeline(timeline, debugActivity, translate) {
-  const groups = [];
-  let pendingEvents = [];
-
-  const flushPendingEvents = () => {
-    if (pendingEvents.length === 0) {
-      return;
-    }
-
-    groups.push({
-      type: "eventGroup",
-      label: getEventGroupLabel(pendingEvents, translate),
-      entries: pendingEvents
-    });
-    pendingEvents = [];
-  };
-
-  for (const entry of timeline) {
-    if (entry.kind === "content") {
-      flushPendingEvents();
-      groups.push({ type: "entry", entry });
-      continue;
-    }
-
-    if (debugActivity || ["reasoning", "tool", "error", "notice"].includes(entry.kind)) {
-      const previous = pendingEvents[pendingEvents.length - 1];
-      if (previous && previous.kind !== entry.kind) {
-        flushPendingEvents();
-      }
-      pendingEvents.push(entry);
-    }
-  }
-
-  flushPendingEvents();
-  return groups;
-}
-
-function groupProcessedEntries(entries) {
-  const groups = [];
-  let pending = [];
-
-  const flush = () => {
-    if (pending.length === 0) {
-      return;
-    }
-
-    groups.push({ type: "eventGroup", entries: pending });
-    pending = [];
-  };
-
-  for (const entry of entries) {
-    if (entry.kind === "content") {
-      flush();
-      groups.push({ type: "entry", entry });
-      continue;
-    }
-
-    const previous = pending[pending.length - 1];
-    if (previous && previous.kind !== entry.kind) {
-      flush();
-    }
-    pending.push(entry);
-  }
-
-  flush();
-  return groups;
-}
-
-function getEventGroupLabel(entries, translate = defaultTranslate) {
-  const hasError = entries.some((entry) => entry.kind === "error");
-  if (hasError) {
-    return translate("timeline.needsAttention", { count: entries.length });
-  }
-
-  const hasTool = entries.some((entry) => entry.kind === "tool");
-  const hasReasoning = entries.some((entry) => entry.kind === "reasoning");
-  const hasNotice = entries.some((entry) => entry.kind === "notice");
-  const labelKey = hasTool
-    ? "timeline.toolCalls"
-    : hasReasoning
-      ? "timeline.reasoning"
-      : hasNotice
-        ? "timeline.notice"
-        : "timeline.activity";
-  return translate("timeline.groupLabel", {
-    label: translate(labelKey),
-    count: entries.length
-  });
-}
-
-function defaultTranslate(key, params = {}) {
-  const defaults = {
-    "timeline.needsAttention": "Needs attention {count} items",
-    "timeline.toolCalls": "Tool calls",
-    "timeline.reasoning": "Thinking",
-    "timeline.notice": "Notice",
-    "timeline.activity": "Activity",
-    "timeline.groupLabel": "{label} {count} items"
-  };
-  return String(defaults[key] || key).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => (
-    params[name] === undefined ? match : String(params[name])
-  ));
-}
-
-module.exports = {
-  appendTimelineContent,
-  getCompletedTimelineSections,
-  getEventGroupLabel,
-  groupLiveTimeline,
-  groupProcessedEntries,
-  shouldShowEvent
-};
-
-},
 "src/view/timeline/MessageTimelineRenderer.js": function(module, exports, __require) {
 const {
   getCompletedTimelineSections,
@@ -5099,10 +5213,10 @@ const { t } = __require("src/i18n/index.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
 const { renderComposerContent } = __require("src/view/composer/ComposerRenderer.js");
 const { ReferenceController } = __require("src/view/reference/ReferenceController.js");
+const { runChatTurn } = __require("src/view/session/ChatTurnRunner.js");
 const { SessionStore } = __require("src/view/session/SessionStore.js");
 const { renderSessionSwitcher } = __require("src/view/session/SessionSwitcherRenderer.js");
 const { MessageTimelineRenderer } = __require("src/view/timeline/MessageTimelineRenderer.js");
-const { appendTimelineContent } = __require("src/view/timeline/timeline.js");
 const { copyText } = __require("src/view/utils/clipboard.js");
 const { estimateContextChars, formatCompactNumber } = __require("src/view/utils/contextEstimate.js");
 
@@ -5342,87 +5456,31 @@ class AgentDockView extends ItemView {
     session.draft = "";
     this.referenceController.updateMentionChips();
     this.sessionStore.touchSession(session);
-    const now = Date.now();
-    session.messages.push({
-      role: "user",
-      content: prompt,
-      createdAt: now,
-      timeline: [{ kind: "message", text: prompt }]
+
+    await runChatTurn({
+      session,
+      prompt,
+      agentLabel: this.plugin.agent.label,
+      runAgent: (agentPrompt, onUpdate, conversation, options) => (
+        this.plugin.runAgent(agentPrompt, onUpdate, conversation, options)
+      ),
+      translate: (key, params) => this.translate(key, params),
+      touchSession: (targetSession) => this.sessionStore.touchSession(targetSession),
+      onTurnStarted: () => {
+        this.renderMessages({ forceScrollToBottom: true });
+        this.renderComposer();
+      },
+      onTurnUpdate: (targetSession, assistantMessage) => {
+        this.scheduleSessionRenderIfActive(targetSession, assistantMessage);
+      },
+      onTurnFinished: (targetSession) => this.renderSessionIfActive(targetSession),
+      onComposerChanged: (targetSession) => this.renderComposerIfActive(targetSession),
+      persistChatSessions: (options) => this.persistChatSessions(options),
+      notify: (noticeKey) => {
+        const key = noticeKey === "agentStopped" ? "notice.agentStopped" : "notice.agentCommandFailed";
+        new Notice(this.translate(key, { agent: this.plugin.agent.label }));
+      }
     });
-    const assistantMessage = {
-      role: "assistant",
-      content: "",
-      timeline: [],
-      isLoading: true,
-      createdAt: now
-    };
-    session.messages.push(assistantMessage);
-    const run = {
-      abortController: new AbortController(),
-      assistantMessage
-    };
-    session.currentRun = run;
-    this.renderMessages({ forceScrollToBottom: true });
-    this.renderComposer();
-    this.persistChatSessions({ immediate: true });
-
-    try {
-      const conversation = session.messages.slice(0, -1);
-      await this.plugin.runAgent(prompt, (update) => {
-        if (assistantMessage.isComplete || session.currentRun !== run) {
-          return;
-        }
-
-        if (update.kind === "content") {
-          assistantMessage.content += update.text;
-          appendTimelineContent(assistantMessage, update.text);
-        } else {
-          assistantMessage.timeline.push(update);
-        }
-        this.scheduleSessionRenderIfActive(session, assistantMessage);
-      }, conversation, {
-        signal: run.abortController.signal,
-        sessionId: session.id
-      });
-
-      assistantMessage.isLoading = false;
-      assistantMessage.isComplete = true;
-      if (!assistantMessage.content.trim()) {
-        const emptyText = this.translate("view.agentFinishedEmpty", { agent: this.plugin.agent.label });
-        assistantMessage.content = emptyText;
-        appendTimelineContent(assistantMessage, emptyText);
-      }
-      this.sessionStore.touchSession(session);
-      this.renderSessionIfActive(session);
-    } catch (error) {
-      assistantMessage.isLoading = false;
-      assistantMessage.isComplete = true;
-      const errorText = error.name === "AbortError"
-        ? this.translate("view.agentStopped", { agent: this.plugin.agent.label })
-        : [
-            this.translate("view.agentRunFailed", { agent: this.plugin.agent.label }),
-            "",
-            error.message,
-            "",
-            this.translate("view.agentRunFailedHint")
-          ].join("\n");
-      assistantMessage.content = errorText;
-      appendTimelineContent(assistantMessage, errorText);
-      this.sessionStore.touchSession(session);
-      this.renderSessionIfActive(session);
-      if (error.name === "AbortError") {
-        new Notice(this.translate("notice.agentStopped", { agent: this.plugin.agent.label }));
-      } else {
-        new Notice(this.translate("notice.agentCommandFailed", { agent: this.plugin.agent.label }));
-      }
-    } finally {
-      if (session.currentRun === run) {
-        session.currentRun = null;
-      }
-      this.renderSessionIfActive(session);
-      this.renderComposerIfActive(session);
-      await this.persistChatSessions({ immediate: true });
-    }
   }
 
   renderComposer() {
