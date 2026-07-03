@@ -1,5 +1,7 @@
 const { MODE_OPTIONS } = require("./modes");
 
+const CUSTOM_ASSISTANT_STYLE_MAX_CHARS = 4000;
+
 const ASSISTANT_STYLE_OPTIONS = {
   concise: {
     label: "Concise",
@@ -68,7 +70,10 @@ function normalizeSettings(savedSettings) {
   if (!ASSISTANT_STYLE_OPTIONS[settings.assistantStyle]) {
     settings.assistantStyle = DEFAULT_SETTINGS.assistantStyle;
   }
-  settings.customAssistantStyle = normalizeString(settings.customAssistantStyle);
+  settings.customAssistantStyle = truncateString(
+    normalizeString(settings.customAssistantStyle),
+    CUSTOM_ASSISTANT_STYLE_MAX_CHARS
+  );
 
   settings.activeNoteMaxChars = normalizePositiveInteger(
     settings.activeNoteMaxChars,
@@ -162,8 +167,13 @@ function normalizeString(value) {
   return typeof value === "string" ? value : "";
 }
 
+function truncateString(value, maxChars) {
+  return value.length > maxChars ? value.slice(0, maxChars) : value;
+}
+
 module.exports = {
   ASSISTANT_STYLE_OPTIONS,
+  CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
   DEFAULT_SETTINGS,
   normalizePluginData,
   normalizeSettings

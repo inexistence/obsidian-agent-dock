@@ -23,7 +23,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
       referencedPrompt,
       formatConversationPrompt(prompt, conversation, conversationBudget)
     );
-    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || []);
+    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || [], stylePrompt);
   }
 
   const file = app.workspace.getActiveFile();
@@ -38,7 +38,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
       referencedPrompt,
       formatConversationPrompt(prompt, conversation, conversationBudget)
     );
-    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || []);
+    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || [], stylePrompt);
   }
 
   const note = await app.vault.cachedRead(file);
@@ -66,7 +66,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
     formatConversationPrompt(prompt, conversation, conversationBudget)
   );
 
-  return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || []);
+  return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || [], stylePrompt);
 }
 
 function formatAssistantStylePrompt(settings) {
@@ -361,12 +361,26 @@ function limitCompressedTranscript(transcript, latestText, maxChars) {
   return [prefix, latestText].filter(Boolean).join("\n\n");
 }
 
-function limitPrompt(prompt, maxChars) {
+function limitPrompt(prompt, maxChars, protectedPrefix = "") {
   if (!maxChars || prompt.length <= maxChars) {
     return prompt;
   }
 
   const notice = "[Prompt compressed to fit the configured context character limit.]\n\n";
+  if (protectedPrefix && prompt.startsWith(protectedPrefix)) {
+    if (protectedPrefix.length >= maxChars) {
+      return truncateText(protectedPrefix, maxChars);
+    }
+
+    const available = Math.max(0, maxChars - protectedPrefix.length - notice.length);
+    if (available === 0) {
+      return `${protectedPrefix}${notice.slice(0, maxChars - protectedPrefix.length)}`;
+    }
+
+    const remainder = prompt.slice(protectedPrefix.length);
+    return `${protectedPrefix}${notice}${remainder.slice(remainder.length - available)}`;
+  }
+
   const available = Math.max(0, maxChars - notice.length);
   if (available === 0) {
     return notice.slice(0, maxChars);
@@ -374,8 +388,8 @@ function limitPrompt(prompt, maxChars) {
   return `${notice}${prompt.slice(prompt.length - available)}`;
 }
 
-function buildPromptResult(rawPrompt, contextLimit, memories = []) {
-  const prompt = limitPrompt(rawPrompt, contextLimit);
+function buildPromptResult(rawPrompt, contextLimit, memories = [], protectedPrefix = "") {
+  const prompt = limitPrompt(rawPrompt, contextLimit, protectedPrefix);
   return {
     prompt,
     context: {

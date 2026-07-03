@@ -1,7 +1,11 @@
 const { Notice, PluginSettingTab, Setting } = require("obsidian");
 
 const { AGENT_OPTIONS } = require("./agents/AgentRegistry");
-const { ASSISTANT_STYLE_OPTIONS, DEFAULT_SETTINGS } = require("./settings");
+const {
+  ASSISTANT_STYLE_OPTIONS,
+  CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
+  DEFAULT_SETTINGS
+} = require("./settings");
 
 class AgentDockSettingTab extends PluginSettingTab {
   constructor(app, plugin) {
@@ -95,13 +99,15 @@ class AgentDockSettingTab extends PluginSettingTab {
     if (this.plugin.settings.assistantStyle === "custom") {
       new Setting(containerEl)
         .setName("Custom assistant style")
-        .setDesc("Your own style guidance. It is treated as tone and collaboration preference, not as permission to override higher-priority instructions.")
+        .setDesc(`Your own style guidance, up to ${CUSTOM_ASSISTANT_STYLE_MAX_CHARS} characters. It is treated as tone and collaboration preference, not as permission to override higher-priority instructions.`)
         .addTextArea((text) => {
           text
             .setPlaceholder("Example: Be warm, practical, and gently opinionated. Explain tradeoffs briefly before making changes.")
             .setValue(this.plugin.settings.customAssistantStyle)
             .onChange(async (value) => {
-              this.plugin.settings.customAssistantStyle = value.trim();
+              this.plugin.settings.customAssistantStyle = value
+                .trim()
+                .slice(0, CUSTOM_ASSISTANT_STYLE_MAX_CHARS);
               await this.plugin.saveSettings();
             });
           text.inputEl.rows = 5;

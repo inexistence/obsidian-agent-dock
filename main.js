@@ -717,7 +717,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
       referencedPrompt,
       formatConversationPrompt(prompt, conversation, conversationBudget)
     );
-    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || []);
+    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || [], stylePrompt);
   }
 
   const file = app.workspace.getActiveFile();
@@ -732,7 +732,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
       referencedPrompt,
       formatConversationPrompt(prompt, conversation, conversationBudget)
     );
-    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || []);
+    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || [], stylePrompt);
   }
 
   const note = await app.vault.cachedRead(file);
@@ -760,7 +760,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
     formatConversationPrompt(prompt, conversation, conversationBudget)
   );
 
-  return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || []);
+  return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || [], stylePrompt);
 }
 
 function formatAssistantStylePrompt(settings) {
@@ -1055,12 +1055,26 @@ function limitCompressedTranscript(transcript, latestText, maxChars) {
   return [prefix, latestText].filter(Boolean).join("\n\n");
 }
 
-function limitPrompt(prompt, maxChars) {
+function limitPrompt(prompt, maxChars, protectedPrefix = "") {
   if (!maxChars || prompt.length <= maxChars) {
     return prompt;
   }
 
   const notice = "[Prompt compressed to fit the configured context character limit.]\n\n";
+  if (protectedPrefix && prompt.startsWith(protectedPrefix)) {
+    if (protectedPrefix.length >= maxChars) {
+      return truncateText(protectedPrefix, maxChars);
+    }
+
+    const available = Math.max(0, maxChars - protectedPrefix.length - notice.length);
+    if (available === 0) {
+      return `${protectedPrefix}${notice.slice(0, maxChars - protectedPrefix.length)}`;
+    }
+
+    const remainder = prompt.slice(protectedPrefix.length);
+    return `${protectedPrefix}${notice}${remainder.slice(remainder.length - available)}`;
+  }
+
   const available = Math.max(0, maxChars - notice.length);
   if (available === 0) {
     return notice.slice(0, maxChars);
@@ -1068,8 +1082,8 @@ function limitPrompt(prompt, maxChars) {
   return `${notice}${prompt.slice(prompt.length - available)}`;
 }
 
-function buildPromptResult(rawPrompt, contextLimit, memories = []) {
-  const prompt = limitPrompt(rawPrompt, contextLimit);
+function buildPromptResult(rawPrompt, contextLimit, memories = [], protectedPrefix = "") {
+  const prompt = limitPrompt(rawPrompt, contextLimit, protectedPrefix);
   return {
     prompt,
     context: {
@@ -1090,6 +1104,8 @@ module.exports = {
 },
 "src/settings.js": function(module, exports, __require) {
 const { MODE_OPTIONS } = __require("src/modes.js");
+
+const CUSTOM_ASSISTANT_STYLE_MAX_CHARS = 4000;
 
 const ASSISTANT_STYLE_OPTIONS = {
   concise: {
@@ -1159,7 +1175,10 @@ function normalizeSettings(savedSettings) {
   if (!ASSISTANT_STYLE_OPTIONS[settings.assistantStyle]) {
     settings.assistantStyle = DEFAULT_SETTINGS.assistantStyle;
   }
-  settings.customAssistantStyle = normalizeString(settings.customAssistantStyle);
+  settings.customAssistantStyle = truncateString(
+    normalizeString(settings.customAssistantStyle),
+    CUSTOM_ASSISTANT_STYLE_MAX_CHARS
+  );
 
   settings.activeNoteMaxChars = normalizePositiveInteger(
     settings.activeNoteMaxChars,
@@ -1253,8 +1272,13 @@ function normalizeString(value) {
   return typeof value === "string" ? value : "";
 }
 
+function truncateString(value, maxChars) {
+  return value.length > maxChars ? value.slice(0, maxChars) : value;
+}
+
 module.exports = {
   ASSISTANT_STYLE_OPTIONS,
+  CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
   DEFAULT_SETTINGS,
   normalizePluginData,
   normalizeSettings
@@ -1821,7 +1845,11 @@ module.exports = {
 const { Notice, PluginSettingTab, Setting } = require("obsidian");
 
 const { AGENT_OPTIONS } = __require("src/agents/AgentRegistry.js");
-const { ASSISTANT_STYLE_OPTIONS, DEFAULT_SETTINGS } = __require("src/settings.js");
+const {
+  ASSISTANT_STYLE_OPTIONS,
+  CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
+  DEFAULT_SETTINGS
+} = __require("src/settings.js");
 
 class AgentDockSettingTab extends PluginSettingTab {
   constructor(app, plugin) {
@@ -1915,13 +1943,15 @@ class AgentDockSettingTab extends PluginSettingTab {
     if (this.plugin.settings.assistantStyle === "custom") {
       new Setting(containerEl)
         .setName("Custom assistant style")
-        .setDesc("Your own style guidance. It is treated as tone and collaboration preference, not as permission to override higher-priority instructions.")
+        .setDesc(`Your own style guidance, up to ${CUSTOM_ASSISTANT_STYLE_MAX_CHARS} characters. It is treated as tone and collaboration preference, not as permission to override higher-priority instructions.`)
         .addTextArea((text) => {
           text
             .setPlaceholder("Example: Be warm, practical, and gently opinionated. Explain tradeoffs briefly before making changes.")
             .setValue(this.plugin.settings.customAssistantStyle)
             .onChange(async (value) => {
-              this.plugin.settings.customAssistantStyle = value.trim();
+              this.plugin.settings.customAssistantStyle = value
+                .trim()
+                .slice(0, CUSTOM_ASSISTANT_STYLE_MAX_CHARS);
               await this.plugin.saveSettings();
             });
           text.inputEl.rows = 5;
@@ -2557,7 +2587,10 @@ module.exports = {
 
 },
 "src/view/contextEstimate.js": function(module, exports, __require) {
-const { DEFAULT_SETTINGS } = __require("src/settings.js");
+const { CUSTOM_ASSISTANT_STYLE_MAX_CHARS, DEFAULT_SETTINGS } = __require("src/settings.js");
+
+const BUILT_IN_ASSISTANT_STYLE_ESTIMATE_CHARS = 700;
+const ASSISTANT_STYLE_PROMPT_OVERHEAD_CHARS = 220;
 
 function estimateContextChars(messages, draft, settings) {
   const transcriptChars = messages.reduce((total, message) => {
@@ -2570,7 +2603,18 @@ function estimateContextChars(messages, draft, settings) {
   const memoryChars = settings.memoryEnabled
     ? (Number(settings.memoryMaxPromptChars) || DEFAULT_SETTINGS.memoryMaxPromptChars)
     : 0;
-  return transcriptChars + draftChars + noteChars + memoryChars;
+  const styleChars = estimateAssistantStyleChars(settings);
+  return transcriptChars + draftChars + noteChars + memoryChars + styleChars;
+}
+
+function estimateAssistantStyleChars(settings) {
+  if (settings.assistantStyle !== "custom") {
+    return BUILT_IN_ASSISTANT_STYLE_ESTIMATE_CHARS;
+  }
+
+  const customChars = String(settings.customAssistantStyle || "").length;
+  return ASSISTANT_STYLE_PROMPT_OVERHEAD_CHARS
+    + Math.min(customChars, CUSTOM_ASSISTANT_STYLE_MAX_CHARS);
 }
 
 function formatCompactNumber(value) {

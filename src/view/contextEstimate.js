@@ -1,4 +1,7 @@
-const { DEFAULT_SETTINGS } = require("../settings");
+const { CUSTOM_ASSISTANT_STYLE_MAX_CHARS, DEFAULT_SETTINGS } = require("../settings");
+
+const BUILT_IN_ASSISTANT_STYLE_ESTIMATE_CHARS = 700;
+const ASSISTANT_STYLE_PROMPT_OVERHEAD_CHARS = 220;
 
 function estimateContextChars(messages, draft, settings) {
   const transcriptChars = messages.reduce((total, message) => {
@@ -11,7 +14,18 @@ function estimateContextChars(messages, draft, settings) {
   const memoryChars = settings.memoryEnabled
     ? (Number(settings.memoryMaxPromptChars) || DEFAULT_SETTINGS.memoryMaxPromptChars)
     : 0;
-  return transcriptChars + draftChars + noteChars + memoryChars;
+  const styleChars = estimateAssistantStyleChars(settings);
+  return transcriptChars + draftChars + noteChars + memoryChars + styleChars;
+}
+
+function estimateAssistantStyleChars(settings) {
+  if (settings.assistantStyle !== "custom") {
+    return BUILT_IN_ASSISTANT_STYLE_ESTIMATE_CHARS;
+  }
+
+  const customChars = String(settings.customAssistantStyle || "").length;
+  return ASSISTANT_STYLE_PROMPT_OVERHEAD_CHARS
+    + Math.min(customChars, CUSTOM_ASSISTANT_STYLE_MAX_CHARS);
 }
 
 function formatCompactNumber(value) {
