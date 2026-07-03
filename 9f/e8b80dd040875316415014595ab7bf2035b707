@@ -1,0 +1,29 @@
+scripts/git-hooks/commit-msg
+  s_0eec609fddb610::t_7842f4d893ae8b 1-5
+scripts/install-git-hooks.sh
+  s_0eec609fddb610::t_7842f4d893ae8b 1-11
+AGENTS.md
+  s_0eec609fddb610::t_6f24765978e253 223-253
+  s_0eec609fddb610::t_7842f4d893ae8b 49-54,222
+scripts/check-commit-msg.js
+  s_0eec609fddb610::t_7842f4d893ae8b 1-85
+README.md
+  s_0eec609fddb610::t_7842f4d893ae8b 75-83
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "9fe8b80dd040875316415014595ab7bf2035b707",
+  "prompts": {},
+  "logical_commit_id": "9fe8b80dd040875316415014595ab7bf2035b707",
+  "sessions": {
+    "s_0eec609fddb610": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2690-9ff6-7503-a02f-3f3be09dccd1",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <huangjianbin@imo.im>"
+    }
+  }
+}
