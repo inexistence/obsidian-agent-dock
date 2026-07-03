@@ -140,7 +140,6 @@ class AgentDockView extends ItemView {
       }
       if (message.isLoading) {
         const loading = item.createDiv({ cls: "codex-dock__loading" });
-        loading.createSpan({ cls: "codex-dock__loading-text", text: "思考中..." });
         const dots = loading.createSpan({ cls: "codex-dock__loading-dots", attr: { "aria-hidden": "true" } });
         dots.createSpan();
         dots.createSpan();
@@ -322,9 +321,27 @@ class AgentDockView extends ItemView {
 
   renderMarkdownContent(containerEl, text) {
     const contentEl = containerEl.createDiv({ cls: "codex-dock__content markdown-rendered" });
+    const copyButton = contentEl.createEl("button", {
+      cls: "codex-dock__copy-button",
+      text: "Copy",
+      attr: {
+        type: "button",
+        "aria-label": "Copy message text",
+        title: "Copy message text"
+      }
+    });
+    copyButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      await copyText(text || "");
+      copyButton.setText("Copied");
+      window.setTimeout(() => copyButton.setText("Copy"), 1200);
+    });
+
+    const markdownEl = contentEl.createDiv({ cls: "codex-dock__content-body" });
     const sourcePath = this.app.workspace.getActiveFile()?.path || "";
-    MarkdownRenderer.render(this.app, text || "", contentEl, sourcePath, this).catch(() => {
-      contentEl.setText(text || "");
+    MarkdownRenderer.render(this.app, text || "", markdownEl, sourcePath, this).catch(() => {
+      markdownEl.setText(text || "");
     });
   }
 
@@ -335,6 +352,22 @@ class AgentDockView extends ItemView {
 
     return ["reasoning", "tool", "error"].includes(entry.kind);
   }
+}
+
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
 }
 
 function appendTimelineContent(message, text) {

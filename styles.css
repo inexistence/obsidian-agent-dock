@@ -60,10 +60,11 @@
 }
 
 .codex-dock__content {
+  position: relative;
   box-sizing: border-box;
   width: 100%;
   margin: 0;
-  padding: 10px;
+  padding: 10px 48px 10px 10px;
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
   background: var(--background-secondary);
@@ -72,13 +73,21 @@
   font-size: var(--font-ui-small);
   line-height: 1.45;
   overflow-wrap: anywhere;
+  user-select: text;
+  -webkit-user-select: text;
 }
 
-.codex-dock__content > :first-child {
+.codex-dock__content-body,
+.codex-dock__content-body * {
+  user-select: text;
+  -webkit-user-select: text;
+}
+
+.codex-dock__content-body > :first-child {
   margin-top: 0;
 }
 
-.codex-dock__content > :last-child {
+.codex-dock__content-body > :last-child {
   margin-bottom: 0;
 }
 
@@ -91,6 +100,27 @@
   overflow-wrap: anywhere;
 }
 
+.codex-dock__copy-button {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-height: 24px;
+  padding: 0 7px;
+  border-radius: 6px;
+  font-size: var(--font-ui-smaller);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.codex-dock__content:hover .codex-dock__copy-button,
+.codex-dock__copy-button:focus-visible {
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .codex-dock__message--user .codex-dock__content {
   border-color: var(--interactive-accent);
 }
@@ -98,20 +128,15 @@
 .codex-dock__loading {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
   width: fit-content;
   max-width: 100%;
-  padding: 10px;
+  padding: 8px 10px;
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
   background: var(--background-secondary);
   color: var(--text-muted);
   font-size: var(--font-ui-small);
   line-height: 1.45;
-}
-
-.codex-dock__loading-text {
-  white-space: nowrap;
 }
 
 .codex-dock__loading-dots {
