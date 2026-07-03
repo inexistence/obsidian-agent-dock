@@ -1,0 +1,22 @@
+README.md
+  s_9bb44736ee5316::t_142c17e8752cbe 68-70
+AGENTS.md
+  s_9bb44736ee5316::t_4579443d91892c 1-184
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "c528bbba45cd58dbe3a190e78985e73cc61a6606",
+  "prompts": {},
+  "logical_commit_id": "c528bbba45cd58dbe3a190e78985e73cc61a6606",
+  "sessions": {
+    "s_9bb44736ee5316": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f25c8-a3c9-7780-8609-9d0d51aab44e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <huangjianbin@imo.im>"
+    }
+  }
+}
