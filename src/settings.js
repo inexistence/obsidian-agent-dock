@@ -5,7 +5,7 @@ const DEFAULT_SETTINGS = {
   codexPath: "/opt/homebrew/bin/codex",
   args: "exec {{prompt}}",
   interactiveArgs: "",
-  mode: "ask",
+  mode: "readOnly",
   workingDirectory: "",
   includeActiveNote: true,
   debugActivity: false,
@@ -17,6 +17,10 @@ function normalizeSettings(savedSettings) {
 
   if (savedSettings && savedSettings.command && !savedSettings.codexPath) {
     settings.codexPath = savedSettings.command;
+  }
+
+  if (settings.mode === "ask") {
+    settings.mode = "readOnly";
   }
 
   if (!MODE_OPTIONS[settings.mode]) {

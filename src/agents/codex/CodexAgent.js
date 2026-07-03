@@ -62,7 +62,7 @@ class CodexAgent {
           const event = JSON.parse(line);
           const updates = codexJsonEventToUpdates(event);
           for (const update of updates) {
-            if (update.kind === "message") {
+            if (update.kind === "content") {
               finalOutput += update.text;
             }
             onUpdate(update);
@@ -98,7 +98,7 @@ class CodexAgent {
         const fileOutput = await readOutputFile(outputPath);
         if (!finalOutput.trim() && fileOutput) {
           finalOutput = fileOutput;
-          onUpdate({ kind: "message", text: fileOutput });
+          onUpdate({ kind: "content", text: fileOutput });
         }
 
         if (code === 0) {

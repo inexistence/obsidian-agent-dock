@@ -32,7 +32,7 @@ function codexJsonEventToUpdates(event) {
 
   if (item.type === "agent_message") {
     const text = extractText(item);
-    return text ? [{ kind: "message", text }] : [];
+    return text ? [{ kind: "content", text }] : [];
   }
 
   if (item.type === "reasoning") {
@@ -46,24 +46,29 @@ function codexJsonEventToUpdates(event) {
   if (item.type === "command_execution") {
     return [{
       kind: "tool",
-      title: formatEventTitle(type, "Command"),
+      title: formatCommandTitle(type, item),
+      summary: formatCommandSummary(item),
       detail: formatCommandExecution(item)
     }];
   }
 
   if (isToolItem(item)) {
+    const summary = extractText(item) || summarizeItem(item);
     return [{
       kind: "tool",
       title: formatEventTitle(type, formatToolTitle(item)),
-      detail: extractText(item) || summarizeItem(item)
+      summary: compactOneLine(summary),
+      detail: summary
     }];
   }
 
   if (item.type === "web_search") {
+    const summary = extractText(item) || summarizeItem(item);
     return [{
       kind: "tool",
       title: formatEventTitle(type, "Web search"),
-      detail: extractText(item) || summarizeItem(item)
+      summary: compactOneLine(summary),
+      detail: summary
     }];
   }
 
@@ -130,10 +135,33 @@ function formatEventTitle(eventType, label) {
   return label;
 }
 
+function formatCommandTitle(eventType, item) {
+  const command = formatCommand(item.command);
+  const label = command ? `$ ${compactOneLine(command)}` : "Command";
+  return formatEventTitle(eventType, label);
+}
+
+function formatCommandSummary(item) {
+  const parts = [];
+  const command = formatCommand(item.command);
+  if (command) {
+    parts.push(command);
+  }
+  if (item.exit_code !== undefined) {
+    parts.push(`exit code: ${item.exit_code}`);
+  }
+  const text = extractText(item);
+  if (text) {
+    parts.push(compactOneLine(text));
+  }
+  return compactOneLine(parts.join(" | "));
+}
+
 function formatCommandExecution(item) {
   const parts = [];
-  if (item.command) {
-    parts.push(`$ ${item.command}`);
+  const command = formatCommand(item.command);
+  if (command) {
+    parts.push(`$ ${command}`);
   }
   if (item.exit_code !== undefined) {
     parts.push(`exit code: ${item.exit_code}`);
@@ -143,6 +171,23 @@ function formatCommandExecution(item) {
     parts.push(text);
   }
   return parts.join("\n\n") || summarizeItem(item);
+}
+
+function formatCommand(command) {
+  if (Array.isArray(command)) {
+    return command.map((part) => String(part)).join(" ");
+  }
+  if (command === undefined || command === null) {
+    return "";
+  }
+  return String(command);
+}
+
+function compactOneLine(text) {
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180);
 }
 
 function formatUsage(usage) {

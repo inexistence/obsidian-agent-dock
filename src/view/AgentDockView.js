@@ -142,9 +142,7 @@ class AgentDockView extends ItemView {
       }
       if (message.timeline && message.timeline.length > 0) {
         const timeline = item.createDiv({ cls: "codex-dock__timeline" });
-        for (const entry of message.timeline) {
-          this.renderTimelineEntry(timeline, entry);
-        }
+        this.renderTimeline(timeline, message);
       } else if (message.content) {
         item.createEl("pre", { cls: "codex-dock__content", text: message.content });
       }
@@ -178,10 +176,14 @@ class AgentDockView extends ItemView {
     try {
       const conversation = this.messages.slice(0, -1);
       await this.plugin.runAgent(prompt, (update) => {
-        assistantMessage.isLoading = false;
-        if (update.kind === "message") {
+        if (assistantMessage.isComplete) {
+          return;
+        }
+
+        if (update.kind === "content") {
+          assistantMessage.isLoading = false;
           assistantMessage.content += update.text;
-          appendTimelineMessage(assistantMessage, update.text);
+          appendTimelineContent(assistantMessage, update.text);
         } else {
           assistantMessage.timeline.push(update);
         }
@@ -189,14 +191,16 @@ class AgentDockView extends ItemView {
       }, conversation);
 
       assistantMessage.isLoading = false;
+      assistantMessage.isComplete = true;
       if (!assistantMessage.content.trim()) {
         const emptyText = `(${this.plugin.agent.label} finished without text output.)`;
         assistantMessage.content = emptyText;
-        appendTimelineMessage(assistantMessage, emptyText);
-        this.renderMessages();
+        appendTimelineContent(assistantMessage, emptyText);
       }
+      this.renderMessages();
     } catch (error) {
       assistantMessage.isLoading = false;
+      assistantMessage.isComplete = true;
       const errorText = [
         `${this.plugin.agent.label} could not run.`,
         "",
@@ -205,7 +209,7 @@ class AgentDockView extends ItemView {
         "Check the executable path in plugin settings and make sure the CLI is installed and allowed by macOS."
       ].join("\n");
       assistantMessage.content = errorText;
-      appendTimelineMessage(assistantMessage, errorText);
+      appendTimelineContent(assistantMessage, errorText);
       this.renderMessages();
       new Notice(`${this.plugin.agent.label} command failed.`);
     } finally {
@@ -213,8 +217,92 @@ class AgentDockView extends ItemView {
     }
   }
 
+  renderTimeline(containerEl, message) {
+    if (message.role !== "assistant") {
+      for (const entry of message.timeline) {
+        this.renderTimelineEntry(containerEl, entry);
+      }
+      return;
+    }
+
+    if (message.isComplete) {
+      this.renderCompletedTimeline(containerEl, message.timeline);
+      return;
+    }
+
+    for (const group of groupLiveTimeline(message.timeline, this.plugin.settings.debugActivity)) {
+      if (group.type === "eventGroup") {
+        this.renderEventGroup(containerEl, group.entries, group.label, false);
+      } else {
+        this.renderTimelineEntry(containerEl, group.entry);
+      }
+    }
+  }
+
+  renderCompletedTimeline(containerEl, timeline) {
+    const finalContentIndex = findLastContentIndex(timeline);
+
+    if (finalContentIndex === -1) {
+      this.renderProcessedGroup(containerEl, timeline.filter((entry) => this.shouldShowEvent(entry)));
+      return;
+    }
+
+    const processedEntries = timeline.filter((entry, index) => {
+      if (index === finalContentIndex) {
+        return false;
+      }
+      return entry.kind === "content" || this.shouldShowEvent(entry);
+    });
+
+    if (processedEntries.length > 0) {
+      this.renderProcessedGroup(containerEl, processedEntries);
+    }
+
+    this.renderTimelineEntry(containerEl, timeline[finalContentIndex]);
+  }
+
+  renderProcessedGroup(containerEl, entries) {
+    if (entries.length === 0) {
+      return;
+    }
+
+    const details = containerEl.createEl("details", {
+      cls: "codex-dock__event-group codex-dock__event-group--processed"
+    });
+    details.open = false;
+    details.createEl("summary", {
+      cls: "codex-dock__event-group-summary",
+      text: `已处理 ${entries.length} 项`
+    });
+
+    const body = details.createDiv({ cls: "codex-dock__event-group-body" });
+    for (const group of groupProcessedEntries(entries)) {
+      if (group.type === "eventGroup") {
+        this.renderEventGroup(body, group.entries, getEventGroupLabel(group.entries), false);
+      } else {
+        this.renderTimelineEntry(body, group.entry);
+      }
+    }
+  }
+
+  renderEventGroup(containerEl, entries, label, open) {
+    const details = containerEl.createEl("details", {
+      cls: "codex-dock__event-group"
+    });
+    details.open = open;
+    details.createEl("summary", {
+      cls: "codex-dock__event-group-summary",
+      text: label
+    });
+
+    const body = details.createDiv({ cls: "codex-dock__event-group-body" });
+    for (const entry of entries) {
+      this.renderTimelineEntry(body, entry, { forceDetail: this.plugin.settings.debugActivity });
+    }
+  }
+
   renderTimelineEntry(containerEl, entry) {
-    if (entry.kind === "message") {
+    if (entry.kind === "message" || entry.kind === "content") {
       containerEl.createEl("pre", { cls: "codex-dock__content", text: entry.text });
       return;
     }
@@ -225,6 +313,9 @@ class AgentDockView extends ItemView {
 
     const eventEl = containerEl.createDiv({ cls: `codex-dock__event codex-dock__event--${entry.kind || "activity"}` });
     eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || "Event" });
+    if (entry.summary && !this.plugin.settings.debugActivity) {
+      eventEl.createDiv({ cls: "codex-dock__event-summary", text: entry.summary });
+    }
     if (entry.detail && this.plugin.settings.debugActivity) {
       eventEl.createEl("pre", { cls: "codex-dock__event-detail", text: entry.detail });
     }
@@ -239,14 +330,103 @@ class AgentDockView extends ItemView {
   }
 }
 
-function appendTimelineMessage(message, text) {
+function appendTimelineContent(message, text) {
   const lastEntry = message.timeline[message.timeline.length - 1];
-  if (lastEntry && lastEntry.kind === "message") {
+  if (lastEntry && lastEntry.kind === "content") {
     lastEntry.text += text;
     return;
   }
 
-  message.timeline.push({ kind: "message", text });
+  message.timeline.push({ kind: "content", text });
+}
+
+function findLastContentIndex(timeline) {
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    if (timeline[index].kind === "content") {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function groupLiveTimeline(timeline, debugActivity) {
+  const groups = [];
+  let pendingEvents = [];
+
+  const flushPendingEvents = () => {
+    if (pendingEvents.length === 0) {
+      return;
+    }
+
+    groups.push({
+      type: "eventGroup",
+      label: getEventGroupLabel(pendingEvents),
+      entries: pendingEvents
+    });
+    pendingEvents = [];
+  };
+
+  for (const entry of timeline) {
+    if (entry.kind === "content") {
+      flushPendingEvents();
+      groups.push({ type: "entry", entry });
+      continue;
+    }
+
+    if (debugActivity || ["reasoning", "tool", "error"].includes(entry.kind)) {
+      const previous = pendingEvents[pendingEvents.length - 1];
+      if (previous && previous.kind !== entry.kind) {
+        flushPendingEvents();
+      }
+      pendingEvents.push(entry);
+    }
+  }
+
+  flushPendingEvents();
+  return groups;
+}
+
+function groupProcessedEntries(entries) {
+  const groups = [];
+  let pending = [];
+
+  const flush = () => {
+    if (pending.length === 0) {
+      return;
+    }
+
+    groups.push({ type: "eventGroup", entries: pending });
+    pending = [];
+  };
+
+  for (const entry of entries) {
+    if (entry.kind === "content") {
+      flush();
+      groups.push({ type: "entry", entry });
+      continue;
+    }
+
+    const previous = pending[pending.length - 1];
+    if (previous && previous.kind !== entry.kind) {
+      flush();
+    }
+    pending.push(entry);
+  }
+
+  flush();
+  return groups;
+}
+
+function getEventGroupLabel(entries) {
+  const hasError = entries.some((entry) => entry.kind === "error");
+  if (hasError) {
+    return `需要关注 ${entries.length} 项`;
+  }
+
+  const hasTool = entries.some((entry) => entry.kind === "tool");
+  const hasReasoning = entries.some((entry) => entry.kind === "reasoning");
+  const label = hasTool ? "工具调用" : hasReasoning ? "思考" : "活动";
+  return `${label} ${entries.length} 项`;
 }
 
 module.exports = {

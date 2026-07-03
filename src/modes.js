@@ -1,9 +1,4 @@
 const MODE_OPTIONS = {
-  ask: {
-    label: "Ask",
-    description: "Answer questions without changing files.",
-    args: ["--sandbox", "read-only"]
-  },
   readOnly: {
     label: "Read only",
     description: "Inspect vault files but do not write.",
