@@ -72,6 +72,15 @@ Edit files under `src/`, then rebuild `main.js`.
 For detailed development conventions, event protocol rules, and UI behavior
 expectations for future coding agents, see `AGENTS.md`.
 
+Install the versioned local Git hooks once per clone:
+
+```sh
+sh scripts/install-git-hooks.sh
+```
+
+Commit messages are checked with the Conventional Commits format documented in
+`AGENTS.md`.
+
 ## Codex path
 
 The default Codex executable path is:

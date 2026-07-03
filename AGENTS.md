@@ -46,6 +46,12 @@ find src scripts -name '*.js' -print -exec node --check {} \;
 If behavior changes are UI-only, these syntax checks are the current minimum.
 There is no formal automated UI test suite yet.
 
+Install local Git hooks once per clone:
+
+```sh
+sh scripts/install-git-hooks.sh
+```
+
 ## Codex CLI Integration
 
 The sidebar chat uses:
@@ -213,3 +219,35 @@ Do not put provider-specific parsing logic in `AgentDockView.js`.
 - The user may have unrelated local changes. Do not revert them.
 - Commit generated `main.js` together with source changes.
 - Keep commits focused around the requested behavior.
+- Install the versioned commit message hook with `sh scripts/install-git-hooks.sh`.
+- Use Conventional Commits for commit messages:
+
+  ```text
+  <type>(optional-scope): <description>
+  ```
+
+- Use these common types:
+  - `feat`: user-facing feature or capability.
+  - `fix`: bug fix.
+  - `docs`: documentation-only change.
+  - `style`: formatting or whitespace only; no behavior change.
+  - `refactor`: code change that is neither a feature nor a fix.
+  - `perf`: performance improvement.
+  - `test`: add or update tests.
+  - `build`: build system, bundling, or dependency changes.
+  - `ci`: CI configuration or workflow changes.
+  - `chore`: maintenance that does not affect runtime behavior.
+  - `revert`: revert a previous commit.
+
+- Keep the description imperative, lowercase unless it names code, and under
+  72 characters when practical, for example `fix(view): preserve final answer`.
+- Use a scope when it adds useful context, such as `view`, `codex`, `prompt`,
+  `settings`, `styles`, or `build`.
+- For breaking changes, add `!` after the type or scope and explain the impact
+  in the commit body:
+
+  ```text
+  feat(settings)!: remove legacy ask mode
+
+  BREAKING CHANGE: existing ask mode settings are migrated to readOnly.
+  ```
