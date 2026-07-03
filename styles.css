@@ -32,6 +32,20 @@
   font-size: var(--font-ui-smaller);
 }
 
+.codex-dock__session-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.codex-dock__session-select {
+  width: 100%;
+  min-width: 0;
+}
+
 .codex-dock__messages {
   flex: 1;
   min-height: 0;

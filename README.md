@@ -31,6 +31,10 @@ The sidebar chat has a mode selector below the prompt box:
 
 Sidebar chat uses `codex exec --json` and renders Codex events in stream order while a turn is running. Consecutive reasoning and tool events are grouped into collapsed sections, and answer text appears inline with those groups. When the turn completes, everything except the final answer text collapses into an `已处理` section. Enable Settings -> Agent Dock -> Debug activity to expand command output, stderr, raw events, and full tool payloads. Hidden model reasoning is not exposed.
 
+Use the conversation selector below the header to switch chats, or `New` to
+start another chat. Conversation sessions are kept in memory for the current
+sidebar lifecycle.
+
 ## Architecture
 
 The plugin keeps `main.js` as a thin Obsidian entrypoint and puts implementation code under `src/`:
@@ -115,4 +119,4 @@ For interactive Terminal launches, you can also set optional interactive argumen
 
 - This plugin is desktop-only because it runs a local CLI process.
 - The active note can be included automatically with each request.
-- Conversation history is kept only in the sidebar session for now.
+- Conversation history is kept only in memory for the current sidebar session for now.

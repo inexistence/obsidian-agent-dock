@@ -114,6 +114,11 @@ answer content.
 
 ## Timeline Rendering Rules
 
+The view stores multiple in-memory chat sessions in `AgentDockView.sessions`.
+Each session owns its own `messages` array and context estimate. Session state is
+not persisted across Obsidian reloads yet. Keep provider adapters unaware of this
+UI session model.
+
 While a turn is running:
 
 - Render events in stream order.

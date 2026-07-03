@@ -1021,7 +1021,8 @@ class AgentDockView extends ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
-    this.messages = [];
+    this.sessions = [];
+    this.activeSessionId = "";
     this.isRunning = false;
   }
 
@@ -1038,6 +1039,7 @@ class AgentDockView extends ItemView {
   }
 
   async onOpen() {
+    this.ensureActiveSession();
     this.render();
   }
 
@@ -1069,9 +1071,37 @@ class AgentDockView extends ItemView {
     });
     clearButton.setText("Clear");
     clearButton.addEventListener("click", () => {
-      this.messages = [];
+      if (this.isRunning) {
+        new Notice(`${this.plugin.agent.label} is still working.`);
+        return;
+      }
+      const session = this.getActiveSession();
+      if (session) {
+        session.messages = [];
+        this.renderMessages();
+      }
+    });
+
+    const sessionBar = containerEl.createDiv({ cls: "codex-dock__session-bar" });
+    this.sessionSelectEl = sessionBar.createEl("select", {
+      cls: "codex-dock__session-select",
+      attr: { "aria-label": "Conversation" }
+    });
+    this.sessionSelectEl.addEventListener("change", () => {
+      this.activeSessionId = this.sessionSelectEl.value;
+      this.renderMessages();
+    });
+
+    const newSessionButton = sessionBar.createEl("button", {
+      cls: "codex-dock__icon-button",
+      attr: { type: "button", "aria-label": "New conversation", title: "New conversation" }
+    });
+    newSessionButton.setText("New");
+    newSessionButton.addEventListener("click", () => {
+      this.createSession();
       this.render();
     });
+    this.updateSessionSelectOptions();
 
     this.messageList = containerEl.createDiv({ cls: "codex-dock__messages" });
     this.renderMessages();
@@ -1134,15 +1164,18 @@ class AgentDockView extends ItemView {
 
   renderMessages() {
     this.messageList.empty();
+    const session = this.ensureActiveSession();
+    const messages = session.messages;
 
-    if (this.messages.length === 0) {
+    if (messages.length === 0) {
       const empty = this.messageList.createDiv({ cls: "codex-dock__empty" });
       empty.createDiv({ text: "Open a side conversation with an agent." });
       empty.createDiv({ text: "The active note can be included automatically." });
+      this.updateContextStatus();
       return;
     }
 
-    for (const message of this.messages) {
+    for (const message of messages) {
       const item = this.messageList.createDiv({
         cls: `codex-dock__message codex-dock__message--${message.role}`
       });
@@ -1180,19 +1213,22 @@ class AgentDockView extends ItemView {
       return;
     }
 
+    const session = this.ensureActiveSession();
+    this.maybeNameSession(session, prompt);
+    this.updateSessionSelectOptions();
     this.inputEl.value = "";
-    this.messages.push({
+    session.messages.push({
       role: "user",
       content: prompt,
       timeline: [{ kind: "message", text: prompt }]
     });
     const assistantMessage = { role: "assistant", content: "", timeline: [], isLoading: true };
-    this.messages.push(assistantMessage);
+    session.messages.push(assistantMessage);
     this.isRunning = true;
     this.renderMessages();
 
     try {
-      const conversation = this.messages.slice(0, -1);
+      const conversation = session.messages.slice(0, -1);
       await this.plugin.runAgent(prompt, (update) => {
         if (assistantMessage.isComplete) {
           return;
@@ -1377,12 +1413,68 @@ class AgentDockView extends ItemView {
       return;
     }
 
+    const session = this.getActiveSession();
     const limit = Number(this.plugin.settings.contextLimitChars) || DEFAULT_SETTINGS.contextLimitChars;
-    const used = estimateContextChars(this.messages, this.inputEl?.value || "", this.plugin.settings);
+    const used = estimateContextChars(session?.messages || [], this.inputEl?.value || "", this.plugin.settings);
     const percent = Math.min(999, Math.round((used / limit) * 100));
     this.contextStatusEl.toggleClass("is-warning", percent >= 80);
     this.contextStatusEl.toggleClass("is-over", percent >= 100);
     this.contextStatusEl.setText(`Context ${percent}% · ${formatCompactNumber(used)} / ${formatCompactNumber(limit)} chars`);
+  }
+
+  ensureActiveSession() {
+    if (this.sessions.length === 0) {
+      return this.createSession();
+    }
+
+    const existing = this.getActiveSession();
+    if (existing) {
+      return existing;
+    }
+
+    this.activeSessionId = this.sessions[0].id;
+    return this.sessions[0];
+  }
+
+  createSession() {
+    const session = {
+      id: `session-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      title: `Chat ${this.sessions.length + 1}`,
+      isUntitled: true,
+      messages: []
+    };
+    this.sessions.push(session);
+    this.activeSessionId = session.id;
+    return session;
+  }
+
+  getActiveSession() {
+    return this.sessions.find((session) => session.id === this.activeSessionId) || null;
+  }
+
+  maybeNameSession(session, prompt) {
+    if (!session.isUntitled) {
+      return;
+    }
+
+    const compact = prompt.replace(/\s+/g, " ").trim();
+    session.title = compact.length > 28 ? `${compact.slice(0, 28)}...` : compact || session.title;
+    session.isUntitled = false;
+  }
+
+  updateSessionSelectOptions() {
+    if (!this.sessionSelectEl) {
+      return;
+    }
+
+    this.sessionSelectEl.empty();
+    for (const session of this.sessions) {
+      this.sessionSelectEl.createEl("option", {
+        text: session.title,
+        value: session.id
+      });
+    }
+    this.sessionSelectEl.value = this.activeSessionId;
   }
 }
 
