@@ -1199,6 +1199,232 @@ module.exports = {
 };
 
 },
+"src/view/ComposerRenderer.js": function(module, exports, __require) {
+const { setIcon } = require("obsidian");
+
+const { MODE_OPTIONS, getModeDescription } = __require("src/modes.js");
+const { DEFAULT_SETTINGS } = __require("src/settings.js");
+
+function renderComposerContent(composer, options) {
+  const {
+    plugin,
+    draft,
+    getActiveSession,
+    handleMentionKeydown,
+    replaceObsidianLinksInInput,
+    updateContextStatus,
+    updateMentionSuggestions,
+    hideMentionSuggestions,
+    submit,
+    cancelActiveSession,
+    addGlobalPointerListener,
+    removeGlobalPointerListener
+  } = options;
+
+  const shell = composer.createDiv({ cls: "codex-dock__composer-shell" });
+  const inputEl = shell.createEl("textarea", {
+    cls: "codex-dock__input",
+    attr: {
+      rows: "4",
+      placeholder: "Ask the agent about this vault or the active note..."
+    }
+  });
+  inputEl.value = draft || "";
+  const mentionMenuEl = shell.createDiv({ cls: "codex-dock__mention-menu" });
+
+  inputEl.addEventListener("keydown", (event) => {
+    if (handleMentionKeydown(event)) {
+      return;
+    }
+    if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
+      event.preventDefault();
+      submit();
+    }
+  });
+  inputEl.addEventListener("input", () => {
+    if (replaceObsidianLinksInInput()) {
+      return;
+    }
+    const session = getActiveSession();
+    if (session) {
+      session.draft = inputEl.value;
+    }
+    updateContextStatus();
+    updateMentionSuggestions();
+  });
+  inputEl.addEventListener("click", updateMentionSuggestions);
+  inputEl.addEventListener("blur", () => {
+    window.setTimeout(hideMentionSuggestions, 120);
+  });
+  inputEl.addEventListener("paste", () => {
+    window.setTimeout(replaceObsidianLinksInInput, 0);
+  });
+
+  const composerBar = shell.createDiv({ cls: "codex-dock__composer-bar" });
+  const leftTools = composerBar.createDiv({ cls: "codex-dock__composer-tools" });
+  const activeNoteButton = leftTools.createEl("button", {
+    cls: "codex-dock__composer-icon-button",
+    attr: {
+      type: "button",
+      "aria-label": "Toggle active note context",
+      title: "Toggle active note context"
+    }
+  });
+  setIcon(activeNoteButton, "plus");
+  activeNoteButton.toggleClass("is-active", plugin.settings.includeActiveNote);
+  activeNoteButton.addEventListener("click", async () => {
+    plugin.settings.includeActiveNote = !plugin.settings.includeActiveNote;
+    activeNoteButton.toggleClass("is-active", plugin.settings.includeActiveNote);
+    await plugin.saveSettings();
+    updateContextStatus();
+  });
+
+  const modePill = leftTools.createEl("details", { cls: "codex-dock__mode-pill" });
+  const modeSummary = modePill.createEl("summary", {
+    cls: "codex-dock__mode-summary",
+    attr: {
+      "aria-label": "Mode",
+      title: getModeDescription(plugin.settings.mode, DEFAULT_SETTINGS.mode)
+    }
+  });
+  const modeIcon = modeSummary.createSpan({ cls: "codex-dock__mode-icon", attr: { "aria-hidden": "true" } });
+  setIcon(modeIcon, "shield");
+  const modeLabel = modeSummary.createSpan({
+    cls: "codex-dock__mode-label",
+    text: getModeLabel(plugin.settings.mode)
+  });
+  const modeChevron = modeSummary.createSpan({ cls: "codex-dock__mode-chevron", attr: { "aria-hidden": "true" } });
+  setIcon(modeChevron, "chevron-down");
+
+  const modeMenu = modePill.createDiv({ cls: "codex-dock__mode-menu", attr: { role: "menu" } });
+  const closeModeMenu = (event) => {
+    if (!modePill.contains(event.target)) {
+      modePill.removeAttribute("open");
+      removeGlobalPointerListener(closeModeMenu);
+    }
+  };
+  modePill.addEventListener("toggle", () => {
+    if (modePill.open) {
+      window.setTimeout(() => {
+        if (modePill.isConnected && modePill.open) {
+          addGlobalPointerListener(closeModeMenu);
+        }
+      }, 0);
+    } else {
+      removeGlobalPointerListener(closeModeMenu);
+    }
+  });
+  for (const [value, option] of Object.entries(MODE_OPTIONS)) {
+    const optionButton = modeMenu.createEl("button", {
+      cls: "codex-dock__mode-option",
+      text: option.label,
+      attr: {
+        type: "button",
+        role: "menuitemradio",
+        "aria-checked": String(value === plugin.settings.mode),
+        title: option.description
+      }
+    });
+    optionButton.toggleClass("is-selected", value === plugin.settings.mode);
+    optionButton.addEventListener("click", async () => {
+      plugin.settings.mode = value;
+      modeLabel.setText(option.label);
+      modeSummary.setAttr("title", option.description);
+      for (const button of modeMenu.querySelectorAll(".codex-dock__mode-option")) {
+        const isSelected = button === optionButton;
+        button.classList.toggle("is-selected", isSelected);
+        button.setAttribute("aria-checked", String(isSelected));
+      }
+      modePill.removeAttribute("open");
+      await plugin.saveSettings();
+      updateContextStatus();
+    });
+  }
+
+  const rightTools = composerBar.createDiv({ cls: "codex-dock__composer-status" });
+  const contextStatusEl = rightTools.createDiv({ cls: "codex-dock__context-status" });
+
+  const sendButton = rightTools.createEl("button", {
+    cls: "codex-dock__send",
+    attr: { type: "button" }
+  });
+  if (getActiveSession()?.currentRun) {
+    sendButton.setAttr("aria-label", "Stop agent");
+    sendButton.setAttr("title", "Stop agent");
+    setIcon(sendButton, "square");
+    sendButton.addEventListener("click", cancelActiveSession);
+  } else {
+    sendButton.setAttr("aria-label", "Send message");
+    sendButton.setAttr("title", "Send message");
+    setIcon(sendButton, "arrow-up");
+    sendButton.addEventListener("click", submit);
+  }
+
+  return {
+    contextStatusEl,
+    inputEl,
+    mentionMenuEl
+  };
+}
+
+function getModeLabel(mode) {
+  return (MODE_OPTIONS[mode] || MODE_OPTIONS[DEFAULT_SETTINGS.mode]).label;
+}
+
+module.exports = {
+  renderComposerContent
+};
+
+},
+"src/view/clipboard.js": function(module, exports, __require) {
+async function copyText(text) {
+  if (navigator.clipboard?.writeText) {
+    await navigator.clipboard.writeText(text);
+    return;
+  }
+
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.style.position = "fixed";
+  textarea.style.opacity = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand("copy");
+  textarea.remove();
+}
+
+module.exports = {
+  copyText
+};
+
+},
+"src/view/contextEstimate.js": function(module, exports, __require) {
+const { DEFAULT_SETTINGS } = __require("src/settings.js");
+
+function estimateContextChars(messages, draft, settings) {
+  const transcriptChars = messages.reduce((total, message) => {
+    return total + String(message.content || "").length + 16;
+  }, 0);
+  const draftChars = String(draft || "").length + 16;
+  const noteChars = settings.includeActiveNote
+    ? (Number(settings.activeNoteMaxChars) || DEFAULT_SETTINGS.activeNoteMaxChars)
+    : 0;
+  return transcriptChars + draftChars + noteChars;
+}
+
+function formatCompactNumber(value) {
+  if (value >= 1000) {
+    return `${Math.round(value / 1000)}k`;
+  }
+  return String(value);
+}
+
+module.exports = {
+  estimateContextChars,
+  formatCompactNumber
+};
+
+},
 "src/view/timeline.js": function(module, exports, __require) {
 function shouldShowEvent(entry, debugActivity) {
   if (debugActivity) {
@@ -1339,14 +1565,8 @@ module.exports = {
 };
 
 },
-"src/view/AgentDockView.js": function(module, exports, __require) {
-const { ItemView, MarkdownRenderer, Notice, setIcon } = require("obsidian");
-
-const { VIEW_TYPE_AGENT_DOCK } = __require("src/constants.js");
-const { MODE_OPTIONS, getModeDescription } = __require("src/modes.js");
-const { DEFAULT_SETTINGS } = __require("src/settings.js");
+"src/view/MessageTimelineRenderer.js": function(module, exports, __require) {
 const {
-  appendTimelineContent,
   getCompletedTimelineSections,
   getEventGroupLabel,
   groupLiveTimeline,
@@ -1354,12 +1574,397 @@ const {
   shouldShowEvent
 } = __require("src/view/timeline.js");
 
+class MessageTimelineRenderer {
+  constructor(options) {
+    this.getDebugActivity = options.getDebugActivity;
+    this.renderMarkdownContent = options.renderMarkdownContent;
+  }
+
+  renderTimeline(containerEl, message) {
+    if (message.role !== "assistant") {
+      for (const entry of message.timeline) {
+        this.renderTimelineEntry(containerEl, entry);
+      }
+      return;
+    }
+
+    if (message.isComplete) {
+      this.renderCompletedTimeline(containerEl, message.timeline);
+      return;
+    }
+
+    for (const group of groupLiveTimeline(message.timeline, this.getDebugActivity())) {
+      if (group.type === "eventGroup") {
+        this.renderEventGroup(containerEl, group.entries, group.label, false);
+      } else {
+        this.renderTimelineEntry(containerEl, group.entry);
+      }
+    }
+  }
+
+  renderCompletedTimeline(containerEl, timeline) {
+    const { processedEntries, finalEntry } = getCompletedTimelineSections(
+      timeline,
+      this.getDebugActivity()
+    );
+
+    if (processedEntries.length > 0) {
+      this.renderProcessedGroup(containerEl, processedEntries);
+    }
+
+    if (finalEntry) {
+      this.renderTimelineEntry(containerEl, finalEntry);
+    }
+  }
+
+  renderProcessedGroup(containerEl, entries) {
+    if (entries.length === 0) {
+      return;
+    }
+
+    const details = containerEl.createEl("details", {
+      cls: "codex-dock__event-group codex-dock__event-group--processed"
+    });
+    details.open = false;
+    details.createEl("summary", {
+      cls: "codex-dock__event-group-summary",
+      text: `已处理 ${entries.length} 项`
+    });
+
+    const body = details.createDiv({ cls: "codex-dock__event-group-body" });
+    for (const group of groupProcessedEntries(entries)) {
+      if (group.type === "eventGroup") {
+        this.renderEventGroup(body, group.entries, getEventGroupLabel(group.entries), false);
+      } else {
+        this.renderTimelineEntry(body, group.entry);
+      }
+    }
+  }
+
+  renderEventGroup(containerEl, entries, label, open) {
+    const details = containerEl.createEl("details", {
+      cls: "codex-dock__event-group"
+    });
+    details.open = open;
+    details.createEl("summary", {
+      cls: "codex-dock__event-group-summary",
+      text: label
+    });
+
+    const body = details.createDiv({ cls: "codex-dock__event-group-body" });
+    for (const entry of entries) {
+      this.renderTimelineEntry(body, entry);
+    }
+  }
+
+  renderTimelineEntry(containerEl, entry) {
+    if (entry.kind === "message" || entry.kind === "content") {
+      this.renderMarkdownContent(containerEl, entry.text);
+      return;
+    }
+
+    if (!this.shouldShowEvent(entry)) {
+      return;
+    }
+
+    const eventEl = containerEl.createDiv({ cls: `codex-dock__event codex-dock__event--${entry.kind || "activity"}` });
+    eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || "Event" });
+    if (entry.summary && !this.getDebugActivity()) {
+      eventEl.createDiv({ cls: "codex-dock__event-summary", text: entry.summary });
+    }
+    if (entry.detail && this.getDebugActivity()) {
+      eventEl.createEl("pre", { cls: "codex-dock__event-detail", text: entry.detail });
+    }
+  }
+
+  shouldShowEvent(entry) {
+    return shouldShowEvent(entry, this.getDebugActivity());
+  }
+}
+
+module.exports = {
+  MessageTimelineRenderer
+};
+
+},
+"src/view/mention.js": function(module, exports, __require) {
+function getMentionMatch(value, cursor) {
+  const beforeCursor = value.slice(0, cursor);
+  const match = /(^|\s)@([^\s@]*)$/.exec(beforeCursor);
+  if (!match) {
+    return null;
+  }
+
+  const start = beforeCursor.length - match[2].length - 1;
+  return {
+    start,
+    end: cursor,
+    query: match[2]
+  };
+}
+
+function formatMentionToken(path) {
+  return /\s/.test(path) ? `@"${path.replace(/"/g, "\\\"")}"` : `@${path}`;
+}
+
+function getParentPath(path) {
+  const index = path.lastIndexOf("/");
+  return index >= 0 ? path.slice(0, index) : "";
+}
+
+function replaceObsidianOpenLinks(value) {
+  return value.replace(/obsidian:\/\/open\?[^\s<>"']+/g, (url) => {
+    const filePath = extractObsidianOpenFilePath(url);
+    return filePath ? formatMentionToken(filePath) : url;
+  });
+}
+
+function extractObsidianOpenFilePath(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "obsidian:" || parsed.hostname !== "open") {
+      return "";
+    }
+    return parsed.searchParams.get("file") || "";
+  } catch {
+    return "";
+  }
+}
+
+module.exports = {
+  formatMentionToken,
+  getMentionMatch,
+  getParentPath,
+  replaceObsidianOpenLinks
+};
+
+},
+"src/view/SessionSwitcherRenderer.js": function(module, exports, __require) {
+const { setIcon } = require("obsidian");
+
+function renderSessionSwitcher(options) {
+  const {
+    containerEl,
+    sessions,
+    activeSessionId,
+    activeSession,
+    onSwitchSession,
+    onDeleteSession,
+    onNewSession,
+    addGlobalPointerListener,
+    removeGlobalPointerListener
+  } = options;
+
+  containerEl.empty();
+  const switcher = containerEl.createEl("details", { cls: "codex-dock__conversation-switcher" });
+  const summary = switcher.createEl("summary", {
+    cls: "codex-dock__conversation-summary",
+    attr: {
+      "aria-label": "Switch conversation",
+      title: "Switch conversation"
+    }
+  });
+  summary.createSpan({ cls: "codex-dock__conversation-title", text: activeSession.title });
+  const chevron = summary.createSpan({ cls: "codex-dock__conversation-chevron", attr: { "aria-hidden": "true" } });
+  setIcon(chevron, "chevron-down");
+
+  const menu = switcher.createDiv({ cls: "codex-dock__conversation-menu" });
+  menu.createDiv({ cls: "codex-dock__conversation-menu-title", text: "Conversations" });
+  const list = menu.createDiv({ cls: "codex-dock__conversation-list" });
+  for (const session of sessions) {
+    const item = list.createDiv({
+      cls: `codex-dock__conversation-item${session.id === activeSessionId ? " is-active" : ""}`
+    });
+    const switchButton = item.createEl("button", {
+      cls: "codex-dock__conversation-item-main",
+      attr: {
+        type: "button",
+        title: session.title
+      }
+    });
+    const check = switchButton.createSpan({ cls: "codex-dock__conversation-check", attr: { "aria-hidden": "true" } });
+    if (session.id === activeSessionId) {
+      setIcon(check, "check");
+    }
+    switchButton.createSpan({ cls: "codex-dock__conversation-item-title", text: session.title });
+    switchButton.addEventListener("click", () => {
+      onSwitchSession(session.id);
+      switcher.removeAttribute("open");
+    });
+
+    const deleteButton = item.createEl("button", {
+      cls: "codex-dock__conversation-delete",
+      attr: {
+        type: "button",
+        "aria-label": `Delete ${session.title}`,
+        title: "Delete conversation"
+      }
+    });
+    setIcon(deleteButton, "trash-2");
+    deleteButton.addEventListener("click", (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      onDeleteSession(session.id);
+    });
+  }
+
+  const newSessionButton = containerEl.createEl("button", {
+    cls: "codex-dock__conversation-new",
+    attr: {
+      type: "button",
+      "aria-label": "New conversation",
+      title: "New conversation"
+    }
+  });
+  setIcon(newSessionButton, "plus");
+  newSessionButton.addEventListener("click", onNewSession);
+
+  const closeConversationMenu = (event) => {
+    if (!switcher.contains(event.target)) {
+      switcher.removeAttribute("open");
+      removeGlobalPointerListener(closeConversationMenu);
+    }
+  };
+  switcher.addEventListener("toggle", () => {
+    if (switcher.open) {
+      window.setTimeout(() => {
+        if (switcher.isConnected && switcher.open) {
+          addGlobalPointerListener(closeConversationMenu);
+        }
+      }, 0);
+    } else {
+      removeGlobalPointerListener(closeConversationMenu);
+    }
+  });
+}
+
+module.exports = {
+  renderSessionSwitcher
+};
+
+},
+"src/view/SessionStore.js": function(module, exports, __require) {
+class SessionStore {
+  constructor() {
+    this.sessions = [];
+    this.activeSessionId = "";
+  }
+
+  ensureActiveSession() {
+    if (this.sessions.length === 0) {
+      return this.createSession();
+    }
+
+    const existing = this.getActiveSession();
+    if (existing) {
+      return existing;
+    }
+
+    this.activeSessionId = this.sessions[0].id;
+    return this.sessions[0];
+  }
+
+  createSession() {
+    const session = {
+      id: `session-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+      title: `Chat ${this.sessions.length + 1}`,
+      isUntitled: true,
+      currentRun: null,
+      draft: "",
+      messages: []
+    };
+    this.sessions.push(session);
+    this.activeSessionId = session.id;
+    return session;
+  }
+
+  getActiveSession() {
+    return this.sessions.find((session) => session.id === this.activeSessionId) || null;
+  }
+
+  getSession(sessionId) {
+    return this.sessions.find((session) => session.id === sessionId) || null;
+  }
+
+  maybeNameSession(session, prompt) {
+    if (!session.isUntitled) {
+      return;
+    }
+
+    const compact = prompt.replace(/\s+/g, " ").trim();
+    session.title = compact.length > 28 ? `${compact.slice(0, 28)}...` : compact || session.title;
+    session.isUntitled = false;
+  }
+
+  deleteSession(sessionId) {
+    const deletedIndex = this.sessions.findIndex((entry) => entry.id === sessionId);
+    if (deletedIndex === -1) {
+      return false;
+    }
+
+    this.sessions.splice(deletedIndex, 1);
+
+    if (this.sessions.length === 0) {
+      this.createSession();
+    } else if (this.activeSessionId === sessionId) {
+      const nextIndex = Math.min(deletedIndex, this.sessions.length - 1);
+      this.activeSessionId = this.sessions[nextIndex].id;
+    }
+
+    return true;
+  }
+}
+
+module.exports = {
+  SessionStore
+};
+
+},
+"src/view/AgentDockView.js": function(module, exports, __require) {
+const { ItemView, MarkdownRenderer, Notice, setIcon } = require("obsidian");
+
+const { VIEW_TYPE_AGENT_DOCK } = __require("src/constants.js");
+const { DEFAULT_SETTINGS } = __require("src/settings.js");
+const { renderComposerContent } = __require("src/view/ComposerRenderer.js");
+const { copyText } = __require("src/view/clipboard.js");
+const { estimateContextChars, formatCompactNumber } = __require("src/view/contextEstimate.js");
+const { MessageTimelineRenderer } = __require("src/view/MessageTimelineRenderer.js");
+const {
+  formatMentionToken,
+  getMentionMatch,
+  getParentPath,
+  replaceObsidianOpenLinks
+} = __require("src/view/mention.js");
+const { renderSessionSwitcher } = __require("src/view/SessionSwitcherRenderer.js");
+const { SessionStore } = __require("src/view/SessionStore.js");
+const { appendTimelineContent } = __require("src/view/timeline.js");
+
 class AgentDockView extends ItemView {
   constructor(leaf, plugin) {
     super(leaf);
     this.plugin = plugin;
-    this.sessions = [];
-    this.activeSessionId = "";
+    this.sessionStore = new SessionStore();
+    this.timelineRenderer = new MessageTimelineRenderer({
+      getDebugActivity: () => this.plugin.settings.debugActivity,
+      renderMarkdownContent: (containerEl, text) => this.renderMarkdownContent(containerEl, text)
+    });
+    this.messageEls = new WeakMap();
+    this.pendingMessageRenderFrame = null;
+    this.pendingMessageRenderSessionId = "";
+    this.pendingMessageRenderTarget = null;
+    this.globalPointerListeners = new Set();
+  }
+
+  get sessions() {
+    return this.sessionStore.sessions;
+  }
+
+  get activeSessionId() {
+    return this.sessionStore.activeSessionId;
+  }
+
+  set activeSessionId(value) {
+    this.sessionStore.activeSessionId = value;
   }
 
   getViewType() {
@@ -1380,10 +1985,14 @@ class AgentDockView extends ItemView {
   }
 
   async onClose() {
+    this.cancelPendingMessageRender();
+    this.clearGlobalPointerListeners();
     this.cancelRunningSessions();
   }
 
   render() {
+    this.cancelPendingMessageRender();
+    this.clearGlobalPointerListeners();
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("codex-dock");
@@ -1420,101 +2029,44 @@ class AgentDockView extends ItemView {
       return;
     }
 
-    this.sessionBarEl.empty();
     const activeSession = this.ensureActiveSession();
-    const switcher = this.sessionBarEl.createEl("details", { cls: "codex-dock__conversation-switcher" });
-    const summary = switcher.createEl("summary", {
-      cls: "codex-dock__conversation-summary",
-      attr: {
-        "aria-label": "Switch conversation",
-        title: "Switch conversation"
-      }
-    });
-    summary.createSpan({ cls: "codex-dock__conversation-title", text: activeSession.title });
-    const chevron = summary.createSpan({ cls: "codex-dock__conversation-chevron", attr: { "aria-hidden": "true" } });
-    setIcon(chevron, "chevron-down");
-
-    const menu = switcher.createDiv({ cls: "codex-dock__conversation-menu" });
-    menu.createDiv({ cls: "codex-dock__conversation-menu-title", text: "Conversations" });
-    const list = menu.createDiv({ cls: "codex-dock__conversation-list" });
-    for (const session of this.sessions) {
-      const item = list.createDiv({
-        cls: `codex-dock__conversation-item${session.id === this.activeSessionId ? " is-active" : ""}`
-      });
-      const switchButton = item.createEl("button", {
-        cls: "codex-dock__conversation-item-main",
-        attr: {
-          type: "button",
-          title: session.title
-        }
-      });
-      const check = switchButton.createSpan({ cls: "codex-dock__conversation-check", attr: { "aria-hidden": "true" } });
-      if (session.id === this.activeSessionId) {
-        setIcon(check, "check");
-      }
-      switchButton.createSpan({ cls: "codex-dock__conversation-item-title", text: session.title });
-      switchButton.addEventListener("click", () => {
-        this.activeSessionId = session.id;
-        switcher.removeAttribute("open");
+    renderSessionSwitcher({
+      containerEl: this.sessionBarEl,
+      sessions: this.sessions,
+      activeSessionId: activeSession.id,
+      activeSession,
+      onSwitchSession: (sessionId) => {
+        this.activeSessionId = sessionId;
         this.render();
-      });
-
-      const deleteButton = item.createEl("button", {
-        cls: "codex-dock__conversation-delete",
-        attr: {
-          type: "button",
-          "aria-label": `Delete ${session.title}`,
-          title: "Delete conversation"
-        }
-      });
-      setIcon(deleteButton, "trash-2");
-      deleteButton.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        this.deleteSession(session.id);
-      });
-    }
-
-    const newSessionButton = this.sessionBarEl.createEl("button", {
-      cls: "codex-dock__conversation-new",
-      attr: {
-        type: "button",
-        "aria-label": "New conversation",
-        title: "New conversation"
-      }
-    });
-    setIcon(newSessionButton, "plus");
-    newSessionButton.addEventListener("click", () => {
-      this.createSession();
-      this.render();
-    });
-
-    const closeConversationMenu = (event) => {
-      if (!switcher.contains(event.target)) {
-        switcher.removeAttribute("open");
-        document.removeEventListener("pointerdown", closeConversationMenu);
-      }
-    };
-    switcher.addEventListener("toggle", () => {
-      if (switcher.open) {
-        window.setTimeout(() => document.addEventListener("pointerdown", closeConversationMenu), 0);
-      } else {
-        document.removeEventListener("pointerdown", closeConversationMenu);
-      }
+      },
+      onDeleteSession: (sessionId) => this.deleteSession(sessionId),
+      onNewSession: () => {
+        this.createSession();
+        this.render();
+      },
+      addGlobalPointerListener: (listener) => this.addGlobalPointerListener(listener),
+      removeGlobalPointerListener: (listener) => this.removeGlobalPointerListener(listener)
     });
   }
 
   renderComposerContent(composer, draft) {
-    const shell = composer.createDiv({ cls: "codex-dock__composer-shell" });
-    this.inputEl = shell.createEl("textarea", {
-      cls: "codex-dock__input",
-      attr: {
-        rows: "4",
-        placeholder: "Ask the agent about this vault or the active note..."
-      }
+    const refs = renderComposerContent(composer, {
+      plugin: this.plugin,
+      draft,
+      getActiveSession: () => this.getActiveSession(),
+      handleMentionKeydown: (event) => this.handleMentionKeydown(event),
+      replaceObsidianLinksInInput: () => this.replaceObsidianLinksInInput(),
+      updateContextStatus: () => this.updateContextStatus(),
+      updateMentionSuggestions: () => this.updateMentionSuggestions(),
+      hideMentionSuggestions: () => this.hideMentionSuggestions(),
+      submit: () => this.submit(),
+      cancelActiveSession: () => this.cancelActiveSession(),
+      addGlobalPointerListener: (listener) => this.addGlobalPointerListener(listener),
+      removeGlobalPointerListener: (listener) => this.removeGlobalPointerListener(listener)
     });
-    this.inputEl.value = draft || "";
-    this.mentionMenuEl = shell.createDiv({ cls: "codex-dock__mention-menu" });
+    this.inputEl = refs.inputEl;
+    this.mentionMenuEl = refs.mentionMenuEl;
+    this.contextStatusEl = refs.contextStatusEl;
     this.mentionState = {
       active: false,
       start: -1,
@@ -1522,135 +2074,12 @@ class AgentDockView extends ItemView {
       selectedIndex: 0,
       suggestions: []
     };
-
-    this.inputEl.addEventListener("keydown", (event) => {
-      if (this.handleMentionKeydown(event)) {
-        return;
-      }
-      if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
-        event.preventDefault();
-        this.submit();
-      }
-    });
-    this.inputEl.addEventListener("input", () => {
-      if (this.replaceObsidianLinksInInput()) {
-        return;
-      }
-      const session = this.getActiveSession();
-      if (session) {
-        session.draft = this.inputEl.value;
-      }
-      this.updateContextStatus();
-      this.updateMentionSuggestions();
-    });
-    this.inputEl.addEventListener("click", () => this.updateMentionSuggestions());
-    this.inputEl.addEventListener("blur", () => {
-      window.setTimeout(() => this.hideMentionSuggestions(), 120);
-    });
-    this.inputEl.addEventListener("paste", () => {
-      window.setTimeout(() => this.replaceObsidianLinksInInput(), 0);
-    });
-
-    const composerBar = shell.createDiv({ cls: "codex-dock__composer-bar" });
-    const leftTools = composerBar.createDiv({ cls: "codex-dock__composer-tools" });
-    const activeNoteButton = leftTools.createEl("button", {
-      cls: "codex-dock__composer-icon-button",
-      attr: {
-        type: "button",
-        "aria-label": "Toggle active note context",
-        title: "Toggle active note context"
-      }
-    });
-    setIcon(activeNoteButton, "plus");
-    activeNoteButton.toggleClass("is-active", this.plugin.settings.includeActiveNote);
-    activeNoteButton.addEventListener("click", async () => {
-      this.plugin.settings.includeActiveNote = !this.plugin.settings.includeActiveNote;
-      activeNoteButton.toggleClass("is-active", this.plugin.settings.includeActiveNote);
-      await this.plugin.saveSettings();
-      this.updateContextStatus();
-    });
-
-    const modePill = leftTools.createEl("details", { cls: "codex-dock__mode-pill" });
-    const modeSummary = modePill.createEl("summary", {
-      cls: "codex-dock__mode-summary",
-      attr: {
-        "aria-label": "Mode",
-        title: getModeDescription(this.plugin.settings.mode, DEFAULT_SETTINGS.mode)
-      }
-    });
-    const modeIcon = modeSummary.createSpan({ cls: "codex-dock__mode-icon", attr: { "aria-hidden": "true" } });
-    setIcon(modeIcon, "shield");
-    const modeLabel = modeSummary.createSpan({
-      cls: "codex-dock__mode-label",
-      text: getModeLabel(this.plugin.settings.mode)
-    });
-    const modeChevron = modeSummary.createSpan({ cls: "codex-dock__mode-chevron", attr: { "aria-hidden": "true" } });
-    setIcon(modeChevron, "chevron-down");
-
-    const modeMenu = modePill.createDiv({ cls: "codex-dock__mode-menu", attr: { role: "menu" } });
-    const closeModeMenu = (event) => {
-      if (!modePill.contains(event.target)) {
-        modePill.removeAttribute("open");
-        document.removeEventListener("pointerdown", closeModeMenu);
-      }
-    };
-    modePill.addEventListener("toggle", () => {
-      if (modePill.open) {
-        window.setTimeout(() => document.addEventListener("pointerdown", closeModeMenu), 0);
-      } else {
-        document.removeEventListener("pointerdown", closeModeMenu);
-      }
-    });
-    for (const [value, option] of Object.entries(MODE_OPTIONS)) {
-      const optionButton = modeMenu.createEl("button", {
-        cls: "codex-dock__mode-option",
-        text: option.label,
-        attr: {
-          type: "button",
-          role: "menuitemradio",
-          "aria-checked": String(value === this.plugin.settings.mode),
-          title: option.description
-        }
-      });
-      optionButton.toggleClass("is-selected", value === this.plugin.settings.mode);
-      optionButton.addEventListener("click", async () => {
-        this.plugin.settings.mode = value;
-        modeLabel.setText(option.label);
-        modeSummary.setAttr("title", option.description);
-        for (const button of modeMenu.querySelectorAll(".codex-dock__mode-option")) {
-          const isSelected = button === optionButton;
-          button.classList.toggle("is-selected", isSelected);
-          button.setAttribute("aria-checked", String(isSelected));
-        }
-        modePill.removeAttribute("open");
-        await this.plugin.saveSettings();
-        this.updateContextStatus();
-      });
-    }
-
-    const rightTools = composerBar.createDiv({ cls: "codex-dock__composer-status" });
-    this.contextStatusEl = rightTools.createDiv({ cls: "codex-dock__context-status" });
     this.updateContextStatus();
-
-    const sendButton = rightTools.createEl("button", {
-      cls: "codex-dock__send",
-      attr: { type: "button" }
-    });
-    if (this.getActiveSession()?.currentRun) {
-      sendButton.setAttr("aria-label", "Stop agent");
-      sendButton.setAttr("title", "Stop agent");
-      setIcon(sendButton, "square");
-      sendButton.addEventListener("click", () => this.cancelActiveSession());
-    } else {
-      sendButton.setAttr("aria-label", "Send message");
-      sendButton.setAttr("title", "Send message");
-      setIcon(sendButton, "arrow-up");
-      sendButton.addEventListener("click", () => this.submit());
-    }
   }
 
   renderMessages() {
     this.messageList.empty();
+    this.messageEls = new WeakMap();
     const session = this.ensureActiveSession();
     const messages = session.messages;
 
@@ -1663,30 +2092,35 @@ class AgentDockView extends ItemView {
     }
 
     for (const message of messages) {
-      const item = this.messageList.createDiv({
-        cls: `codex-dock__message codex-dock__message--${message.role}`
-      });
-      item.createDiv({
-        cls: "codex-dock__role",
-        text: message.role === "user" ? "You" : this.plugin.agent.label
-      });
-      if (message.timeline && message.timeline.length > 0) {
-        const timeline = item.createDiv({ cls: "codex-dock__timeline" });
-        this.renderTimeline(timeline, message);
-      } else if (message.content) {
-        this.renderMarkdownContent(item, message.content);
-      }
-      if (message.isLoading) {
-        const loading = item.createDiv({ cls: "codex-dock__loading" });
-        const dots = loading.createSpan({ cls: "codex-dock__loading-dots", attr: { "aria-hidden": "true" } });
-        dots.createSpan();
-        dots.createSpan();
-        dots.createSpan();
-      }
+      const item = this.messageList.createDiv();
+      this.renderMessageItem(item, message);
+      this.messageEls.set(message, item);
     }
 
     this.messageList.scrollTop = this.messageList.scrollHeight;
     this.updateContextStatus();
+  }
+
+  renderMessageItem(item, message) {
+    item.empty();
+    item.className = `codex-dock__message codex-dock__message--${message.role}`;
+    item.createDiv({
+      cls: "codex-dock__role",
+      text: message.role === "user" ? "You" : this.plugin.agent.label
+    });
+    if (message.timeline && message.timeline.length > 0) {
+      const timeline = item.createDiv({ cls: "codex-dock__timeline" });
+      this.renderTimeline(timeline, message);
+    } else if (message.content) {
+      this.renderMarkdownContent(item, message.content);
+    }
+    if (message.isLoading) {
+      const loading = item.createDiv({ cls: "codex-dock__loading" });
+      const dots = loading.createSpan({ cls: "codex-dock__loading-dots", attr: { "aria-hidden": "true" } });
+      dots.createSpan();
+      dots.createSpan();
+      dots.createSpan();
+    }
   }
 
   handleMentionKeydown(event) {
@@ -1956,7 +2390,7 @@ class AgentDockView extends ItemView {
         } else {
           assistantMessage.timeline.push(update);
         }
-        this.renderSessionIfActive(session);
+        this.scheduleSessionRenderIfActive(session, assistantMessage);
       }, conversation, { signal: run.abortController.signal });
 
       assistantMessage.isLoading = false;
@@ -2008,100 +2442,7 @@ class AgentDockView extends ItemView {
   }
 
   renderTimeline(containerEl, message) {
-    if (message.role !== "assistant") {
-      for (const entry of message.timeline) {
-        this.renderTimelineEntry(containerEl, entry);
-      }
-      return;
-    }
-
-    if (message.isComplete) {
-      this.renderCompletedTimeline(containerEl, message.timeline);
-      return;
-    }
-
-    for (const group of groupLiveTimeline(message.timeline, this.plugin.settings.debugActivity)) {
-      if (group.type === "eventGroup") {
-        this.renderEventGroup(containerEl, group.entries, group.label, false);
-      } else {
-        this.renderTimelineEntry(containerEl, group.entry);
-      }
-    }
-  }
-
-  renderCompletedTimeline(containerEl, timeline) {
-    const { processedEntries, finalEntry } = getCompletedTimelineSections(
-      timeline,
-      this.plugin.settings.debugActivity
-    );
-
-    if (processedEntries.length > 0) {
-      this.renderProcessedGroup(containerEl, processedEntries);
-    }
-
-    if (finalEntry) {
-      this.renderTimelineEntry(containerEl, finalEntry);
-    }
-  }
-
-  renderProcessedGroup(containerEl, entries) {
-    if (entries.length === 0) {
-      return;
-    }
-
-    const details = containerEl.createEl("details", {
-      cls: "codex-dock__event-group codex-dock__event-group--processed"
-    });
-    details.open = false;
-    details.createEl("summary", {
-      cls: "codex-dock__event-group-summary",
-      text: `已处理 ${entries.length} 项`
-    });
-
-    const body = details.createDiv({ cls: "codex-dock__event-group-body" });
-    for (const group of groupProcessedEntries(entries)) {
-      if (group.type === "eventGroup") {
-        this.renderEventGroup(body, group.entries, getEventGroupLabel(group.entries), false);
-      } else {
-        this.renderTimelineEntry(body, group.entry);
-      }
-    }
-  }
-
-  renderEventGroup(containerEl, entries, label, open) {
-    const details = containerEl.createEl("details", {
-      cls: "codex-dock__event-group"
-    });
-    details.open = open;
-    details.createEl("summary", {
-      cls: "codex-dock__event-group-summary",
-      text: label
-    });
-
-    const body = details.createDiv({ cls: "codex-dock__event-group-body" });
-    for (const entry of entries) {
-      this.renderTimelineEntry(body, entry, { forceDetail: this.plugin.settings.debugActivity });
-    }
-  }
-
-  renderTimelineEntry(containerEl, entry) {
-    if (entry.kind === "message" || entry.kind === "content") {
-      this.renderMarkdownContent(containerEl, entry.text);
-      return;
-    }
-
-    if (!this.shouldShowEvent(entry)) {
-      return;
-    }
-
-    const eventEl = containerEl.createDiv({ cls: `codex-dock__event codex-dock__event--${entry.kind || "activity"}` });
-    eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || "Event" });
-    if (entry.summary && !this.plugin.settings.debugActivity) {
-      eventEl.createDiv({ cls: "codex-dock__event-summary", text: entry.summary });
-    }
-    if (entry.detail && this.plugin.settings.debugActivity) {
-      eventEl.createEl("pre", { cls: "codex-dock__event-detail", text: entry.detail });
-    }
+    this.timelineRenderer.renderTimeline(containerEl, message);
   }
 
   renderMarkdownContent(containerEl, text) {
@@ -2130,10 +2471,6 @@ class AgentDockView extends ItemView {
     });
   }
 
-  shouldShowEvent(entry) {
-    return shouldShowEvent(entry, this.plugin.settings.debugActivity);
-  }
-
   updateContextStatus() {
     if (!this.contextStatusEl) {
       return;
@@ -2153,45 +2490,19 @@ class AgentDockView extends ItemView {
   }
 
   ensureActiveSession() {
-    if (this.sessions.length === 0) {
-      return this.createSession();
-    }
-
-    const existing = this.getActiveSession();
-    if (existing) {
-      return existing;
-    }
-
-    this.activeSessionId = this.sessions[0].id;
-    return this.sessions[0];
+    return this.sessionStore.ensureActiveSession();
   }
 
   createSession() {
-    const session = {
-      id: `session-${Date.now()}-${Math.random().toString(16).slice(2)}`,
-      title: `Chat ${this.sessions.length + 1}`,
-      isUntitled: true,
-      currentRun: null,
-      draft: "",
-      messages: []
-    };
-    this.sessions.push(session);
-    this.activeSessionId = session.id;
-    return session;
+    return this.sessionStore.createSession();
   }
 
   getActiveSession() {
-    return this.sessions.find((session) => session.id === this.activeSessionId) || null;
+    return this.sessionStore.getActiveSession();
   }
 
   maybeNameSession(session, prompt) {
-    if (!session.isUntitled) {
-      return;
-    }
-
-    const compact = prompt.replace(/\s+/g, " ").trim();
-    session.title = compact.length > 28 ? `${compact.slice(0, 28)}...` : compact || session.title;
-    session.isUntitled = false;
+    this.sessionStore.maybeNameSession(session, prompt);
   }
 
   updateSessionSwitcher() {
@@ -2199,7 +2510,7 @@ class AgentDockView extends ItemView {
   }
 
   deleteSession(sessionId) {
-    const session = this.sessions.find((entry) => entry.id === sessionId);
+    const session = this.sessionStore.getSession(sessionId);
     if (!session) {
       return;
     }
@@ -2213,16 +2524,7 @@ class AgentDockView extends ItemView {
       return;
     }
 
-    const deletedIndex = this.sessions.findIndex((entry) => entry.id === sessionId);
-    this.sessions.splice(deletedIndex, 1);
-
-    if (this.sessions.length === 0) {
-      this.createSession();
-    } else if (this.activeSessionId === sessionId) {
-      const nextIndex = Math.min(deletedIndex, this.sessions.length - 1);
-      this.activeSessionId = this.sessions[nextIndex].id;
-    }
-
+    this.sessionStore.deleteSession(sessionId);
     this.render();
   }
 
@@ -2245,8 +2547,59 @@ class AgentDockView extends ItemView {
 
   renderSessionIfActive(session) {
     if (session.id === this.activeSessionId) {
+      this.cancelPendingMessageRender();
       this.renderMessages();
     }
+  }
+
+  scheduleSessionRenderIfActive(session, message = null) {
+    if (session.id !== this.activeSessionId) {
+      return;
+    }
+
+    this.pendingMessageRenderSessionId = session.id;
+    this.pendingMessageRenderTarget = message;
+    if (this.pendingMessageRenderFrame !== null) {
+      return;
+    }
+
+    this.pendingMessageRenderFrame = window.requestAnimationFrame(() => {
+      this.pendingMessageRenderFrame = null;
+      const renderSession = this.sessions.find((entry) => entry.id === this.pendingMessageRenderSessionId);
+      const renderMessage = this.pendingMessageRenderTarget;
+      this.pendingMessageRenderSessionId = "";
+      this.pendingMessageRenderTarget = null;
+      if (renderSession && renderSession.id === this.activeSessionId) {
+        this.renderMessageIfMounted(renderMessage) || this.renderMessages();
+      }
+    });
+  }
+
+  renderMessageIfMounted(message) {
+    if (!message) {
+      return false;
+    }
+
+    const item = this.messageEls.get(message);
+    if (!item || !item.isConnected) {
+      return false;
+    }
+
+    this.renderMessageItem(item, message);
+    this.messageList.scrollTop = this.messageList.scrollHeight;
+    this.updateContextStatus();
+    return true;
+  }
+
+  cancelPendingMessageRender() {
+    if (this.pendingMessageRenderFrame === null) {
+      return;
+    }
+
+    window.cancelAnimationFrame(this.pendingMessageRenderFrame);
+    this.pendingMessageRenderFrame = null;
+    this.pendingMessageRenderSessionId = "";
+    this.pendingMessageRenderTarget = null;
   }
 
   renderComposerIfActive(session) {
@@ -2254,87 +2607,27 @@ class AgentDockView extends ItemView {
       this.renderComposer();
     }
   }
-}
 
-function estimateContextChars(messages, draft, settings) {
-  const transcriptChars = messages.reduce((total, message) => {
-    return total + String(message.content || "").length + 16;
-  }, 0);
-  const draftChars = String(draft || "").length + 16;
-  const noteChars = settings.includeActiveNote
-    ? (Number(settings.activeNoteMaxChars) || DEFAULT_SETTINGS.activeNoteMaxChars)
-    : 0;
-  return transcriptChars + draftChars + noteChars;
-}
-
-function formatCompactNumber(value) {
-  if (value >= 1000) {
-    return `${Math.round(value / 1000)}k`;
-  }
-  return String(value);
-}
-
-function getModeLabel(mode) {
-  return (MODE_OPTIONS[mode] || MODE_OPTIONS[DEFAULT_SETTINGS.mode]).label;
-}
-
-function getMentionMatch(value, cursor) {
-  const beforeCursor = value.slice(0, cursor);
-  const match = /(^|\s)@([^\s@]*)$/.exec(beforeCursor);
-  if (!match) {
-    return null;
-  }
-
-  const start = beforeCursor.length - match[2].length - 1;
-  return {
-    start,
-    end: cursor,
-    query: match[2]
-  };
-}
-
-function formatMentionToken(path) {
-  return /\s/.test(path) ? `@"${path.replace(/"/g, "\\\"")}"` : `@${path}`;
-}
-
-function getParentPath(path) {
-  const index = path.lastIndexOf("/");
-  return index >= 0 ? path.slice(0, index) : "";
-}
-
-function replaceObsidianOpenLinks(value) {
-  return value.replace(/obsidian:\/\/open\?[^\s<>"']+/g, (url) => {
-    const filePath = extractObsidianOpenFilePath(url);
-    return filePath ? formatMentionToken(filePath) : url;
-  });
-}
-
-function extractObsidianOpenFilePath(url) {
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "obsidian:" || parsed.hostname !== "open") {
-      return "";
+  addGlobalPointerListener(listener) {
+    if (this.globalPointerListeners.has(listener)) {
+      return;
     }
-    return parsed.searchParams.get("file") || "";
-  } catch {
-    return "";
-  }
-}
 
-async function copyText(text) {
-  if (navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(text);
-    return;
+    document.addEventListener("pointerdown", listener);
+    this.globalPointerListeners.add(listener);
   }
 
-  const textarea = document.createElement("textarea");
-  textarea.value = text;
-  textarea.style.position = "fixed";
-  textarea.style.opacity = "0";
-  document.body.appendChild(textarea);
-  textarea.select();
-  document.execCommand("copy");
-  textarea.remove();
+  removeGlobalPointerListener(listener) {
+    document.removeEventListener("pointerdown", listener);
+    this.globalPointerListeners.delete(listener);
+  }
+
+  clearGlobalPointerListeners() {
+    for (const listener of this.globalPointerListeners) {
+      document.removeEventListener("pointerdown", listener);
+    }
+    this.globalPointerListeners.clear();
+  }
 }
 
 module.exports = {
