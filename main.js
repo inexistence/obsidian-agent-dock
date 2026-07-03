@@ -4317,13 +4317,8 @@ class AgentDockView extends ItemView {
 
   getVaultPathSuggestions(query) {
     const normalizedQuery = query.toLowerCase();
-    return this.app.vault.getAllLoadedFiles()
-      .map((entry) => ({
-        path: entry.path,
-        name: entry.name || entry.path,
-        folder: getParentPath(entry.path),
-        kind: entry.children ? "folder" : "file"
-      }))
+    const suggestions = this.app.vault.getAllLoadedFiles()
+      .map((entry) => this.getMentionSuggestionForEntry(entry))
       .filter((entry) => entry.path)
       .filter((entry) => {
         if (!normalizedQuery) {
@@ -4331,13 +4326,57 @@ class AgentDockView extends ItemView {
         }
         return entry.path.toLowerCase().includes(normalizedQuery);
       })
-      .sort((left, right) => {
-        if (left.kind !== right.kind) {
-          return left.kind === "file" ? -1 : 1;
-        }
-        return left.path.localeCompare(right.path);
-      })
-      .slice(0, 7);
+      .map((suggestion) => ({
+        ...suggestion,
+        matchScore: getMentionSuggestionMatchScore(suggestion, normalizedQuery)
+      }))
+      .sort((left, right) => compareMentionSuggestions(left, right, normalizedQuery));
+    const exactNameMatches = normalizedQuery
+      ? suggestions.filter((suggestion) => suggestion.matchScore === 0)
+      : [];
+    const partialMatches = normalizedQuery
+      ? suggestions.filter((suggestion) => suggestion.matchScore !== 0)
+      : suggestions;
+
+    return [
+      ...exactNameMatches,
+      ...partialMatches.slice(0, MAX_PARTIAL_MENTION_SUGGESTIONS)
+    ];
+  }
+
+  getMentionSuggestionForEntry(entry) {
+    const name = entry.name || entry.path;
+    return {
+      path: entry.path,
+      name,
+      basename: getMarkdownBasename(name),
+      folder: getParentPath(entry.path),
+      kind: entry.children ? "folder" : "file"
+    };
+  }
+
+  showDroppedReferenceChoices(suggestions) {
+    if (!this.inputEl || !Array.isArray(suggestions) || suggestions.length === 0) {
+      return false;
+    }
+
+    const value = this.inputEl.value;
+    const start = this.inputEl.selectionStart ?? value.length;
+    const end = this.inputEl.selectionEnd ?? start;
+    const before = value.slice(0, start);
+    const after = value.slice(end);
+    this.mentionState = {
+      active: true,
+      start,
+      end,
+      selectedIndex: 0,
+      suggestions,
+      insertionPrefix: before && !/\s$/.test(before) ? " " : "",
+      insertionSuffix: after && !/^\s/.test(after) ? " " : " "
+    };
+    this.renderMentionSuggestions();
+    this.inputEl.focus();
+    return true;
   }
 
   renderMentionSuggestions() {
@@ -4363,7 +4402,7 @@ class AgentDockView extends ItemView {
       text.createSpan({ cls: "codex-dock__mention-name", text: suggestion.name });
       text.createSpan({
         cls: "codex-dock__mention-path",
-        text: suggestion.kind === "folder" ? this.translate("view.folder") : suggestion.folder || this.translate("view.vaultRoot")
+        text: suggestion.folder || this.translate("view.vaultRoot")
       });
       option.addEventListener("mousedown", (event) => {
         event.preventDefault();
@@ -4427,8 +4466,10 @@ class AgentDockView extends ItemView {
 
     const value = this.inputEl.value;
     const mention = formatMentionToken(suggestion.path);
-    const nextValue = `${value.slice(0, this.mentionState.start)}${mention} ${value.slice(this.mentionState.end)}`;
-    const nextCursor = this.mentionState.start + mention.length + 1;
+    const prefix = this.mentionState.insertionPrefix || "";
+    const suffix = this.mentionState.insertionSuffix ?? " ";
+    const nextValue = `${value.slice(0, this.mentionState.start)}${prefix}${mention}${suffix}${value.slice(this.mentionState.end)}`;
+    const nextCursor = this.mentionState.start + prefix.length + mention.length + suffix.length;
     this.inputEl.value = nextValue;
     this.inputEl.selectionStart = nextCursor;
     this.inputEl.selectionEnd = nextCursor;
@@ -4486,10 +4527,17 @@ class AgentDockView extends ItemView {
     const debugInfo = createReferenceDropDebugInfo(dataTransfer);
     const debugEnabled = Boolean(this.plugin.settings.debugActivity);
     const paths = this.extractDroppedReferencePaths(dataTransfer, debugInfo, debugEnabled);
-    logReferenceDropDebug(debugInfo, paths, debugEnabled);
     if (paths.length === 0) {
+      const ambiguousReference = debugInfo.ambiguousReferences[0];
+      if (ambiguousReference && this.showDroppedReferenceChoices(ambiguousReference.suggestions)) {
+        logReferenceDropDebug(debugInfo, paths, debugEnabled, { status: "chooser" });
+        return true;
+      }
+      logReferenceDropDebug(debugInfo, paths, debugEnabled, { status: "ignored" });
       return false;
     }
+
+    logReferenceDropDebug(debugInfo, paths, debugEnabled, { status: "accepted" });
 
     const tokens = paths.map((path) => formatMentionToken(path));
     const value = this.inputEl.value;
@@ -4519,6 +4567,7 @@ class AgentDockView extends ItemView {
   }
 
   extractDroppedReferencePaths(dataTransfer, debugInfo, debugEnabled = false) {
+    debugInfo.debugEnabled = debugEnabled;
     const paths = [];
     const seen = new Set();
     const attemptedInputs = new Set();
@@ -4560,6 +4609,15 @@ class AgentDockView extends ItemView {
         return;
       }
       if (!entry) {
+        const ambiguousSuggestions = this.getAmbiguousReferenceSuggestions(path);
+        if (ambiguousSuggestions.length > 1) {
+          debugInfo.ambiguousReferences.push({
+            source,
+            raw: truncateDebugText(path),
+            normalized: normalizedPath,
+            suggestions: ambiguousSuggestions
+          });
+        }
         result.reason = "not found in vault";
         debugInfo.candidates.push(result);
         return;
@@ -4572,15 +4630,30 @@ class AgentDockView extends ItemView {
     };
     const addText = (text, source) => {
       if (text) {
+        const fullText = String(text || "");
         debugInfo.payloads.push({
           source,
-          text: truncateDebugText(text, 600)
+          text: truncateDebugText(fullText, 600),
+          ...(debugEnabled && containsObsidianOpenUrl(fullText) ? { textFull: fullText } : {})
         });
       }
       for (const candidate of extractReferenceCandidatesFromText(text, debugInfo, source)) {
         addPath(candidate, source);
       }
     };
+
+    Array.from(dataTransfer.items || []).forEach((item, index) => {
+      const source = `dataTransfer.items[${index}]`;
+      const itemFile = getDataTransferItemFile(item);
+      if (itemFile) {
+        addPath(itemFile.path || itemFile.name || "", `${source}.getAsFile`);
+      }
+
+      const itemEntry = getDataTransferItemEntry(item);
+      if (itemEntry) {
+        addPath(itemEntry.fullPath || itemEntry.name || "", `${source}.webkitGetAsEntry`);
+      }
+    });
 
     for (const file of Array.from(dataTransfer.files || [])) {
       addPath(file.path || file.name || "", "dataTransfer.files");
@@ -4697,6 +4770,26 @@ class AgentDockView extends ItemView {
       nameMatches,
       accepted: entry?.path || ""
     };
+  }
+
+  getAmbiguousReferenceSuggestions(rawPath) {
+    const lookupPath = this.getReferenceLookupPath(rawPath);
+    return this.findVaultEntryNameMatches(lookupPath)
+      .map((entry) => this.getMentionSuggestionForEntry(entry))
+      .sort((left, right) => {
+        if (left.kind !== right.kind) {
+          return left.kind === "file" ? -1 : 1;
+        }
+        return left.path.localeCompare(right.path);
+      });
+  }
+
+  getReferenceLookupPath(rawPath) {
+    const normalizedInput = normalizeReferenceInput(rawPath);
+    const vaultBasePath = String(this.app.vault.adapter.basePath || "").replace(/\\/g, "/").replace(/\/+$/, "");
+    return vaultBasePath && normalizedInput.startsWith(`${vaultBasePath}/`)
+      ? normalizedInput.slice(vaultBasePath.length + 1)
+      : normalizedInput.replace(/^\/+/, "");
   }
 
   findUniqueVaultEntryByName(path) {
@@ -5080,12 +5173,54 @@ module.exports = {
   AgentDockView
 };
 
+const MAX_PARTIAL_MENTION_SUGGESTIONS = 7;
+
 function getMentionFileType(name) {
   const extension = String(name || "").split(".").pop();
   if (!extension || extension === name || extension.length > 4) {
     return "FILE";
   }
   return extension.toUpperCase();
+}
+
+function compareMentionSuggestions(left, right, normalizedQuery) {
+  const leftScore = typeof left.matchScore === "number"
+    ? left.matchScore
+    : getMentionSuggestionMatchScore(left, normalizedQuery);
+  const rightScore = typeof right.matchScore === "number"
+    ? right.matchScore
+    : getMentionSuggestionMatchScore(right, normalizedQuery);
+
+  if (leftScore !== rightScore) {
+    return leftScore - rightScore;
+  }
+  if (left.kind !== right.kind) {
+    return left.kind === "file" ? -1 : 1;
+  }
+  return left.path.localeCompare(right.path);
+}
+
+function getMentionSuggestionMatchScore(suggestion, normalizedQuery) {
+  if (!normalizedQuery) {
+    return 0;
+  }
+
+  const name = String(suggestion.name || "").toLowerCase();
+  const basename = String(suggestion.basename || "").toLowerCase();
+  if (name === normalizedQuery || basename === normalizedQuery) {
+    return 0;
+  }
+  if (name.startsWith(normalizedQuery) || basename.startsWith(normalizedQuery)) {
+    return 1;
+  }
+  if (name.includes(normalizedQuery) || basename.includes(normalizedQuery)) {
+    return 2;
+  }
+  return 3;
+}
+
+function getMarkdownBasename(name) {
+  return String(name || "").replace(/\.md$/i, "");
 }
 
 function normalizeReferenceInput(path) {
@@ -5113,46 +5248,131 @@ function getObsidianOpenQueryPath(query) {
 
 function createReferenceDropDebugInfo(dataTransfer) {
   return {
+    dropEffect: dataTransfer?.dropEffect || "",
+    effectAllowed: dataTransfer?.effectAllowed || "",
     types: Array.from(dataTransfer?.types || []),
-    items: Array.from(dataTransfer?.items || []).map((item) => ({
-      kind: item.kind || "",
-      type: item.type || ""
-    })),
-    files: Array.from(dataTransfer?.files || []).map((file) => ({
-      name: file.name || "",
-      path: file.path || "",
-      type: file.type || ""
-    })),
+    items: Array.from(dataTransfer?.items || []).map((item, index) => describeDataTransferItem(item, index)),
+    files: Array.from(dataTransfer?.files || []).map((file, index) => describeDataTransferFile(file, index)),
     payloads: [],
     extractions: [],
     resolutions: [],
-    candidates: []
+    candidates: [],
+    ambiguousReferences: []
   };
 }
 
-function logReferenceDropDebug(debugInfo, paths, debugEnabled = false) {
+function logReferenceDropDebug(debugInfo, paths, debugEnabled = false, options = {}) {
+  const status = options.status || (paths.length > 0 ? "accepted" : "ignored");
   const payload = {
-    stamp: "drop-ob-open-v4",
+    stamp: "drop-ob-open-v8",
+    status,
+    dropEffect: debugInfo.dropEffect,
+    effectAllowed: debugInfo.effectAllowed,
     types: debugInfo.types,
-    items: debugInfo.items,
-    files: debugInfo.files,
+    items: debugEnabled ? debugInfo.items : debugInfo.items.map(stripDataTransferItemDebug),
+    files: debugEnabled ? debugInfo.files : debugInfo.files.map(stripDataTransferFileDebug),
     payloads: debugInfo.payloads,
     extractions: debugInfo.extractions,
     resolutions: debugInfo.resolutions,
     candidates: debugInfo.candidates,
+    ambiguousReferences: debugInfo.ambiguousReferences,
     acceptedPaths: paths
   };
 
-  if (paths.length > 0 && debugEnabled) {
+  if (status === "accepted" && debugEnabled) {
     console.info("[Agent Dock] Reference drop accepted", payload);
-  } else if (paths.length === 0) {
+  } else if (status === "chooser" && debugEnabled) {
+    console.info("[Agent Dock] Reference drop needs selection", payload);
+  } else if (status === "ignored") {
     console.warn("[Agent Dock] Reference drop ignored", payload);
+  }
+}
+
+function stripDataTransferItemDebug(item) {
+  return {
+    index: item.index,
+    kind: item.kind,
+    type: item.type,
+    file: item.file ? stripDataTransferFileDebug(item.file) : null,
+    entry: item.entry ? stripDataTransferEntryDebug(item.entry) : null
+  };
+}
+
+function stripDataTransferFileDebug(file) {
+  return {
+    index: file.index,
+    name: file.name,
+    type: file.type,
+    size: file.size,
+    lastModified: file.lastModified
+  };
+}
+
+function stripDataTransferEntryDebug(entry) {
+  return {
+    name: entry.name,
+    filesystemName: entry.filesystemName,
+    isFile: entry.isFile,
+    isDirectory: entry.isDirectory
+  };
+}
+
+function describeDataTransferItem(item, index) {
+  const file = getDataTransferItemFile(item);
+  const entry = getDataTransferItemEntry(item);
+  return {
+    index,
+    kind: item?.kind || "",
+    type: item?.type || "",
+    file: file ? describeDataTransferFile(file) : null,
+    entry: entry ? describeDataTransferEntry(entry) : null
+  };
+}
+
+function describeDataTransferFile(file, index = undefined) {
+  return {
+    ...(index === undefined ? {} : { index }),
+    name: file?.name || "",
+    path: file?.path || "",
+    type: file?.type || "",
+    size: Number.isFinite(file?.size) ? file.size : null,
+    lastModified: Number.isFinite(file?.lastModified) ? file.lastModified : null
+  };
+}
+
+function describeDataTransferEntry(entry) {
+  return {
+    name: entry?.name || "",
+    fullPath: entry?.fullPath || "",
+    filesystemName: entry?.filesystem?.name || "",
+    isFile: Boolean(entry?.isFile),
+    isDirectory: Boolean(entry?.isDirectory)
+  };
+}
+
+function getDataTransferItemFile(item) {
+  try {
+    return typeof item?.getAsFile === "function" ? item.getAsFile() : null;
+  } catch {
+    return null;
+  }
+}
+
+function getDataTransferItemEntry(item) {
+  try {
+    return typeof item?.webkitGetAsEntry === "function" ? item.webkitGetAsEntry() : null;
+  } catch {
+    return null;
   }
 }
 
 function truncateDebugText(value, maxChars = 180) {
   const text = String(value || "");
   return text.length > maxChars ? `${text.slice(0, maxChars)}...` : text;
+}
+
+function containsObsidianOpenUrl(value) {
+  return /obsidian:\/\/open\?/i.test(String(value || ""));
 }
 
 function extractReferenceCandidatesFromText(text, debugInfo = null, sourceLabel = "") {
@@ -5166,10 +5386,12 @@ function extractReferenceCandidatesFromText(text, debugInfo = null, sourceLabel 
     const obsidianPath = extractObsidianOpenPathFromValue(path);
     const cleanPath = String(obsidianPath || path || "").replace(/^file:\/\//, "").trim();
     if (debugInfo) {
+      const rawText = String(path || "");
       debugInfo.extractions.push({
         source: sourceLabel,
         stage,
-        raw: truncateDebugText(path),
+        raw: truncateDebugText(rawText),
+        ...(debugInfo.debugEnabled && containsObsidianOpenUrl(rawText) ? { rawFull: rawText } : {}),
         obsidianPath,
         candidate: cleanPath
       });
