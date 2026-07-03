@@ -1199,7 +1199,7 @@ module.exports = {
 
 },
 "src/view/AgentDockView.js": function(module, exports, __require) {
-const { ItemView, MarkdownRenderer, Notice } = require("obsidian");
+const { ItemView, MarkdownRenderer, Notice, setIcon } = require("obsidian");
 
 const { VIEW_TYPE_AGENT_DOCK } = __require("src/constants.js");
 const { MODE_OPTIONS, getModeDescription } = __require("src/modes.js");
@@ -1310,7 +1310,8 @@ class AgentDockView extends ItemView {
   }
 
   renderComposerContent(composer, draft) {
-    this.inputEl = composer.createEl("textarea", {
+    const shell = composer.createDiv({ cls: "codex-dock__composer-shell" });
+    this.inputEl = shell.createEl("textarea", {
       cls: "codex-dock__input",
       attr: {
         rows: "4",
@@ -1333,46 +1334,100 @@ class AgentDockView extends ItemView {
       this.updateContextStatus();
     });
 
-    const modeRow = composer.createDiv({ cls: "codex-dock__mode-row" });
-    modeRow.createEl("label", {
-      cls: "codex-dock__mode-label",
-      text: "Mode",
-      attr: { for: "codex-dock-mode" }
+    const composerBar = shell.createDiv({ cls: "codex-dock__composer-bar" });
+    const leftTools = composerBar.createDiv({ cls: "codex-dock__composer-tools" });
+    const activeNoteButton = leftTools.createEl("button", {
+      cls: "codex-dock__composer-icon-button",
+      attr: {
+        type: "button",
+        "aria-label": "Toggle active note context",
+        title: "Toggle active note context"
+      }
     });
-    const modeSelect = modeRow.createEl("select", {
-      cls: "codex-dock__mode-select",
-      attr: { id: "codex-dock-mode" }
-    });
-
-    for (const [value, option] of Object.entries(MODE_OPTIONS)) {
-      modeSelect.createEl("option", {
-        text: option.label,
-        value
-      });
-    }
-
-    modeSelect.value = this.plugin.settings.mode;
-    const modeHint = composer.createDiv({
-      cls: "codex-dock__mode-hint",
-      text: getModeDescription(this.plugin.settings.mode, DEFAULT_SETTINGS.mode)
-    });
-
-    modeSelect.addEventListener("change", async () => {
-      this.plugin.settings.mode = modeSelect.value;
-      modeHint.setText(getModeDescription(this.plugin.settings.mode, DEFAULT_SETTINGS.mode));
+    setIcon(activeNoteButton, "plus");
+    activeNoteButton.toggleClass("is-active", this.plugin.settings.includeActiveNote);
+    activeNoteButton.addEventListener("click", async () => {
+      this.plugin.settings.includeActiveNote = !this.plugin.settings.includeActiveNote;
+      activeNoteButton.toggleClass("is-active", this.plugin.settings.includeActiveNote);
       await this.plugin.saveSettings();
       this.updateContextStatus();
     });
 
-    this.contextStatusEl = composer.createDiv({ cls: "codex-dock__context-status" });
+    const modePill = leftTools.createEl("details", { cls: "codex-dock__mode-pill" });
+    const modeSummary = modePill.createEl("summary", {
+      cls: "codex-dock__mode-summary",
+      attr: {
+        "aria-label": "Mode",
+        title: getModeDescription(this.plugin.settings.mode, DEFAULT_SETTINGS.mode)
+      }
+    });
+    const modeIcon = modeSummary.createSpan({ cls: "codex-dock__mode-icon", attr: { "aria-hidden": "true" } });
+    setIcon(modeIcon, "shield");
+    const modeLabel = modeSummary.createSpan({
+      cls: "codex-dock__mode-label",
+      text: getModeLabel(this.plugin.settings.mode)
+    });
+    const modeChevron = modeSummary.createSpan({ cls: "codex-dock__mode-chevron", attr: { "aria-hidden": "true" } });
+    setIcon(modeChevron, "chevron-down");
+
+    const modeMenu = modePill.createDiv({ cls: "codex-dock__mode-menu", attr: { role: "menu" } });
+    const closeModeMenu = (event) => {
+      if (!modePill.contains(event.target)) {
+        modePill.removeAttribute("open");
+        document.removeEventListener("pointerdown", closeModeMenu);
+      }
+    };
+    modePill.addEventListener("toggle", () => {
+      if (modePill.open) {
+        window.setTimeout(() => document.addEventListener("pointerdown", closeModeMenu), 0);
+      } else {
+        document.removeEventListener("pointerdown", closeModeMenu);
+      }
+    });
+    for (const [value, option] of Object.entries(MODE_OPTIONS)) {
+      const optionButton = modeMenu.createEl("button", {
+        cls: "codex-dock__mode-option",
+        text: option.label,
+        attr: {
+          type: "button",
+          role: "menuitemradio",
+          "aria-checked": String(value === this.plugin.settings.mode),
+          title: option.description
+        }
+      });
+      optionButton.toggleClass("is-selected", value === this.plugin.settings.mode);
+      optionButton.addEventListener("click", async () => {
+        this.plugin.settings.mode = value;
+        modeLabel.setText(option.label);
+        modeSummary.setAttr("title", option.description);
+        for (const button of modeMenu.querySelectorAll(".codex-dock__mode-option")) {
+          const isSelected = button === optionButton;
+          button.classList.toggle("is-selected", isSelected);
+          button.setAttribute("aria-checked", String(isSelected));
+        }
+        modePill.removeAttribute("open");
+        await this.plugin.saveSettings();
+        this.updateContextStatus();
+      });
+    }
+
+    const rightTools = composerBar.createDiv({ cls: "codex-dock__composer-status" });
+    this.contextStatusEl = rightTools.createDiv({ cls: "codex-dock__context-status" });
     this.updateContextStatus();
 
-    const sendButton = composer.createEl("button", { cls: "mod-cta codex-dock__send" });
+    const sendButton = rightTools.createEl("button", {
+      cls: "codex-dock__send",
+      attr: { type: "button" }
+    });
     if (this.getActiveSession()?.currentRun) {
-      sendButton.setText("Stop");
+      sendButton.setAttr("aria-label", "Stop agent");
+      sendButton.setAttr("title", "Stop agent");
+      setIcon(sendButton, "square");
       sendButton.addEventListener("click", () => this.cancelActiveSession());
     } else {
-      sendButton.setText("Send");
+      sendButton.setAttr("aria-label", "Send message");
+      sendButton.setAttr("title", "Send message");
+      setIcon(sendButton, "arrow-up");
       sendButton.addEventListener("click", () => this.submit());
     }
   }
@@ -1650,7 +1705,11 @@ class AgentDockView extends ItemView {
     const percent = Math.min(999, Math.round((used / limit) * 100));
     this.contextStatusEl.toggleClass("is-warning", percent >= 80);
     this.contextStatusEl.toggleClass("is-over", percent >= 100);
-    this.contextStatusEl.setText(`Context ${percent}% · ${formatCompactNumber(used)} / ${formatCompactNumber(limit)} chars`);
+    this.contextStatusEl.setText(`${percent}%`);
+    this.contextStatusEl.setAttr(
+      "title",
+      `Context ${percent}% · ${formatCompactNumber(used)} / ${formatCompactNumber(limit)} chars`
+    );
   }
 
   ensureActiveSession() {
@@ -1756,6 +1815,10 @@ function formatCompactNumber(value) {
     return `${Math.round(value / 1000)}k`;
   }
   return String(value);
+}
+
+function getModeLabel(mode) {
+  return (MODE_OPTIONS[mode] || MODE_OPTIONS[DEFAULT_SETTINGS.mode]).label;
 }
 
 async function copyText(text) {
