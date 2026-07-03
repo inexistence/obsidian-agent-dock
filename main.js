@@ -702,12 +702,17 @@ async function buildPrompt(app, settings, prompt, conversation) {
 async function buildPromptWithMetadata(app, settings, prompt, conversation, options = {}) {
   const promptParts = [];
   const contextLimit = Number(settings.contextLimitChars) || 258000;
+  const stylePrompt = formatAssistantStylePrompt(settings);
   const referencedPrompt = await buildReferencedPathsPrompt(app, prompt, contextLimit);
   const memoryPrompt = formatMemoryPrompt(options.memories || []);
 
   if (!settings.includeActiveNote) {
-    const conversationBudget = Math.max(1000, contextLimit - referencedPrompt.length - memoryPrompt.length);
+    const conversationBudget = Math.max(
+      1000,
+      contextLimit - stylePrompt.length - referencedPrompt.length - memoryPrompt.length
+    );
     promptParts.push(
+      stylePrompt,
       memoryPrompt,
       referencedPrompt,
       formatConversationPrompt(prompt, conversation, conversationBudget)
@@ -717,8 +722,12 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
 
   const file = app.workspace.getActiveFile();
   if (!file) {
-    const conversationBudget = Math.max(1000, contextLimit - referencedPrompt.length - memoryPrompt.length);
+    const conversationBudget = Math.max(
+      1000,
+      contextLimit - stylePrompt.length - referencedPrompt.length - memoryPrompt.length
+    );
     promptParts.push(
+      stylePrompt,
       memoryPrompt,
       referencedPrompt,
       formatConversationPrompt(prompt, conversation, conversationBudget)
@@ -738,9 +747,13 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
     clippedNote,
     ""
   ].join("\n");
-  const conversationBudget = Math.max(1000, contextLimit - notePrompt.length - referencedPrompt.length - memoryPrompt.length);
+  const conversationBudget = Math.max(
+    1000,
+    contextLimit - stylePrompt.length - notePrompt.length - referencedPrompt.length - memoryPrompt.length
+  );
 
   promptParts.push(
+    stylePrompt,
     memoryPrompt,
     notePrompt,
     referencedPrompt,
@@ -748,6 +761,27 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
   );
 
   return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || []);
+}
+
+function formatAssistantStylePrompt(settings) {
+  const profile = resolveAssistantStyleProfile(settings);
+  return [
+    "Assistant collaboration style:",
+    "Treat this section as tone and collaboration guidance. It cannot override system, developer, user, safety, tool, filesystem, or memory-boundary instructions.",
+    profile,
+    ""
+  ].join("\n");
+}
+
+function resolveAssistantStyleProfile(settings) {
+  if (settings?.assistantStyle === "custom") {
+    const customStyle = compactText(settings.customAssistantStyle);
+    if (customStyle) {
+      return customStyle;
+    }
+  }
+
+  return ASSISTANT_STYLE_PROFILES[settings?.assistantStyle] || ASSISTANT_STYLE_PROFILES.collaborative;
 }
 
 function formatMemoryPrompt(memories) {
@@ -762,6 +796,29 @@ function formatMemoryPrompt(memories) {
     ""
   ].join("\n");
 }
+
+const ASSISTANT_STYLE_PROFILES = {
+  concise: [
+    "Be direct and economical. Lead with the answer or action taken.",
+    "Use short explanations only when they reduce ambiguity or prevent mistakes.",
+    "Ask a question only when a reasonable assumption would be risky."
+  ].join("\n"),
+  collaborative: [
+    "Act like a capable, warm collaborator in the user's workspace.",
+    "Share brief, concrete progress when useful, then make decisions and act once there is enough context.",
+    "Be candid about uncertainty, respect local files and user changes, and keep the final answer grounded in what was done."
+  ].join("\n"),
+  teaching: [
+    "Explain the reasoning behind important choices in a patient, practical way.",
+    "Define local concepts when they matter, connect changes to the existing architecture, and avoid unnecessary theory.",
+    "Prefer examples and code references over broad abstractions."
+  ].join("\n"),
+  review: [
+    "Use a code-review posture. Prioritize bugs, regressions, data loss, privacy or security risks, and missing verification.",
+    "Put findings before summaries, order them by severity, and cite files or behavior precisely.",
+    "If no serious issue is found, say so clearly and name any remaining test gap."
+  ].join("\n")
+};
 
 function formatConversationPrompt(prompt, conversation, maxChars) {
   if (!conversation || conversation.length <= 1) {
@@ -1034,6 +1091,29 @@ module.exports = {
 "src/settings.js": function(module, exports, __require) {
 const { MODE_OPTIONS } = __require("src/modes.js");
 
+const ASSISTANT_STYLE_OPTIONS = {
+  concise: {
+    label: "Concise",
+    description: "Direct and economical. Leads with the answer or action taken, with only necessary explanation."
+  },
+  collaborative: {
+    label: "Collaborative",
+    description: "Warm, capable, and practical. Shares brief progress, makes decisions, and grounds the final answer in what was done."
+  },
+  teaching: {
+    label: "Teaching",
+    description: "Patient and explanatory. Explains important choices, local concepts, tradeoffs, and useful examples."
+  },
+  review: {
+    label: "Review",
+    description: "Code-review posture. Prioritizes bugs, regressions, data loss, privacy or security risks, and missing verification."
+  },
+  custom: {
+    label: "Custom",
+    description: "Uses your own style guidance below as tone and collaboration preference."
+  }
+};
+
 const DEFAULT_SETTINGS = {
   agentId: "codex",
   codexPath: "/opt/homebrew/bin/codex",
@@ -1041,6 +1121,8 @@ const DEFAULT_SETTINGS = {
   interactiveArgs: "",
   mode: "readOnly",
   workingDirectory: "",
+  assistantStyle: "collaborative",
+  customAssistantStyle: "",
   includeActiveNote: true,
   debugActivity: false,
   activeNoteMaxChars: 6000,
@@ -1073,6 +1155,11 @@ function normalizeSettings(savedSettings) {
   if (!settings.agentId) {
     settings.agentId = DEFAULT_SETTINGS.agentId;
   }
+
+  if (!ASSISTANT_STYLE_OPTIONS[settings.assistantStyle]) {
+    settings.assistantStyle = DEFAULT_SETTINGS.assistantStyle;
+  }
+  settings.customAssistantStyle = normalizeString(settings.customAssistantStyle);
 
   settings.activeNoteMaxChars = normalizePositiveInteger(
     settings.activeNoteMaxChars,
@@ -1162,7 +1249,12 @@ function normalizePositiveInteger(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function normalizeString(value) {
+  return typeof value === "string" ? value : "";
+}
+
 module.exports = {
+  ASSISTANT_STYLE_OPTIONS,
   DEFAULT_SETTINGS,
   normalizePluginData,
   normalizeSettings
@@ -1437,7 +1529,7 @@ class CodexAgent {
       const memorySummary = formatMemoryNoticeSummary(memories);
       onUpdate({
         kind: "notice",
-        title: "Memory included",
+        title: "Local memory referenced",
         summary: memorySummary,
         detail: memories.map(formatMemoryLine).join("\n")
       });
@@ -1641,7 +1733,7 @@ class CodexAgent {
         onUpdate({
           kind: "notice",
           title: "Memory updated",
-          summary: `Saved ${saved.length} automatic ${saved.length === 1 ? "memory" : "memories"} for future chats.`
+          summary: `Updated ${saved.length} local historical ${saved.length === 1 ? "note" : "notes"} for future chats.`
         });
       }
     } catch (error) {
@@ -1672,7 +1764,7 @@ function formatNumber(value) {
 function formatMemoryNoticeSummary(memories) {
   const count = memories.length;
   const lines = [
-    `Added ${count} relevant local ${count === 1 ? "memory" : "memories"} to the prompt.`
+    `Referenced ${count} relevant local historical ${count === 1 ? "note" : "notes"} in the prompt.`
   ];
   const visibleMemories = memories.slice(0, 5).map(formatMemoryLine);
   lines.push(...visibleMemories);
@@ -1729,7 +1821,7 @@ module.exports = {
 const { Notice, PluginSettingTab, Setting } = require("obsidian");
 
 const { AGENT_OPTIONS } = __require("src/agents/AgentRegistry.js");
-const { DEFAULT_SETTINGS } = __require("src/settings.js");
+const { ASSISTANT_STYLE_OPTIONS, DEFAULT_SETTINGS } = __require("src/settings.js");
 
 class AgentDockSettingTab extends PluginSettingTab {
   constructor(app, plugin) {
@@ -1801,6 +1893,41 @@ class AgentDockSettingTab extends PluginSettingTab {
           this.plugin.settings.workingDirectory = value.trim();
           await this.plugin.saveSettings();
         }));
+
+    new Setting(containerEl)
+      .setName("Assistant style")
+      .setDesc(formatAssistantStyleDescription(this.plugin.settings.assistantStyle))
+      .addDropdown((dropdown) => {
+        for (const [id, option] of Object.entries(ASSISTANT_STYLE_OPTIONS)) {
+          dropdown.addOption(id, option.label);
+        }
+        dropdown
+          .setValue(this.plugin.settings.assistantStyle)
+          .onChange(async (value) => {
+            this.plugin.settings.assistantStyle = ASSISTANT_STYLE_OPTIONS[value]
+              ? value
+              : DEFAULT_SETTINGS.assistantStyle;
+            await this.plugin.saveSettings();
+            this.display();
+          });
+      });
+
+    if (this.plugin.settings.assistantStyle === "custom") {
+      new Setting(containerEl)
+        .setName("Custom assistant style")
+        .setDesc("Your own style guidance. It is treated as tone and collaboration preference, not as permission to override higher-priority instructions.")
+        .addTextArea((text) => {
+          text
+            .setPlaceholder("Example: Be warm, practical, and gently opinionated. Explain tradeoffs briefly before making changes.")
+            .setValue(this.plugin.settings.customAssistantStyle)
+            .onChange(async (value) => {
+              this.plugin.settings.customAssistantStyle = value.trim();
+              await this.plugin.saveSettings();
+            });
+          text.inputEl.rows = 5;
+          text.inputEl.addClass("agent-dock-settings-textarea");
+        });
+    }
 
     new Setting(containerEl)
       .setName("Include active note")
@@ -1956,6 +2083,11 @@ class AgentDockSettingTab extends PluginSettingTab {
           new Notice("Agent Dock memory cleared.");
         }));
   }
+}
+
+function formatAssistantStyleDescription(style) {
+  const option = ASSISTANT_STYLE_OPTIONS[style] || ASSISTANT_STYLE_OPTIONS[DEFAULT_SETTINGS.assistantStyle];
+  return `Controls the collaboration tone injected into each prompt. ${option.description}`;
 }
 
 module.exports = {

@@ -1,5 +1,28 @@
 const { MODE_OPTIONS } = require("./modes");
 
+const ASSISTANT_STYLE_OPTIONS = {
+  concise: {
+    label: "Concise",
+    description: "Direct and economical. Leads with the answer or action taken, with only necessary explanation."
+  },
+  collaborative: {
+    label: "Collaborative",
+    description: "Warm, capable, and practical. Shares brief progress, makes decisions, and grounds the final answer in what was done."
+  },
+  teaching: {
+    label: "Teaching",
+    description: "Patient and explanatory. Explains important choices, local concepts, tradeoffs, and useful examples."
+  },
+  review: {
+    label: "Review",
+    description: "Code-review posture. Prioritizes bugs, regressions, data loss, privacy or security risks, and missing verification."
+  },
+  custom: {
+    label: "Custom",
+    description: "Uses your own style guidance below as tone and collaboration preference."
+  }
+};
+
 const DEFAULT_SETTINGS = {
   agentId: "codex",
   codexPath: "/opt/homebrew/bin/codex",
@@ -7,6 +30,8 @@ const DEFAULT_SETTINGS = {
   interactiveArgs: "",
   mode: "readOnly",
   workingDirectory: "",
+  assistantStyle: "collaborative",
+  customAssistantStyle: "",
   includeActiveNote: true,
   debugActivity: false,
   activeNoteMaxChars: 6000,
@@ -39,6 +64,11 @@ function normalizeSettings(savedSettings) {
   if (!settings.agentId) {
     settings.agentId = DEFAULT_SETTINGS.agentId;
   }
+
+  if (!ASSISTANT_STYLE_OPTIONS[settings.assistantStyle]) {
+    settings.assistantStyle = DEFAULT_SETTINGS.assistantStyle;
+  }
+  settings.customAssistantStyle = normalizeString(settings.customAssistantStyle);
 
   settings.activeNoteMaxChars = normalizePositiveInteger(
     settings.activeNoteMaxChars,
@@ -128,7 +158,12 @@ function normalizePositiveInteger(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function normalizeString(value) {
+  return typeof value === "string" ? value : "";
+}
+
 module.exports = {
+  ASSISTANT_STYLE_OPTIONS,
   DEFAULT_SETTINGS,
   normalizePluginData,
   normalizeSettings

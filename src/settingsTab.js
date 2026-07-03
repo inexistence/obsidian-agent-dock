@@ -1,7 +1,7 @@
 const { Notice, PluginSettingTab, Setting } = require("obsidian");
 
 const { AGENT_OPTIONS } = require("./agents/AgentRegistry");
-const { DEFAULT_SETTINGS } = require("./settings");
+const { ASSISTANT_STYLE_OPTIONS, DEFAULT_SETTINGS } = require("./settings");
 
 class AgentDockSettingTab extends PluginSettingTab {
   constructor(app, plugin) {
@@ -73,6 +73,41 @@ class AgentDockSettingTab extends PluginSettingTab {
           this.plugin.settings.workingDirectory = value.trim();
           await this.plugin.saveSettings();
         }));
+
+    new Setting(containerEl)
+      .setName("Assistant style")
+      .setDesc(formatAssistantStyleDescription(this.plugin.settings.assistantStyle))
+      .addDropdown((dropdown) => {
+        for (const [id, option] of Object.entries(ASSISTANT_STYLE_OPTIONS)) {
+          dropdown.addOption(id, option.label);
+        }
+        dropdown
+          .setValue(this.plugin.settings.assistantStyle)
+          .onChange(async (value) => {
+            this.plugin.settings.assistantStyle = ASSISTANT_STYLE_OPTIONS[value]
+              ? value
+              : DEFAULT_SETTINGS.assistantStyle;
+            await this.plugin.saveSettings();
+            this.display();
+          });
+      });
+
+    if (this.plugin.settings.assistantStyle === "custom") {
+      new Setting(containerEl)
+        .setName("Custom assistant style")
+        .setDesc("Your own style guidance. It is treated as tone and collaboration preference, not as permission to override higher-priority instructions.")
+        .addTextArea((text) => {
+          text
+            .setPlaceholder("Example: Be warm, practical, and gently opinionated. Explain tradeoffs briefly before making changes.")
+            .setValue(this.plugin.settings.customAssistantStyle)
+            .onChange(async (value) => {
+              this.plugin.settings.customAssistantStyle = value.trim();
+              await this.plugin.saveSettings();
+            });
+          text.inputEl.rows = 5;
+          text.inputEl.addClass("agent-dock-settings-textarea");
+        });
+    }
 
     new Setting(containerEl)
       .setName("Include active note")
@@ -228,6 +263,11 @@ class AgentDockSettingTab extends PluginSettingTab {
           new Notice("Agent Dock memory cleared.");
         }));
   }
+}
+
+function formatAssistantStyleDescription(style) {
+  const option = ASSISTANT_STYLE_OPTIONS[style] || ASSISTANT_STYLE_OPTIONS[DEFAULT_SETTINGS.assistantStyle];
+  return `Controls the collaboration tone injected into each prompt. ${option.description}`;
 }
 
 module.exports = {

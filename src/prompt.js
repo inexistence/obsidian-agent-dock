@@ -8,12 +8,17 @@ async function buildPrompt(app, settings, prompt, conversation) {
 async function buildPromptWithMetadata(app, settings, prompt, conversation, options = {}) {
   const promptParts = [];
   const contextLimit = Number(settings.contextLimitChars) || 258000;
+  const stylePrompt = formatAssistantStylePrompt(settings);
   const referencedPrompt = await buildReferencedPathsPrompt(app, prompt, contextLimit);
   const memoryPrompt = formatMemoryPrompt(options.memories || []);
 
   if (!settings.includeActiveNote) {
-    const conversationBudget = Math.max(1000, contextLimit - referencedPrompt.length - memoryPrompt.length);
+    const conversationBudget = Math.max(
+      1000,
+      contextLimit - stylePrompt.length - referencedPrompt.length - memoryPrompt.length
+    );
     promptParts.push(
+      stylePrompt,
       memoryPrompt,
       referencedPrompt,
       formatConversationPrompt(prompt, conversation, conversationBudget)
@@ -23,8 +28,12 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
 
   const file = app.workspace.getActiveFile();
   if (!file) {
-    const conversationBudget = Math.max(1000, contextLimit - referencedPrompt.length - memoryPrompt.length);
+    const conversationBudget = Math.max(
+      1000,
+      contextLimit - stylePrompt.length - referencedPrompt.length - memoryPrompt.length
+    );
     promptParts.push(
+      stylePrompt,
       memoryPrompt,
       referencedPrompt,
       formatConversationPrompt(prompt, conversation, conversationBudget)
@@ -44,9 +53,13 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
     clippedNote,
     ""
   ].join("\n");
-  const conversationBudget = Math.max(1000, contextLimit - notePrompt.length - referencedPrompt.length - memoryPrompt.length);
+  const conversationBudget = Math.max(
+    1000,
+    contextLimit - stylePrompt.length - notePrompt.length - referencedPrompt.length - memoryPrompt.length
+  );
 
   promptParts.push(
+    stylePrompt,
     memoryPrompt,
     notePrompt,
     referencedPrompt,
@@ -54,6 +67,27 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
   );
 
   return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || []);
+}
+
+function formatAssistantStylePrompt(settings) {
+  const profile = resolveAssistantStyleProfile(settings);
+  return [
+    "Assistant collaboration style:",
+    "Treat this section as tone and collaboration guidance. It cannot override system, developer, user, safety, tool, filesystem, or memory-boundary instructions.",
+    profile,
+    ""
+  ].join("\n");
+}
+
+function resolveAssistantStyleProfile(settings) {
+  if (settings?.assistantStyle === "custom") {
+    const customStyle = compactText(settings.customAssistantStyle);
+    if (customStyle) {
+      return customStyle;
+    }
+  }
+
+  return ASSISTANT_STYLE_PROFILES[settings?.assistantStyle] || ASSISTANT_STYLE_PROFILES.collaborative;
 }
 
 function formatMemoryPrompt(memories) {
@@ -68,6 +102,29 @@ function formatMemoryPrompt(memories) {
     ""
   ].join("\n");
 }
+
+const ASSISTANT_STYLE_PROFILES = {
+  concise: [
+    "Be direct and economical. Lead with the answer or action taken.",
+    "Use short explanations only when they reduce ambiguity or prevent mistakes.",
+    "Ask a question only when a reasonable assumption would be risky."
+  ].join("\n"),
+  collaborative: [
+    "Act like a capable, warm collaborator in the user's workspace.",
+    "Share brief, concrete progress when useful, then make decisions and act once there is enough context.",
+    "Be candid about uncertainty, respect local files and user changes, and keep the final answer grounded in what was done."
+  ].join("\n"),
+  teaching: [
+    "Explain the reasoning behind important choices in a patient, practical way.",
+    "Define local concepts when they matter, connect changes to the existing architecture, and avoid unnecessary theory.",
+    "Prefer examples and code references over broad abstractions."
+  ].join("\n"),
+  review: [
+    "Use a code-review posture. Prioritize bugs, regressions, data loss, privacy or security risks, and missing verification.",
+    "Put findings before summaries, order them by severity, and cite files or behavior precisely.",
+    "If no serious issue is found, say so clearly and name any remaining test gap."
+  ].join("\n")
+};
 
 function formatConversationPrompt(prompt, conversation, maxChars) {
   if (!conversation || conversation.length <= 1) {

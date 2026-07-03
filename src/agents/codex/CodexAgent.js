@@ -35,7 +35,7 @@ class CodexAgent {
       const memorySummary = formatMemoryNoticeSummary(memories);
       onUpdate({
         kind: "notice",
-        title: "Memory included",
+        title: "Local memory referenced",
         summary: memorySummary,
         detail: memories.map(formatMemoryLine).join("\n")
       });
@@ -239,7 +239,7 @@ class CodexAgent {
         onUpdate({
           kind: "notice",
           title: "Memory updated",
-          summary: `Saved ${saved.length} automatic ${saved.length === 1 ? "memory" : "memories"} for future chats.`
+          summary: `Updated ${saved.length} local historical ${saved.length === 1 ? "note" : "notes"} for future chats.`
         });
       }
     } catch (error) {
@@ -270,7 +270,7 @@ function formatNumber(value) {
 function formatMemoryNoticeSummary(memories) {
   const count = memories.length;
   const lines = [
-    `Added ${count} relevant local ${count === 1 ? "memory" : "memories"} to the prompt.`
+    `Referenced ${count} relevant local historical ${count === 1 ? "note" : "notes"} in the prompt.`
   ];
   const visibleMemories = memories.slice(0, 5).map(formatMemoryLine);
   lines.push(...visibleMemories);
