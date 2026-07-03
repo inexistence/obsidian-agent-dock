@@ -6,16 +6,25 @@ async function buildPrompt(app, settings, prompt, conversation) {
 async function buildPromptWithMetadata(app, settings, prompt, conversation) {
   const promptParts = [];
   const contextLimit = Number(settings.contextLimitChars) || 258000;
+  const referencedPrompt = await buildReferencedPathsPrompt(app, prompt, contextLimit);
 
   if (!settings.includeActiveNote) {
-    promptParts.push(formatConversationPrompt(prompt, conversation, contextLimit));
-    return buildPromptResult(promptParts.join("\n"), contextLimit);
+    const conversationBudget = Math.max(1000, contextLimit - referencedPrompt.length);
+    promptParts.push(
+      referencedPrompt,
+      formatConversationPrompt(prompt, conversation, conversationBudget)
+    );
+    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit);
   }
 
   const file = app.workspace.getActiveFile();
   if (!file) {
-    promptParts.push(formatConversationPrompt(prompt, conversation, contextLimit));
-    return buildPromptResult(promptParts.join("\n"), contextLimit);
+    const conversationBudget = Math.max(1000, contextLimit - referencedPrompt.length);
+    promptParts.push(
+      referencedPrompt,
+      formatConversationPrompt(prompt, conversation, conversationBudget)
+    );
+    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit);
   }
 
   const note = await app.vault.cachedRead(file);
@@ -30,14 +39,15 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation) {
     clippedNote,
     ""
   ].join("\n");
-  const conversationBudget = Math.max(1000, contextLimit - notePrompt.length);
+  const conversationBudget = Math.max(1000, contextLimit - notePrompt.length - referencedPrompt.length);
 
   promptParts.push(
     notePrompt,
+    referencedPrompt,
     formatConversationPrompt(prompt, conversation, conversationBudget)
   );
 
-  return buildPromptResult(promptParts.join("\n"), contextLimit);
+  return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit);
 }
 
 function formatConversationPrompt(prompt, conversation, maxChars) {
@@ -53,6 +63,137 @@ function formatConversationPrompt(prompt, conversation, maxChars) {
     "",
     "Respond to the latest user request."
   ].join("\n");
+}
+
+async function buildReferencedPathsPrompt(app, prompt, contextLimit) {
+  const paths = extractMentionPaths(prompt);
+  if (paths.length === 0) {
+    return "";
+  }
+
+  const maxChars = Math.min(16000, Math.max(4000, Math.floor(contextLimit * 0.15)));
+  const parts = ["Referenced Obsidian paths:"];
+  let used = parts[0].length;
+
+  for (const mentionPath of paths) {
+    const entry = app.vault.getAbstractFileByPath(mentionPath);
+    if (!entry) {
+      const missing = [`Path: ${mentionPath}`, "[Not found in vault]"].join("\n");
+      if (!appendReferencedPart(parts, missing, maxChars, used)) {
+        break;
+      }
+      used += missing.length + 2;
+      continue;
+    }
+
+    const part = entry.children
+      ? formatReferencedFolder(entry)
+      : await formatReferencedFile(app, entry);
+    if (!appendReferencedPart(parts, part, maxChars, used)) {
+      parts.push("[Additional referenced paths omitted]");
+      break;
+    }
+    used += part.length + 2;
+  }
+
+  return `${parts.join("\n\n")}\n`;
+}
+
+async function formatReferencedFile(app, file) {
+  const maxFileChars = 3000;
+  const content = await app.vault.cachedRead(file);
+  const clippedContent = content.length > maxFileChars
+    ? `${content.slice(0, maxFileChars)}\n\n[Referenced file clipped]`
+    : content;
+  return [
+    `File: ${file.path}`,
+    "```",
+    clippedContent,
+    "```"
+  ].join("\n");
+}
+
+function formatReferencedFolder(folder) {
+  const maxEntries = 200;
+  const paths = [];
+  collectFolderPaths(folder, paths, maxEntries);
+  const omitted = paths.length >= maxEntries ? "\n[Folder listing clipped]" : "";
+  return [
+    `Folder: ${folder.path}`,
+    paths.map((path) => `- ${path}`).join("\n") + omitted
+  ].filter(Boolean).join("\n");
+}
+
+function collectFolderPaths(folder, paths, maxEntries) {
+  for (const child of folder.children || []) {
+    if (paths.length >= maxEntries) {
+      return;
+    }
+    paths.push(child.children ? `${child.path}/` : child.path);
+    if (child.children) {
+      collectFolderPaths(child, paths, maxEntries);
+    }
+  }
+}
+
+function appendReferencedPart(parts, part, maxChars, used) {
+  if (used + part.length + 2 > maxChars) {
+    return false;
+  }
+  parts.push(part);
+  return true;
+}
+
+function extractMentionPaths(prompt) {
+  const paths = [];
+  const seen = new Set();
+  const pattern = /@(?:"((?:\\"|[^"])*)"|([^\s]+))/g;
+  let match;
+
+  const addPath = (path) => {
+    const normalizedPath = String(path || "").replace(/\\"/g, "\"").trim();
+    if (normalizedPath && !seen.has(normalizedPath)) {
+      seen.add(normalizedPath);
+      paths.push(normalizedPath);
+    }
+  };
+
+  while ((match = pattern.exec(prompt)) !== null) {
+    addPath(match[1] || match[2] || "");
+  }
+
+  for (const path of extractObsidianOpenPaths(prompt)) {
+    addPath(path);
+  }
+
+  return paths;
+}
+
+function extractObsidianOpenPaths(prompt) {
+  const paths = [];
+  const pattern = /obsidian:\/\/open\?[^\s<>"']+/g;
+  let match;
+
+  while ((match = pattern.exec(prompt)) !== null) {
+    const path = extractObsidianOpenFilePath(match[0]);
+    if (path) {
+      paths.push(path);
+    }
+  }
+
+  return paths;
+}
+
+function extractObsidianOpenFilePath(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "obsidian:" || parsed.hostname !== "open") {
+      return "";
+    }
+    return parsed.searchParams.get("file") || "";
+  } catch {
+    return "";
+  }
 }
 
 function formatConversationTranscript(conversation, maxChars) {

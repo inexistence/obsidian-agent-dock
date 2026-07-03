@@ -195,16 +195,25 @@ async function buildPrompt(app, settings, prompt, conversation) {
 async function buildPromptWithMetadata(app, settings, prompt, conversation) {
   const promptParts = [];
   const contextLimit = Number(settings.contextLimitChars) || 258000;
+  const referencedPrompt = await buildReferencedPathsPrompt(app, prompt, contextLimit);
 
   if (!settings.includeActiveNote) {
-    promptParts.push(formatConversationPrompt(prompt, conversation, contextLimit));
-    return buildPromptResult(promptParts.join("\n"), contextLimit);
+    const conversationBudget = Math.max(1000, contextLimit - referencedPrompt.length);
+    promptParts.push(
+      referencedPrompt,
+      formatConversationPrompt(prompt, conversation, conversationBudget)
+    );
+    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit);
   }
 
   const file = app.workspace.getActiveFile();
   if (!file) {
-    promptParts.push(formatConversationPrompt(prompt, conversation, contextLimit));
-    return buildPromptResult(promptParts.join("\n"), contextLimit);
+    const conversationBudget = Math.max(1000, contextLimit - referencedPrompt.length);
+    promptParts.push(
+      referencedPrompt,
+      formatConversationPrompt(prompt, conversation, conversationBudget)
+    );
+    return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit);
   }
 
   const note = await app.vault.cachedRead(file);
@@ -219,14 +228,15 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation) {
     clippedNote,
     ""
   ].join("\n");
-  const conversationBudget = Math.max(1000, contextLimit - notePrompt.length);
+  const conversationBudget = Math.max(1000, contextLimit - notePrompt.length - referencedPrompt.length);
 
   promptParts.push(
     notePrompt,
+    referencedPrompt,
     formatConversationPrompt(prompt, conversation, conversationBudget)
   );
 
-  return buildPromptResult(promptParts.join("\n"), contextLimit);
+  return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit);
 }
 
 function formatConversationPrompt(prompt, conversation, maxChars) {
@@ -242,6 +252,137 @@ function formatConversationPrompt(prompt, conversation, maxChars) {
     "",
     "Respond to the latest user request."
   ].join("\n");
+}
+
+async function buildReferencedPathsPrompt(app, prompt, contextLimit) {
+  const paths = extractMentionPaths(prompt);
+  if (paths.length === 0) {
+    return "";
+  }
+
+  const maxChars = Math.min(16000, Math.max(4000, Math.floor(contextLimit * 0.15)));
+  const parts = ["Referenced Obsidian paths:"];
+  let used = parts[0].length;
+
+  for (const mentionPath of paths) {
+    const entry = app.vault.getAbstractFileByPath(mentionPath);
+    if (!entry) {
+      const missing = [`Path: ${mentionPath}`, "[Not found in vault]"].join("\n");
+      if (!appendReferencedPart(parts, missing, maxChars, used)) {
+        break;
+      }
+      used += missing.length + 2;
+      continue;
+    }
+
+    const part = entry.children
+      ? formatReferencedFolder(entry)
+      : await formatReferencedFile(app, entry);
+    if (!appendReferencedPart(parts, part, maxChars, used)) {
+      parts.push("[Additional referenced paths omitted]");
+      break;
+    }
+    used += part.length + 2;
+  }
+
+  return `${parts.join("\n\n")}\n`;
+}
+
+async function formatReferencedFile(app, file) {
+  const maxFileChars = 3000;
+  const content = await app.vault.cachedRead(file);
+  const clippedContent = content.length > maxFileChars
+    ? `${content.slice(0, maxFileChars)}\n\n[Referenced file clipped]`
+    : content;
+  return [
+    `File: ${file.path}`,
+    "```",
+    clippedContent,
+    "```"
+  ].join("\n");
+}
+
+function formatReferencedFolder(folder) {
+  const maxEntries = 200;
+  const paths = [];
+  collectFolderPaths(folder, paths, maxEntries);
+  const omitted = paths.length >= maxEntries ? "\n[Folder listing clipped]" : "";
+  return [
+    `Folder: ${folder.path}`,
+    paths.map((path) => `- ${path}`).join("\n") + omitted
+  ].filter(Boolean).join("\n");
+}
+
+function collectFolderPaths(folder, paths, maxEntries) {
+  for (const child of folder.children || []) {
+    if (paths.length >= maxEntries) {
+      return;
+    }
+    paths.push(child.children ? `${child.path}/` : child.path);
+    if (child.children) {
+      collectFolderPaths(child, paths, maxEntries);
+    }
+  }
+}
+
+function appendReferencedPart(parts, part, maxChars, used) {
+  if (used + part.length + 2 > maxChars) {
+    return false;
+  }
+  parts.push(part);
+  return true;
+}
+
+function extractMentionPaths(prompt) {
+  const paths = [];
+  const seen = new Set();
+  const pattern = /@(?:"((?:\\"|[^"])*)"|([^\s]+))/g;
+  let match;
+
+  const addPath = (path) => {
+    const normalizedPath = String(path || "").replace(/\\"/g, "\"").trim();
+    if (normalizedPath && !seen.has(normalizedPath)) {
+      seen.add(normalizedPath);
+      paths.push(normalizedPath);
+    }
+  };
+
+  while ((match = pattern.exec(prompt)) !== null) {
+    addPath(match[1] || match[2] || "");
+  }
+
+  for (const path of extractObsidianOpenPaths(prompt)) {
+    addPath(path);
+  }
+
+  return paths;
+}
+
+function extractObsidianOpenPaths(prompt) {
+  const paths = [];
+  const pattern = /obsidian:\/\/open\?[^\s<>"']+/g;
+  let match;
+
+  while ((match = pattern.exec(prompt)) !== null) {
+    const path = extractObsidianOpenFilePath(match[0]);
+    if (path) {
+      paths.push(path);
+    }
+  }
+
+  return paths;
+}
+
+function extractObsidianOpenFilePath(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "obsidian:" || parsed.hostname !== "open") {
+      return "";
+    }
+    return parsed.searchParams.get("file") || "";
+  } catch {
+    return "";
+  }
 }
 
 function formatConversationTranscript(conversation, maxChars) {
@@ -1373,19 +1514,41 @@ class AgentDockView extends ItemView {
       }
     });
     this.inputEl.value = draft || "";
+    this.mentionMenuEl = shell.createDiv({ cls: "codex-dock__mention-menu" });
+    this.mentionState = {
+      active: false,
+      start: -1,
+      end: -1,
+      selectedIndex: 0,
+      suggestions: []
+    };
 
     this.inputEl.addEventListener("keydown", (event) => {
+      if (this.handleMentionKeydown(event)) {
+        return;
+      }
       if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
         event.preventDefault();
         this.submit();
       }
     });
     this.inputEl.addEventListener("input", () => {
+      if (this.replaceObsidianLinksInInput()) {
+        return;
+      }
       const session = this.getActiveSession();
       if (session) {
         session.draft = this.inputEl.value;
       }
       this.updateContextStatus();
+      this.updateMentionSuggestions();
+    });
+    this.inputEl.addEventListener("click", () => this.updateMentionSuggestions());
+    this.inputEl.addEventListener("blur", () => {
+      window.setTimeout(() => this.hideMentionSuggestions(), 120);
+    });
+    this.inputEl.addEventListener("paste", () => {
+      window.setTimeout(() => this.replaceObsidianLinksInInput(), 0);
     });
 
     const composerBar = shell.createDiv({ cls: "codex-dock__composer-bar" });
@@ -1524,6 +1687,204 @@ class AgentDockView extends ItemView {
 
     this.messageList.scrollTop = this.messageList.scrollHeight;
     this.updateContextStatus();
+  }
+
+  handleMentionKeydown(event) {
+    if (!this.mentionState?.active) {
+      return false;
+    }
+
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      this.mentionState.selectedIndex = Math.min(
+        this.mentionState.selectedIndex + 1,
+        this.mentionState.suggestions.length - 1
+      );
+      this.renderMentionSuggestions();
+      return true;
+    }
+
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      this.mentionState.selectedIndex = Math.max(this.mentionState.selectedIndex - 1, 0);
+      this.renderMentionSuggestions();
+      return true;
+    }
+
+    if (event.key === "Enter" || event.key === "Tab") {
+      event.preventDefault();
+      this.selectMentionSuggestion(this.mentionState.selectedIndex);
+      return true;
+    }
+
+    if (event.key === "Escape") {
+      event.preventDefault();
+      this.hideMentionSuggestions();
+      return true;
+    }
+
+    return false;
+  }
+
+  updateMentionSuggestions() {
+    const match = getMentionMatch(this.inputEl.value, this.inputEl.selectionStart);
+    if (!match) {
+      this.hideMentionSuggestions();
+      return;
+    }
+
+    const suggestions = this.getVaultPathSuggestions(match.query);
+    if (suggestions.length === 0) {
+      this.hideMentionSuggestions();
+      return;
+    }
+
+    this.mentionState = {
+      active: true,
+      start: match.start,
+      end: match.end,
+      selectedIndex: 0,
+      suggestions
+    };
+    this.renderMentionSuggestions();
+  }
+
+  getVaultPathSuggestions(query) {
+    const normalizedQuery = query.toLowerCase();
+    return this.app.vault.getAllLoadedFiles()
+      .map((entry) => ({
+        path: entry.path,
+        name: entry.name || entry.path,
+        folder: getParentPath(entry.path),
+        kind: entry.children ? "folder" : "file"
+      }))
+      .filter((entry) => entry.path)
+      .filter((entry) => {
+        if (!normalizedQuery) {
+          return true;
+        }
+        return entry.path.toLowerCase().includes(normalizedQuery);
+      })
+      .sort((left, right) => {
+        if (left.kind !== right.kind) {
+          return left.kind === "file" ? -1 : 1;
+        }
+        return left.path.localeCompare(right.path);
+      })
+      .slice(0, 7);
+  }
+
+  renderMentionSuggestions() {
+    if (!this.mentionMenuEl || !this.mentionState.active) {
+      return;
+    }
+
+    this.mentionMenuEl.empty();
+    this.mentionMenuEl.addClass("is-open");
+    const list = this.mentionMenuEl.createDiv({ cls: "codex-dock__mention-list" });
+    for (let index = 0; index < this.mentionState.suggestions.length; index += 1) {
+      const suggestion = this.mentionState.suggestions[index];
+      const option = list.createEl("button", {
+        cls: `codex-dock__mention-option${index === this.mentionState.selectedIndex ? " is-selected" : ""}`,
+        attr: {
+          type: "button",
+          title: suggestion.path
+        }
+      });
+      const icon = option.createSpan({ cls: "codex-dock__mention-icon", attr: { "aria-hidden": "true" } });
+      setIcon(icon, suggestion.kind === "folder" ? "folder" : "file-text");
+      const text = option.createSpan({ cls: "codex-dock__mention-text" });
+      text.createSpan({ cls: "codex-dock__mention-name", text: suggestion.name });
+      text.createSpan({
+        cls: "codex-dock__mention-path",
+        text: suggestion.kind === "folder" ? "Folder" : suggestion.folder || "Vault root"
+      });
+      option.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+        this.selectMentionSuggestion(index);
+      });
+      option.addEventListener("mouseenter", () => {
+        if (this.mentionState.selectedIndex === index) {
+          return;
+        }
+        this.mentionState.selectedIndex = index;
+        this.renderMentionSuggestions();
+      });
+    }
+
+    const selected = this.mentionState.suggestions[this.mentionState.selectedIndex];
+    if (selected) {
+      const preview = this.mentionMenuEl.createDiv({ cls: "codex-dock__mention-preview" });
+      const segments = selected.path.split("/");
+      for (let index = 0; index < segments.length; index += 1) {
+        const segment = segments[index];
+        const row = preview.createDiv({
+          cls: `codex-dock__mention-preview-row depth-${Math.min(index, 4)}`
+        });
+        const icon = row.createSpan({ cls: "codex-dock__mention-preview-icon", attr: { "aria-hidden": "true" } });
+        setIcon(icon, index === segments.length - 1 && selected.kind === "file" ? "file-text" : "folder");
+        row.createSpan({ cls: "codex-dock__mention-preview-name", text: segment });
+      }
+    }
+  }
+
+  selectMentionSuggestion(index) {
+    const suggestion = this.mentionState?.suggestions[index];
+    if (!suggestion) {
+      return;
+    }
+
+    const value = this.inputEl.value;
+    const mention = formatMentionToken(suggestion.path);
+    const nextValue = `${value.slice(0, this.mentionState.start)}${mention} ${value.slice(this.mentionState.end)}`;
+    const nextCursor = this.mentionState.start + mention.length + 1;
+    this.inputEl.value = nextValue;
+    this.inputEl.selectionStart = nextCursor;
+    this.inputEl.selectionEnd = nextCursor;
+    const session = this.getActiveSession();
+    if (session) {
+      session.draft = nextValue;
+    }
+    this.hideMentionSuggestions();
+    this.updateContextStatus();
+    this.inputEl.focus();
+  }
+
+  hideMentionSuggestions() {
+    if (!this.mentionMenuEl) {
+      return;
+    }
+
+    this.mentionState = {
+      active: false,
+      start: -1,
+      end: -1,
+      selectedIndex: 0,
+      suggestions: []
+    };
+    this.mentionMenuEl.empty();
+    this.mentionMenuEl.removeClass("is-open");
+  }
+
+  replaceObsidianLinksInInput() {
+    const value = this.inputEl.value;
+    const nextValue = replaceObsidianOpenLinks(value);
+    if (nextValue === value) {
+      return false;
+    }
+
+    const cursor = this.inputEl.selectionStart;
+    const delta = nextValue.length - value.length;
+    this.inputEl.value = nextValue;
+    this.inputEl.selectionStart = Math.max(0, cursor + delta);
+    this.inputEl.selectionEnd = this.inputEl.selectionStart;
+    const session = this.getActiveSession();
+    if (session) {
+      session.draft = nextValue;
+    }
+    this.updateContextStatus();
+    this.updateMentionSuggestions();
+    return true;
   }
 
   async submit() {
@@ -1890,6 +2251,49 @@ function formatCompactNumber(value) {
 
 function getModeLabel(mode) {
   return (MODE_OPTIONS[mode] || MODE_OPTIONS[DEFAULT_SETTINGS.mode]).label;
+}
+
+function getMentionMatch(value, cursor) {
+  const beforeCursor = value.slice(0, cursor);
+  const match = /(^|\s)@([^\s@]*)$/.exec(beforeCursor);
+  if (!match) {
+    return null;
+  }
+
+  const start = beforeCursor.length - match[2].length - 1;
+  return {
+    start,
+    end: cursor,
+    query: match[2]
+  };
+}
+
+function formatMentionToken(path) {
+  return /\s/.test(path) ? `@"${path.replace(/"/g, "\\\"")}"` : `@${path}`;
+}
+
+function getParentPath(path) {
+  const index = path.lastIndexOf("/");
+  return index >= 0 ? path.slice(0, index) : "";
+}
+
+function replaceObsidianOpenLinks(value) {
+  return value.replace(/obsidian:\/\/open\?[^\s<>"']+/g, (url) => {
+    const filePath = extractObsidianOpenFilePath(url);
+    return filePath ? formatMentionToken(filePath) : url;
+  });
+}
+
+function extractObsidianOpenFilePath(url) {
+  try {
+    const parsed = new URL(url);
+    if (parsed.protocol !== "obsidian:" || parsed.hostname !== "open") {
+      return "";
+    }
+    return parsed.searchParams.get("file") || "";
+  } catch {
+    return "";
+  }
 }
 
 async function copyText(text) {
