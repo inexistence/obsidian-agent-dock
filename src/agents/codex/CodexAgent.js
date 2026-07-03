@@ -17,9 +17,10 @@ class CodexAgent {
     this.plugin = plugin;
     this.id = "codex";
     this.label = "Codex";
+    this.children = new Set();
   }
 
-  async run(prompt, onUpdate, conversation) {
+  async run(prompt, onUpdate, conversation, options = {}) {
     const settings = this.plugin.settings;
     const cwd = this.getWorkingDirectory();
     const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation);
@@ -50,6 +51,8 @@ class CodexAgent {
       let finalOutput = "";
       let errorOutput = "";
       let stdoutBuffer = "";
+      let settled = false;
+      let aborted = false;
 
       const child = spawn(settings.codexPath, args, {
         cwd,
@@ -60,6 +63,33 @@ class CodexAgent {
         }),
         stdio: ["ignore", "pipe", "pipe"]
       });
+      this.children.add(child);
+
+      const cleanup = () => {
+        this.children.delete(child);
+        options.signal?.removeEventListener("abort", abortRun);
+      };
+
+      const settle = (callback, value) => {
+        if (settled) {
+          return;
+        }
+
+        settled = true;
+        cleanup();
+        callback(value);
+      };
+
+      const abortRun = () => {
+        aborted = true;
+        child.kill("SIGTERM");
+      };
+
+      if (options.signal?.aborted) {
+        abortRun();
+      } else {
+        options.signal?.addEventListener("abort", abortRun, { once: true });
+      }
 
       const handleJsonLine = (line) => {
         if (!line.trim()) {
@@ -97,7 +127,7 @@ class CodexAgent {
         }
       });
 
-      child.on("error", (error) => reject(error));
+      child.on("error", (error) => settle(reject, error));
       child.on("close", async (code) => {
         if (stdoutBuffer.trim()) {
           handleJsonLine(stdoutBuffer);
@@ -109,17 +139,29 @@ class CodexAgent {
           onUpdate({ kind: "content", text: fileOutput });
         }
 
+        if (aborted) {
+          settle(reject, createAbortError());
+          return;
+        }
+
         if (code === 0) {
-          resolve(finalOutput.trim());
+          settle(resolve, finalOutput.trim());
           return;
         }
 
         const details = [errorOutput.trim(), fileOutput.trim()]
           .filter(Boolean)
           .join("\n\n");
-        reject(new Error(details || `Codex exited with code ${code}`));
+        settle(reject, new Error(details || `Codex exited with code ${code}`));
       });
     });
+  }
+
+  cancelAll() {
+    for (const child of this.children) {
+      child.kill("SIGTERM");
+    }
+    this.children.clear();
   }
 
   async openInteractive() {
@@ -182,6 +224,12 @@ async function readOutputFile(outputPath) {
 
 function formatNumber(value) {
   return new Intl.NumberFormat().format(value);
+}
+
+function createAbortError() {
+  const error = new Error("Codex run was stopped.");
+  error.name = "AbortError";
+  return error;
 }
 
 module.exports = {

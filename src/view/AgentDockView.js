@@ -3,6 +3,14 @@ const { ItemView, MarkdownRenderer, Notice } = require("obsidian");
 const { VIEW_TYPE_AGENT_DOCK } = require("../constants");
 const { MODE_OPTIONS, getModeDescription } = require("../modes");
 const { DEFAULT_SETTINGS } = require("../settings");
+const {
+  appendTimelineContent,
+  getCompletedTimelineSections,
+  getEventGroupLabel,
+  groupLiveTimeline,
+  groupProcessedEntries,
+  shouldShowEvent
+} = require("./timeline");
 
 class AgentDockView extends ItemView {
   constructor(leaf, plugin) {
@@ -10,7 +18,6 @@ class AgentDockView extends ItemView {
     this.plugin = plugin;
     this.sessions = [];
     this.activeSessionId = "";
-    this.isRunning = false;
   }
 
   getViewType() {
@@ -28,6 +35,10 @@ class AgentDockView extends ItemView {
   async onOpen() {
     this.ensureActiveSession();
     this.render();
+  }
+
+  async onClose() {
+    this.cancelRunningSessions();
   }
 
   render() {
@@ -58,11 +69,11 @@ class AgentDockView extends ItemView {
     });
     clearButton.setText("Clear");
     clearButton.addEventListener("click", () => {
-      if (this.isRunning) {
-        new Notice(`${this.plugin.agent.label} is still working.`);
+      const session = this.getActiveSession();
+      if (session?.currentRun) {
+        new Notice(`${this.plugin.agent.label} is still working in this conversation.`);
         return;
       }
-      const session = this.getActiveSession();
       if (session) {
         session.messages = [];
         this.renderMessages();
@@ -76,7 +87,7 @@ class AgentDockView extends ItemView {
     });
     this.sessionSelectEl.addEventListener("change", () => {
       this.activeSessionId = this.sessionSelectEl.value;
-      this.renderMessages();
+      this.render();
     });
 
     const newSessionButton = sessionBar.createEl("button", {
@@ -94,6 +105,10 @@ class AgentDockView extends ItemView {
     this.renderMessages();
 
     const composer = containerEl.createDiv({ cls: "codex-dock__composer" });
+    this.renderComposerContent(composer, this.getActiveSession()?.draft || "");
+  }
+
+  renderComposerContent(composer, draft) {
     this.inputEl = composer.createEl("textarea", {
       cls: "codex-dock__input",
       attr: {
@@ -101,6 +116,7 @@ class AgentDockView extends ItemView {
         placeholder: "Ask the agent about this vault or the active note..."
       }
     });
+    this.inputEl.value = draft || "";
 
     this.inputEl.addEventListener("keydown", (event) => {
       if (event.key === "Enter" && (event.metaKey || event.ctrlKey)) {
@@ -108,7 +124,13 @@ class AgentDockView extends ItemView {
         this.submit();
       }
     });
-    this.inputEl.addEventListener("input", () => this.updateContextStatus());
+    this.inputEl.addEventListener("input", () => {
+      const session = this.getActiveSession();
+      if (session) {
+        session.draft = this.inputEl.value;
+      }
+      this.updateContextStatus();
+    });
 
     const modeRow = composer.createDiv({ cls: "codex-dock__mode-row" });
     modeRow.createEl("label", {
@@ -145,8 +167,13 @@ class AgentDockView extends ItemView {
     this.updateContextStatus();
 
     const sendButton = composer.createEl("button", { cls: "mod-cta codex-dock__send" });
-    sendButton.setText("Send");
-    sendButton.addEventListener("click", () => this.submit());
+    if (this.getActiveSession()?.currentRun) {
+      sendButton.setText("Stop");
+      sendButton.addEventListener("click", () => this.cancelActiveSession());
+    } else {
+      sendButton.setText("Send");
+      sendButton.addEventListener("click", () => this.submit());
+    }
   }
 
   renderMessages() {
@@ -190,8 +217,9 @@ class AgentDockView extends ItemView {
   }
 
   async submit() {
-    if (this.isRunning) {
-      new Notice(`${this.plugin.agent.label} is still working.`);
+    const session = this.ensureActiveSession();
+    if (session.currentRun) {
+      new Notice(`${this.plugin.agent.label} is still working in this conversation.`);
       return;
     }
 
@@ -200,10 +228,10 @@ class AgentDockView extends ItemView {
       return;
     }
 
-    const session = this.ensureActiveSession();
     this.maybeNameSession(session, prompt);
     this.updateSessionSelectOptions();
     this.inputEl.value = "";
+    session.draft = "";
     session.messages.push({
       role: "user",
       content: prompt,
@@ -211,13 +239,18 @@ class AgentDockView extends ItemView {
     });
     const assistantMessage = { role: "assistant", content: "", timeline: [], isLoading: true };
     session.messages.push(assistantMessage);
-    this.isRunning = true;
+    const run = {
+      abortController: new AbortController(),
+      assistantMessage
+    };
+    session.currentRun = run;
     this.renderMessages();
+    this.renderComposer();
 
     try {
       const conversation = session.messages.slice(0, -1);
       await this.plugin.runAgent(prompt, (update) => {
-        if (assistantMessage.isComplete) {
+        if (assistantMessage.isComplete || session.currentRun !== run) {
           return;
         }
 
@@ -227,8 +260,8 @@ class AgentDockView extends ItemView {
         } else {
           assistantMessage.timeline.push(update);
         }
-        this.renderMessages();
-      }, conversation);
+        this.renderSessionIfActive(session);
+      }, conversation, { signal: run.abortController.signal });
 
       assistantMessage.isLoading = false;
       assistantMessage.isComplete = true;
@@ -237,24 +270,45 @@ class AgentDockView extends ItemView {
         assistantMessage.content = emptyText;
         appendTimelineContent(assistantMessage, emptyText);
       }
-      this.renderMessages();
+      this.renderSessionIfActive(session);
     } catch (error) {
       assistantMessage.isLoading = false;
       assistantMessage.isComplete = true;
-      const errorText = [
-        `${this.plugin.agent.label} could not run.`,
-        "",
-        error.message,
-        "",
-        "Check the executable path in plugin settings and make sure the CLI is installed and allowed by macOS."
-      ].join("\n");
+      const errorText = error.name === "AbortError"
+        ? `(${this.plugin.agent.label} stopped.)`
+        : [
+            `${this.plugin.agent.label} could not run.`,
+            "",
+            error.message,
+            "",
+            "Check the executable path in plugin settings and make sure the CLI is installed and allowed by macOS."
+          ].join("\n");
       assistantMessage.content = errorText;
       appendTimelineContent(assistantMessage, errorText);
-      this.renderMessages();
-      new Notice(`${this.plugin.agent.label} command failed.`);
+      this.renderSessionIfActive(session);
+      if (error.name === "AbortError") {
+        new Notice(`${this.plugin.agent.label} stopped.`);
+      } else {
+        new Notice(`${this.plugin.agent.label} command failed.`);
+      }
     } finally {
-      this.isRunning = false;
+      if (session.currentRun === run) {
+        session.currentRun = null;
+      }
+      this.renderSessionIfActive(session);
+      this.renderComposerIfActive(session);
     }
+  }
+
+  renderComposer() {
+    const composer = this.containerEl.querySelector(".codex-dock__composer");
+    if (!composer) {
+      return;
+    }
+
+    const draft = this.inputEl?.value || "";
+    composer.empty();
+    this.renderComposerContent(composer, draft);
   }
 
   renderTimeline(containerEl, message) {
@@ -280,25 +334,18 @@ class AgentDockView extends ItemView {
   }
 
   renderCompletedTimeline(containerEl, timeline) {
-    const finalContentIndex = findLastContentIndex(timeline);
-
-    if (finalContentIndex === -1) {
-      this.renderProcessedGroup(containerEl, timeline.filter((entry) => this.shouldShowEvent(entry)));
-      return;
-    }
-
-    const processedEntries = timeline.filter((entry, index) => {
-      if (index === finalContentIndex) {
-        return false;
-      }
-      return entry.kind === "content" || this.shouldShowEvent(entry);
-    });
+    const { processedEntries, finalEntry } = getCompletedTimelineSections(
+      timeline,
+      this.plugin.settings.debugActivity
+    );
 
     if (processedEntries.length > 0) {
       this.renderProcessedGroup(containerEl, processedEntries);
     }
 
-    this.renderTimelineEntry(containerEl, timeline[finalContentIndex]);
+    if (finalEntry) {
+      this.renderTimelineEntry(containerEl, finalEntry);
+    }
   }
 
   renderProcessedGroup(containerEl, entries) {
@@ -388,11 +435,7 @@ class AgentDockView extends ItemView {
   }
 
   shouldShowEvent(entry) {
-    if (this.plugin.settings.debugActivity) {
-      return true;
-    }
-
-    return ["reasoning", "tool", "error", "notice"].includes(entry.kind);
+    return shouldShowEvent(entry, this.plugin.settings.debugActivity);
   }
 
   updateContextStatus() {
@@ -428,6 +471,8 @@ class AgentDockView extends ItemView {
       id: `session-${Date.now()}-${Math.random().toString(16).slice(2)}`,
       title: `Chat ${this.sessions.length + 1}`,
       isUntitled: true,
+      currentRun: null,
+      draft: "",
       messages: []
     };
     this.sessions.push(session);
@@ -463,6 +508,35 @@ class AgentDockView extends ItemView {
     }
     this.sessionSelectEl.value = this.activeSessionId;
   }
+
+  cancelActiveSession() {
+    const session = this.getActiveSession();
+    if (!session?.currentRun) {
+      return;
+    }
+
+    session.currentRun.abortController.abort();
+  }
+
+  cancelRunningSessions() {
+    for (const session of this.sessions) {
+      if (session.currentRun) {
+        session.currentRun.abortController.abort();
+      }
+    }
+  }
+
+  renderSessionIfActive(session) {
+    if (session.id === this.activeSessionId) {
+      this.renderMessages();
+    }
+  }
+
+  renderComposerIfActive(session) {
+    if (session.id === this.activeSessionId) {
+      this.renderComposer();
+    }
+  }
 }
 
 function estimateContextChars(messages, draft, settings) {
@@ -497,106 +571,6 @@ async function copyText(text) {
   textarea.select();
   document.execCommand("copy");
   textarea.remove();
-}
-
-function appendTimelineContent(message, text) {
-  const lastEntry = message.timeline[message.timeline.length - 1];
-  if (lastEntry && lastEntry.kind === "content") {
-    lastEntry.text += text;
-    return;
-  }
-
-  message.timeline.push({ kind: "content", text });
-}
-
-function findLastContentIndex(timeline) {
-  for (let index = timeline.length - 1; index >= 0; index -= 1) {
-    if (timeline[index].kind === "content") {
-      return index;
-    }
-  }
-  return -1;
-}
-
-function groupLiveTimeline(timeline, debugActivity) {
-  const groups = [];
-  let pendingEvents = [];
-
-  const flushPendingEvents = () => {
-    if (pendingEvents.length === 0) {
-      return;
-    }
-
-    groups.push({
-      type: "eventGroup",
-      label: getEventGroupLabel(pendingEvents),
-      entries: pendingEvents
-    });
-    pendingEvents = [];
-  };
-
-  for (const entry of timeline) {
-    if (entry.kind === "content") {
-      flushPendingEvents();
-      groups.push({ type: "entry", entry });
-      continue;
-    }
-
-    if (debugActivity || ["reasoning", "tool", "error"].includes(entry.kind)) {
-      const previous = pendingEvents[pendingEvents.length - 1];
-      if (previous && previous.kind !== entry.kind) {
-        flushPendingEvents();
-      }
-      pendingEvents.push(entry);
-    }
-  }
-
-  flushPendingEvents();
-  return groups;
-}
-
-function groupProcessedEntries(entries) {
-  const groups = [];
-  let pending = [];
-
-  const flush = () => {
-    if (pending.length === 0) {
-      return;
-    }
-
-    groups.push({ type: "eventGroup", entries: pending });
-    pending = [];
-  };
-
-  for (const entry of entries) {
-    if (entry.kind === "content") {
-      flush();
-      groups.push({ type: "entry", entry });
-      continue;
-    }
-
-    const previous = pending[pending.length - 1];
-    if (previous && previous.kind !== entry.kind) {
-      flush();
-    }
-    pending.push(entry);
-  }
-
-  flush();
-  return groups;
-}
-
-function getEventGroupLabel(entries) {
-  const hasError = entries.some((entry) => entry.kind === "error");
-  if (hasError) {
-    return `需要关注 ${entries.length} 项`;
-  }
-
-  const hasTool = entries.some((entry) => entry.kind === "tool");
-  const hasReasoning = entries.some((entry) => entry.kind === "reasoning");
-  const hasNotice = entries.some((entry) => entry.kind === "notice");
-  const label = hasTool ? "工具调用" : hasReasoning ? "思考" : hasNotice ? "提示" : "活动";
-  return `${label} ${entries.length} 项`;
 }
 
 module.exports = {

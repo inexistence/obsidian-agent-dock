@@ -32,6 +32,7 @@ module.exports = class AgentDockPlugin extends Plugin {
   }
 
   async onunload() {
+    this.agent?.cancelAll?.();
     this.app.workspace.detachLeavesOfType(VIEW_TYPE_AGENT_DOCK);
   }
 
@@ -55,8 +56,8 @@ module.exports = class AgentDockPlugin extends Plugin {
     this.app.workspace.revealLeaf(leaf);
   }
 
-  async runAgent(prompt, onUpdate, conversation) {
-    return this.agent.run(prompt, onUpdate, conversation);
+  async runAgent(prompt, onUpdate, conversation, options) {
+    return this.agent.run(prompt, onUpdate, conversation, options);
   }
 
   async openInteractiveAgent() {
