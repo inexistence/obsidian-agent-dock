@@ -72,7 +72,23 @@
   font-size: var(--font-ui-small);
   line-height: 1.45;
   overflow-wrap: anywhere;
-  white-space: pre-wrap;
+}
+
+.codex-dock__content > :first-child {
+  margin-top: 0;
+}
+
+.codex-dock__content > :last-child {
+  margin-bottom: 0;
+}
+
+.codex-dock__content pre {
+  overflow: auto;
+  white-space: pre;
+}
+
+.codex-dock__content code {
+  overflow-wrap: anywhere;
 }
 
 .codex-dock__message--user .codex-dock__content {

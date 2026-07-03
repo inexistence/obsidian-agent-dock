@@ -845,7 +845,7 @@ module.exports = {
 
 },
 "src/view/AgentDockView.js": function(module, exports, __require) {
-const { ItemView, Notice } = require("obsidian");
+const { ItemView, MarkdownRenderer, Notice } = require("obsidian");
 
 const { VIEW_TYPE_AGENT_DOCK } = __require("src/constants.js");
 const { MODE_OPTIONS, getModeDescription } = __require("src/modes.js");
@@ -983,7 +983,7 @@ class AgentDockView extends ItemView {
         const timeline = item.createDiv({ cls: "codex-dock__timeline" });
         this.renderTimeline(timeline, message);
       } else if (message.content) {
-        item.createEl("pre", { cls: "codex-dock__content", text: message.content });
+        this.renderMarkdownContent(item, message.content);
       }
       if (message.isLoading) {
         const loading = item.createDiv({ cls: "codex-dock__loading" });
@@ -1149,7 +1149,7 @@ class AgentDockView extends ItemView {
 
   renderTimelineEntry(containerEl, entry) {
     if (entry.kind === "message" || entry.kind === "content") {
-      containerEl.createEl("pre", { cls: "codex-dock__content", text: entry.text });
+      this.renderMarkdownContent(containerEl, entry.text);
       return;
     }
 
@@ -1165,6 +1165,14 @@ class AgentDockView extends ItemView {
     if (entry.detail && this.plugin.settings.debugActivity) {
       eventEl.createEl("pre", { cls: "codex-dock__event-detail", text: entry.detail });
     }
+  }
+
+  renderMarkdownContent(containerEl, text) {
+    const contentEl = containerEl.createDiv({ cls: "codex-dock__content markdown-rendered" });
+    const sourcePath = this.app.workspace.getActiveFile()?.path || "";
+    MarkdownRenderer.render(this.app, text || "", contentEl, sourcePath, this).catch(() => {
+      contentEl.setText(text || "");
+    });
   }
 
   shouldShowEvent(entry) {
