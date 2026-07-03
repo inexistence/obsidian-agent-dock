@@ -120,20 +120,10 @@ module.exports = {
 };
 
 },
-"src/i18n.js": function(module, exports, __require) {
-const DEFAULT_LANGUAGE = "en";
-
-const LANGUAGE_OPTIONS = {
-  en: {
-    label: "English"
-  },
-  zh: {
-    label: "中文"
-  }
-};
-
-const TRANSLATIONS = {
-  en: {
+"src/i18n/en.js": function(module, exports, __require) {
+module.exports = {
+  label: "English",
+  messages: {
     "settings.heading": "Agent Dock",
     "settings.language.name": "Language",
     "settings.language.desc": "Language used by Agent Dock UI.",
@@ -268,8 +258,14 @@ const TRANSLATIONS = {
     "codex.memorySkipped.title": "Memory skipped",
     "codex.memorySkipped.summary": "Agent Dock could not save automatic memory. Check the console for details.",
     "codex.abortError": "Codex run was stopped."
-  },
-  zh: {
+  }
+};
+
+},
+"src/i18n/zh.js": function(module, exports, __require) {
+module.exports = {
+  label: "中文",
+  messages: {
     "settings.heading": "Agent Dock",
     "settings.language.name": "语言",
     "settings.language.desc": "Agent Dock 界面使用的语言。",
@@ -407,17 +403,33 @@ const TRANSLATIONS = {
   }
 };
 
+},
+"src/i18n/index.js": function(module, exports, __require) {
+const en = __require("src/i18n/en.js");
+const zh = __require("src/i18n/zh.js");
+
+const DEFAULT_LANGUAGE = "en";
+
+const LANGUAGE_PACKS = {
+  en,
+  zh
+};
+
+const LANGUAGE_OPTIONS = Object.fromEntries(
+  Object.entries(LANGUAGE_PACKS).map(([id, pack]) => [id, { label: pack.label }])
+);
+
 function normalizeLanguage(language) {
-  return LANGUAGE_OPTIONS[language] ? language : DEFAULT_LANGUAGE;
+  return LANGUAGE_PACKS[language] ? language : DEFAULT_LANGUAGE;
 }
 
 function t(settingsOrLanguage, key, params = {}) {
   const language = normalizeLanguage(
     typeof settingsOrLanguage === "string" ? settingsOrLanguage : settingsOrLanguage?.language
   );
-  const defaultDictionary = TRANSLATIONS[DEFAULT_LANGUAGE] || {};
-  const dictionary = TRANSLATIONS[language] || defaultDictionary;
-  const template = dictionary[key] || defaultDictionary[key] || key;
+  const defaultMessages = LANGUAGE_PACKS[DEFAULT_LANGUAGE]?.messages || {};
+  const messages = LANGUAGE_PACKS[language]?.messages || defaultMessages;
+  const template = messages[key] || defaultMessages[key] || key;
   return formatTemplate(template, params);
 }
 
@@ -1429,7 +1441,7 @@ module.exports = {
 },
 "src/settings.js": function(module, exports, __require) {
 const { MODE_OPTIONS } = __require("src/modes.js");
-const { DEFAULT_LANGUAGE, normalizeLanguage } = __require("src/i18n.js");
+const { DEFAULT_LANGUAGE, normalizeLanguage } = __require("src/i18n/index.js");
 
 const CUSTOM_ASSISTANT_STYLE_MAX_CHARS = 4000;
 
@@ -1876,7 +1888,7 @@ const path = require("path");
 const { parseArgsTemplate, withJsonOutput, withOutputLastMessage } = __require("src/cli/args.js");
 const { buildCliPath } = __require("src/cli/env.js");
 const { escapeAppleScriptString, shellQuote } = __require("src/cli/shell.js");
-const { t } = __require("src/i18n.js");
+const { t } = __require("src/i18n/index.js");
 const { applyModeArgs } = __require("src/modes.js");
 const { buildPromptWithMetadata } = __require("src/prompt.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
@@ -2208,7 +2220,7 @@ module.exports = {
 const { Notice, PluginSettingTab, Setting } = require("obsidian");
 
 const { AGENT_OPTIONS } = __require("src/agents/AgentRegistry.js");
-const { LANGUAGE_OPTIONS, t } = __require("src/i18n.js");
+const { LANGUAGE_OPTIONS, t } = __require("src/i18n/index.js");
 const {
   ASSISTANT_STYLE_OPTIONS,
   CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
@@ -3605,7 +3617,7 @@ module.exports = {
 const { ItemView, MarkdownRenderer, Notice, setIcon } = require("obsidian");
 
 const { VIEW_TYPE_AGENT_DOCK } = __require("src/constants.js");
-const { t } = __require("src/i18n.js");
+const { t } = __require("src/i18n/index.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
 const { renderComposerContent } = __require("src/view/ComposerRenderer.js");
 const { copyText } = __require("src/view/clipboard.js");
@@ -4389,7 +4401,7 @@ const { Notice, Plugin } = require("obsidian");
 
 const { createAgent } = __require("src/agents/AgentRegistry.js");
 const { VIEW_TYPE_AGENT_DOCK } = __require("src/constants.js");
-const { t } = __require("src/i18n.js");
+const { t } = __require("src/i18n/index.js");
 const { normalizePluginData } = __require("src/settings.js");
 const { AgentDockSettingTab } = __require("src/settingsTab.js");
 const { ChatStorage } = __require("src/storage/ChatStorage.js");

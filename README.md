@@ -37,7 +37,7 @@ when Settings -> Agent Dock -> Persist chat history is enabled.
 
 Agent Dock's UI language can be changed in Settings -> Agent Dock -> Language.
 English and Chinese are included; additional languages can be added by extending
-the translation dictionary in `src/i18n.js`.
+the language packs in `src/i18n/`.
 
 Chat history uses the plugin data folder:
 
