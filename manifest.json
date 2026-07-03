@@ -1,0 +1,10 @@
+{
+  "id": "obsidian-agent-dock",
+  "name": "Agent Dock",
+  "version": "0.1.0",
+  "minAppVersion": "1.5.0",
+  "description": "Open a Codex chat dock in the Obsidian sidebar.",
+  "author": "Bigo",
+  "authorUrl": "",
+  "isDesktopOnly": true
+}

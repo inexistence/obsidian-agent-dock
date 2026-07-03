@@ -1,0 +1,228 @@
+.codex-dock {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  background: var(--background-primary);
+}
+
+.codex-dock__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.codex-dock__title {
+  font-size: var(--font-ui-medium);
+  font-weight: 700;
+}
+
+.codex-dock__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.codex-dock__icon-button {
+  min-height: 30px;
+  padding: 0 10px;
+  font-size: var(--font-ui-smaller);
+}
+
+.codex-dock__messages {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.codex-dock__empty {
+  display: grid;
+  gap: 4px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: 1.4;
+  padding: 10px 2px;
+}
+
+.codex-dock__message {
+  margin-bottom: 12px;
+}
+
+.codex-dock__role {
+  margin-bottom: 4px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: 700;
+}
+
+.codex-dock__content {
+  box-sizing: border-box;
+  width: 100%;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-secondary);
+  color: var(--text-normal);
+  font-family: var(--font-text);
+  font-size: var(--font-ui-small);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.codex-dock__message--user .codex-dock__content {
+  border-color: var(--interactive-accent);
+}
+
+.codex-dock__loading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 10px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-secondary);
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  line-height: 1.45;
+}
+
+.codex-dock__loading-text {
+  white-space: nowrap;
+}
+
+.codex-dock__loading-dots {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.codex-dock__loading-dots span {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--interactive-accent);
+  opacity: 0.45;
+  animation: codex-dock-thinking 1.1s ease-in-out infinite;
+}
+
+.codex-dock__loading-dots span:nth-child(2) {
+  animation-delay: 0.16s;
+}
+
+.codex-dock__loading-dots span:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+@keyframes codex-dock-thinking {
+  0%,
+  80%,
+  100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+
+  40% {
+    opacity: 1;
+    transform: translateY(-3px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .codex-dock__loading-dots span {
+    animation: none;
+  }
+}
+
+.codex-dock__timeline {
+  display: grid;
+  gap: 8px;
+}
+
+.codex-dock__event {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-secondary);
+  padding: 7px 9px;
+}
+
+.codex-dock__event--reasoning {
+  border-color: var(--background-modifier-border-hover);
+  color: var(--text-muted);
+}
+
+.codex-dock__event--tool {
+  border-color: var(--interactive-accent);
+  color: var(--text-muted);
+}
+
+.codex-dock__event--error {
+  border-color: var(--text-error);
+}
+
+.codex-dock__event-title {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: 700;
+}
+
+.codex-dock__event-detail {
+  box-sizing: border-box;
+  max-height: 180px;
+  margin: 6px 0 0;
+  overflow: auto;
+  color: var(--text-normal);
+  font-family: var(--font-monospace);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.codex-dock__composer {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border-top: 1px solid var(--background-modifier-border);
+}
+
+.codex-dock__input {
+  box-sizing: border-box;
+  width: 100%;
+  min-height: 92px;
+  resize: vertical;
+}
+
+.codex-dock__mode-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.codex-dock__mode-label {
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: 600;
+}
+
+.codex-dock__mode-select {
+  width: 100%;
+}
+
+.codex-dock__mode-hint {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.35;
+}
+
+.codex-dock__send {
+  width: 100%;
+}
