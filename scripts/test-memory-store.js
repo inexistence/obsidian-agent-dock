@@ -11,10 +11,13 @@ Module._load = function patchedLoad(request, parent, isMain) {
   return originalLoad.call(this, request, parent, isMain);
 };
 
-const { _test } = require("../src/storage/MemoryStore");
+const { _test: memoryStoreTest } = require("../src/storage/MemoryStore");
+const { RuleBasedMemoryExtractor } = require("../src/storage/memoryExtraction/RuleBasedMemoryExtractor");
+
+const extractor = new RuleBasedMemoryExtractor();
 
 function extract(turn) {
-  return _test.extractMemories(Object.assign({
+  return extractor.extractTurn(Object.assign({
     prompt: "",
     response: "",
     sessionId: "test-session",
@@ -79,12 +82,12 @@ function hasMemory(items, kind, scope, pattern) {
 }
 
 assert.equal(
-  _test.isGlobalMemory({ kind: "identity", scope: "agent" }),
+  memoryStoreTest.isGlobalMemory({ kind: "identity", scope: "agent" }),
   true,
   "agent identity should remain globally recallable"
 );
 assert.equal(
-  _test.isGlobalMemory({ kind: "shared", scope: "shared" }),
+  memoryStoreTest.isGlobalMemory({ kind: "shared", scope: "shared" }),
   false,
   "shared memory should require a query match instead of global recall"
 );
