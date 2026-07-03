@@ -156,6 +156,7 @@ class AgentDockView extends ItemView {
       updateMentionSuggestions: () => this.updateMentionSuggestions(),
       hideMentionSuggestions: () => this.hideMentionSuggestions(),
       onDraftChanged: (session) => this.persistSessionChange(session),
+      handleReferenceDrop: (dataTransfer) => this.handleReferenceDrop(dataTransfer),
       submit: () => this.submit(),
       cancelActiveSession: () => this.cancelActiveSession(),
       translate: (key, params) => this.translate(key, params),
@@ -450,6 +451,125 @@ class AgentDockView extends ItemView {
     return true;
   }
 
+  handleReferenceDrop(dataTransfer) {
+    const debugInfo = createReferenceDropDebugInfo(dataTransfer);
+    const debugEnabled = Boolean(this.plugin.settings.debugActivity);
+    const paths = this.extractDroppedReferencePaths(dataTransfer, debugInfo, debugEnabled);
+    logReferenceDropDebug(debugInfo, paths, debugEnabled);
+    if (paths.length === 0) {
+      return false;
+    }
+
+    const tokens = paths.map((path) => formatMentionToken(path));
+    const value = this.inputEl.value;
+    const start = this.inputEl.selectionStart ?? value.length;
+    const end = this.inputEl.selectionEnd ?? start;
+    const before = value.slice(0, start);
+    const after = value.slice(end);
+    const prefix = before && !/\s$/.test(before) ? " " : "";
+    const suffix = after && !/^\s/.test(after) ? " " : "";
+    const insertion = `${prefix}${tokens.join(" ")}${suffix || " "}`;
+    const nextValue = `${before}${insertion}${after}`;
+    const nextCursor = before.length + insertion.length;
+
+    this.inputEl.value = nextValue;
+    this.inputEl.selectionStart = nextCursor;
+    this.inputEl.selectionEnd = nextCursor;
+    const session = this.getActiveSession();
+    if (session) {
+      session.draft = nextValue;
+      this.persistSessionChange(session);
+    }
+    this.updateMentionChips();
+    this.updateContextStatus();
+    this.hideMentionSuggestions();
+    this.inputEl.focus();
+    return true;
+  }
+
+  extractDroppedReferencePaths(dataTransfer, debugInfo, debugEnabled = false) {
+    const paths = [];
+    const seen = new Set();
+    const attemptedInputs = new Set();
+    const addPath = (path, source = "unknown") => {
+      const normalizedInput = normalizeReferenceInput(path);
+      if (normalizedInput && attemptedInputs.has(normalizedInput)) {
+        debugInfo.candidates.push({
+          source,
+          raw: truncateDebugText(path),
+          normalized: normalizedInput,
+          accepted: false,
+          reason: "duplicate input"
+        });
+        return;
+      }
+      if (normalizedInput) {
+        attemptedInputs.add(normalizedInput);
+      }
+      const normalizedPath = this.normalizeReferencedPath(path);
+      const entry = normalizedPath ? this.resolveReferencedEntry(normalizedPath) : null;
+      if (debugEnabled || !entry) {
+        debugInfo.resolutions.push(this.getReferenceResolutionDebug(path, normalizedPath, entry));
+      }
+      const result = {
+        source,
+        raw: truncateDebugText(path),
+        normalized: normalizedPath,
+        accepted: false,
+        reason: ""
+      };
+      if (!normalizedPath) {
+        result.reason = "empty";
+        debugInfo.candidates.push(result);
+        return;
+      }
+      if (seen.has(normalizedPath)) {
+        result.reason = "duplicate";
+        debugInfo.candidates.push(result);
+        return;
+      }
+      if (!entry) {
+        result.reason = "not found in vault";
+        debugInfo.candidates.push(result);
+        return;
+      }
+      seen.add(normalizedPath);
+      paths.push(normalizedPath);
+      result.accepted = true;
+      result.reason = `resolved to ${entry.path}`;
+      debugInfo.candidates.push(result);
+    };
+    const addText = (text, source) => {
+      if (text) {
+        debugInfo.payloads.push({
+          source,
+          text: truncateDebugText(text, 600)
+        });
+      }
+      for (const candidate of extractReferenceCandidatesFromText(text, debugInfo, source)) {
+        addPath(candidate, source);
+      }
+    };
+
+    for (const file of Array.from(dataTransfer.files || [])) {
+      addPath(file.path || file.name || "", "dataTransfer.files");
+    }
+
+    for (const type of Array.from(dataTransfer.types || [])) {
+      try {
+        addText(dataTransfer.getData(type), type);
+      } catch {
+        // Some drag payload types are read-protected by the host.
+        debugInfo.payloads.push({
+          source: type,
+          text: "[read-protected]"
+        });
+      }
+    }
+
+    return paths;
+  }
+
   updateMentionChips() {
     if (!this.mentionChipsEl) {
       return;
@@ -488,7 +608,7 @@ class AgentDockView extends ItemView {
   }
 
   normalizeReferencedPath(path) {
-    const normalizedPath = String(path || "").replace(/\\/g, "/").replace(/\\"/g, "\"").trim();
+    const normalizedPath = normalizeReferenceInput(path);
     if (!normalizedPath) {
       return "";
     }
@@ -521,7 +641,56 @@ class AgentDockView extends ItemView {
     }
 
     return this.app.vault.getAbstractFileByPath(normalizedPath)
-      || (!/\.[^/]+$/.test(normalizedPath) ? this.app.vault.getAbstractFileByPath(`${normalizedPath}.md`) : null);
+      || (!/\.[^/]+$/.test(normalizedPath) ? this.app.vault.getAbstractFileByPath(`${normalizedPath}.md`) : null)
+      || this.findUniqueVaultEntryByName(normalizedPath);
+  }
+
+  getReferenceResolutionDebug(rawPath, normalizedPath, entry) {
+    const normalizedInput = normalizeReferenceInput(rawPath);
+    const vaultBasePath = String(this.app.vault.adapter.basePath || "").replace(/\\/g, "/").replace(/\/+$/, "");
+    const lookupPath = vaultBasePath && normalizedInput.startsWith(`${vaultBasePath}/`)
+      ? normalizedInput.slice(vaultBasePath.length + 1)
+      : normalizedInput.replace(/^\/+/, "");
+    const mdPath = !/\.[^/]+$/.test(lookupPath) ? `${lookupPath}.md` : "";
+    const exactEntry = lookupPath ? this.app.vault.getAbstractFileByPath(lookupPath) : null;
+    const mdEntry = mdPath ? this.app.vault.getAbstractFileByPath(mdPath) : null;
+    const nameMatches = this.findVaultEntryNameMatches(lookupPath).map((match) => match.path).slice(0, 10);
+
+    return {
+      raw: truncateDebugText(rawPath),
+      normalizedInput,
+      lookupPath,
+      normalizedPath,
+      exact: exactEntry?.path || "",
+      mdFallback: mdEntry?.path || "",
+      nameMatches,
+      accepted: entry?.path || ""
+    };
+  }
+
+  findUniqueVaultEntryByName(path) {
+    const candidates = this.findVaultEntryNameMatches(path);
+
+    return candidates.length === 1 ? candidates[0] : null;
+  }
+
+  findVaultEntryNameMatches(path) {
+    const normalizedPath = String(path || "").replace(/\\/g, "/").replace(/^\/+/, "").trim();
+    if (!normalizedPath) {
+      return [];
+    }
+
+    const name = normalizedPath.split("/").pop() || normalizedPath;
+    const nameWithMd = /\.[^/]+$/.test(name) ? name : `${name}.md`;
+    return this.app.vault.getAllLoadedFiles()
+      .filter((entry) => entry.path)
+      .filter((entry) => (
+        entry.path === normalizedPath
+        || entry.name === name
+        || entry.name === nameWithMd
+        || entry.path.endsWith(`/${normalizedPath}`)
+        || entry.path.endsWith(`/${normalizedPath}.md`)
+      ));
   }
 
   async submit() {
@@ -866,4 +1035,209 @@ function getMentionFileType(name) {
     return "FILE";
   }
   return extension.toUpperCase();
+}
+
+function normalizeReferenceInput(path) {
+  const value = String(path || "").replace(/\\"/g, "\"").trim();
+  const obsidianPath = extractObsidianOpenPathFromValue(value);
+  return String(obsidianPath || value).replace(/\\/g, "/").trim();
+}
+
+function extractObsidianOpenPathFromValue(value) {
+  const match = String(value || "").match(/^obsidian:\/\/open\?([^#\s<>"']+)/i);
+  if (!match) {
+    return "";
+  }
+  return getObsidianOpenQueryPath(match[1]);
+}
+
+function getObsidianOpenQueryPath(query) {
+  try {
+    const params = new URLSearchParams(query);
+    return decodeUriPath(params.get("file") || params.get("path") || "");
+  } catch {
+    return "";
+  }
+}
+
+function createReferenceDropDebugInfo(dataTransfer) {
+  return {
+    types: Array.from(dataTransfer?.types || []),
+    items: Array.from(dataTransfer?.items || []).map((item) => ({
+      kind: item.kind || "",
+      type: item.type || ""
+    })),
+    files: Array.from(dataTransfer?.files || []).map((file) => ({
+      name: file.name || "",
+      path: file.path || "",
+      type: file.type || ""
+    })),
+    payloads: [],
+    extractions: [],
+    resolutions: [],
+    candidates: []
+  };
+}
+
+function logReferenceDropDebug(debugInfo, paths, debugEnabled = false) {
+  const payload = {
+    stamp: "drop-ob-open-v4",
+    types: debugInfo.types,
+    items: debugInfo.items,
+    files: debugInfo.files,
+    payloads: debugInfo.payloads,
+    extractions: debugInfo.extractions,
+    resolutions: debugInfo.resolutions,
+    candidates: debugInfo.candidates,
+    acceptedPaths: paths
+  };
+
+  if (paths.length > 0 && debugEnabled) {
+    console.info("[Agent Dock] Reference drop accepted", payload);
+  } else if (paths.length === 0) {
+    console.warn("[Agent Dock] Reference drop ignored", payload);
+  }
+}
+
+function truncateDebugText(value, maxChars = 180) {
+  const text = String(value || "");
+  return text.length > maxChars ? `${text.slice(0, maxChars)}...` : text;
+}
+
+function extractReferenceCandidatesFromText(text, debugInfo = null, sourceLabel = "") {
+  const source = String(text || "").trim();
+  if (!source) {
+    return [];
+  }
+
+  const candidates = [];
+  const addCandidate = (path, stage) => {
+    const obsidianPath = extractObsidianOpenPathFromValue(path);
+    const cleanPath = String(obsidianPath || path || "").replace(/^file:\/\//, "").trim();
+    if (debugInfo) {
+      debugInfo.extractions.push({
+        source: sourceLabel,
+        stage,
+        raw: truncateDebugText(path),
+        obsidianPath,
+        candidate: cleanPath
+      });
+    }
+    if (cleanPath) {
+      candidates.push(cleanPath);
+    }
+  };
+
+  for (const candidate of extractJsonReferenceCandidates(source)) {
+    addCandidate(candidate, "json");
+  }
+
+  for (const candidate of extractObsidianOpenPathCandidates(source)) {
+    addCandidate(candidate, "obsidian-url");
+  }
+
+  for (const reference of extractMentionReferences(replaceObsidianOpenLinks(source))) {
+    addCandidate(reference.path, "mention");
+  }
+
+  let match;
+  const wikiPattern = /\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g;
+  while ((match = wikiPattern.exec(source)) !== null) {
+    addCandidate(match[1], "wikilink");
+  }
+
+  const markdownLinkPattern = /\[[^\]]*\]\(([^)]+)\)/g;
+  while ((match = markdownLinkPattern.exec(source)) !== null) {
+    addCandidate(decodeUriPath(match[1]), "markdown-link");
+  }
+
+  const hrefPattern = /\b(?:href|src)=["']([^"']+)["']/gi;
+  while ((match = hrefPattern.exec(source)) !== null) {
+    addCandidate(decodeUriPath(match[1]), "href");
+  }
+
+  const dataAttributePattern = /\bdata-(?:path|href|file)=["']([^"']+)["']/gi;
+  while ((match = dataAttributePattern.exec(source)) !== null) {
+    addCandidate(decodeUriPath(match[1]), "data-attribute");
+  }
+
+  const objectPathPattern = /["'](?:path|file|sourcePath|source-path|data-path)["']\s*:\s*["']([^"']+)["']/gi;
+  while ((match = objectPathPattern.exec(source)) !== null) {
+    addCandidate(decodeUriPath(match[1]), "object-path");
+  }
+
+  for (const line of source.split(/\r?\n/)) {
+    const compact = line.trim();
+    if (/^[^\s<>"']+(?:\/[^\s<>"']+)*$/.test(compact) || /^file:\/\/[^\s<>"']+$/i.test(compact)) {
+      addCandidate(decodeUriPath(compact), "line");
+    }
+  }
+
+  return candidates;
+}
+
+function extractObsidianOpenPathCandidates(text) {
+  const candidates = [];
+  const pattern = /obsidian:\/\/open\?[^\s<>"']+/g;
+  let match;
+
+  while ((match = pattern.exec(String(text || ""))) !== null) {
+    const path = extractObsidianOpenPathFromValue(match[0]);
+    if (path) {
+      candidates.push(path);
+    }
+  }
+
+  return candidates;
+}
+
+function extractJsonReferenceCandidates(text) {
+  try {
+    return collectJsonReferenceCandidates(JSON.parse(text));
+  } catch {
+    return [];
+  }
+}
+
+function collectJsonReferenceCandidates(value) {
+  const candidates = [];
+  const visit = (item) => {
+    if (!item) {
+      return;
+    }
+    if (typeof item === "string") {
+      candidates.push(item);
+      return;
+    }
+    if (Array.isArray(item)) {
+      for (const child of item) {
+        visit(child);
+      }
+      return;
+    }
+    if (typeof item !== "object") {
+      return;
+    }
+    for (const key of ["path", "file", "sourcePath", "source-path", "data-path", "href"]) {
+      if (typeof item[key] === "string") {
+        candidates.push(item[key]);
+      }
+    }
+    for (const child of Object.values(item)) {
+      if (child && typeof child === "object") {
+        visit(child);
+      }
+    }
+  };
+
+  visit(value);
+  return candidates;
+}
+
+function decodeUriPath(path) {
+  try {
+    return decodeURIComponent(String(path || ""));
+  } catch {
+    return String(path || "");
+  }
 }

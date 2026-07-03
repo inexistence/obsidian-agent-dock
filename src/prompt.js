@@ -292,22 +292,32 @@ function extractObsidianOpenPaths(prompt) {
 }
 
 function extractObsidianOpenFilePath(url) {
+  const match = String(url || "").match(/^obsidian:\/\/open\?([^#\s<>"']+)/i);
+  if (!match) {
+    return "";
+  }
+  return getObsidianOpenQueryPath(match[1]);
+}
+
+function getObsidianOpenQueryPath(query) {
   try {
-    const parsed = new URL(url);
-    if (parsed.protocol !== "obsidian:" || parsed.hostname !== "open") {
-      return "";
-    }
-    return parsed.searchParams.get("file") || parsed.searchParams.get("path") || "";
+    const params = new URLSearchParams(query);
+    return decodeUriPath(params.get("file") || params.get("path") || "");
   } catch {
     return "";
   }
 }
 
+function decodeUriPath(path) {
+  try {
+    return decodeURIComponent(String(path || ""));
+  } catch {
+    return String(path || "");
+  }
+}
+
 function normalizeReferencedPath(app, path) {
-  const normalizedPath = String(path || "")
-    .replace(/\\"/g, "\"")
-    .replace(/\\/g, "/")
-    .trim();
+  const normalizedPath = normalizeReferenceInput(path);
   if (!normalizedPath) {
     return "";
   }
@@ -321,6 +331,12 @@ function normalizeReferencedPath(app, path) {
   }
 
   return resolveReferencedPath(app, normalizedPath.replace(/^\/+/, ""));
+}
+
+function normalizeReferenceInput(path) {
+  const value = String(path || "").replace(/\\"/g, "\"").trim();
+  const obsidianPath = extractObsidianOpenFilePath(value);
+  return String(obsidianPath || value).replace(/\\/g, "/").trim();
 }
 
 function resolveReferencedPath(app, path) {
@@ -340,7 +356,25 @@ function resolveReferencedEntry(app, path) {
   }
 
   return app.vault.getAbstractFileByPath(normalizedPath)
-    || (!/\.[^/]+$/.test(normalizedPath) ? app.vault.getAbstractFileByPath(`${normalizedPath}.md`) : null);
+    || (!/\.[^/]+$/.test(normalizedPath) ? app.vault.getAbstractFileByPath(`${normalizedPath}.md`) : null)
+    || findUniqueVaultEntryByName(app, normalizedPath);
+}
+
+function findUniqueVaultEntryByName(app, path) {
+  const normalizedPath = String(path || "").replace(/\\/g, "/").replace(/^\/+/, "").trim();
+  const name = normalizedPath.split("/").pop() || normalizedPath;
+  const nameWithMd = /\.[^/]+$/.test(name) ? name : `${name}.md`;
+  const candidates = app.vault.getAllLoadedFiles()
+    .filter((entry) => entry.path)
+    .filter((entry) => (
+      entry.path === normalizedPath
+      || entry.name === name
+      || entry.name === nameWithMd
+      || entry.path.endsWith(`/${normalizedPath}`)
+      || entry.path.endsWith(`/${normalizedPath}.md`)
+    ));
+
+  return candidates.length === 1 ? candidates[0] : null;
 }
 
 function formatConversationTranscript(conversation, maxChars) {

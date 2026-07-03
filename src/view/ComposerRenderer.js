@@ -15,6 +15,7 @@ function renderComposerContent(composer, options) {
     updateMentionSuggestions,
     hideMentionSuggestions,
     onDraftChanged,
+    handleReferenceDrop,
     submit,
     cancelActiveSession,
     translate,
@@ -71,6 +72,35 @@ function renderComposerContent(composer, options) {
   inputEl.addEventListener("paste", () => {
     window.setTimeout(replaceObsidianLinksInInput, 0);
   });
+  const onReferenceDragOver = (event) => {
+    if (!handleReferenceDrop || !event.dataTransfer) {
+      return;
+    }
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "copy";
+    inputWrap.addClass("is-dragging-reference");
+  };
+  const onReferenceDragLeave = (event) => {
+    if (!inputWrap.contains(event.relatedTarget)) {
+      inputWrap.removeClass("is-dragging-reference");
+    }
+  };
+  const onReferenceDrop = (event) => {
+    inputWrap.removeClass("is-dragging-reference");
+    if (!handleReferenceDrop || !event.dataTransfer) {
+      return;
+    }
+    if (handleReferenceDrop(event.dataTransfer)) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+  };
+  for (const dropTarget of [shell, inputWrap, inputEl]) {
+    dropTarget.addEventListener("dragenter", onReferenceDragOver);
+    dropTarget.addEventListener("dragover", onReferenceDragOver);
+    dropTarget.addEventListener("dragleave", onReferenceDragLeave);
+    dropTarget.addEventListener("drop", onReferenceDrop);
+  }
 
   const composerBar = shell.createDiv({ cls: "codex-dock__composer-bar" });
   const leftTools = composerBar.createDiv({ cls: "codex-dock__composer-tools" });

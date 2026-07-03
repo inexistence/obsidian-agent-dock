@@ -523,6 +523,13 @@
   gap: 6px;
   min-height: 78px;
   overflow: hidden;
+  border-radius: 6px;
+}
+
+.codex-dock__input-wrap.is-dragging-reference {
+  background: color-mix(in srgb, var(--interactive-accent) 8%, transparent);
+  outline: 1px solid color-mix(in srgb, var(--interactive-accent) 42%, transparent);
+  outline-offset: 2px;
 }
 
 .codex-dock__input {
