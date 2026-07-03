@@ -31,6 +31,8 @@ should stay ready for other agent CLIs such as Claude Code or Cursor.
 - `src/prompt.js`: prompt construction, active note inclusion, and conversation transcript.
 - `src/cli/*.js`: CLI argument/env/shell helpers.
 - `src/storage/ChatStorage.js`: persisted chat session index/body storage.
+- `.agents/skills/code-review-expert/`: project-local reusable code review skill.
+- `.agents/skills/commit-hygiene/`: reusable pre-commit review, docs, verification, and Conventional Commit workflow.
 - `styles.css`: Obsidian plugin styles.
 - `scripts/build-main.js`: zero-dependency bundler for `main.js`.
 
@@ -224,9 +226,17 @@ Do not put provider-specific parsing logic in `AgentDockView.js`.
 
 ## Git Hygiene
 
+- Use `.agents/skills/commit-hygiene/` for the reusable commit workflow when
+  preparing commits; the rules below add project-specific details.
 - The user may have unrelated local changes. Do not revert them.
 - Commit generated `main.js` together with source changes.
 - Keep commits focused around the requested behavior.
+- Before committing code changes, review the staged diff for correctness,
+  security/privacy risks, data loss risks, and missing verification. If you find
+  a serious issue, stop and tell the user before committing.
+- Before committing, check whether README, AGENTS.md, settings descriptions, or
+  other project documentation need updates for the behavior change. Update docs
+  in the same commit when they are part of the requested behavior.
 - Install the versioned commit message hook with `sh scripts/install-git-hooks.sh`.
 - Use Conventional Commits for commit messages:
 

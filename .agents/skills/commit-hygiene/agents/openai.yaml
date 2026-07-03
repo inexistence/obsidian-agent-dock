@@ -1,0 +1,4 @@
+interface:
+  display_name: "Commit Hygiene"
+  short_description: "Review, verify, document, and format commits safely"
+  default_prompt: "Prepare this repository for a safe commit: review the staged diff, check documentation needs, run relevant verification, and use a Conventional Commit message."
