@@ -1,0 +1,30 @@
+styles.css
+  s_9bb44736ee5316::t_940e49c9fe1fe6 133
+  s_9bb44736ee5316::t_187306b733c7dc 76-77,80-85,112,114-115,121
+  s_9bb44736ee5316::t_c191d64ca57c75 63,67,86,90,101-111,113,117-120,122
+  s_9bb44736ee5316::t_9bba5f9f0a2eda 116
+  s_9bb44736ee5316::t_e8f3723af5acc6 123
+src/view/AgentDockView.js
+  s_9bb44736ee5316::t_e6319ad9a77ccf 324-341,343-344,355-370
+  s_9bb44736ee5316::t_163b367763cf4b 371-372
+main.js
+  s_9bb44736ee5316::t_e6671046b457be 1171-1188,1190-1191,1202-1217
+  s_9bb44736ee5316::t_29a810c1ca1490 1218-1219
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "f6f1033fcb085d717712eb18dd9360025d495ba9",
+  "prompts": {},
+  "logical_commit_id": "f6f1033fcb085d717712eb18dd9360025d495ba9",
+  "sessions": {
+    "s_9bb44736ee5316": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f25c8-a3c9-7780-8609-9d0d51aab44e",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <huangjianbin@imo.im>"
+    }
+  }
+}
