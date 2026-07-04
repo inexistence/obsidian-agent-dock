@@ -1,0 +1,36 @@
+styles.css
+  s_6faafe366b682f::t_271ae95fe7d28f 405-406,411-414
+  s_6faafe366b682f::t_3e3c695b471017 401-404,407-410
+src/view/AgentDockView.js
+  s_6faafe366b682f::t_edfcf379fb7cea 14,243,247,251,253,265,270
+  s_6faafe366b682f::t_7337264652fbc9 229,242,244-246,248-250,252,254-264,271-272,274
+  s_6faafe366b682f::t_2becdaad7fba64 266-268,273
+  s_6faafe366b682f::t_a344da99b64698 269
+scripts/test-message-time.js
+  s_6faafe366b682f::t_13a6f82fbc86e9 5,37,40
+  s_6faafe366b682f::t_2614c32df70a1f 1-4,6-36,38-39,41-42
+main.js
+  s_6faafe366b682f::t_2be6ef7c9cf580 8981-9019,9025-9041,9043-9050,9280,9293,9295-9297,9299-9301,9303,9305-9310,9312-9315,9322-9323,9325
+  s_6faafe366b682f::t_37309b618de1a3 9020-9024,9042,9065,9294,9298,9302,9304,9316-9321,9324
+  s_6faafe366b682f::t_c635f332739eaa 8980,9311
+src/view/utils/messageTime.js
+  s_6faafe366b682f::t_0dce2cd6a90b9f 39-43,61
+  s_6faafe366b682f::t_78fca7f8319d7f 1-38,44-60,62-67
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "eae4988de1d251a45d154012cd24c960c9e6b77a",
+  "prompts": {},
+  "logical_commit_id": "eae4988de1d251a45d154012cd24c960c9e6b77a",
+  "sessions": {
+    "s_6faafe366b682f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c4f-6541-7ee0-99ab-67314f99cd34",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
