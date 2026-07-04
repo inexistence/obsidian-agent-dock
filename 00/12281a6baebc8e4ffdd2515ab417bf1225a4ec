@@ -1,0 +1,25 @@
+scripts/test-timeline.js
+  s_6faafe366b682f::t_df4d27c5bfa3bf 150
+  s_6faafe366b682f::t_f9591d3f94b59b 62-63,74-75,149
+src/view/timeline/MessageTimelineRenderer.js
+  s_6faafe366b682f::t_9580427c86a5ad 56
+main.js
+  s_6faafe366b682f::t_ef16d472b90285 8719
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "0012281a6baebc8e4ffdd2515ab417bf1225a4ec",
+  "prompts": {},
+  "logical_commit_id": "0012281a6baebc8e4ffdd2515ab417bf1225a4ec",
+  "sessions": {
+    "s_6faafe366b682f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c4f-6541-7ee0-99ab-67314f99cd34",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
