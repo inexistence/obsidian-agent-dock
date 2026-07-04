@@ -71,6 +71,7 @@ class CursorAgent {
       "cursor"
     );
     const promptMemories = removeMemorySearchDuplicates(memories, memorySearch.results);
+    const agentProfileTraits = await this.plugin.agentProfileStore.getPromptTraits(settings);
 
     let useFullPrompt = !cursorState.acpSessionId;
     let finalOutput = "";
@@ -121,6 +122,7 @@ class CursorAgent {
         prompt,
         conversation,
         memories: promptMemories,
+        agentProfileTraits,
         memorySearchResults: memorySearch.results,
         memorySearchPerformed: memorySearch.performed,
         workingAffect: this.plugin.getWorkingAffect()
@@ -180,6 +182,7 @@ class CursorAgent {
             conversation,
             {
               workingAffect: this.plugin.getWorkingAffect(),
+              agentProfileTraits,
               memories: promptMemories,
               memorySearchResults: memorySearch.results,
               memorySearchPerformed: memorySearch.performed
@@ -206,6 +209,7 @@ class CursorAgent {
             emitUpdate,
             prompt,
             activeFilePath,
+            conversation,
             options,
             settings,
             throwIfAborted
@@ -226,6 +230,7 @@ class CursorAgent {
         emitUpdate,
         prompt,
         activeFilePath,
+        conversation,
         options,
         settings,
         throwIfAborted
@@ -277,6 +282,7 @@ class CursorAgent {
     prompt,
     conversation,
     memories,
+    agentProfileTraits,
     memorySearchResults,
     memorySearchPerformed,
     workingAffect
@@ -284,6 +290,7 @@ class CursorAgent {
     if (useFullPrompt) {
       return buildPromptWithMetadata(app, settings, prompt, conversation, {
         workingAffect,
+        agentProfileTraits,
         memories,
         memorySearchResults,
         memorySearchPerformed
@@ -291,13 +298,14 @@ class CursorAgent {
     }
     return buildTurnContextPrompt(app, settings, prompt, {
       workingAffect,
+      agentProfileTraits,
       memories,
       memorySearchResults,
       memorySearchPerformed
     });
   }
 
-  async finishTurn({ result, finalOutput, emitUpdate, prompt, activeFilePath, options, settings, throwIfAborted }) {
+  async finishTurn({ result, finalOutput, emitUpdate, prompt, activeFilePath, conversation, options, settings, throwIfAborted }) {
     const resultText = extractPromptResultText(result);
     if (!finalOutput.trim() && resultText) {
       finalOutput = resultText;
@@ -309,6 +317,14 @@ class CursorAgent {
     await this.captureMemory({
       prompt,
       response: finalOutput.trim(),
+      previousAssistantResponse: getPreviousAssistantResponse(conversation),
+      activeFilePath,
+      sessionId: options.sessionId || ""
+    }, settings, emitUpdate);
+    await this.captureAgentProfile({
+      prompt,
+      response: finalOutput.trim(),
+      previousAssistantResponse: getPreviousAssistantResponse(conversation),
       activeFilePath,
       sessionId: options.sessionId || ""
     }, settings, emitUpdate);
@@ -499,6 +515,41 @@ class CursorAgent {
       });
     }
   }
+
+  async captureAgentProfile(turn, settings, onUpdate) {
+    try {
+      const result = await this.plugin.agentProfileStore.captureTurn(turn, settings);
+      if (result.observations.length > 0 || result.traits.length > 0) {
+        onUpdate({
+          kind: "notice",
+          title: t(settings, "cursor.agentProfileUpdated.title"),
+          summary: t(settings, "cursor.agentProfileUpdated.summary", {
+            count: result.observations.length
+          })
+        });
+      }
+    } catch (error) {
+      console.warn("Agent Dock could not update agent profile:", error);
+      onUpdate({
+        kind: "notice",
+        title: t(settings, "cursor.agentProfileSkipped.title"),
+        summary: t(settings, "cursor.agentProfileSkipped.summary")
+      });
+    }
+  }
+}
+
+function getPreviousAssistantResponse(conversation) {
+  if (!Array.isArray(conversation)) {
+    return "";
+  }
+  for (let index = conversation.length - 2; index >= 0; index -= 1) {
+    const message = conversation[index];
+    if (message?.role === "assistant" && message.content) {
+      return message.content;
+    }
+  }
+  return "";
 }
 
 function applyPromptNotices(onUpdate, promptResult, memories, translate, keyPrefix) {

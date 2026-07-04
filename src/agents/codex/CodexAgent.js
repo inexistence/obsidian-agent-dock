@@ -47,8 +47,10 @@ class CodexAgent {
       "codex"
     );
     const promptMemories = removeMemorySearchDuplicates(memories, memorySearch.results);
+    const agentProfileTraits = await this.plugin.agentProfileStore.getPromptTraits(settings);
     const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, {
       workingAffect: this.plugin.getWorkingAffect(),
+      agentProfileTraits,
       memories: promptMemories,
       memorySearchResults: memorySearch.results,
       memorySearchPerformed: memorySearch.performed
@@ -176,6 +178,14 @@ class CodexAgent {
           await this.captureMemory({
             prompt,
             response: finalOutput.trim(),
+            previousAssistantResponse: getPreviousAssistantResponse(conversation),
+            activeFilePath,
+            sessionId: options.sessionId || ""
+          }, settings, onUpdate);
+          await this.captureAgentProfile({
+            prompt,
+            response: finalOutput.trim(),
+            previousAssistantResponse: getPreviousAssistantResponse(conversation),
             activeFilePath,
             sessionId: options.sessionId || ""
           }, settings, onUpdate);
@@ -267,6 +277,41 @@ class CodexAgent {
       });
     }
   }
+
+  async captureAgentProfile(turn, settings, onUpdate) {
+    try {
+      const result = await this.plugin.agentProfileStore.captureTurn(turn, settings);
+      if (result.observations.length > 0 || result.traits.length > 0) {
+        onUpdate({
+          kind: "notice",
+          title: t(settings, "codex.agentProfileUpdated.title"),
+          summary: t(settings, "codex.agentProfileUpdated.summary", {
+            count: result.observations.length
+          })
+        });
+      }
+    } catch (error) {
+      console.warn("Agent Dock could not update agent profile:", error);
+      onUpdate({
+        kind: "notice",
+        title: t(settings, "codex.agentProfileSkipped.title"),
+        summary: t(settings, "codex.agentProfileSkipped.summary")
+      });
+    }
+  }
+}
+
+function getPreviousAssistantResponse(conversation) {
+  if (!Array.isArray(conversation)) {
+    return "";
+  }
+  for (let index = conversation.length - 2; index >= 0; index -= 1) {
+    const message = conversation[index];
+    if (message?.role === "assistant" && message.content) {
+      return message.content;
+    }
+  }
+  return "";
 }
 
 async function readOutputFile(outputPath) {

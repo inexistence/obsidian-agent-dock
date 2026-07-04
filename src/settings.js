@@ -55,6 +55,11 @@ const DEFAULT_SETTINGS = {
   memoryMaxItems: 200,
   memoryMaxPromptItems: 12,
   memoryMaxPromptChars: 8000,
+  agentProfileEnabled: true,
+  agentProfileAutoCapture: true,
+  agentProfileMaxPromptTraits: 6,
+  agentProfileMinEvidence: 2,
+  agentProfileHalfLifeDays: 30,
   affectEnabled: true,
   affectCrossSessionEnabled: true,
   affectRestoreAfterRestart: true,
@@ -127,6 +132,20 @@ function normalizeSettings(savedSettings) {
   settings.memoryMaxPromptChars = normalizePositiveInteger(
     settings.memoryMaxPromptChars,
     DEFAULT_SETTINGS.memoryMaxPromptChars
+  );
+  settings.agentProfileEnabled = settings.agentProfileEnabled !== false;
+  settings.agentProfileAutoCapture = settings.agentProfileAutoCapture !== false;
+  settings.agentProfileMaxPromptTraits = normalizePositiveInteger(
+    settings.agentProfileMaxPromptTraits,
+    DEFAULT_SETTINGS.agentProfileMaxPromptTraits
+  );
+  settings.agentProfileMinEvidence = normalizePositiveInteger(
+    settings.agentProfileMinEvidence,
+    DEFAULT_SETTINGS.agentProfileMinEvidence
+  );
+  settings.agentProfileHalfLifeDays = normalizePositiveInteger(
+    settings.agentProfileHalfLifeDays,
+    DEFAULT_SETTINGS.agentProfileHalfLifeDays
   );
   settings.affectEnabled = settings.affectEnabled !== false;
   settings.affectCrossSessionEnabled = settings.affectCrossSessionEnabled !== false;

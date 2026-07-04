@@ -3,6 +3,7 @@ const { CUSTOM_ASSISTANT_STYLE_MAX_CHARS, DEFAULT_SETTINGS } = require("../../se
 const BUILT_IN_ASSISTANT_STYLE_ESTIMATE_CHARS = 700;
 const ASSISTANT_STYLE_PROMPT_OVERHEAD_CHARS = 220;
 const AFFECT_PROMPT_ESTIMATE_CHARS = 700;
+const AGENT_PROFILE_TRAIT_ESTIMATE_CHARS = 260;
 
 function estimateContextChars(messages, draft, settings) {
   const transcriptChars = messages.reduce((total, message) => {
@@ -16,7 +17,10 @@ function estimateContextChars(messages, draft, settings) {
   const affectChars = settings.affectEnabled && settings.affectCrossSessionEnabled
     ? AFFECT_PROMPT_ESTIMATE_CHARS
     : 0;
-  return transcriptChars + draftChars + memoryChars + styleChars + affectChars;
+  const profileChars = settings.agentProfileEnabled
+    ? (Number(settings.agentProfileMaxPromptTraits) || DEFAULT_SETTINGS.agentProfileMaxPromptTraits) * AGENT_PROFILE_TRAIT_ESTIMATE_CHARS
+    : 0;
+  return transcriptChars + draftChars + memoryChars + styleChars + affectChars + profileChars;
 }
 
 function estimateAssistantStyleChars(settings) {

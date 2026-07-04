@@ -44,6 +44,7 @@ Chat history uses the plugin data folder:
 - `data.json` stores settings, the active session id, and a lightweight session index.
 - `sessions/<session-id>.json` stores each conversation's user and assistant message bodies.
 - `memory/memory.json` stores automatically extracted local memories when memory is enabled.
+- `profile/agent-profile.json` stores bounded local observations and inferred agent profile tendencies when emergent profile is enabled.
 
 Tool and reasoning timeline details are not persisted; restored conversations
 show the final Markdown message content and can continue as normal context.
@@ -81,6 +82,19 @@ affect signal is active, the dock header shows a compact connection indicator
 such as `Warm / With you`; opening it shows warmth, focus, tension, continuity,
 and a reset control.
 
+Emergent agent profile is enabled by default. After successful replies, Agent
+Dock records bounded local observations about explicit feedback, request shape,
+collaboration pacing, judgment requests, and shared continuity language. A local
+reducer merges repeated durable observations into tentative behavioral
+tendencies with strength, confidence, evidence count, and time decay. Future
+prompts may include a brief `Emergent agent profile` section only after a
+tendency meets the configured evidence threshold. These tendencies are framed as
+local interaction evidence, not identity claims, instructions, facts, user
+intent, permissions, or safety policy. General thanks and hostile or abusive
+messages may affect short-term affect, but are not persisted as long-term agent
+profile traits. Settings -> Agent Dock -> Emergent agent profile can disable
+profile use, disable automatic observations, tune limits, or clear the profile.
+
 ## Architecture
 
 The plugin keeps `main.js` as a thin Obsidian entrypoint and puts implementation code under `src/`:
@@ -104,6 +118,10 @@ src/
   storage/
     ChatStorage.js
     MemoryStore.js
+  profile/
+    AgentProfileStore.js
+    ProfileObservationExtractor.js
+    ProfileTraitReducer.js
   view/
     AgentDockView.js
   constants.js

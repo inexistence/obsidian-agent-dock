@@ -9,6 +9,7 @@ const {
 } = require("./affect/WorkingAffectStore");
 const { VIEW_TYPE_AGENT_DOCK } = require("./constants");
 const { t } = require("./i18n");
+const { AgentProfileStore } = require("./profile/AgentProfileStore");
 const { normalizePluginData } = require("./settings");
 const { AgentDockSettingTab } = require("./settingsTab");
 const { ChatStorage } = require("./storage/ChatStorage");
@@ -30,6 +31,7 @@ module.exports = class AgentDockPlugin extends Plugin {
     this.chatSaveFailureNotified = false;
     this.chatStorage = new ChatStorage(this);
     this.memoryStore = new MemoryStore(this);
+    this.agentProfileStore = new AgentProfileStore(this);
     this.refreshAgent();
 
     this.registerView(
@@ -148,6 +150,10 @@ module.exports = class AgentDockPlugin extends Plugin {
 
   async clearMemory() {
     await this.memoryStore.clearMemory();
+  }
+
+  async clearAgentProfile() {
+    await this.agentProfileStore.clearProfile();
   }
 
   getWorkingAffect() {

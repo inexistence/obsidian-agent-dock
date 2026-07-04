@@ -1,6 +1,7 @@
 const { normalizePath } = require("obsidian");
 
 const { RuleBasedMemoryExtractor } = require("./memoryExtraction/RuleBasedMemoryExtractor");
+const { containsSensitiveText } = require("./sensitiveText");
 
 const MEMORY_VERSION = 1;
 const MEMORY_DIR_NAME = "memory";
@@ -328,10 +329,6 @@ function formatMemoryDate(value) {
     return "";
   }
   return new Date(timestamp).toISOString().slice(0, 10);
-}
-
-function containsSensitiveText(text) {
-  return /(api[_-]?key|password|passwd|secret|token|bearer|private[_-]?key|ssh-rsa|sk-[a-z0-9]|密码|密钥|令牌)/i.test(text);
 }
 
 function isPromptSafeMemory(item) {

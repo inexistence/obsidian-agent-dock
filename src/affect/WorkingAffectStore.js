@@ -148,6 +148,13 @@ function extractTurnAffectSignal(turn) {
     signal.warmth += 0.2;
     signal.tension -= 0.12;
   }
+  if (/(你(?:真)?(?:蠢|傻|废物|垃圾)|闭嘴|滚|idiot|stupid|shut up|trash|useless)/i.test(prompt)) {
+    signal.valence -= 0.28;
+    signal.arousal += 0.22;
+    signal.tension += 0.38;
+    signal.warmth -= 0.18;
+    signal.focus += 0.12;
+  }
   if (/(不对|不是|烦|糟糕|失望|生气|别这样|wrong|annoying|frustrating|bad)/i.test(prompt)) {
     signal.valence -= 0.22;
     signal.tension += 0.28;

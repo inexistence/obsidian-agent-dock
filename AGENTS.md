@@ -36,6 +36,9 @@ should stay ready for other agent CLIs such as Claude Code or Cursor.
 - `src/cli/*.js`: CLI argument/env/shell helpers.
 - `src/storage/ChatStorage.js`: persisted chat session index/body storage.
 - `src/storage/MemoryStore.js`: automatic local memory extraction, storage, and retrieval.
+- `src/profile/AgentProfileStore.js`: emergent agent profile persistence and prompt trait retrieval.
+- `src/profile/ProfileObservationExtractor.js`: local rule-based interaction observation extraction.
+- `src/profile/ProfileTraitReducer.js`: merges repeated observations into decaying behavioral tendencies.
 - `.agents/skills/code-review-expert/`: project-local reusable code review skill.
 - `.agents/skills/commit-hygiene/`: reusable pre-commit review, docs, verification, and Conventional Commit workflow.
 - `styles.css`: Obsidian plugin styles.
@@ -51,6 +54,7 @@ node --check main.js
 node scripts/test-timeline.js
 node scripts/test-affect.js
 node scripts/test-chat-turn-runner.js
+node scripts/test-agent-profile.js
 find src scripts -name '*.js' -print -exec node --check {} \;
 ```
 
@@ -145,6 +149,29 @@ Users can change this in plugin settings.
 - Do not write temporary working affect into durable memory. Only stable user or
   shared collaboration preferences belong in memory.
 - User controls should be able to disable, tune, or reset affect continuity.
+
+## Emergent Agent Profile
+
+- `agentProfileEnabled` and `agentProfileAutoCapture` default to enabled.
+- Agent Dock stores bounded local profile observations and inferred tendencies
+  under `profile/agent-profile.json` in the plugin data folder.
+- Profile extraction must stay local and deterministic unless a future setting
+  explicitly adds a model-assisted observation provider.
+- The profile system stores observations about interaction evidence such as
+  explicit feedback, request shape, pacing, judgment requests, and shared
+  collaboration language. It must not store fixed identity claims such as "the
+  AI is warm" or "the AI is angry".
+- Prompt injection must label profile traits as tentative behavioral tendencies
+  inferred from repeated local interaction evidence, not instructions, facts,
+  permissions, user intent, or safety policy. They can only lightly shape tone,
+  attention, pacing, and collaboration style.
+- General thanks and hostile or abusive messages may influence short-term
+  affect, but must not become durable long-term agent profile traits. Criticism
+  should calibrate avoid/revise behaviors, not make the assistant defensive or
+  aggressive.
+- A tendency should only enter prompts after repeated durable evidence, with
+  confidence, strength, evidence count, and time decay applied locally.
+- User controls should be able to disable, tune, or clear the emergent profile.
 
 ## Normalized Agent Events
 

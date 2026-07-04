@@ -336,6 +336,84 @@ class AgentDockSettingTab extends PluginSettingTab {
           new Notice(translate("settings.resetAffect.done"));
         }));
 
+    containerEl.createEl("h3", { text: translate("settings.agentProfile.heading") });
+
+    new Setting(containerEl)
+      .setName(translate("settings.agentProfileEnabled.name"))
+      .setDesc(translate("settings.agentProfileEnabled.desc"))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.agentProfileEnabled)
+        .onChange(async (value) => {
+          this.plugin.settings.agentProfileEnabled = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.agentProfileAutoCapture.name"))
+      .setDesc(translate("settings.agentProfileAutoCapture.desc"))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.agentProfileAutoCapture)
+        .onChange(async (value) => {
+          this.plugin.settings.agentProfileAutoCapture = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.agentProfileMaxPromptTraits.name"))
+      .setDesc(translate("settings.agentProfileMaxPromptTraits.desc"))
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.agentProfileMaxPromptTraits))
+        .setValue(String(this.plugin.settings.agentProfileMaxPromptTraits))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.agentProfileMaxPromptTraits = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.agentProfileMaxPromptTraits;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.agentProfileMinEvidence.name"))
+      .setDesc(translate("settings.agentProfileMinEvidence.desc"))
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.agentProfileMinEvidence))
+        .setValue(String(this.plugin.settings.agentProfileMinEvidence))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.agentProfileMinEvidence = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.agentProfileMinEvidence;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.agentProfileHalfLifeDays.name"))
+      .setDesc(translate("settings.agentProfileHalfLifeDays.desc"))
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.agentProfileHalfLifeDays))
+        .setValue(String(this.plugin.settings.agentProfileHalfLifeDays))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.agentProfileHalfLifeDays = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.agentProfileHalfLifeDays;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.clearAgentProfile.name"))
+      .setDesc(translate("settings.clearAgentProfile.desc"))
+      .addButton((button) => button
+        .setButtonText(translate("settings.clearAgentProfile.button"))
+        .setWarning()
+        .onClick(async () => {
+          if (!window.confirm(translate("settings.clearAgentProfile.confirm"))) {
+            return;
+          }
+          await this.plugin.clearAgentProfile();
+          new Notice(translate("settings.clearAgentProfile.done"));
+        }));
+
     containerEl.createEl("h3", { text: translate("settings.memory.heading") });
 
     new Setting(containerEl)
