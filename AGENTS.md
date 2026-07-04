@@ -41,6 +41,7 @@ should stay ready for other agent CLIs such as Claude Code or Cursor.
 - `src/profile/ProfileTraitReducer.js`: merges repeated observations into decaying behavioral tendencies.
 - `.agents/skills/code-review-expert/`: project-local reusable code review skill.
 - `.agents/skills/commit-hygiene/`: reusable pre-commit review, docs, verification, and Conventional Commit workflow.
+- `docs/architecture.md`: maintainer overview of runtime modules, data boundaries, and extension points.
 - `styles.css`: Obsidian plugin styles.
 - `scripts/build-main.js`: zero-dependency bundler for `main.js`.
 
