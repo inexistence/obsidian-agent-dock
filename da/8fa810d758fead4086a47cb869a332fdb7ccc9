@@ -1,0 +1,38 @@
+src/i18n/en.js
+  s_1dfc02a86bfa86::t_8cd1971904889d 98
+src/view/AgentDockView.js
+  s_1dfc02a86bfa86::t_eba485412a1613 26-27
+src/view/timeline/MessageTimelineRenderer.js
+  s_1dfc02a86bfa86::t_abefb46f45950f 174,211,220-224
+  s_1dfc02a86bfa86::t_8b1cd0908ba7a2 14,88-109,208-210,212-213,215-219,225-228
+  s_1dfc02a86bfa86::t_79063cc012d4de 110
+  s_1dfc02a86bfa86::t_3ac518b59e9193 214
+  s_1dfc02a86bfa86::t_7e37de7b381862 229-230
+src/i18n/zh.js
+  s_1dfc02a86bfa86::t_13105a56ac154b 98
+styles.css
+  s_1dfc02a86bfa86::t_8ed498fbb9bc1e 458-460,463-468
+  s_1dfc02a86bfa86::t_a7342464edc81f 440,444-457,461-462,504-505,526-527
+main.js
+  s_1dfc02a86bfa86::t_7035549aadba88 7120,7157,7166-7170
+  s_1dfc02a86bfa86::t_7eca36eedcdb46 221,428
+  s_1dfc02a86bfa86::t_471109d74bb9a7 6960,7034-7055,7154-7156,7158-7163,7165,7171-7174,7176,7271-7272
+  s_1dfc02a86bfa86::t_034400623ce7a7 7056,7164,7175
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "da8fa810d758fead4086a47cb869a332fdb7ccc9",
+  "prompts": {},
+  "logical_commit_id": "da8fa810d758fead4086a47cb869a332fdb7ccc9",
+  "sessions": {
+    "s_1dfc02a86bfa86": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2b45-52f0-76e2-b4d2-8c083396d038",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
