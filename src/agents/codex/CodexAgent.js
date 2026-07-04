@@ -49,7 +49,7 @@ class CodexAgent {
     const promptMemories = removeMemorySearchDuplicates(memories, memorySearch.results);
     const agentProfileTraits = await this.plugin.agentProfileStore.getPromptTraits(settings);
     const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, {
-      workingAffect: this.plugin.getWorkingAffect(),
+      workingAffect: this.plugin.getPromptWorkingAffect(prompt),
       agentProfileTraits,
       memories: promptMemories,
       memorySearchResults: memorySearch.results,

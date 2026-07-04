@@ -125,7 +125,7 @@ class CursorAgent {
         agentProfileTraits,
         memorySearchResults: memorySearch.results,
         memorySearchPerformed: memorySearch.performed,
-        workingAffect: this.plugin.getWorkingAffect()
+        workingAffect: this.plugin.getPromptWorkingAffect(prompt)
       });
       throwIfAborted();
 
@@ -181,7 +181,7 @@ class CursorAgent {
             prompt,
             conversation,
             {
-              workingAffect: this.plugin.getWorkingAffect(),
+              workingAffect: this.plugin.getPromptWorkingAffect(prompt),
               agentProfileTraits,
               memories: promptMemories,
               memorySearchResults: memorySearch.results,

@@ -3,6 +3,7 @@ const { Notice, Plugin } = require("obsidian");
 const { createAgent } = require("./agents/AgentRegistry");
 const {
   getEffectiveWorkingAffect,
+  getPromptWorkingAffect,
   normalizeAffectState,
   resetAffectState,
   updateWorkingAffect
@@ -158,6 +159,10 @@ module.exports = class AgentDockPlugin extends Plugin {
 
   getWorkingAffect() {
     return getEffectiveWorkingAffect(this.settings, this.affectState);
+  }
+
+  getPromptWorkingAffect(prompt) {
+    return getPromptWorkingAffect(this.settings, this.affectState, prompt);
   }
 
   async updateWorkingAffect(turn) {

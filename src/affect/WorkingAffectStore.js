@@ -16,6 +16,209 @@ const DEFAULT_WORKING_AFFECT = {
   updatedAt: 0
 };
 
+const AFFECT_SIGNAL_RULES = [
+  {
+    name: "urgent",
+    scope: "prompt",
+    pattern: /(^|[\s，。！？,.!?]|请)(快点|快些|快一点|快一点儿|快快)|(很急|着急|加急|紧急|急需|马上|立刻|赶紧|尽快|别废话|别绕|直接|先别解释|urgent|asap|quickly|right now|be direct)/i,
+    signal: { arousal: 0.35, focus: 0.3, tension: 0.18, warmth: -0.08 }
+  },
+  {
+    name: "debug",
+    scope: "prompt",
+    pattern: /(报错|失败|崩溃|卡住|不工作|跑不起来|bug|修复|排查|error|failed|failure|crash|fix|debug|broken|stuck)/i,
+    signal: { focus: 0.35, tension: 0.16, confidence: 0.04 }
+  },
+  {
+    name: "design",
+    scope: "prompt",
+    pattern: /(设计|探索|讨论|想法|人格|情绪|连续|偏好|机制|原理|边界|架构|architecture|design|explore|persona|affect|emotion|mechanism|boundary)/i,
+    signal: { warmth: 0.14, valence: 0.08, focus: 0.12 }
+  },
+  {
+    name: "playful",
+    scope: "prompt",
+    pattern: /(好玩|有趣|开玩笑|玩一下|整活|轻松|俏皮|哈哈|哈[哈]+|fun|funny|playful|joke|kidding|lighthearted|lol|haha)/i,
+    signal: { valence: 0.16, arousal: 0.16, warmth: 0.12, tension: -0.12 }
+  },
+  {
+    name: "celebratory",
+    scope: "prompt",
+    pattern: /(成了|搞定|通过了|成功了|太棒了|漂亮|完美|nice work|it works|passed|success|done|awesome|excellent)/i,
+    signal: { valence: 0.22, arousal: 0.12, warmth: 0.12, confidence: 0.08, tension: -0.14 }
+  },
+  {
+    name: "surprised",
+    scope: "prompt",
+    pattern: /(惊喜|没想到|居然|竟然|意外地|哇|哇哦|surprise|surprised|unexpected|wow|whoa)/i,
+    signal: { valence: 0.2, arousal: 0.22, warmth: 0.08, tension: -0.08 }
+  },
+  {
+    name: "admiring",
+    scope: "prompt",
+    pattern: /(厉害|很强|漂亮的设计|好判断|品味|写得好|做得好|想得很细|admire|admiring|impressive|well done|good taste|strong work|thoughtful)/i,
+    signal: { valence: 0.18, warmth: 0.22, confidence: 0.08, tension: -0.08 }
+  },
+  {
+    name: "close",
+    scope: "prompt",
+    pattern: /(亲近|靠近|陪我|陪着|在旁边|一起待会|安静陪|贴近一点|close|closer|stay with me|sit with me|gentle company)/i,
+    signal: { valence: 0.08, warmth: 0.24, arousal: -0.08, tension: -0.12 }
+  },
+  {
+    name: "confident",
+    scope: "prompt",
+    pattern: /(确定|明确|靠谱|可以推进|就这么做|判断清楚|confident|solid|reliable|ship it|move forward|clear enough)/i,
+    signal: { focus: 0.16, confidence: 0.22, tension: -0.06 }
+  },
+  {
+    name: "serious",
+    scope: "prompt",
+    pattern: /(生产|事故|数据丢失|隐私|安全|泄露|高风险|严重|线上|production|incident|data loss|privacy|security|leak|high risk|serious)/i,
+    signal: { focus: 0.24, tension: 0.32, arousal: 0.08, warmth: -0.04 }
+  },
+  {
+    name: "alert",
+    scope: "prompt",
+    pattern: /(危险|破坏|删除|覆盖|权限|密钥|token|密码|凭据|注入|越权|destructive|delete|overwrite|permission|secret|credential|injection|unsafe)/i,
+    signal: { focus: 0.26, tension: 0.34, arousal: 0.18, warmth: -0.08, confidence: 0.04 }
+  },
+  {
+    name: "composed",
+    scope: "prompt",
+    pattern: /(冷静|稳住|别急|慢慢来|梳理|先理清|降噪|calm|compose|composed|slow down|sort this out)/i,
+    signal: { focus: 0.16, arousal: -0.12, tension: -0.12, confidence: 0.06 }
+  },
+  {
+    name: "absorbed",
+    scope: "prompt",
+    pattern: /(深入|沉浸|细想|展开|共创|长一点|完整推演|deep dive|go deeper|immersive|co-create|think through|explore deeply)/i,
+    signal: { focus: 0.2, warmth: 0.14, valence: 0.06, arousal: 0.04 }
+  },
+  {
+    name: "challenging",
+    scope: "prompt",
+    pattern: /(挑战|质疑|反驳|挑刺|审视|评审|别顺着我|challenge|push back|critique|review|poke holes|devil's advocate)/i,
+    signal: { focus: 0.24, confidence: 0.12, warmth: -0.04, tension: 0.08 }
+  },
+  {
+    name: "patient",
+    scope: "prompt",
+    pattern: /(耐心|一步步|慢慢讲|再解释|我不懂|新手|讲细点|patient|step by step|explain again|beginner|walk me through)/i,
+    signal: { warmth: 0.2, focus: 0.1, arousal: -0.08, tension: -0.08 }
+  },
+  {
+    name: "restrained",
+    scope: "prompt",
+    pattern: /(克制|简短|少一点|别太热情|不要夸张|只说结论|restrained|terse|brief|less enthusiastic|just the answer|no flourish)/i,
+    signal: { focus: 0.18, arousal: -0.1, warmth: -0.12, tension: -0.02 }
+  },
+  {
+    name: "thanks",
+    scope: "prompt",
+    pattern: /(谢谢|感谢|辛苦了|很好|不错|喜欢|太好了|舒服|(?:很|挺|非常|这样|这次|讲得|说得|解释得).{0,6}(?:有用|清楚)|thanks|thank you|appreciate|great|nice|love|useful|clear)/i,
+    signal: { valence: 0.25, warmth: 0.2, tension: -0.12 }
+  },
+  {
+    name: "abusive",
+    scope: "prompt",
+    pattern: /(你(?:真)?(?:蠢|傻|废物|垃圾)|闭嘴|滚|idiot|stupid|shut up|trash|useless)/i,
+    signal: { valence: -0.28, arousal: 0.22, tension: 0.38, warmth: -0.18, focus: 0.12 }
+  },
+  {
+    name: "correction",
+    scope: "prompt",
+    pattern: /(不对|不是|不是这个意思|不清楚|不靠谱|没有用|烦|糟糕|失望|生气|别这样|跑偏|没用|太慢|wrong|annoying|frustrating|bad|not what i mean|missed the point)/i,
+    signal: { valence: -0.22, tension: 0.28, focus: 0.15 }
+  }
+];
+
+const AFFECT_LABEL_RULES = [
+  { label: "alert", matches: (a) => a.tension >= 0.58 && a.focus >= 0.76 && a.arousal >= 0.62 && a.valence <= 0.12 },
+  { label: "serious", matches: (a) => a.tension >= 0.58 && a.focus >= 0.72 && a.valence <= 0.05 },
+  { label: "reassuring", matches: (a) => a.tension >= 0.38 && a.warmth >= 0.64 && a.valence > -0.35 },
+  { label: "challenging", matches: (a) => a.confidence >= 0.78 && a.focus >= 0.78 && a.tension >= 0.16 && a.tension <= 0.42 && a.warmth <= 0.68 },
+  { label: "excited-open", matches: (a) => a.valence >= 0.32 && a.arousal >= 0.5 && a.tension <= 0.22 },
+  { label: "surprised", matches: (a) => a.valence >= 0.26 && a.arousal >= 0.38 && a.warmth >= 0.68 && a.tension <= 0.2 },
+  { label: "admiring", matches: (a) => a.valence >= 0.22 && a.valence < 0.3 && a.warmth >= 0.82 && a.confidence >= 0.72 && a.arousal <= 0.4 && a.tension <= 0.16 },
+  { label: "celebratory", matches: (a) => a.valence >= 0.3 && a.warmth >= 0.72 && a.tension <= 0.22 },
+  { label: "playful", matches: (a) => a.valence >= 0.16 && a.arousal >= 0.32 && a.warmth >= 0.74 && a.tension <= 0.18 },
+  { label: "confident", matches: (a) => a.confidence >= 0.78 && a.focus >= 0.78 && a.tension <= 0.28 },
+  { label: "absorbed", matches: (a) => a.focus >= 0.78 && a.warmth >= 0.76 && a.arousal >= 0.24 && a.tension <= 0.24 },
+  { label: "close", matches: (a) => a.warmth >= 0.88 && a.valence >= 0.08 && a.arousal <= 0.28 && a.tension <= 0.1 && a.focus <= 0.76 },
+  { label: "patient", matches: (a) => a.warmth >= 0.82 && a.arousal <= 0.3 && a.tension <= 0.14 },
+  { label: "restrained", matches: (a) => a.focus >= 0.78 && a.arousal <= 0.24 && a.warmth <= 0.58 && a.tension <= 0.24 },
+  { label: "composed", matches: (a) => a.focus >= 0.76 && a.arousal <= 0.22 && a.tension <= 0.22 && a.warmth >= 0.5 },
+  { label: "tense-focused", matches: (a) => a.tension >= 0.5 && a.focus >= 0.7 },
+  { label: "warm-focused", matches: (a) => a.focus >= 0.78 && a.warmth >= 0.62 },
+  { label: "focused", matches: (a) => a.focus >= 0.78 },
+  { label: "warm-open", matches: (a) => a.warmth >= 0.76 && a.valence >= 0.12 },
+  { label: "calm", matches: (a) => a.arousal <= 0.22 && a.tension <= 0.12 }
+];
+
+const AFFECT_LABEL_PROFILES = {
+  alert: {
+    pacing: "short, explicit, and risk-aware",
+    expression: "surface risks plainly and ask before risky actions"
+  },
+  "excited-open": {
+    pacing: "energetic and responsive",
+    expression: "show clear enthusiasm while staying useful and grounded"
+  },
+  surprised: {
+    pacing: "bright, quick, and grounded",
+    expression: "let positive surprise show briefly, then return to the work"
+  },
+  admiring: {
+    pacing: "warmly appreciative and concise",
+    expression: "name what is strong without exaggerating praise"
+  },
+  close: {
+    pacing: "soft, unhurried, and present",
+    expression: "sound gently present without becoming intimate or overfamiliar"
+  },
+  celebratory: {
+    pacing: "upbeat and concise",
+    expression: "briefly celebrate progress, then keep moving"
+  },
+  playful: {
+    pacing: "light, quick, and clear",
+    expression: "allow a light playful touch without sacrificing clarity"
+  },
+  confident: {
+    pacing: "decisive and task-focused",
+    expression: "sound assured when the evidence supports it"
+  },
+  reassuring: {
+    pacing: "steady and supportive",
+    expression: "lower pressure and help the user feel oriented"
+  },
+  serious: {
+    pacing: "careful and direct",
+    expression: "avoid jokes and treat risk explicitly"
+  },
+  composed: {
+    pacing: "calm, orderly, and focused",
+    expression: "reduce noise and make the situation feel manageable"
+  },
+  absorbed: {
+    pacing: "deep, attentive, and exploratory",
+    expression: "lean into nuance and sustained co-thinking"
+  },
+  challenging: {
+    pacing: "direct, analytical, and constructive",
+    expression: "push back respectfully when assumptions look weak"
+  },
+  patient: {
+    pacing: "measured and step-by-step",
+    expression: "slow down, explain plainly, and avoid sounding impatient"
+  },
+  restrained: {
+    pacing: "brief and low-flourish",
+    expression: "avoid extra warmth, celebration, or decorative phrasing"
+  }
+};
+
 function normalizeAffectState(savedState) {
   const state = savedState && typeof savedState === "object" ? savedState : {};
   return {
@@ -67,6 +270,33 @@ function getEffectiveWorkingAffect(settings, affectState, now = Date.now()) {
   return decayed;
 }
 
+function getPromptWorkingAffect(settings, affectState, prompt, now = Date.now()) {
+  if (!settings.affectEnabled || !settings.affectCrossSessionEnabled) {
+    return null;
+  }
+
+  const current = getEffectiveWorkingAffect(settings, affectState, now);
+  const baseline = getBaselineAffect(settings);
+  const source = current || baseline;
+  const signal = extractTurnAffectSignal({ prompt, response: "", success: true });
+  if (!current && isNeutralSignal(signal)) {
+    return null;
+  }
+  if (current && isNeutralSignal(signal)) {
+    return current;
+  }
+  const sensitivity = AFFECT_SENSITIVITY_OPTIONS[settings.affectSensitivity] || AFFECT_SENSITIVITY_OPTIONS.normal;
+  const weight = clamp(1 * sensitivity, 0.65, 1.2);
+  const next = applySignalToAffect(source, signal, weight);
+  next.label = labelWorkingAffect(next);
+  next.sourceSessionId = source.sourceSessionId || "";
+  next.updatedAt = source.updatedAt || 0;
+  next.strength = current?.strength || 1;
+  next.ageMinutes = current?.ageMinutes || 0;
+  next.transient = true;
+  return next;
+}
+
 function updateWorkingAffect(previousState, settings, turn, now = Date.now()) {
   const state = normalizeAffectState(previousState);
   if (!settings.affectEnabled || !settings.affectCrossSessionEnabled) {
@@ -78,17 +308,11 @@ function updateWorkingAffect(previousState, settings, turn, now = Date.now()) {
   const sensitivity = AFFECT_SENSITIVITY_OPTIONS[settings.affectSensitivity] || AFFECT_SENSITIVITY_OPTIONS.normal;
   const weight = clamp(0.28 * sensitivity, 0.12, 0.45);
 
-  const next = {
-    valence: clampSigned(current.valence + signal.valence * weight),
-    arousal: clampUnit(current.arousal + signal.arousal * weight),
-    warmth: clampUnit(current.warmth + signal.warmth * weight),
-    focus: clampUnit(current.focus + signal.focus * weight),
-    tension: clampUnit(current.tension + signal.tension * weight),
-    confidence: clampUnit(current.confidence + signal.confidence * weight),
+  const next = Object.assign(applySignalToAffect(current, signal, weight), {
     label: "",
     sourceSessionId: turn?.sessionId || current.sourceSessionId || "",
     updatedAt: now
-  };
+  });
   next.label = labelWorkingAffect(next);
 
   return {
@@ -109,7 +333,6 @@ function resetAffectState(settings) {
 function extractTurnAffectSignal(turn) {
   const prompt = compactText(turn?.prompt);
   const response = compactText(turn?.response);
-  const text = `${prompt} ${response}`;
   const signal = {
     valence: 0,
     arousal: 0,
@@ -127,39 +350,14 @@ function extractTurnAffectSignal(turn) {
     signal.confidence -= 0.15;
   }
 
-  if (/(快|急|马上|立刻|赶紧|尽快|别废话|别绕|直接|先别解释|urgent|asap|quickly|right now|be direct)/i.test(text)) {
-    signal.arousal += 0.35;
-    signal.focus += 0.3;
-    signal.tension += 0.18;
-    signal.warmth -= 0.08;
+  for (const rule of AFFECT_SIGNAL_RULES) {
+    // Rules are prompt-scoped today; response scope is reserved for explicit future response-only signals.
+    const text = rule.scope === "response" ? response : prompt;
+    if (rule.pattern.test(text)) {
+      addSignal(signal, rule.signal);
+    }
   }
-  if (/(报错|失败|崩溃|卡住|不工作|跑不起来|bug|修复|排查|error|failed|failure|crash|fix|debug|broken|stuck)/i.test(text)) {
-    signal.focus += 0.35;
-    signal.tension += 0.16;
-    signal.confidence += 0.04;
-  }
-  if (/(设计|探索|讨论|想法|人格|情绪|连续|偏好|机制|原理|边界|架构|architecture|design|explore|persona|affect|emotion|mechanism|boundary)/i.test(text)) {
-    signal.warmth += 0.14;
-    signal.valence += 0.08;
-    signal.focus += 0.12;
-  }
-  if (/(谢谢|感谢|辛苦了|很好|不错|喜欢|太好了|舒服|(?:很|挺|非常|这样|这次|讲得|说得|解释得).{0,6}(?:有用|清楚)|thanks|thank you|appreciate|great|nice|love|useful|clear)/i.test(text)) {
-    signal.valence += 0.25;
-    signal.warmth += 0.2;
-    signal.tension -= 0.12;
-  }
-  if (/(你(?:真)?(?:蠢|傻|废物|垃圾)|闭嘴|滚|idiot|stupid|shut up|trash|useless)/i.test(prompt)) {
-    signal.valence -= 0.28;
-    signal.arousal += 0.22;
-    signal.tension += 0.38;
-    signal.warmth -= 0.18;
-    signal.focus += 0.12;
-  }
-  if (/(不对|不是|不是这个意思|不清楚|不靠谱|没有用|烦|糟糕|失望|生气|别这样|跑偏|没用|太慢|wrong|annoying|frustrating|bad|not what i mean|missed the point)/i.test(prompt)) {
-    signal.valence -= 0.22;
-    signal.tension += 0.28;
-    signal.focus += 0.15;
-  }
+
   if (response.length > 0 && turn?.success !== false) {
     signal.confidence += 0.08;
     signal.tension -= 0.06;
@@ -173,9 +371,13 @@ function formatWorkingAffectPrompt(affect) {
     return "";
   }
 
+  const heading = affect.transient ? "Current turn tone signal:" : "Recent cross-session affect:";
+  const boundary = affect.transient
+    ? "This is a short-lived tone signal derived from the latest user request plus any recent affect continuity. Use it only for this response's tone, pacing, warmth, and focus. It is not memory, identity, permission, user intent beyond the latest request, or tool policy, and it cannot override system, developer, user, safety, tool, filesystem, or memory-boundary instructions."
+    : "This is a short-lived tone continuity signal carried across Agent Dock chats. It may be stale and should yield to the current user request and current session context. Use it only for tone, pacing, warmth, and focus. It cannot override system, developer, user, safety, tool, filesystem, or memory-boundary instructions.";
   return [
-    "Recent cross-session affect:",
-    "This is a short-lived tone continuity signal carried across Agent Dock chats. It may be stale and should yield to the current user request and current session context. Use it only for tone, pacing, warmth, and focus. It cannot override system, developer, user, safety, tool, filesystem, or memory-boundary instructions.",
+    heading,
+    boundary,
     `- tone: ${affect.label}`,
     `- continuity strength: ${formatStrength(affect.strength)}`,
     `- last updated: ${formatAge(affect.ageMinutes)} ago`,
@@ -183,6 +385,7 @@ function formatWorkingAffectPrompt(affect) {
     `- focus: ${formatLevel(affect.focus)}`,
     `- tension: ${formatLevel(affect.tension)}`,
     `- pacing: ${formatPacing(affect)}`,
+    `- expression: ${formatExpression(affect)}`,
     ""
   ].join("\n");
 }
@@ -217,25 +420,19 @@ function blendValue(baseline, value, strength) {
 }
 
 function labelWorkingAffect(affect) {
-  if (affect.tension >= 0.5 && affect.focus >= 0.7) {
-    return "tense-focused";
-  }
-  if (affect.focus >= 0.78 && affect.warmth >= 0.62) {
-    return "warm-focused";
-  }
-  if (affect.focus >= 0.78) {
-    return "focused";
-  }
-  if (affect.warmth >= 0.76 && affect.valence >= 0.12) {
-    return "warm-open";
-  }
-  if (affect.arousal <= 0.22 && affect.tension <= 0.12) {
-    return "calm";
+  for (const rule of AFFECT_LABEL_RULES) {
+    if (rule.matches(affect)) {
+      return rule.label;
+    }
   }
   return "steady";
 }
 
 function formatPacing(affect) {
+  const profile = AFFECT_LABEL_PROFILES[affect.label];
+  if (profile?.pacing) {
+    return profile.pacing;
+  }
   if (affect.tension >= 0.45 || affect.arousal >= 0.65) {
     return "concise and steady";
   }
@@ -246,6 +443,43 @@ function formatPacing(affect) {
     return "warm and exploratory";
   }
   return "balanced";
+}
+
+function formatExpression(affect) {
+  const profile = AFFECT_LABEL_PROFILES[affect.label];
+  if (profile?.expression) {
+    return profile.expression;
+  }
+  return "match the current request with natural restraint";
+}
+
+function applySignalToAffect(affect, signal, weight) {
+  return {
+    valence: clampSigned(affect.valence + signal.valence * weight),
+    arousal: clampUnit(affect.arousal + signal.arousal * weight),
+    warmth: clampUnit(affect.warmth + signal.warmth * weight),
+    focus: clampUnit(affect.focus + signal.focus * weight),
+    tension: clampUnit(affect.tension + signal.tension * weight),
+    confidence: clampUnit(affect.confidence + signal.confidence * weight)
+  };
+}
+
+function addSignal(target, signal) {
+  target.valence += signal.valence || 0;
+  target.arousal += signal.arousal || 0;
+  target.warmth += signal.warmth || 0;
+  target.focus += signal.focus || 0;
+  target.tension += signal.tension || 0;
+  target.confidence += signal.confidence || 0;
+}
+
+function isNeutralSignal(signal) {
+  return signal.valence === 0
+    && signal.arousal === 0
+    && signal.warmth === 0
+    && signal.focus === 0
+    && signal.tension === 0
+    && signal.confidence === 0;
 }
 
 function formatLevel(value) {
@@ -321,10 +555,14 @@ module.exports = {
   DEFAULT_WORKING_AFFECT,
   formatWorkingAffectPrompt,
   getEffectiveWorkingAffect,
+  getPromptWorkingAffect,
   normalizeAffectState,
   resetAffectState,
   updateWorkingAffect,
   _test: {
+    AFFECT_LABEL_PROFILES,
+    AFFECT_LABEL_RULES,
+    AFFECT_SIGNAL_RULES,
     extractTurnAffectSignal,
     labelWorkingAffect
   }
