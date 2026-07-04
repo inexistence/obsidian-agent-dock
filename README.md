@@ -97,6 +97,9 @@ profile use, disable automatic observations, tune limits, or clear the profile.
 
 ## Architecture
 
+For a detailed maintainer-oriented overview of runtime modules, data boundaries,
+and extension points, see `docs/architecture.md`.
+
 The plugin keeps `main.js` as a thin Obsidian entrypoint and puts implementation code under `src/`:
 
 ```text
