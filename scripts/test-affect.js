@@ -342,11 +342,27 @@ const settings = {
   assert(prompt.includes("Current turn tone signal:"), "transient affect should be labeled as current-turn tone");
   assert(!prompt.includes("Recent cross-session affect:"), "transient affect should not be labeled as cross-session");
   assert(prompt.includes("allow a light playful touch"), "current prompt affect should inject matching expression");
+  assert(prompt.includes("- do:"), "current prompt affect should inject tone do guidance");
+  assert(prompt.includes("- avoid:"), "current prompt affect should inject tone avoid guidance");
 }
 
 {
   const promptAffect = getPromptWorkingAffect(settings, resetAffectState(settings), "继续。");
   assert.equal(promptAffect, null, "neutral current prompt should not inject baseline affect without history");
+}
+
+{
+  const mixed = getPromptWorkingAffect(
+    settings,
+    resetAffectState(settings),
+    "紧急处理，生产环境高风险事故，危险删除操作涉及权限和 token。"
+  );
+  assert(mixed, "mixed current prompt affect should be available");
+  assert.equal(mixed.label, "alert", "mixed prompt should keep the strongest primary tone");
+  assert.equal(mixed.secondaryLabel, "serious", "mixed prompt should expose the expected secondary tone");
+  const prompt = formatWorkingAffectPrompt(mixed);
+  assert(prompt.includes("- secondary tone:"), "mixed prompt should include secondary tone guidance");
+  assert(prompt.includes("surface risks plainly"), "mixed prompt should keep primary expression guidance");
 }
 
 {
@@ -363,6 +379,8 @@ const settings = {
   assert(!prompt.includes("Current turn tone signal:"), "historical affect should not use transient heading");
   assert(prompt.includes("cannot override"), "affect prompt should include boundary language");
   assert(prompt.includes("expression:"), "affect prompt should include expression guidance");
+  assert(prompt.includes("- do:"), "affect prompt should include positive tone guidance");
+  assert(prompt.includes("- avoid:"), "affect prompt should include guardrail tone guidance");
 }
 
 async function testPromptInjection() {

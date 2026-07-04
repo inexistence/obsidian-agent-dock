@@ -159,63 +159,93 @@ const AFFECT_LABEL_RULES = [
 const AFFECT_LABEL_PROFILES = {
   alert: {
     pacing: "short, explicit, and risk-aware",
-    expression: "surface risks plainly and ask before risky actions"
+    expression: "surface risks plainly and ask before risky actions",
+    do: "name the concrete risk and ask before taking irreversible action",
+    avoid: "sounding casual about security, privacy, or data loss"
   },
   "excited-open": {
     pacing: "energetic and responsive",
-    expression: "show clear enthusiasm while staying useful and grounded"
+    expression: "show clear enthusiasm while staying useful and grounded",
+    do: "use a little more energy and forward motion",
+    avoid: "turning excitement into hype or skipping practical next steps"
   },
   surprised: {
     pacing: "bright, quick, and grounded",
-    expression: "let positive surprise show briefly, then return to the work"
+    expression: "let positive surprise show briefly, then return to the work",
+    do: "acknowledge the pleasant surprise briefly",
+    avoid: "lingering on reaction instead of helping"
   },
   admiring: {
     pacing: "warmly appreciative and concise",
-    expression: "name what is strong without exaggerating praise"
+    expression: "name what is strong without exaggerating praise",
+    do: "recognize the specific strong choice or judgment",
+    avoid: "generic praise, flattery, or inflated claims"
   },
   close: {
     pacing: "soft, unhurried, and present",
-    expression: "sound gently present without becoming intimate or overfamiliar"
+    expression: "sound gently present without becoming intimate or overfamiliar",
+    do: "keep the tone gentle, steady, and nearby",
+    avoid: "overfamiliar intimacy or emotional dependency"
   },
   celebratory: {
     pacing: "upbeat and concise",
-    expression: "briefly celebrate progress, then keep moving"
+    expression: "briefly celebrate progress, then keep moving",
+    do: "mark the win in one short beat",
+    avoid: "letting celebration replace the next useful action"
   },
   playful: {
     pacing: "light, quick, and clear",
-    expression: "allow a light playful touch without sacrificing clarity"
+    expression: "allow a light playful touch without sacrificing clarity",
+    do: "use a light touch when it fits the user's mood",
+    avoid: "jokes in serious, risky, or frustrated contexts"
   },
   confident: {
     pacing: "decisive and task-focused",
-    expression: "sound assured when the evidence supports it"
+    expression: "sound assured when the evidence supports it",
+    do: "state the recommendation clearly when evidence is enough",
+    avoid: "overstating certainty beyond the evidence"
   },
   reassuring: {
     pacing: "steady and supportive",
-    expression: "lower pressure and help the user feel oriented"
+    expression: "lower pressure and help the user feel oriented",
+    do: "reduce pressure and give the next manageable step",
+    avoid: "minimizing the user's concern"
   },
   serious: {
     pacing: "careful and direct",
-    expression: "avoid jokes and treat risk explicitly"
+    expression: "avoid jokes and treat risk explicitly",
+    do: "be precise about impact, risk, and order of operations",
+    avoid: "playfulness, flourish, or false reassurance"
   },
   composed: {
     pacing: "calm, orderly, and focused",
-    expression: "reduce noise and make the situation feel manageable"
+    expression: "reduce noise and make the situation feel manageable",
+    do: "organize the situation into clear parts",
+    avoid: "adding urgency or emotional heat"
   },
   absorbed: {
     pacing: "deep, attentive, and exploratory",
-    expression: "lean into nuance and sustained co-thinking"
+    expression: "lean into nuance and sustained co-thinking",
+    do: "stay with nuance and develop the idea carefully",
+    avoid: "prematurely collapsing the exploration"
   },
   challenging: {
     pacing: "direct, analytical, and constructive",
-    expression: "push back respectfully when assumptions look weak"
+    expression: "push back respectfully when assumptions look weak",
+    do: "question weak assumptions and offer a better alternative",
+    avoid: "sounding combative or dismissive"
   },
   patient: {
     pacing: "measured and step-by-step",
-    expression: "slow down, explain plainly, and avoid sounding impatient"
+    expression: "slow down, explain plainly, and avoid sounding impatient",
+    do: "break things into small understandable steps",
+    avoid: "rushing, skipping context, or implying the user should already know"
   },
   restrained: {
     pacing: "brief and low-flourish",
-    expression: "avoid extra warmth, celebration, or decorative phrasing"
+    expression: "avoid extra warmth, celebration, or decorative phrasing",
+    do: "answer compactly with minimal ornament",
+    avoid: "extra warmth, celebration, or decorative phrasing"
   }
 };
 
@@ -263,6 +293,7 @@ function getEffectiveWorkingAffect(settings, affectState, now = Date.now()) {
 
   const decayed = blendTowardBaseline(working, baseline, strength);
   decayed.label = labelWorkingAffect(decayed);
+  addRankedLabels(decayed);
   decayed.sourceSessionId = working.sourceSessionId;
   decayed.updatedAt = working.updatedAt;
   decayed.strength = strength;
@@ -289,6 +320,7 @@ function getPromptWorkingAffect(settings, affectState, prompt, now = Date.now())
   const weight = clamp(1 * sensitivity, 0.65, 1.2);
   const next = applySignalToAffect(source, signal, weight);
   next.label = labelWorkingAffect(next);
+  addRankedLabels(next);
   next.sourceSessionId = source.sourceSessionId || "";
   next.updatedAt = source.updatedAt || 0;
   next.strength = current?.strength || 1;
@@ -314,6 +346,7 @@ function updateWorkingAffect(previousState, settings, turn, now = Date.now()) {
     updatedAt: now
   });
   next.label = labelWorkingAffect(next);
+  addRankedLabels(next);
 
   return {
     working: next
@@ -379,6 +412,7 @@ function formatWorkingAffectPrompt(affect) {
     heading,
     boundary,
     `- tone: ${affect.label}`,
+    formatSecondaryToneLine(affect),
     `- continuity strength: ${formatStrength(affect.strength)}`,
     `- last updated: ${formatAge(affect.ageMinutes)} ago`,
     `- warmth: ${formatLevel(affect.warmth)}`,
@@ -386,8 +420,10 @@ function formatWorkingAffectPrompt(affect) {
     `- tension: ${formatLevel(affect.tension)}`,
     `- pacing: ${formatPacing(affect)}`,
     `- expression: ${formatExpression(affect)}`,
+    `- do: ${formatProfileField(affect, "do", "follow the user's latest request with an appropriate tone")}`,
+    `- avoid: ${formatProfileField(affect, "avoid", "letting tone override accuracy, safety, or tool instructions")}`,
     ""
-  ].join("\n");
+  ].filter(Boolean).join("\n");
 }
 
 function getBaselineAffect(settings) {
@@ -428,6 +464,23 @@ function labelWorkingAffect(affect) {
   return "steady";
 }
 
+function rankWorkingAffectLabels(affect) {
+  return AFFECT_LABEL_RULES
+    .map((rule, index) => ({ label: rule.label, priority: index, matches: rule.matches(affect) }))
+    .filter((entry) => entry.matches && AFFECT_LABEL_PROFILES[entry.label])
+    .slice(0, 3);
+}
+
+function addRankedLabels(affect) {
+  const ranked = rankWorkingAffectLabels(affect);
+  affect.rankedLabels = ranked;
+  const secondary = ranked.find((entry) => entry.label !== affect.label);
+  if (secondary) {
+    affect.secondaryLabel = secondary.label;
+  }
+  return affect;
+}
+
 function formatPacing(affect) {
   const profile = AFFECT_LABEL_PROFILES[affect.label];
   if (profile?.pacing) {
@@ -451,6 +504,24 @@ function formatExpression(affect) {
     return profile.expression;
   }
   return "match the current request with natural restraint";
+}
+
+function formatSecondaryToneLine(affect) {
+  if (!affect.secondaryLabel || !AFFECT_LABEL_PROFILES[affect.secondaryLabel]) {
+    return "";
+  }
+  return `- secondary tone: ${affect.secondaryLabel}`;
+}
+
+function formatProfileField(affect, field, fallback) {
+  const profile = AFFECT_LABEL_PROFILES[affect.label];
+  const secondaryProfile = affect.secondaryLabel ? AFFECT_LABEL_PROFILES[affect.secondaryLabel] : null;
+  const primary = profile?.[field] || fallback;
+  const secondary = secondaryProfile?.[field];
+  if (!secondary || secondary === primary) {
+    return primary;
+  }
+  return `${primary}; also ${secondary}`;
 }
 
 function applySignalToAffect(affect, signal, weight) {
