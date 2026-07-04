@@ -1,0 +1,34 @@
+main.js
+  s_62e4ccce3bd4cd::t_d5e240bac3a8db 1762-1764,1768-1770,1774-1776,1780-1782,1786-1788,1792-1794,1798-1800,1804-1806,1810-1812,1816-1818,1822-1824,1828-1830,1834-1836,1840-1842,1846-1848,1896,1923,1949,2015,2023-2024,2026,2067-2068,2070-2083,2107-2124
+  s_62e4ccce3bd4cd::t_b245293c6a9bd0 2069
+  s_62e4ccce3bd4cd::t_d367c52a14f237 2125-2126
+src/affect/WorkingAffectStore.js
+  s_62e4ccce3bd4cd::t_6b8f6376167205 162-164,168-170,174-176,180-182,186-188,192-194,198-200,204-206,210-212,216-218,222-224,228-230,234-236,240-242,246-248
+  s_62e4ccce3bd4cd::t_ee0e46dc60fb89 296,323,349,415,423-424,426,467,471-483,507-524
+  s_62e4ccce3bd4cd::t_01cc346638ae58 469
+  s_62e4ccce3bd4cd::t_193b9a090dc68e 468,470
+  s_62e4ccce3bd4cd::t_0a419ec7a1f7d6 525-526
+scripts/test-affect.js
+  s_62e4ccce3bd4cd::t_78022dd0cb5561 345-346,382-383
+  s_62e4ccce3bd4cd::t_2df881892603b9 355-357,359-360,363-364,366-368
+  s_62e4ccce3bd4cd::t_5e55014becfc6e 358,361,365
+  s_62e4ccce3bd4cd::t_01cc346638ae58 362
+  s_62e4ccce3bd4cd::t_712c2d1d87c974 354
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "d976dc103928e33d109c02166f15910d38ee5957",
+  "prompts": {},
+  "logical_commit_id": "d976dc103928e33d109c02166f15910d38ee5957",
+  "sessions": {
+    "s_62e4ccce3bd4cd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c8d-4d56-7fa2-af78-e759dd021cdb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
