@@ -50,41 +50,94 @@ class AgentDockSettingTab extends PluginSettingTab {
             this.plugin.settings.agentId = value;
             this.plugin.refreshAgent();
             await this.plugin.saveSettings();
+            this.display();
           });
       });
 
-    new Setting(containerEl)
-      .setName(translate("settings.codexPath.name"))
-      .setDesc(translate("settings.codexPath.desc"))
-      .addText((text) => text
-        .setPlaceholder("/opt/homebrew/bin/codex")
-        .setValue(this.plugin.settings.codexPath)
-        .onChange(async (value) => {
-          this.plugin.settings.codexPath = value.trim() || DEFAULT_SETTINGS.codexPath;
-          await this.plugin.saveSettings();
-        }));
+    if (this.plugin.settings.agentId === "codex") {
+      new Setting(containerEl)
+        .setName(translate("settings.codexPath.name"))
+        .setDesc(translate("settings.codexPath.desc"))
+        .addText((text) => text
+          .setPlaceholder("/opt/homebrew/bin/codex")
+          .setValue(this.plugin.settings.codexPath)
+          .onChange(async (value) => {
+            this.plugin.settings.codexPath = value.trim() || DEFAULT_SETTINGS.codexPath;
+            await this.plugin.saveSettings();
+          }));
 
-    new Setting(containerEl)
-      .setName(translate("settings.args.name"))
-      .setDesc(translate("settings.args.desc"))
-      .addText((text) => text
-        .setPlaceholder("exec {{prompt}}")
-        .setValue(this.plugin.settings.args)
-        .onChange(async (value) => {
-          this.plugin.settings.args = value.trim() || DEFAULT_SETTINGS.args;
-          await this.plugin.saveSettings();
-        }));
+      new Setting(containerEl)
+        .setName(translate("settings.args.name"))
+        .setDesc(translate("settings.args.desc"))
+        .addText((text) => text
+          .setPlaceholder("exec {{prompt}}")
+          .setValue(this.plugin.settings.args)
+          .onChange(async (value) => {
+            this.plugin.settings.args = value.trim() || DEFAULT_SETTINGS.args;
+            await this.plugin.saveSettings();
+          }));
 
-    new Setting(containerEl)
-      .setName(translate("settings.interactiveArgs.name"))
-      .setDesc(translate("settings.interactiveArgs.desc"))
-      .addText((text) => text
-        .setPlaceholder("--sandbox workspace-write")
-        .setValue(this.plugin.settings.interactiveArgs)
-        .onChange(async (value) => {
-          this.plugin.settings.interactiveArgs = value.trim();
-          await this.plugin.saveSettings();
-        }));
+      new Setting(containerEl)
+        .setName(translate("settings.interactiveArgs.name"))
+        .setDesc(translate("settings.interactiveArgs.desc"))
+        .addText((text) => text
+          .setPlaceholder("--sandbox workspace-write")
+          .setValue(this.plugin.settings.interactiveArgs)
+          .onChange(async (value) => {
+            this.plugin.settings.interactiveArgs = value.trim();
+            await this.plugin.saveSettings();
+          }));
+    }
+
+    if (this.plugin.settings.agentId === "cursor") {
+      new Setting(containerEl)
+        .setName(translate("settings.cursorPath.name"))
+        .setDesc(translate("settings.cursorPath.desc"))
+        .addText((text) => text
+          .setPlaceholder("~/.local/bin/agent")
+          .setValue(this.plugin.settings.cursorPath)
+          .onChange(async (value) => {
+            this.plugin.settings.cursorPath = value.trim() || DEFAULT_SETTINGS.cursorPath;
+            await this.plugin.saveSettings();
+          }));
+
+      new Setting(containerEl)
+        .setName(translate("settings.cursorExtraArgs.name"))
+        .setDesc(translate("settings.cursorExtraArgs.desc"))
+        .addText((text) => text
+          .setPlaceholder("--api-key $CURSOR_API_KEY")
+          .setValue(this.plugin.settings.cursorExtraArgs)
+          .onChange(async (value) => {
+            this.plugin.settings.cursorExtraArgs = value.trim();
+            await this.plugin.saveSettings();
+          }));
+
+      new Setting(containerEl)
+        .setName(translate("settings.cursorInteractiveArgs.name"))
+        .setDesc(translate("settings.cursorInteractiveArgs.desc"))
+        .addText((text) => text
+          .setPlaceholder("")
+          .setValue(this.plugin.settings.cursorInteractiveArgs)
+          .onChange(async (value) => {
+            this.plugin.settings.cursorInteractiveArgs = value.trim();
+            await this.plugin.saveSettings();
+          }));
+
+      new Setting(containerEl)
+        .setName(translate("settings.cursorPermissionPolicy.name"))
+        .setDesc(translate("settings.cursorPermissionPolicy.desc"))
+        .addDropdown((dropdown) => {
+          dropdown
+            .addOption("allow-once", translate("settings.cursorPermissionPolicy.allowOnce"))
+            .addOption("allow-always", translate("settings.cursorPermissionPolicy.allowAlways"))
+            .addOption("reject-once", translate("settings.cursorPermissionPolicy.rejectOnce"))
+            .setValue(this.plugin.settings.cursorPermissionPolicy)
+            .onChange(async (value) => {
+              this.plugin.settings.cursorPermissionPolicy = value || DEFAULT_SETTINGS.cursorPermissionPolicy;
+              await this.plugin.saveSettings();
+            });
+        });
+    }
 
     new Setting(containerEl)
       .setName(translate("settings.workingDirectory.name"))

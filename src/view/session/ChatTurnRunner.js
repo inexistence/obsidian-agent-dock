@@ -57,13 +57,16 @@ async function runChatTurn({
       if (update.kind === "content") {
         assistantMessage.content += update.text;
         appendTimelineContent(assistantMessage, update.text);
+      } else if (update.kind === "tool" && update.toolCallId) {
+        mergeToolTimelineUpdate(assistantMessage, update);
       } else {
         assistantMessage.timeline.push(update);
       }
       onTurnUpdate(session, assistantMessage);
     }, conversation, {
       signal: run.abortController.signal,
-      sessionId: session.id
+      sessionId: session.id,
+      dockSession: session
     });
 
     completeAssistantMessage(assistantMessage);
@@ -104,6 +107,34 @@ async function runChatTurn({
 function completeAssistantMessage(message) {
   message.isLoading = false;
   message.isComplete = true;
+}
+
+function mergeToolTimelineUpdate(assistantMessage, update) {
+  const existing = findLastToolTimelineEntry(assistantMessage.timeline, update.toolCallId);
+  if (!existing) {
+    assistantMessage.timeline.push(update);
+    return;
+  }
+
+  existing.title = update.title || existing.title;
+  if (update.summary) {
+    existing.summary = update.summary;
+  }
+  if (update.detail) {
+    existing.detail = existing.detail
+      ? `${existing.detail}\n\n${update.detail}`
+      : update.detail;
+  }
+}
+
+function findLastToolTimelineEntry(timeline, toolCallId) {
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const entry = timeline[index];
+    if (entry?.kind === "tool" && entry.toolCallId === toolCallId) {
+      return entry;
+    }
+  }
+  return null;
 }
 
 module.exports = {

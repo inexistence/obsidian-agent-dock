@@ -1,3 +1,5 @@
+const { normalizeProviderState } = require("../../storage/providerState");
+
 class SessionStore {
   constructor(options = {}) {
     this.sessions = [];
@@ -30,7 +32,8 @@ class SessionStore {
       draft: "",
       createdAt: now,
       updatedAt: now,
-      messages: []
+      messages: [],
+      providerState: {}
     };
     this.sessions.push(session);
     this.activeSessionId = session.id;
@@ -108,7 +111,8 @@ function normalizeSession(session, fallbackTitle = "Chat") {
     draft: typeof session.draft === "string" ? session.draft : "",
     createdAt: normalizeTimestamp(session.createdAt),
     updatedAt: normalizeTimestamp(session.updatedAt),
-    messages: Array.isArray(session.messages) ? session.messages.map(normalizeMessage).filter(Boolean) : []
+    messages: Array.isArray(session.messages) ? session.messages.map(normalizeMessage).filter(Boolean) : [],
+    providerState: normalizeProviderState(session.providerState)
   };
 }
 

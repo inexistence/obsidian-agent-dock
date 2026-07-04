@@ -11,7 +11,10 @@ const { t } = require("../../i18n");
 const { applyModeArgs } = require("../../modes");
 const { buildPromptWithMetadata } = require("../../prompt");
 const { DEFAULT_SETTINGS } = require("../../settings");
-const { formatMemoryLine } = require("../../storage/MemoryStore");
+const {
+  emitContextCompressedNotice,
+  emitMemoryNotice
+} = require("../shared/memoryNotices");
 const { codexJsonEventToUpdates } = require("./jsonEvents");
 
 class CodexAgent {
@@ -33,25 +36,11 @@ class CodexAgent {
     });
     const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, { memories });
     const finalPrompt = promptResult.prompt;
-    if (promptResult.context.memoryCount > 0) {
-      const memorySummary = formatMemoryNoticeSummary(memories, translate);
-      onUpdate({
-        kind: "notice",
-        title: translate("codex.memoryReferenced.title"),
-        summary: memorySummary,
-        detail: memories.map(formatMemoryLine).join("\n")
-      });
+    if (memories.length > 0) {
+      emitMemoryNotice(onUpdate, memories, translate, "codex");
     }
     if (promptResult.context.compressed) {
-      onUpdate({
-        kind: "notice",
-        title: translate("codex.contextCompressed.title"),
-        summary: translate("codex.contextCompressed.summary", {
-          original: formatNumber(promptResult.context.originalChars),
-          prompt: formatNumber(promptResult.context.promptChars),
-          limit: formatNumber(promptResult.context.limitChars)
-        })
-      });
+      emitContextCompressedNotice(onUpdate, promptResult.context, translate, "codex");
     }
     const outputPath = path.join(
       os.tmpdir(),
@@ -270,26 +259,6 @@ async function readOutputFile(outputPath) {
   } catch {
     return "";
   }
-}
-
-function formatNumber(value) {
-  return new Intl.NumberFormat().format(value);
-}
-
-function formatMemoryNoticeSummary(memories, translate) {
-  const count = memories.length;
-  const lines = [
-    translate("codex.memoryReferenced.summary", {
-      count,
-      noteLabel: count === 1 ? "note" : "notes"
-    })
-  ];
-  const visibleMemories = memories.slice(0, 5).map(formatMemoryLine);
-  lines.push(...visibleMemories);
-  if (memories.length > visibleMemories.length) {
-    lines.push(translate("codex.memoryReferenced.more", { count: memories.length - visibleMemories.length }));
-  }
-  return lines.join("\n");
 }
 
 function createAbortError(translate) {

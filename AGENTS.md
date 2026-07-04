@@ -25,6 +25,10 @@ should stay ready for other agent CLIs such as Claude Code or Cursor.
 - `src/agents/AgentRegistry.js`: provider registry. Add future providers here.
 - `src/agents/codex/CodexAgent.js`: Codex CLI process runner.
 - `src/agents/codex/jsonEvents.js`: maps Codex JSONL events into the normalized UI event protocol.
+- `src/agents/cursor/CursorAgent.js`: Cursor CLI ACP adapter.
+- `src/agents/cursor/AcpClient.js`: JSON-RPC stdio client for `agent acp`.
+- `src/agents/cursor/acpEvents.js`: maps ACP `session/update` events into the normalized UI event protocol.
+- `src/agents/cursor/modes.js`: maps plugin mode settings to Cursor ACP modes.
 - `src/modes.js`: sandbox/mode definitions.
 - `src/settings.js`: defaults and settings migration.
 - `src/settingsTab.js`: Obsidian settings UI.
@@ -209,6 +213,41 @@ Current modes:
 - `fullAccess`: broad local access.
 
 The old `ask` mode was removed and is migrated to `readOnly` in `src/settings.js`.
+
+## Cursor CLI Integration
+
+The Cursor provider uses ACP over stdio:
+
+```sh
+agent acp
+```
+
+Typical flow inside `CursorAgent`:
+
+1. `initialize`
+2. `authenticate` with `methodId: "cursor_login"`
+3. `session/new` or `session/load` (reuse persisted `providerState.cursor.acpSessionId` per Agent Dock chat session)
+4. `session/prompt`
+5. Handle `session/update` notifications and `session/request_permission` requests
+
+Default executable path:
+
+```sh
+~/.local/bin/agent
+```
+
+Users must authenticate before use with `agent login` or `CURSOR_API_KEY`.
+
+Cursor ACP mode mapping from the composer pill:
+
+- `readOnly` -> `ask`
+- `workspaceWrite` / `fullAccess` -> `agent`
+
+Permission requests default to `allow-once` via `cursorPermissionPolicy`.
+
+Within one Agent Dock chat session, reuse the same ACP session across turns. Persist only `providerState.cursor.acpSessionId` in `sessions/<session-id>.json`; do not persist process handles. Idle ACP subprocesses are closed after 30 minutes without use.
+
+Cursor extension methods such as `cursor/ask_question` and `cursor/create_plan` must be answered promptly so the agent does not block. v1 auto-skips questions and auto-accepts plans, emitting `notice` events when useful.
 
 ## Future Agent Providers
 

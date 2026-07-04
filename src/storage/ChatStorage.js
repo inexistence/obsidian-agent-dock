@@ -1,4 +1,5 @@
 const { normalizePath } = require("obsidian");
+const { normalizeProviderState, serializeProviderState } = require("./providerState");
 
 const CHAT_STATE_VERSION = 1;
 const SESSION_DIR_NAME = "sessions";
@@ -152,7 +153,8 @@ function serializeSession(session, settings) {
     draft: String(session.draft || ""),
     createdAt: normalizeTimestamp(session.createdAt, now),
     updatedAt: normalizeTimestamp(session.updatedAt, now),
-    messages
+    messages,
+    providerState: serializeProviderState(session.providerState)
   };
 }
 
@@ -198,7 +200,8 @@ function normalizePersistedSession(rawSession, indexEntry) {
     draft: typeof source.draft === "string" ? source.draft : "",
     createdAt: normalizeTimestamp(source.createdAt, indexEntry?.createdAt || Date.now()),
     updatedAt: normalizeTimestamp(source.updatedAt, indexEntry?.updatedAt || Date.now()),
-    messages
+    messages,
+    providerState: normalizeProviderState(source.providerState)
   };
 }
 

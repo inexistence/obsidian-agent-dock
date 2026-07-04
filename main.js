@@ -135,6 +135,17 @@ module.exports = {
     "settings.args.desc": "Use {{prompt}} where the prompt should be inserted.",
     "settings.interactiveArgs.name": "Interactive arguments",
     "settings.interactiveArgs.desc": "Optional arguments used when opening the full agent TUI in Terminal.",
+    "settings.cursorPath.name": "Cursor executable path",
+    "settings.cursorPath.desc": "Full path to the Cursor CLI `agent` executable. Run `agent login` once before using ACP.",
+    "settings.cursorExtraArgs.name": "Cursor extra arguments",
+    "settings.cursorExtraArgs.desc": "Optional arguments placed before the `acp` subcommand, such as --api-key or endpoint flags.",
+    "settings.cursorInteractiveArgs.name": "Cursor interactive arguments",
+    "settings.cursorInteractiveArgs.desc": "Optional arguments used when opening the Cursor CLI TUI in Terminal.",
+    "settings.cursorPermissionPolicy.name": "Cursor permission policy",
+    "settings.cursorPermissionPolicy.desc": "Default response when Cursor requests tool permission over ACP.",
+    "settings.cursorPermissionPolicy.allowOnce": "Allow once",
+    "settings.cursorPermissionPolicy.allowAlways": "Allow always",
+    "settings.cursorPermissionPolicy.rejectOnce": "Reject once",
     "settings.workingDirectory.name": "Working directory",
     "settings.workingDirectory.desc": "Defaults to the vault folder.",
     "settings.assistantStyle.name": "Assistant style",
@@ -255,7 +266,42 @@ module.exports = {
     "codex.memoryUpdated.summary": "Updated {count} local historical {noteLabel} for future chats.",
     "codex.memorySkipped.title": "Memory skipped",
     "codex.memorySkipped.summary": "Agent Dock could not save automatic memory. Check the console for details.",
-    "codex.abortError": "Codex run was stopped."
+    "codex.abortError": "Codex run was stopped.",
+    "cursor.thinking": "Thinking",
+    "cursor.userEcho": "User echo",
+    "cursor.toolCall": "Tool call",
+    "cursor.plan": "Plan",
+    "cursor.planRemoved": "Plan removed",
+    "cursor.modeUpdated.title": "Mode updated",
+    "cursor.modeUpdated.summary": "Cursor mode is now {mode}.",
+    "cursor.modeUpdated.summaryGeneric": "Cursor mode changed.",
+    "cursor.usage": "Usage",
+    "cursor.authFailed": "Cursor authentication failed. Run `agent login` in a terminal or configure CURSOR_API_KEY.",
+    "cursor.spawnFailed.title": "Cursor CLI failed to start",
+    "cursor.spawnFailed.summary": "Check the Cursor executable path in Agent Dock settings.",
+    "cursor.abortError": "Cursor run was stopped.",
+    "cursor.terminalMacOnly": "Interactive Cursor launch is currently implemented for macOS Terminal.",
+    "cursor.terminalExitedWithCode": "Terminal exited with code {code}",
+    "cursor.memoryReferenced.title": "Local memory referenced",
+    "cursor.memoryReferenced.summary": "Referenced {count} relevant local historical {noteLabel} in the prompt.",
+    "cursor.memoryReferenced.more": "- ... {count} more",
+    "cursor.contextCompressed.title": "Context compressed",
+    "cursor.contextCompressed.summary": "Compressed {original} chars into {prompt} / {limit} chars.",
+    "cursor.memoryUpdated.title": "Memory updated",
+    "cursor.memoryUpdated.summary": "Updated {count} local historical {noteLabel} for future chats.",
+    "cursor.memorySkipped.title": "Memory skipped",
+    "cursor.memorySkipped.summary": "Agent Dock could not save automatic memory. Check the console for details.",
+    "cursor.sessionReloadFailed.title": "Cursor session reload failed",
+    "cursor.sessionReloadFailed.summary": "Started a fresh Cursor ACP session with full prompt context.",
+    "cursor.planAccepted.title": "Plan accepted",
+    "cursor.planAccepted.summary": "Cursor plan was auto-accepted for this sidebar session.",
+    "cursor.questionSkipped.title": "Question skipped",
+    "cursor.questionSkipped.summary": "Cursor question prompt was auto-skipped in Obsidian.",
+    "cursor.todosUpdated.title": "Todos updated",
+    "cursor.todosUpdated.summary": "Cursor reported {count} todo updates.",
+    "cursor.subagentTask": "Subagent task",
+    "cursor.imageGenerated.title": "Image generated",
+    "cursor.imageGenerated.summary": "Cursor reported an image output."
   }
 };
 
@@ -275,6 +321,17 @@ module.exports = {
     "settings.args.desc": "使用 {{prompt}} 标记提示词插入的位置。",
     "settings.interactiveArgs.name": "交互式参数",
     "settings.interactiveArgs.desc": "在终端打开完整 agent TUI 时使用的可选参数。",
+    "settings.cursorPath.name": "Cursor 可执行文件路径",
+    "settings.cursorPath.desc": "Cursor CLI `agent` 可执行文件的完整路径。使用 ACP 前请先在终端运行 `agent login`。",
+    "settings.cursorExtraArgs.name": "Cursor 额外参数",
+    "settings.cursorExtraArgs.desc": "放在 `acp` 子命令前的可选参数，例如 --api-key 或 endpoint 相关参数。",
+    "settings.cursorInteractiveArgs.name": "Cursor 交互式参数",
+    "settings.cursorInteractiveArgs.desc": "在 Terminal 中打开 Cursor CLI TUI 时使用的可选参数。",
+    "settings.cursorPermissionPolicy.name": "Cursor 权限策略",
+    "settings.cursorPermissionPolicy.desc": "Cursor 通过 ACP 请求工具权限时的默认响应。",
+    "settings.cursorPermissionPolicy.allowOnce": "允许一次",
+    "settings.cursorPermissionPolicy.allowAlways": "始终允许",
+    "settings.cursorPermissionPolicy.rejectOnce": "拒绝一次",
     "settings.workingDirectory.name": "工作目录",
     "settings.workingDirectory.desc": "默认使用当前 vault 文件夹。",
     "settings.assistantStyle.name": "助手风格",
@@ -395,7 +452,42 @@ module.exports = {
     "codex.memoryUpdated.summary": "已为之后的聊天更新 {count} 条本地历史记录。",
     "codex.memorySkipped.title": "已跳过记忆",
     "codex.memorySkipped.summary": "Agent Dock 无法保存自动记忆。请查看控制台详情。",
-    "codex.abortError": "Codex 运行已停止。"
+    "codex.abortError": "Codex 运行已停止。",
+    "cursor.thinking": "思考",
+    "cursor.userEcho": "用户回显",
+    "cursor.toolCall": "工具调用",
+    "cursor.plan": "计划",
+    "cursor.planRemoved": "计划已移除",
+    "cursor.modeUpdated.title": "模式已更新",
+    "cursor.modeUpdated.summary": "Cursor 模式现为 {mode}。",
+    "cursor.modeUpdated.summaryGeneric": "Cursor 模式已变更。",
+    "cursor.usage": "用量",
+    "cursor.authFailed": "Cursor 认证失败。请在终端运行 `agent login`，或配置 CURSOR_API_KEY。",
+    "cursor.spawnFailed.title": "Cursor CLI 启动失败",
+    "cursor.spawnFailed.summary": "请检查 Agent Dock 设置中的 Cursor 可执行文件路径。",
+    "cursor.abortError": "Cursor 运行已停止。",
+    "cursor.terminalMacOnly": "交互式 Cursor 启动目前仅支持 macOS Terminal。",
+    "cursor.terminalExitedWithCode": "终端退出，代码 {code}",
+    "cursor.memoryReferenced.title": "已引用本地记忆",
+    "cursor.memoryReferenced.summary": "提示词中引用了 {count} 条相关本地历史记录。",
+    "cursor.memoryReferenced.more": "- ... 还有 {count} 条",
+    "cursor.contextCompressed.title": "上下文已压缩",
+    "cursor.contextCompressed.summary": "已将 {original} 字符压缩为 {prompt} / {limit} 字符。",
+    "cursor.memoryUpdated.title": "记忆已更新",
+    "cursor.memoryUpdated.summary": "已为之后的聊天更新 {count} 条本地历史记录。",
+    "cursor.memorySkipped.title": "已跳过记忆",
+    "cursor.memorySkipped.summary": "Agent Dock 无法保存自动记忆。请查看控制台详情。",
+    "cursor.sessionReloadFailed.title": "Cursor 会话恢复失败",
+    "cursor.sessionReloadFailed.summary": "已使用完整提示词上下文创建新的 Cursor ACP 会话。",
+    "cursor.planAccepted.title": "计划已接受",
+    "cursor.planAccepted.summary": "已在此侧边栏会话中自动接受 Cursor 计划。",
+    "cursor.questionSkipped.title": "问题已跳过",
+    "cursor.questionSkipped.summary": "已在 Obsidian 中自动跳过 Cursor 提问。",
+    "cursor.todosUpdated.title": "待办已更新",
+    "cursor.todosUpdated.summary": "Cursor 报告了 {count} 项待办更新。",
+    "cursor.subagentTask": "子智能体任务",
+    "cursor.imageGenerated.title": "图像已生成",
+    "cursor.imageGenerated.summary": "Cursor 报告了图像输出。"
   }
 };
 
@@ -1617,15 +1709,60 @@ function buildPromptResult(rawPrompt, contextLimit, memories = [], protectedPref
   };
 }
 
+async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
+  const contextLimit = Number(settings.contextLimitChars) || 258000;
+  const stylePrompt = formatAssistantStylePrompt(settings);
+  const referencedPrompt = buildReferencedPathsPrompt(app, prompt, contextLimit);
+  const memoryPrompt = formatMemoryPrompt(options.memories || []);
+  const promptParts = [
+    stylePrompt,
+    memoryPrompt,
+    referencedPrompt,
+    ["User request:", prompt].join("\n")
+  ];
+
+  return buildPromptResult(
+    promptParts.filter(Boolean).join("\n"),
+    contextLimit,
+    options.memories || [],
+    stylePrompt
+  );
+}
+
 module.exports = {
   buildPrompt,
-  buildPromptWithMetadata
+  buildPromptWithMetadata,
+  buildTurnContextPrompt
+};
+
+},
+"src/cli/paths.js": function(module, exports, __require) {
+const os = require("os");
+const path = require("path");
+
+function expandHomePath(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return text;
+  }
+  if (text === "~") {
+    return os.homedir();
+  }
+  if (text.startsWith("~/")) {
+    return path.join(os.homedir(), text.slice(2));
+  }
+  return text;
+}
+
+module.exports = {
+  expandHomePath
 };
 
 },
 "src/settings.js": function(module, exports, __require) {
 const { MODE_OPTIONS } = __require("src/modes.js");
 const { DEFAULT_LANGUAGE, normalizeLanguage } = __require("src/i18n/index.js");
+const { expandHomePath } = __require("src/cli/paths.js");
 
 const CUSTOM_ASSISTANT_STYLE_MAX_CHARS = 4000;
 
@@ -1658,6 +1795,10 @@ const DEFAULT_SETTINGS = {
   codexPath: "/opt/homebrew/bin/codex",
   args: "exec {{prompt}}",
   interactiveArgs: "",
+  cursorPath: "~/.local/bin/agent",
+  cursorExtraArgs: "",
+  cursorInteractiveArgs: "",
+  cursorPermissionPolicy: "allow-once",
   mode: "readOnly",
   workingDirectory: "",
   assistantStyle: "collaborative",
@@ -1694,6 +1835,14 @@ function normalizeSettings(savedSettings) {
   if (!settings.agentId) {
     settings.agentId = DEFAULT_SETTINGS.agentId;
   }
+
+  settings.cursorPath = expandHomePath(normalizeString(settings.cursorPath) || DEFAULT_SETTINGS.cursorPath);
+  settings.cursorExtraArgs = normalizeString(settings.cursorExtraArgs);
+  settings.cursorInteractiveArgs = normalizeString(settings.cursorInteractiveArgs);
+  settings.cursorPermissionPolicy = normalizeCursorPermissionPolicy(
+    settings.cursorPermissionPolicy,
+    DEFAULT_SETTINGS.cursorPermissionPolicy
+  );
 
   if (!ASSISTANT_STYLE_OPTIONS[settings.assistantStyle]) {
     settings.assistantStyle = DEFAULT_SETTINGS.assistantStyle;
@@ -1797,12 +1946,80 @@ function truncateString(value, maxChars) {
   return value.length > maxChars ? value.slice(0, maxChars) : value;
 }
 
+function normalizeCursorPermissionPolicy(value, fallback) {
+  if (value === "allow-once" || value === "allow-always" || value === "reject-once") {
+    return value;
+  }
+  return fallback;
+}
+
 module.exports = {
   ASSISTANT_STYLE_OPTIONS,
   CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
   DEFAULT_SETTINGS,
   normalizePluginData,
   normalizeSettings
+};
+
+},
+"src/agents/shared/memoryNotices.js": function(module, exports, __require) {
+const { formatMemoryLine } = __require("src/storage/MemoryStore.js");
+
+function emitMemoryNotice(onUpdate, memories, translate, keyPrefix = "cursor") {
+  if (!Array.isArray(memories) || memories.length === 0) {
+    return;
+  }
+
+  onUpdate({
+    kind: "notice",
+    title: translate(`${keyPrefix}.memoryReferenced.title`),
+    summary: formatMemoryNoticeSummary(memories, translate, keyPrefix),
+    detail: memories.map(formatMemoryLine).join("\n")
+  });
+}
+
+function emitContextCompressedNotice(onUpdate, context, translate, keyPrefix = "cursor") {
+  if (!context?.compressed) {
+    return;
+  }
+
+  onUpdate({
+    kind: "notice",
+    title: translate(`${keyPrefix}.contextCompressed.title`),
+    summary: translate(`${keyPrefix}.contextCompressed.summary`, {
+      original: formatNumber(context.originalChars),
+      prompt: formatNumber(context.promptChars),
+      limit: formatNumber(context.limitChars)
+    })
+  });
+}
+
+function formatMemoryNoticeSummary(memories, translate, keyPrefix = "cursor") {
+  const count = memories.length;
+  const lines = [
+    translate(`${keyPrefix}.memoryReferenced.summary`, {
+      count,
+      noteLabel: count === 1 ? "note" : "notes"
+    })
+  ];
+  const visibleMemories = memories.slice(0, 5).map(formatMemoryLine);
+  lines.push(...visibleMemories);
+  if (memories.length > visibleMemories.length) {
+    lines.push(translate(`${keyPrefix}.memoryReferenced.more`, {
+      count: memories.length - visibleMemories.length
+    }));
+  }
+  return lines.join("\n");
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat().format(value);
+}
+
+module.exports = {
+  emitContextCompressedNotice,
+  emitMemoryNotice,
+  formatMemoryNoticeSummary
 };
 
 },
@@ -2072,7 +2289,10 @@ const { t } = __require("src/i18n/index.js");
 const { applyModeArgs } = __require("src/modes.js");
 const { buildPromptWithMetadata } = __require("src/prompt.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
-const { formatMemoryLine } = __require("src/storage/MemoryStore.js");
+const {
+  emitContextCompressedNotice,
+  emitMemoryNotice
+} = __require("src/agents/shared/memoryNotices.js");
 const { codexJsonEventToUpdates } = __require("src/agents/codex/jsonEvents.js");
 
 class CodexAgent {
@@ -2094,25 +2314,11 @@ class CodexAgent {
     });
     const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, { memories });
     const finalPrompt = promptResult.prompt;
-    if (promptResult.context.memoryCount > 0) {
-      const memorySummary = formatMemoryNoticeSummary(memories, translate);
-      onUpdate({
-        kind: "notice",
-        title: translate("codex.memoryReferenced.title"),
-        summary: memorySummary,
-        detail: memories.map(formatMemoryLine).join("\n")
-      });
+    if (memories.length > 0) {
+      emitMemoryNotice(onUpdate, memories, translate, "codex");
     }
     if (promptResult.context.compressed) {
-      onUpdate({
-        kind: "notice",
-        title: translate("codex.contextCompressed.title"),
-        summary: translate("codex.contextCompressed.summary", {
-          original: formatNumber(promptResult.context.originalChars),
-          prompt: formatNumber(promptResult.context.promptChars),
-          limit: formatNumber(promptResult.context.limitChars)
-        })
-      });
+      emitContextCompressedNotice(onUpdate, promptResult.context, translate, "codex");
     }
     const outputPath = path.join(
       os.tmpdir(),
@@ -2333,26 +2539,6 @@ async function readOutputFile(outputPath) {
   }
 }
 
-function formatNumber(value) {
-  return new Intl.NumberFormat().format(value);
-}
-
-function formatMemoryNoticeSummary(memories, translate) {
-  const count = memories.length;
-  const lines = [
-    translate("codex.memoryReferenced.summary", {
-      count,
-      noteLabel: count === 1 ? "note" : "notes"
-    })
-  ];
-  const visibleMemories = memories.slice(0, 5).map(formatMemoryLine);
-  lines.push(...visibleMemories);
-  if (memories.length > visibleMemories.length) {
-    lines.push(translate("codex.memoryReferenced.more", { count: memories.length - visibleMemories.length }));
-  }
-  return lines.join("\n");
-}
-
 function createAbortError(translate) {
   const error = new Error(translate("codex.abortError"));
   error.name = "AbortError";
@@ -2364,11 +2550,1126 @@ module.exports = {
 };
 
 },
+"src/agents/cursor/AcpClient.js": function(module, exports, __require) {
+const { spawn } = require("child_process");
+
+const { buildCliPath } = __require("src/cli/env.js");
+
+class AcpClient {
+  constructor(options = {}) {
+    this.executablePath = options.executablePath;
+    this.extraArgs = options.extraArgs || [];
+    this.cwd = options.cwd || process.cwd();
+    this.permissionPolicy = options.permissionPolicy || "allow-once";
+    this.onSessionUpdate = options.onSessionUpdate || (() => {});
+    this.onExtensionNotice = options.onExtensionNotice || (() => {});
+    this.onStderr = options.onStderr || (() => {});
+    this.onProcessClose = options.onProcessClose || (() => {});
+
+    this.child = null;
+    this.stdoutBuffer = "";
+    this.nextId = 1;
+    this.pending = new Map();
+    this.initialized = false;
+    this.closed = false;
+    this.activeAcpSessionId = "";
+  }
+
+  isAlive() {
+    return Boolean(this.child && !this.closed);
+  }
+
+  async connect() {
+    if (this.child && !this.closed) {
+      return;
+    }
+
+    if (this.child) {
+      this.child = null;
+    }
+
+    this.closed = false;
+    this.stdoutBuffer = "";
+    this.initialized = false;
+    this.activeAcpSessionId = "";
+
+    const args = [...this.extraArgs, "acp"];
+    this.child = spawn(this.executablePath, args, {
+      cwd: this.cwd,
+      shell: false,
+      env: Object.assign({}, process.env, {
+        PATH: buildCliPath(process.env.PATH),
+        TERM: "dumb"
+      }),
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+
+    this.child.stdout.on("data", (chunk) => this.handleStdout(chunk));
+    this.child.stderr.on("data", (chunk) => {
+      const text = chunk.toString();
+      if (text.trim()) {
+        this.onStderr(text);
+      }
+    });
+    this.child.on("error", (error) => {
+      this.handleProcessExit(error);
+    });
+    this.child.on("close", () => {
+      this.handleProcessExit(new Error("ACP process closed"));
+    });
+
+    await this.send("initialize", {
+      protocolVersion: 1,
+      clientCapabilities: {
+        fs: { readTextFile: false, writeTextFile: false },
+        terminal: false
+      },
+      clientInfo: {
+        name: "obsidian-agent-dock",
+        version: "1.0.0"
+      }
+    });
+
+    await this.send("authenticate", { methodId: "cursor_login" });
+    this.initialized = true;
+  }
+
+  async createSession(mode) {
+    await this.connect();
+    const result = await this.send("session/new", {
+      cwd: this.cwd,
+      mode,
+      mcpServers: []
+    });
+    this.activeAcpSessionId = result.sessionId || result.id || "";
+    return this.activeAcpSessionId;
+  }
+
+  async loadSession(acpSessionId, mode) {
+    await this.connect();
+    const result = await this.send("session/load", {
+      sessionId: acpSessionId,
+      cwd: this.cwd,
+      mode,
+      mcpServers: []
+    });
+    this.activeAcpSessionId = result.sessionId || acpSessionId;
+    return this.activeAcpSessionId;
+  }
+
+  async prompt(acpSessionId, text) {
+    await this.connect();
+    const sessionId = acpSessionId || this.activeAcpSessionId;
+    return this.send("session/prompt", {
+      sessionId,
+      prompt: [{ type: "text", text }]
+    });
+  }
+
+  async cancelPrompt(acpSessionId) {
+    if (!this.child || this.closed) {
+      return;
+    }
+
+    const sessionId = acpSessionId || this.activeAcpSessionId;
+    if (!sessionId) {
+      return;
+    }
+
+    try {
+      await this.send("session/cancel", { sessionId });
+    } catch {
+      // Ignore cancel failures while shutting down.
+    }
+  }
+
+  async close() {
+    if (!this.child && this.closed) {
+      return;
+    }
+
+    this.closed = true;
+    this.rejectAllPending(new Error("ACP client closed"));
+    if (this.child) {
+      this.child.stdin?.end();
+      this.child.kill("SIGTERM");
+      this.child = null;
+    }
+    this.initialized = false;
+    this.activeAcpSessionId = "";
+  }
+
+  send(method, params) {
+    if (!this.child || this.closed) {
+      return Promise.reject(new Error("ACP process is not running"));
+    }
+
+    const id = this.nextId++;
+    const payload = JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n";
+    return new Promise((resolve, reject) => {
+      this.pending.set(id, { resolve, reject });
+      this.child.stdin.write(payload, (error) => {
+        if (error) {
+          this.pending.delete(id);
+          reject(error);
+        }
+      });
+    });
+  }
+
+  respond(id, result) {
+    if (!this.child || this.closed) {
+      return;
+    }
+
+    const payload = JSON.stringify({ jsonrpc: "2.0", id, result }) + "\n";
+    this.child.stdin.write(payload);
+  }
+
+  handleStdout(chunk) {
+    this.stdoutBuffer += chunk.toString();
+    const lines = this.stdoutBuffer.split(/\r?\n/);
+    this.stdoutBuffer = lines.pop() || "";
+
+    for (const line of lines) {
+      if (!line.trim()) {
+        continue;
+      }
+      this.handleLine(line);
+    }
+  }
+
+  handleLine(line) {
+    let message;
+    try {
+      message = JSON.parse(line);
+    } catch {
+      this.onStderr(line);
+      return;
+    }
+
+    if (message.id !== undefined && (message.result !== undefined || message.error !== undefined)) {
+      const waiter = this.pending.get(message.id);
+      if (!waiter) {
+        return;
+      }
+      this.pending.delete(message.id);
+      if (message.error) {
+        waiter.reject(normalizeJsonRpcError(message.error));
+      } else {
+        waiter.resolve(message.result);
+      }
+      return;
+    }
+
+    if (message.method) {
+      this.handleNotification(message);
+    }
+  }
+
+  handleNotification(message) {
+    const { method, params, id } = message;
+
+    if (method === "session/update") {
+      const update = params?.update;
+      if (update) {
+        this.onSessionUpdate(update, params);
+      }
+      return;
+    }
+
+    if (id === undefined) {
+      if (method === "cursor/update_todos" || method === "cursor/task" || method === "cursor/generate_image") {
+        this.onExtensionNotice(method, params);
+      }
+      return;
+    }
+
+    if (method === "session/request_permission") {
+      this.respond(id, {
+        outcome: {
+          outcome: "selected",
+          optionId: this.permissionPolicy
+        }
+      });
+      return;
+    }
+
+    if (method === "cursor/ask_question") {
+      this.onExtensionNotice(method, params);
+      this.respond(id, { outcome: { outcome: "skipped", reason: "Obsidian Agent Dock auto-skipped question." } });
+      return;
+    }
+
+    if (method === "cursor/create_plan") {
+      this.onExtensionNotice(method, params);
+      this.respond(id, { outcome: { outcome: "accepted" } });
+      return;
+    }
+
+    console.warn(`Agent Dock received unsupported ACP request: ${method}`);
+    this.respond(id, { outcome: { outcome: "cancelled" } });
+  }
+
+  handleProcessExit(error) {
+    if (this.closed) {
+      return;
+    }
+
+    this.closed = true;
+    this.child = null;
+    this.initialized = false;
+    this.activeAcpSessionId = "";
+    this.rejectAllPending(error instanceof Error ? error : new Error("ACP process closed"));
+    this.onProcessClose(error instanceof Error ? error : new Error("ACP process closed"));
+  }
+
+  rejectAllPending(error) {
+    for (const waiter of this.pending.values()) {
+      waiter.reject(error);
+    }
+    this.pending.clear();
+  }
+}
+
+function normalizeJsonRpcError(error) {
+  const code = error?.code;
+  const message = error?.message || error?.data || "ACP request failed";
+  const wrapped = new Error(typeof message === "string" ? message : JSON.stringify(message));
+  wrapped.name = "AcpError";
+  if (code !== undefined) {
+    wrapped.code = code;
+  }
+  return wrapped;
+}
+
+module.exports = {
+  AcpClient
+};
+
+},
+"src/agents/cursor/acpEvents.js": function(module, exports, __require) {
+function acpUpdateToEvents(update, translate = defaultTranslate) {
+  if (!update || typeof update !== "object") {
+    return [];
+  }
+
+  const sessionUpdate = update.sessionUpdate || update.type || "unknown";
+
+  if (sessionUpdate === "agent_message_chunk") {
+    const text = extractChunkText(update.content);
+    return text ? [{ kind: "content", text }] : [];
+  }
+
+  if (sessionUpdate === "agent_thought_chunk") {
+    const detail = extractChunkText(update.content);
+    return detail ? [{
+      kind: "reasoning",
+      title: translate("cursor.thinking"),
+      detail
+    }] : [];
+  }
+
+  if (sessionUpdate === "user_message_chunk") {
+    const detail = extractChunkText(update.content);
+    return detail ? [{
+      kind: "activity",
+      title: translate("cursor.userEcho"),
+      detail
+    }] : [];
+  }
+
+  if (sessionUpdate === "tool_call") {
+    return [{
+      kind: "tool",
+      toolCallId: update.toolCallId || "",
+      title: update.title || update.kind || translate("cursor.toolCall"),
+      summary: formatToolCallSummary(update, translate),
+      detail: formatToolCallDetail(update)
+    }];
+  }
+
+  if (sessionUpdate === "tool_call_update") {
+    return [{
+      kind: "tool",
+      toolCallId: update.toolCallId || "",
+      title: update.title || translate("cursor.toolCall"),
+      summary: formatToolCallUpdateSummary(update, translate),
+      detail: formatToolCallUpdateDetail(update)
+    }];
+  }
+
+  if (sessionUpdate === "plan" || sessionUpdate === "plan_update") {
+    return [{
+      kind: "reasoning",
+      title: translate("cursor.plan"),
+      detail: formatPlanDetail(update)
+    }];
+  }
+
+  if (sessionUpdate === "current_mode_update") {
+    const mode = update.mode || update.currentMode || "";
+    return [{
+      kind: "notice",
+      title: translate("cursor.modeUpdated.title"),
+      summary: mode ? translate("cursor.modeUpdated.summary", { mode }) : translate("cursor.modeUpdated.summaryGeneric")
+    }];
+  }
+
+  if (sessionUpdate === "usage_update") {
+    return [{
+      kind: "activity",
+      title: translate("cursor.usage"),
+      detail: compactJson(update)
+    }];
+  }
+
+  if (sessionUpdate === "plan_removed") {
+    return [{
+      kind: "notice",
+      title: translate("cursor.planRemoved"),
+      summary: ""
+    }];
+  }
+
+  return [{
+    kind: "activity",
+    title: sessionUpdate,
+    detail: compactJson(update)
+  }];
+}
+
+function extractChunkText(content) {
+  if (typeof content === "string") {
+    return content;
+  }
+  if (!content || typeof content !== "object") {
+    return "";
+  }
+  if (content.type === "text" && typeof content.text === "string") {
+    return content.text;
+  }
+  if (typeof content.text === "string") {
+    return content.text;
+  }
+  return "";
+}
+
+function formatToolCallSummary(update, translate) {
+  const parts = [];
+  if (update.kind) {
+    parts.push(String(update.kind));
+  }
+  if (update.status) {
+    parts.push(String(update.status));
+  }
+  const input = summarizeRawInput(update.rawInput);
+  if (input) {
+    parts.push(compactOneLine(input));
+  }
+  return compactOneLine(parts.join(" | ") || update.title || translate("cursor.toolCall"));
+}
+
+function formatToolCallDetail(update) {
+  const parts = [];
+  if (update.title) {
+    parts.push(update.title);
+  }
+  if (update.kind) {
+    parts.push(`kind: ${update.kind}`);
+  }
+  if (update.status) {
+    parts.push(`status: ${update.status}`);
+  }
+  const input = summarizeRawInput(update.rawInput);
+  if (input) {
+    parts.push(input);
+  }
+  if (Array.isArray(update.locations) && update.locations.length > 0) {
+    parts.push(update.locations.map((entry) => entry.path || compactJson(entry)).join("\n"));
+  }
+  return parts.join("\n\n") || compactJson(update);
+}
+
+function formatToolCallUpdateSummary(update, translate) {
+  const parts = [];
+  if (update.status) {
+    parts.push(String(update.status));
+  }
+  const output = extractToolOutput(update);
+  if (output) {
+    parts.push(compactOneLine(output));
+  }
+  return compactOneLine(parts.join(" | ") || translate("cursor.toolCall"));
+}
+
+function formatToolCallUpdateDetail(update) {
+  const parts = [];
+  if (update.status) {
+    parts.push(`status: ${update.status}`);
+  }
+  if (update.rawOutput !== undefined) {
+    parts.push(formatRawOutput(update.rawOutput));
+  }
+  if (Array.isArray(update.content) && update.content.length > 0) {
+    parts.push(update.content.map((entry) => extractChunkText(entry) || compactJson(entry)).filter(Boolean).join("\n"));
+  }
+  if (update.appendContent) {
+    parts.push(extractChunkText(update.appendContent) || compactJson(update.appendContent));
+  }
+  return parts.join("\n\n") || compactJson(update);
+}
+
+function formatPlanDetail(update) {
+  const parts = [];
+  if (update.description) {
+    parts.push(String(update.description));
+  }
+  if (Array.isArray(update.steps)) {
+    for (const [index, step] of update.steps.entries()) {
+      const label = typeof step === "string" ? step : step.content || step.title || compactJson(step);
+      const status = typeof step === "object" && step.status ? ` (${step.status})` : "";
+      parts.push(`${index + 1}. ${label}${status}`);
+    }
+  }
+  return parts.join("\n") || compactJson(update);
+}
+
+function summarizeRawInput(rawInput) {
+  if (rawInput === undefined || rawInput === null) {
+    return "";
+  }
+  if (typeof rawInput === "string") {
+    return rawInput;
+  }
+  if (typeof rawInput === "object") {
+    for (const key of ["command", "path", "query", "pattern", "description"]) {
+      if (typeof rawInput[key] === "string" && rawInput[key]) {
+        return rawInput[key];
+      }
+    }
+    return compactJson(rawInput);
+  }
+  return String(rawInput);
+}
+
+function extractToolOutput(update) {
+  if (typeof update.rawOutput === "string") {
+    return update.rawOutput;
+  }
+  if (Array.isArray(update.content)) {
+    return update.content
+      .map((entry) => extractChunkText(entry) || (typeof entry === "string" ? entry : ""))
+      .filter(Boolean)
+      .join("\n");
+  }
+  return "";
+}
+
+function formatRawOutput(rawOutput) {
+  if (typeof rawOutput === "string") {
+    return rawOutput;
+  }
+  return compactJson(rawOutput);
+}
+
+function compactOneLine(text) {
+  return String(text || "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .slice(0, 180);
+}
+
+function compactJson(value) {
+  try {
+    return JSON.stringify(value, null, 2);
+  } catch {
+    return String(value);
+  }
+}
+
+function defaultTranslate(key, params = {}) {
+  const defaults = {
+    "cursor.thinking": "Thinking",
+    "cursor.userEcho": "User echo",
+    "cursor.toolCall": "Tool call",
+    "cursor.plan": "Plan",
+    "cursor.planRemoved": "Plan removed",
+    "cursor.modeUpdated.title": "Mode updated",
+    "cursor.modeUpdated.summary": "Cursor mode is now {mode}.",
+    "cursor.modeUpdated.summaryGeneric": "Cursor mode changed.",
+    "cursor.usage": "Usage"
+  };
+  return String(defaults[key] || key).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => (
+    params[name] === undefined ? match : String(params[name])
+  ));
+}
+
+module.exports = {
+  acpUpdateToEvents
+};
+
+},
+"src/agents/cursor/modes.js": function(module, exports, __require) {
+const CURSOR_MODE_BY_PLUGIN_MODE = {
+  readOnly: "ask",
+  workspaceWrite: "agent",
+  fullAccess: "agent"
+};
+
+function toCursorMode(pluginMode, defaultMode = "readOnly") {
+  return CURSOR_MODE_BY_PLUGIN_MODE[pluginMode]
+    || CURSOR_MODE_BY_PLUGIN_MODE[defaultMode]
+    || "ask";
+}
+
+module.exports = {
+  CURSOR_MODE_BY_PLUGIN_MODE,
+  toCursorMode
+};
+
+},
+"src/agents/cursor/CursorAgent.js": function(module, exports, __require) {
+const { Notice } = require("obsidian");
+const { spawn } = require("child_process");
+
+const { emitContextCompressedNotice, emitMemoryNotice } = __require("src/agents/shared/memoryNotices.js");
+const { buildCliPath } = __require("src/cli/env.js");
+const { expandHomePath } = __require("src/cli/paths.js");
+const { escapeAppleScriptString, shellQuote } = __require("src/cli/shell.js");
+const { t } = __require("src/i18n/index.js");
+const { buildPromptWithMetadata, buildTurnContextPrompt } = __require("src/prompt.js");
+const { DEFAULT_SETTINGS } = __require("src/settings.js");
+const { AcpClient } = __require("src/agents/cursor/AcpClient.js");
+const { acpUpdateToEvents } = __require("src/agents/cursor/acpEvents.js");
+const { toCursorMode } = __require("src/agents/cursor/modes.js");
+
+const CONNECTION_IDLE_MS = 30 * 60 * 1000;
+
+class CursorAgent {
+  constructor(plugin) {
+    this.plugin = plugin;
+    this.id = "cursor";
+    this.label = "Cursor";
+    this.connections = new Map();
+  }
+
+  async run(prompt, onUpdate, conversation, options = {}) {
+    return this.runWithRecovery(prompt, onUpdate, conversation, options, false);
+  }
+
+  async runWithRecovery(prompt, onUpdate, conversation, options, isRetry) {
+    try {
+      return await this.runOnce(prompt, onUpdate, conversation, options);
+    } catch (error) {
+      if (!isRetry && isRecoverableAcpError(error)) {
+        this.removeConnection(options.dockSession?.id);
+        return this.runWithRecovery(prompt, onUpdate, conversation, options, true);
+      }
+      throw error;
+    }
+  }
+
+  async runOnce(prompt, onUpdate, conversation, options = {}) {
+    const settings = this.plugin.settings;
+    const translate = (key, params) => t(settings, key, params);
+    const cwd = this.getWorkingDirectory();
+    const activeFilePath = this.plugin.app.workspace.getActiveFile()?.path || "";
+
+    if (!options.dockSession) {
+      console.warn("Agent Dock Cursor run missing dockSession; ACP session reuse is disabled for this turn.");
+    }
+
+    const dockSession = options.dockSession || null;
+    const cursorState = ensureCursorProviderState(dockSession);
+    const cursorMode = toCursorMode(settings.mode, DEFAULT_SETTINGS.mode);
+    const connectionKey = buildConnectionKey(settings, cwd, cursorMode);
+    const sessionKey = dockSession?.id || "__anonymous__";
+
+    const memories = await this.plugin.memoryStore.getRelevantMemories(prompt, settings, {
+      activeFilePath,
+      workingDirectory: cwd
+    });
+
+    let useFullPrompt = !cursorState.acpSessionId;
+    let finalOutput = "";
+    let aborted = false;
+    let client = null;
+
+    const existingConnection = this.connections.get(sessionKey);
+    if (existingConnection && existingConnection.connectionKey !== connectionKey) {
+      cursorState.acpSessionId = "";
+      useFullPrompt = true;
+    }
+
+    const emitUpdate = (update) => {
+      if (update.kind === "content") {
+        finalOutput += update.text;
+      }
+      onUpdate(update);
+    };
+
+    const throwIfAborted = () => {
+      if (aborted) {
+        throw createAbortError(translate);
+      }
+    };
+
+    const abortRun = async () => {
+      aborted = true;
+      if (client) {
+        await client.cancelPrompt(cursorState.acpSessionId);
+        await client.close();
+        this.connections.delete(sessionKey);
+        client = null;
+      }
+    };
+
+    if (options.signal?.aborted) {
+      await abortRun();
+      throw createAbortError(translate);
+    }
+
+    options.signal?.addEventListener("abort", abortRun, { once: true });
+
+    try {
+      const promptResult = await this.buildPromptForTurn({
+        useFullPrompt,
+        app: this.plugin.app,
+        settings,
+        prompt,
+        conversation,
+        memories
+      });
+      throwIfAborted();
+
+      applyPromptNotices(emitUpdate, promptResult, memories, translate, "cursor");
+      const promptText = promptResult.prompt;
+
+      client = await this.getOrCreateClient(sessionKey, connectionKey, {
+        settings,
+        cwd,
+        translate,
+        onUpdate: emitUpdate
+      });
+      throwIfAborted();
+
+      if (!cursorState.acpSessionId) {
+        cursorState.acpSessionId = await client.createSession(cursorMode);
+      } else if (client.activeAcpSessionId !== cursorState.acpSessionId) {
+        try {
+          await client.loadSession(cursorState.acpSessionId, cursorMode);
+        } catch (error) {
+          emitUpdate({
+            kind: "notice",
+            title: translate("cursor.sessionReloadFailed.title"),
+            summary: translate("cursor.sessionReloadFailed.summary")
+          });
+          cursorState.acpSessionId = "";
+          const reloadPromptResult = await buildPromptWithMetadata(
+            this.plugin.app,
+            settings,
+            prompt,
+            conversation,
+            { memories }
+          );
+          applyPromptNotices(emitUpdate, reloadPromptResult, memories, translate, "cursor");
+          cursorState.acpSessionId = await client.createSession(cursorMode);
+          throwIfAborted();
+          const result = await client.prompt(cursorState.acpSessionId, reloadPromptResult.prompt);
+          return await this.finishTurn({
+            result,
+            finalOutput,
+            emitUpdate,
+            prompt,
+            activeFilePath,
+            options,
+            settings,
+            throwIfAborted
+          });
+        }
+      }
+
+      throwIfAborted();
+      const result = await client.prompt(cursorState.acpSessionId, promptText);
+      return await this.finishTurn({
+        result,
+        finalOutput,
+        emitUpdate,
+        prompt,
+        activeFilePath,
+        options,
+        settings,
+        throwIfAborted
+      });
+    } catch (error) {
+      if (aborted || error.name === "AbortError") {
+        throw createAbortError(translate);
+      }
+
+      if (isAuthError(error)) {
+        emitUpdate({
+          kind: "error",
+          title: translate("cursor.authFailed"),
+          detail: error.message
+        });
+        throw new Error(translate("cursor.authFailed"));
+      }
+
+      if (isSpawnError(error)) {
+        emitUpdate({
+          kind: "error",
+          title: translate("cursor.spawnFailed.title"),
+          summary: translate("cursor.spawnFailed.summary"),
+          detail: error.message
+        });
+      }
+
+      throw error;
+    } finally {
+      options.signal?.removeEventListener("abort", abortRun);
+    }
+  }
+
+  async buildPromptForTurn({ useFullPrompt, app, settings, prompt, conversation, memories }) {
+    if (useFullPrompt) {
+      return buildPromptWithMetadata(app, settings, prompt, conversation, { memories });
+    }
+    return buildTurnContextPrompt(app, settings, prompt, { memories });
+  }
+
+  async finishTurn({ result, finalOutput, emitUpdate, prompt, activeFilePath, options, settings, throwIfAborted }) {
+    const resultText = extractPromptResultText(result);
+    if (!finalOutput.trim() && resultText) {
+      finalOutput = resultText;
+      emitUpdate({ kind: "content", text: resultText });
+    }
+
+    throwIfAborted();
+
+    await this.captureMemory({
+      prompt,
+      response: finalOutput.trim(),
+      activeFilePath,
+      sessionId: options.sessionId || ""
+    }, settings, emitUpdate);
+
+    return finalOutput.trim();
+  }
+
+  async getOrCreateClient(sessionKey, connectionKey, context) {
+    this.closeIdleConnections();
+
+    const existing = this.connections.get(sessionKey);
+    if (existing && existing.connectionKey === connectionKey && existing.client.isAlive()) {
+      existing.lastUsedAt = Date.now();
+      this.bindClientHandlers(existing.client, context);
+      return existing.client;
+    }
+
+    if (existing) {
+      await existing.client.close();
+      this.connections.delete(sessionKey);
+    }
+
+    const client = new AcpClient({
+      executablePath: expandHomePath(context.settings.cursorPath || DEFAULT_SETTINGS.cursorPath),
+      extraArgs: splitExtraArgs(context.settings.cursorExtraArgs),
+      cwd: context.cwd,
+      permissionPolicy: normalizePermissionPolicy(context.settings.cursorPermissionPolicy),
+      onProcessClose: () => {
+        this.connections.delete(sessionKey);
+      }
+    });
+    this.bindClientHandlers(client, context);
+
+    this.connections.set(sessionKey, {
+      client,
+      connectionKey,
+      lastUsedAt: Date.now()
+    });
+    return client;
+  }
+
+  bindClientHandlers(client, context) {
+    client.onSessionUpdate = (update) => {
+      for (const event of acpUpdateToEvents(update, context.translate)) {
+        context.onUpdate(event);
+      }
+    };
+    client.onExtensionNotice = (method, params) => {
+      context.onUpdate(formatExtensionNotice(method, params, context.translate));
+    };
+    client.onStderr = (text) => {
+      context.onUpdate({ kind: "activity", title: "Cursor", detail: text.trim() });
+    };
+    client.onProcessClose = () => {
+      const sessionKey = [...this.connections.entries()]
+        .find(([, entry]) => entry.client === client)?.[0];
+      if (sessionKey) {
+        this.connections.delete(sessionKey);
+      }
+    };
+  }
+
+  closeIdleConnections() {
+    const now = Date.now();
+    for (const [sessionKey, entry] of this.connections.entries()) {
+      if (now - entry.lastUsedAt <= CONNECTION_IDLE_MS) {
+        continue;
+      }
+      entry.client.close();
+      this.connections.delete(sessionKey);
+    }
+  }
+
+  removeConnection(dockSessionId) {
+    const sessionKey = dockSessionId || "__anonymous__";
+    const entry = this.connections.get(sessionKey);
+    if (!entry) {
+      return;
+    }
+    entry.client.close();
+    this.connections.delete(sessionKey);
+  }
+
+  async releaseDockSession(dockSessionId) {
+    const entry = this.connections.get(dockSessionId);
+    if (!entry) {
+      return;
+    }
+    await entry.client.close();
+    this.connections.delete(dockSessionId);
+  }
+
+  cancelAll() {
+    for (const entry of this.connections.values()) {
+      entry.client.close();
+    }
+    this.connections.clear();
+  }
+
+  async openInteractive() {
+    if (process.platform !== "darwin") {
+      new Notice(t(this.plugin.settings, "cursor.terminalMacOnly"));
+      return;
+    }
+
+    const settings = this.plugin.settings;
+    const cwd = this.getWorkingDirectory();
+    const executablePath = expandHomePath(settings.cursorPath || DEFAULT_SETTINGS.cursorPath);
+    const extraArgs = settings.cursorInteractiveArgs || settings.cursorExtraArgs || "";
+    const command = [
+      `cd ${shellQuote(cwd)}`,
+      `${shellQuote(executablePath)} ${extraArgs}`.trim()
+    ].join(" && ");
+    const script = [
+      "tell application \"Terminal\"",
+      "activate",
+      `do script "${escapeAppleScriptString(command)}"`,
+      "end tell"
+    ].join("\n");
+
+    await new Promise((resolve, reject) => {
+      const child = spawn("osascript", ["-e", script], {
+        env: Object.assign({}, process.env, {
+          PATH: buildCliPath(process.env.PATH)
+        }),
+        stdio: ["ignore", "pipe", "pipe"]
+      });
+
+      let errorOutput = "";
+      child.stderr.on("data", (data) => {
+        errorOutput += data.toString();
+      });
+      child.on("error", (error) => reject(error));
+      child.on("close", (code) => {
+        if (code === 0) {
+          resolve();
+          return;
+        }
+        reject(new Error(errorOutput.trim() || t(settings, "cursor.terminalExitedWithCode", { code })));
+      });
+    });
+  }
+
+  getWorkingDirectory() {
+    return this.plugin.settings.workingDirectory || this.plugin.app.vault.adapter.basePath;
+  }
+
+  async captureMemory(turn, settings, onUpdate) {
+    try {
+      const saved = await this.plugin.memoryStore.captureTurn(turn, settings);
+      if (saved.length > 0) {
+        onUpdate({
+          kind: "notice",
+          title: t(settings, "cursor.memoryUpdated.title"),
+          summary: t(settings, "cursor.memoryUpdated.summary", {
+            count: saved.length,
+            noteLabel: saved.length === 1 ? "note" : "notes"
+          })
+        });
+      }
+    } catch (error) {
+      console.warn("Agent Dock could not update memory:", error);
+      onUpdate({
+        kind: "notice",
+        title: t(settings, "cursor.memorySkipped.title"),
+        summary: t(settings, "cursor.memorySkipped.summary")
+      });
+    }
+  }
+}
+
+function applyPromptNotices(onUpdate, promptResult, memories, translate, keyPrefix) {
+  emitMemoryNotice(onUpdate, memories, translate, keyPrefix);
+  emitContextCompressedNotice(onUpdate, promptResult.context, translate, keyPrefix);
+}
+
+function ensureCursorProviderState(dockSession) {
+  if (!dockSession) {
+    return { acpSessionId: "" };
+  }
+  if (!dockSession.providerState || typeof dockSession.providerState !== "object") {
+    dockSession.providerState = {};
+  }
+  if (!dockSession.providerState.cursor || typeof dockSession.providerState.cursor !== "object") {
+    dockSession.providerState.cursor = { acpSessionId: "" };
+  }
+  if (typeof dockSession.providerState.cursor.acpSessionId !== "string") {
+    dockSession.providerState.cursor.acpSessionId = "";
+  }
+  return dockSession.providerState.cursor;
+}
+
+function buildConnectionKey(settings, cwd, cursorMode) {
+  return [
+    expandHomePath(settings.cursorPath || DEFAULT_SETTINGS.cursorPath),
+    settings.cursorExtraArgs || "",
+    settings.cursorPermissionPolicy || DEFAULT_SETTINGS.cursorPermissionPolicy,
+    cwd,
+    cursorMode
+  ].join("|");
+}
+
+function splitExtraArgs(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return [];
+  }
+  return text.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+}
+
+function normalizePermissionPolicy(value) {
+  if (value === "allow-always" || value === "reject-once") {
+    return value;
+  }
+  return "allow-once";
+}
+
+function extractPromptResultText(result) {
+  if (!result) {
+    return "";
+  }
+  if (typeof result.content === "string") {
+    return result.content;
+  }
+  if (Array.isArray(result.content)) {
+    return result.content
+      .map((entry) => (typeof entry === "string" ? entry : entry?.text || ""))
+      .filter(Boolean)
+      .join("\n");
+  }
+  if (typeof result.text === "string") {
+    return result.text;
+  }
+  return "";
+}
+
+function formatExtensionNotice(method, params, translate) {
+  if (method === "cursor/create_plan") {
+    return {
+      kind: "notice",
+      title: translate("cursor.planAccepted.title"),
+      summary: params?.name || params?.overview || translate("cursor.planAccepted.summary")
+    };
+  }
+  if (method === "cursor/ask_question") {
+    return {
+      kind: "notice",
+      title: translate("cursor.questionSkipped.title"),
+      summary: params?.title || translate("cursor.questionSkipped.summary")
+    };
+  }
+  if (method === "cursor/update_todos") {
+    const count = Array.isArray(params?.todos) ? params.todos.length : 0;
+    return {
+      kind: "notice",
+      title: translate("cursor.todosUpdated.title"),
+      summary: translate("cursor.todosUpdated.summary", { count })
+    };
+  }
+  if (method === "cursor/task") {
+    return {
+      kind: "activity",
+      title: translate("cursor.subagentTask"),
+      detail: params?.description || params?.prompt || ""
+    };
+  }
+  if (method === "cursor/generate_image") {
+    return {
+      kind: "notice",
+      title: translate("cursor.imageGenerated.title"),
+      summary: params?.description || params?.filePath || ""
+    };
+  }
+  return {
+    kind: "activity",
+    title: method,
+    detail: JSON.stringify(params || {}, null, 2)
+  };
+}
+
+function createAbortError(translate) {
+  const error = new Error(translate("cursor.abortError"));
+  error.name = "AbortError";
+  return error;
+}
+
+function isAuthError(error) {
+  const message = String(error?.message || "").toLowerCase();
+  const code = Number(error?.code);
+  return code === 401
+    || code === 403
+    || message.includes("auth")
+    || message.includes("login")
+    || message.includes("unauthorized");
+}
+
+function isSpawnError(error) {
+  return error?.code === "ENOENT" || String(error?.message || "").includes("spawn");
+}
+
+function isRecoverableAcpError(error) {
+  const message = String(error?.message || "");
+  return message.includes("ACP process closed")
+    || message.includes("ACP process is not running")
+    || message.includes("ACP client closed");
+}
+
+module.exports = {
+  CursorAgent
+};
+
+},
 "src/agents/AgentRegistry.js": function(module, exports, __require) {
 const { CodexAgent } = __require("src/agents/codex/CodexAgent.js");
+const { CursorAgent } = __require("src/agents/cursor/CursorAgent.js");
 
 function createAgent(plugin) {
   switch (plugin.settings.agentId) {
+    case "cursor":
+      return new CursorAgent(plugin);
     case "codex":
     default:
       return new CodexAgent(plugin);
@@ -2379,6 +3680,10 @@ const AGENT_OPTIONS = {
   codex: {
     label: "Codex",
     description: "OpenAI Codex CLI"
+  },
+  cursor: {
+    label: "Cursor",
+    description: "Cursor CLI via ACP"
   }
 };
 
@@ -2449,41 +3754,94 @@ class AgentDockSettingTab extends PluginSettingTab {
             this.plugin.settings.agentId = value;
             this.plugin.refreshAgent();
             await this.plugin.saveSettings();
+            this.display();
           });
       });
 
-    new Setting(containerEl)
-      .setName(translate("settings.codexPath.name"))
-      .setDesc(translate("settings.codexPath.desc"))
-      .addText((text) => text
-        .setPlaceholder("/opt/homebrew/bin/codex")
-        .setValue(this.plugin.settings.codexPath)
-        .onChange(async (value) => {
-          this.plugin.settings.codexPath = value.trim() || DEFAULT_SETTINGS.codexPath;
-          await this.plugin.saveSettings();
-        }));
+    if (this.plugin.settings.agentId === "codex") {
+      new Setting(containerEl)
+        .setName(translate("settings.codexPath.name"))
+        .setDesc(translate("settings.codexPath.desc"))
+        .addText((text) => text
+          .setPlaceholder("/opt/homebrew/bin/codex")
+          .setValue(this.plugin.settings.codexPath)
+          .onChange(async (value) => {
+            this.plugin.settings.codexPath = value.trim() || DEFAULT_SETTINGS.codexPath;
+            await this.plugin.saveSettings();
+          }));
 
-    new Setting(containerEl)
-      .setName(translate("settings.args.name"))
-      .setDesc(translate("settings.args.desc"))
-      .addText((text) => text
-        .setPlaceholder("exec {{prompt}}")
-        .setValue(this.plugin.settings.args)
-        .onChange(async (value) => {
-          this.plugin.settings.args = value.trim() || DEFAULT_SETTINGS.args;
-          await this.plugin.saveSettings();
-        }));
+      new Setting(containerEl)
+        .setName(translate("settings.args.name"))
+        .setDesc(translate("settings.args.desc"))
+        .addText((text) => text
+          .setPlaceholder("exec {{prompt}}")
+          .setValue(this.plugin.settings.args)
+          .onChange(async (value) => {
+            this.plugin.settings.args = value.trim() || DEFAULT_SETTINGS.args;
+            await this.plugin.saveSettings();
+          }));
 
-    new Setting(containerEl)
-      .setName(translate("settings.interactiveArgs.name"))
-      .setDesc(translate("settings.interactiveArgs.desc"))
-      .addText((text) => text
-        .setPlaceholder("--sandbox workspace-write")
-        .setValue(this.plugin.settings.interactiveArgs)
-        .onChange(async (value) => {
-          this.plugin.settings.interactiveArgs = value.trim();
-          await this.plugin.saveSettings();
-        }));
+      new Setting(containerEl)
+        .setName(translate("settings.interactiveArgs.name"))
+        .setDesc(translate("settings.interactiveArgs.desc"))
+        .addText((text) => text
+          .setPlaceholder("--sandbox workspace-write")
+          .setValue(this.plugin.settings.interactiveArgs)
+          .onChange(async (value) => {
+            this.plugin.settings.interactiveArgs = value.trim();
+            await this.plugin.saveSettings();
+          }));
+    }
+
+    if (this.plugin.settings.agentId === "cursor") {
+      new Setting(containerEl)
+        .setName(translate("settings.cursorPath.name"))
+        .setDesc(translate("settings.cursorPath.desc"))
+        .addText((text) => text
+          .setPlaceholder("~/.local/bin/agent")
+          .setValue(this.plugin.settings.cursorPath)
+          .onChange(async (value) => {
+            this.plugin.settings.cursorPath = value.trim() || DEFAULT_SETTINGS.cursorPath;
+            await this.plugin.saveSettings();
+          }));
+
+      new Setting(containerEl)
+        .setName(translate("settings.cursorExtraArgs.name"))
+        .setDesc(translate("settings.cursorExtraArgs.desc"))
+        .addText((text) => text
+          .setPlaceholder("--api-key $CURSOR_API_KEY")
+          .setValue(this.plugin.settings.cursorExtraArgs)
+          .onChange(async (value) => {
+            this.plugin.settings.cursorExtraArgs = value.trim();
+            await this.plugin.saveSettings();
+          }));
+
+      new Setting(containerEl)
+        .setName(translate("settings.cursorInteractiveArgs.name"))
+        .setDesc(translate("settings.cursorInteractiveArgs.desc"))
+        .addText((text) => text
+          .setPlaceholder("")
+          .setValue(this.plugin.settings.cursorInteractiveArgs)
+          .onChange(async (value) => {
+            this.plugin.settings.cursorInteractiveArgs = value.trim();
+            await this.plugin.saveSettings();
+          }));
+
+      new Setting(containerEl)
+        .setName(translate("settings.cursorPermissionPolicy.name"))
+        .setDesc(translate("settings.cursorPermissionPolicy.desc"))
+        .addDropdown((dropdown) => {
+          dropdown
+            .addOption("allow-once", translate("settings.cursorPermissionPolicy.allowOnce"))
+            .addOption("allow-always", translate("settings.cursorPermissionPolicy.allowAlways"))
+            .addOption("reject-once", translate("settings.cursorPermissionPolicy.rejectOnce"))
+            .setValue(this.plugin.settings.cursorPermissionPolicy)
+            .onChange(async (value) => {
+              this.plugin.settings.cursorPermissionPolicy = value || DEFAULT_SETTINGS.cursorPermissionPolicy;
+              await this.plugin.saveSettings();
+            });
+        });
+    }
 
     new Setting(containerEl)
       .setName(translate("settings.workingDirectory.name"))
@@ -2676,8 +4034,45 @@ module.exports = {
 };
 
 },
+"src/storage/providerState.js": function(module, exports, __require) {
+function serializeProviderState(value) {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  const providerState = {};
+  if (value.cursor && typeof value.cursor === "object") {
+    const acpSessionId = typeof value.cursor.acpSessionId === "string" ? value.cursor.acpSessionId : "";
+    if (acpSessionId) {
+      providerState.cursor = { acpSessionId };
+    }
+  }
+  return providerState;
+}
+
+function normalizeProviderState(value) {
+  if (!value || typeof value !== "object") {
+    return {};
+  }
+
+  const providerState = {};
+  if (value.cursor && typeof value.cursor === "object") {
+    providerState.cursor = {
+      acpSessionId: typeof value.cursor.acpSessionId === "string" ? value.cursor.acpSessionId : ""
+    };
+  }
+  return providerState;
+}
+
+module.exports = {
+  normalizeProviderState,
+  serializeProviderState
+};
+
+},
 "src/storage/ChatStorage.js": function(module, exports, __require) {
 const { normalizePath } = require("obsidian");
+const { normalizeProviderState, serializeProviderState } = __require("src/storage/providerState.js");
 
 const CHAT_STATE_VERSION = 1;
 const SESSION_DIR_NAME = "sessions";
@@ -2831,7 +4226,8 @@ function serializeSession(session, settings) {
     draft: String(session.draft || ""),
     createdAt: normalizeTimestamp(session.createdAt, now),
     updatedAt: normalizeTimestamp(session.updatedAt, now),
-    messages
+    messages,
+    providerState: serializeProviderState(session.providerState)
   };
 }
 
@@ -2877,7 +4273,8 @@ function normalizePersistedSession(rawSession, indexEntry) {
     draft: typeof source.draft === "string" ? source.draft : "",
     createdAt: normalizeTimestamp(source.createdAt, indexEntry?.createdAt || Date.now()),
     updatedAt: normalizeTimestamp(source.updatedAt, indexEntry?.updatedAt || Date.now()),
-    messages
+    messages,
+    providerState: normalizeProviderState(source.providerState)
   };
 }
 
@@ -4560,13 +5957,16 @@ async function runChatTurn({
       if (update.kind === "content") {
         assistantMessage.content += update.text;
         appendTimelineContent(assistantMessage, update.text);
+      } else if (update.kind === "tool" && update.toolCallId) {
+        mergeToolTimelineUpdate(assistantMessage, update);
       } else {
         assistantMessage.timeline.push(update);
       }
       onTurnUpdate(session, assistantMessage);
     }, conversation, {
       signal: run.abortController.signal,
-      sessionId: session.id
+      sessionId: session.id,
+      dockSession: session
     });
 
     completeAssistantMessage(assistantMessage);
@@ -4609,12 +6009,42 @@ function completeAssistantMessage(message) {
   message.isComplete = true;
 }
 
+function mergeToolTimelineUpdate(assistantMessage, update) {
+  const existing = findLastToolTimelineEntry(assistantMessage.timeline, update.toolCallId);
+  if (!existing) {
+    assistantMessage.timeline.push(update);
+    return;
+  }
+
+  existing.title = update.title || existing.title;
+  if (update.summary) {
+    existing.summary = update.summary;
+  }
+  if (update.detail) {
+    existing.detail = existing.detail
+      ? `${existing.detail}\n\n${update.detail}`
+      : update.detail;
+  }
+}
+
+function findLastToolTimelineEntry(timeline, toolCallId) {
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const entry = timeline[index];
+    if (entry?.kind === "tool" && entry.toolCallId === toolCallId) {
+      return entry;
+    }
+  }
+  return null;
+}
+
 module.exports = {
   runChatTurn
 };
 
 },
 "src/view/session/SessionStore.js": function(module, exports, __require) {
+const { normalizeProviderState } = __require("src/storage/providerState.js");
+
 class SessionStore {
   constructor(options = {}) {
     this.sessions = [];
@@ -4647,7 +6077,8 @@ class SessionStore {
       draft: "",
       createdAt: now,
       updatedAt: now,
-      messages: []
+      messages: [],
+      providerState: {}
     };
     this.sessions.push(session);
     this.activeSessionId = session.id;
@@ -4725,7 +6156,8 @@ function normalizeSession(session, fallbackTitle = "Chat") {
     draft: typeof session.draft === "string" ? session.draft : "",
     createdAt: normalizeTimestamp(session.createdAt),
     updatedAt: normalizeTimestamp(session.updatedAt),
-    messages: Array.isArray(session.messages) ? session.messages.map(normalizeMessage).filter(Boolean) : []
+    messages: Array.isArray(session.messages) ? session.messages.map(normalizeMessage).filter(Boolean) : [],
+    providerState: normalizeProviderState(session.providerState)
   };
 }
 
@@ -5480,6 +6912,7 @@ class AgentDockView extends ItemView {
     }
 
     this.sessionStore.deleteSession(sessionId);
+    await this.plugin.agent?.releaseDockSession?.(sessionId);
     await this.plugin.deletePersistedSession(sessionId);
     await this.persistChatSessions({ immediate: true });
     this.render();
@@ -5688,6 +7121,7 @@ module.exports = class AgentDockPlugin extends Plugin {
   }
 
   refreshAgent() {
+    this.agent?.cancelAll?.();
     this.agent = createAgent(this);
   }
 

@@ -421,7 +421,28 @@ function buildPromptResult(rawPrompt, contextLimit, memories = [], protectedPref
   };
 }
 
+async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
+  const contextLimit = Number(settings.contextLimitChars) || 258000;
+  const stylePrompt = formatAssistantStylePrompt(settings);
+  const referencedPrompt = buildReferencedPathsPrompt(app, prompt, contextLimit);
+  const memoryPrompt = formatMemoryPrompt(options.memories || []);
+  const promptParts = [
+    stylePrompt,
+    memoryPrompt,
+    referencedPrompt,
+    ["User request:", prompt].join("\n")
+  ];
+
+  return buildPromptResult(
+    promptParts.filter(Boolean).join("\n"),
+    contextLimit,
+    options.memories || [],
+    stylePrompt
+  );
+}
+
 module.exports = {
   buildPrompt,
-  buildPromptWithMetadata
+  buildPromptWithMetadata,
+  buildTurnContextPrompt
 };

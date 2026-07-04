@@ -50,6 +50,7 @@ module.exports = class AgentDockPlugin extends Plugin {
   }
 
   refreshAgent() {
+    this.agent?.cancelAll?.();
     this.agent = createAgent(this);
   }
 

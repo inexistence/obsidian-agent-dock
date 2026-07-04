@@ -385,6 +385,7 @@ class AgentDockView extends ItemView {
     }
 
     this.sessionStore.deleteSession(sessionId);
+    await this.plugin.agent?.releaseDockSession?.(sessionId);
     await this.plugin.deletePersistedSession(sessionId);
     await this.persistChatSessions({ immediate: true });
     this.render();

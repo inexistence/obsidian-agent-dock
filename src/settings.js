@@ -1,5 +1,6 @@
 const { MODE_OPTIONS } = require("./modes");
 const { DEFAULT_LANGUAGE, normalizeLanguage } = require("./i18n");
+const { expandHomePath } = require("./cli/paths");
 
 const CUSTOM_ASSISTANT_STYLE_MAX_CHARS = 4000;
 
@@ -32,6 +33,10 @@ const DEFAULT_SETTINGS = {
   codexPath: "/opt/homebrew/bin/codex",
   args: "exec {{prompt}}",
   interactiveArgs: "",
+  cursorPath: "~/.local/bin/agent",
+  cursorExtraArgs: "",
+  cursorInteractiveArgs: "",
+  cursorPermissionPolicy: "allow-once",
   mode: "readOnly",
   workingDirectory: "",
   assistantStyle: "collaborative",
@@ -68,6 +73,14 @@ function normalizeSettings(savedSettings) {
   if (!settings.agentId) {
     settings.agentId = DEFAULT_SETTINGS.agentId;
   }
+
+  settings.cursorPath = expandHomePath(normalizeString(settings.cursorPath) || DEFAULT_SETTINGS.cursorPath);
+  settings.cursorExtraArgs = normalizeString(settings.cursorExtraArgs);
+  settings.cursorInteractiveArgs = normalizeString(settings.cursorInteractiveArgs);
+  settings.cursorPermissionPolicy = normalizeCursorPermissionPolicy(
+    settings.cursorPermissionPolicy,
+    DEFAULT_SETTINGS.cursorPermissionPolicy
+  );
 
   if (!ASSISTANT_STYLE_OPTIONS[settings.assistantStyle]) {
     settings.assistantStyle = DEFAULT_SETTINGS.assistantStyle;
@@ -169,6 +182,13 @@ function normalizeString(value) {
 
 function truncateString(value, maxChars) {
   return value.length > maxChars ? value.slice(0, maxChars) : value;
+}
+
+function normalizeCursorPermissionPolicy(value, fallback) {
+  if (value === "allow-once" || value === "allow-always" || value === "reject-once") {
+    return value;
+  }
+  return fallback;
 }
 
 module.exports = {

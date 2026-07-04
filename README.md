@@ -1,6 +1,6 @@
 # Agent Dock for Obsidian
 
-Agent Dock adds a right-sidebar chat view that sends prompts to the local Codex CLI.
+Agent Dock adds a right-sidebar chat view that sends prompts to a local agent CLI. The default provider is Codex; Cursor CLI via ACP is also supported.
 
 ## Install for local development
 
@@ -70,6 +70,11 @@ src/
     codex/
       CodexAgent.js
       jsonEvents.js
+    cursor/
+      AcpClient.js
+      acpEvents.js
+      CursorAgent.js
+      modes.js
   cli/
     args.js
     env.js
@@ -86,7 +91,7 @@ src/
   settingsTab.js
 ```
 
-Future CLIs such as Claude Code or Cursor should be added as new agent adapters under `src/agents/`, then registered in `AgentRegistry.js`. The view only consumes normalized agent events: `content`, `reasoning`, `tool`, `error`, and `activity`.
+Future CLIs such as Claude Code should be added as new agent adapters under `src/agents/`, then registered in `AgentRegistry.js`. Cursor is available now via `src/agents/cursor/`. The view only consumes normalized agent events: `content`, `reasoning`, `tool`, `error`, and `activity`.
 
 For Obsidian runtime compatibility, `main.js` is generated as a single-file bundle:
 
@@ -107,6 +112,29 @@ sh scripts/install-git-hooks.sh
 
 Commit messages are checked with the Conventional Commits format documented in
 `AGENTS.md`.
+
+## Cursor provider
+
+Select Settings -> Agent Dock -> Agent provider -> Cursor to use the Cursor CLI through ACP (`agent acp`).
+
+Requirements:
+
+1. Install the Cursor CLI and ensure `agent` is on your PATH.
+2. Authenticate once with `agent login`, or configure `CURSOR_API_KEY`.
+3. Set Cursor executable path if needed. Default:
+
+```sh
+~/.local/bin/agent
+```
+
+Cursor mode mapping from the composer mode pill:
+
+- Read only -> Cursor `ask`
+- Workspace write / Full access -> Cursor `agent`
+
+Within one Agent Dock conversation, Cursor ACP sessions are reused across turns. The ACP session id is persisted in `sessions/<session-id>.json` when chat history persistence is enabled. Idle ACP subprocesses are closed after 30 minutes without use. Tool permission requests default to `allow-once`; change this in Settings -> Agent Dock -> Cursor permission policy.
+
+See the [Cursor ACP docs](https://cursor.com/cn/docs/cli/acp) for protocol details.
 
 ## Codex path
 
