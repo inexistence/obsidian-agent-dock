@@ -157,6 +157,79 @@ const settings = {
 
 {
   const signal = affectTest.extractTurnAffectSignal({
+    prompt: "不要开玩笑，别 playful，认真点。",
+    response: "我会认真处理。",
+    success: true
+  });
+  assert(signal.valence <= 0, "negated playful phrasing should not increase positive affect");
+  assert(signal.warmth <= 0, "negated playful phrasing should not increase warmth");
+  assert(signal.arousal <= 0, "negated playful phrasing should not add playful energy");
+}
+
+{
+  const promptAffect = getPromptWorkingAffect(settings, resetAffectState(settings), "不要开玩笑，别 playful，认真点。");
+  assert.notEqual(promptAffect?.label, "playful", "negated playful request should not label the turn playful");
+}
+
+{
+  const signal = affectTest.extractTurnAffectSignal({
+    prompt: "别太亲近，保持专业。",
+    response: "我会保持专业距离。",
+    success: true
+  });
+  assert(signal.warmth <= 0, "negated closeness should not increase warmth");
+  const promptAffect = getPromptWorkingAffect(settings, resetAffectState(settings), "别太亲近，保持专业。");
+  assert.notEqual(promptAffect?.label, "close", "negated closeness should not label the turn close");
+}
+
+{
+  const promptAffect = getPromptWorkingAffect(settings, resetAffectState(settings), "不要太热情，短一点。");
+  assert(promptAffect, "restrained phrasing should produce current prompt affect");
+  assert.equal(promptAffect.label, "restrained", "restrained phrasing should tune toward restrained tone");
+}
+
+{
+  const signal = affectTest.extractTurnAffectSignal({
+    prompt: "先别慌，稳一点，帮我理一下。",
+    response: "我会先整理线索。",
+    success: true
+  });
+  assert(signal.arousal < 0, "expanded composed synonyms should lower arousal");
+  assert(signal.tension < 0, "expanded composed synonyms should lower tension");
+}
+
+{
+  const signal = affectTest.extractTurnAffectSignal({
+    prompt: "站在反方找漏洞，直接反对我。",
+    response: "我会指出风险假设。",
+    success: true
+  });
+  assert(signal.focus > 0.2, "expanded challenging synonyms should increase focus");
+  assert(signal.confidence > 0.1, "expanded challenging synonyms should increase confidence");
+}
+
+{
+  const signal = affectTest.extractTurnAffectSignal({
+    prompt: "这是不可逆操作，涉及 private key 和权限提升。",
+    response: "我会先收敛风险。",
+    success: true
+  });
+  assert(signal.tension > 0.25, "expanded alert synonyms should increase alert tension");
+  assert(signal.arousal > 0.15, "expanded alert synonyms should increase alert arousal");
+}
+
+{
+  const signal = affectTest.extractTurnAffectSignal({
+    prompt: "别太正式，温柔点，陪一下。",
+    response: "我会放慢一点。",
+    success: true
+  });
+  assert(signal.warmth > 0.2, "expanded close synonyms should increase warmth");
+  assert(signal.arousal < 0, "expanded close synonyms should lower arousal");
+}
+
+{
+  const signal = affectTest.extractTurnAffectSignal({
     prompt: "请继续。",
     response: "太好了，这个成功了，结果很清楚。",
     success: true

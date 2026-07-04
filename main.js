@@ -1639,30 +1639,35 @@ const AFFECT_SIGNAL_RULES = [
     name: "playful",
     scope: "prompt",
     pattern: /(好玩|有趣|开玩笑|玩一下|整活|轻松|俏皮|哈哈|哈[哈]+|fun|funny|playful|joke|kidding|lighthearted|lol|haha)/i,
+    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(开玩笑|玩笑|playful|俏皮|整活|轻松|好玩|fun|funny|joke|kidding|lighthearted)/i,
     signal: { valence: 0.16, arousal: 0.16, warmth: 0.12, tension: -0.12 }
   },
   {
     name: "celebratory",
     scope: "prompt",
     pattern: /(成了|搞定|通过了|成功了|太棒了|漂亮|完美|nice work|it works|passed|success|done|awesome|excellent)/i,
+    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(热情|兴奋|庆祝|夸张|hype|excited|celebrate|celebratory|awesome|excellent)/i,
     signal: { valence: 0.22, arousal: 0.12, warmth: 0.12, confidence: 0.08, tension: -0.14 }
   },
   {
     name: "surprised",
     scope: "prompt",
     pattern: /(惊喜|没想到|居然|竟然|意外地|哇|哇哦|surprise|surprised|unexpected|wow|whoa)/i,
+    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(惊喜|意外|夸张|surprise|surprised|unexpected|wow|whoa)/i,
     signal: { valence: 0.2, arousal: 0.22, warmth: 0.08, tension: -0.08 }
   },
   {
     name: "admiring",
     scope: "prompt",
     pattern: /(厉害|很强|漂亮的设计|好判断|品味|写得好|做得好|想得很细|admire|admiring|impressive|well done|good taste|strong work|thoughtful)/i,
+    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(赞赏|夸|夸奖|佩服|admire|admiring|impressive|well done)/i,
     signal: { valence: 0.18, warmth: 0.22, confidence: 0.08, tension: -0.08 }
   },
   {
     name: "close",
     scope: "prompt",
-    pattern: /(亲近|靠近|陪我|陪着|在旁边|一起待会|安静陪|贴近一点|close|closer|stay with me|sit with me|gentle company)/i,
+    pattern: /(亲近|靠近|陪我|陪着|陪一下|在旁边|一起待会|安静陪|贴近一点|别太正式|温柔点|close|closer|stay with me|sit with me|gentle company)/i,
+    blockedBy: /((不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(亲近|靠近|陪|贴近|温柔|close|closer|intimate|overfamiliar)|保持[^，。！？,.!?]{0,8}(专业|距离|正式))/i,
     signal: { valence: 0.08, warmth: 0.24, arousal: -0.08, tension: -0.12 }
   },
   {
@@ -1680,13 +1685,13 @@ const AFFECT_SIGNAL_RULES = [
   {
     name: "alert",
     scope: "prompt",
-    pattern: /(危险|破坏|删除|覆盖|权限|密钥|token|密码|凭据|注入|越权|destructive|delete|overwrite|permission|secret|credential|injection|unsafe)/i,
+    pattern: /(危险|破坏|删除|覆盖|权限|密钥|token|密码|凭据|注入|越权|不可逆|删库|权限提升|destructive|delete|overwrite|permission|secret|credential|private key|privilege escalation|injection|unsafe)/i,
     signal: { focus: 0.26, tension: 0.34, arousal: 0.18, warmth: -0.08, confidence: 0.04 }
   },
   {
     name: "composed",
     scope: "prompt",
-    pattern: /(冷静|稳住|别急|慢慢来|梳理|先理清|降噪|calm|compose|composed|slow down|sort this out)/i,
+    pattern: /(冷静|稳住|别急|慢慢来|梳理|先理清|降噪|先别慌|稳一点|理一下|calm|compose|composed|slow down|sort this out)/i,
     signal: { focus: 0.16, arousal: -0.12, tension: -0.12, confidence: 0.06 }
   },
   {
@@ -1698,7 +1703,7 @@ const AFFECT_SIGNAL_RULES = [
   {
     name: "challenging",
     scope: "prompt",
-    pattern: /(挑战|质疑|反驳|挑刺|审视|评审|别顺着我|challenge|push back|critique|review|poke holes|devil's advocate)/i,
+    pattern: /(挑战|质疑|反驳|挑刺|审视|评审|别顺着我|反对我|找漏洞|站在反方|challenge|push back|critique|review|poke holes|devil's advocate)/i,
     signal: { focus: 0.24, confidence: 0.12, warmth: -0.04, tension: 0.08 }
   },
   {
@@ -1710,7 +1715,7 @@ const AFFECT_SIGNAL_RULES = [
   {
     name: "restrained",
     scope: "prompt",
-    pattern: /(克制|简短|少一点|别太热情|不要夸张|只说结论|restrained|terse|brief|less enthusiastic|just the answer|no flourish)/i,
+    pattern: /(克制|简短|少一点|别太热情|不要太热情|不要夸张|只说结论|少废话|别展开|短一点|tl;dr|restrained|terse|brief|less enthusiastic|just the answer|no flourish)/i,
     signal: { focus: 0.18, arousal: -0.1, warmth: -0.12, tension: -0.02 }
   },
   {
@@ -1986,6 +1991,9 @@ function extractTurnAffectSignal(turn) {
   for (const rule of AFFECT_SIGNAL_RULES) {
     // Rules are prompt-scoped today; response scope is reserved for explicit future response-only signals.
     const text = rule.scope === "response" ? response : prompt;
+    if (rule.blockedBy?.test(text)) {
+      continue;
+    }
     if (rule.pattern.test(text)) {
       addSignal(signal, rule.signal);
     }
