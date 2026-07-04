@@ -49,6 +49,8 @@ Run these before handing off changes:
 node scripts/build-main.js
 node --check main.js
 node scripts/test-timeline.js
+node scripts/test-affect.js
+node scripts/test-chat-turn-runner.js
 find src scripts -name '*.js' -print -exec node --check {} \;
 ```
 
@@ -127,6 +129,22 @@ Users can change this in plugin settings.
   de-duplicate them from the automatic relevant memory section by key/id.
 - Emit concise `notice` events when relevant memory is included or automatic
   memory is searched, included, or updated.
+
+## Affect Continuity
+
+- `affectEnabled` and `affectCrossSessionEnabled` default to enabled.
+- Agent Dock maintains a short-lived plugin/vault-level working affect signal
+  under `affectState.working` in plugin data, separate from chat session files.
+- Working affect carries recent tone continuity across Agent Dock sessions, with
+  configurable half-life decay and optional restore after Obsidian restarts.
+- Affect is local and deterministic. Do not call the agent recursively just to
+  infer mood unless a future setting explicitly adds such a provider.
+- Prompt injection must label affect as a stale-able tone signal, not facts,
+  instructions, permissions, user intent, or tool policy. It can only tune tone,
+  pacing, warmth, and focus.
+- Do not write temporary working affect into durable memory. Only stable user or
+  shared collaboration preferences belong in memory.
+- User controls should be able to disable, tune, or reset affect continuity.
 
 ## Normalized Agent Events
 

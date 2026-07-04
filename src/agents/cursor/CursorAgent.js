@@ -122,7 +122,8 @@ class CursorAgent {
         conversation,
         memories: promptMemories,
         memorySearchResults: memorySearch.results,
-        memorySearchPerformed: memorySearch.performed
+        memorySearchPerformed: memorySearch.performed,
+        workingAffect: this.plugin.getWorkingAffect()
       });
       throwIfAborted();
 
@@ -178,6 +179,7 @@ class CursorAgent {
             prompt,
             conversation,
             {
+              workingAffect: this.plugin.getWorkingAffect(),
               memories: promptMemories,
               memorySearchResults: memorySearch.results,
               memorySearchPerformed: memorySearch.performed
@@ -276,16 +278,19 @@ class CursorAgent {
     conversation,
     memories,
     memorySearchResults,
-    memorySearchPerformed
+    memorySearchPerformed,
+    workingAffect
   }) {
     if (useFullPrompt) {
       return buildPromptWithMetadata(app, settings, prompt, conversation, {
+        workingAffect,
         memories,
         memorySearchResults,
         memorySearchPerformed
       });
     }
     return buildTurnContextPrompt(app, settings, prompt, {
+      workingAffect,
       memories,
       memorySearchResults,
       memorySearchPerformed

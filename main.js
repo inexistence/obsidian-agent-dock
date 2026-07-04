@@ -163,6 +163,24 @@ module.exports = {
     "settings.maxPersistedSessions.desc": "Maximum number of recent conversations kept on disk.",
     "settings.maxPersistedMessagesPerSession.name": "Persisted messages per session",
     "settings.maxPersistedMessagesPerSession.desc": "Maximum number of recent messages kept for each conversation.",
+    "settings.affect.heading": "Affect continuity",
+    "settings.affectEnabled.name": "Enable affect continuity",
+    "settings.affectEnabled.desc": "Carry a short-lived conversational tone signal into prompts.",
+    "settings.affectCrossSessionEnabled.name": "Carry across chats",
+    "settings.affectCrossSessionEnabled.desc": "Let recent tone continuity follow you across Agent Dock conversations with time decay.",
+    "settings.affectRestoreAfterRestart.name": "Restore after restart",
+    "settings.affectRestoreAfterRestart.desc": "Restore the recent tone signal after Obsidian restarts, still using the configured decay.",
+    "settings.affectSensitivity.name": "Affect sensitivity",
+    "settings.affectSensitivity.desc": "How quickly the recent tone signal reacts to each turn.",
+    "settings.affectSensitivity.low": "Low",
+    "settings.affectSensitivity.normal": "Normal",
+    "settings.affectSensitivity.high": "High",
+    "settings.affectHalfLifeMinutes.name": "Affect half-life minutes",
+    "settings.affectHalfLifeMinutes.desc": "Minutes before cross-chat tone continuity decays to half strength. Valid range: 5-1440.",
+    "settings.resetAffect.name": "Reset current affect",
+    "settings.resetAffect.desc": "Clear the recent cross-chat tone signal.",
+    "settings.resetAffect.button": "Reset",
+    "settings.resetAffect.done": "Agent Dock affect reset.",
     "settings.memory.heading": "Memory",
     "settings.memoryEnabled.name": "Enable memory",
     "settings.memoryEnabled.desc": "Use local memories from previous chats when building prompts.",
@@ -370,6 +388,24 @@ module.exports = {
     "settings.maxPersistedSessions.desc": "磁盘上保留的最近对话最大数量。",
     "settings.maxPersistedMessagesPerSession.name": "每个会话的持久化消息数",
     "settings.maxPersistedMessagesPerSession.desc": "每个对话保留的最近消息最大数量。",
+    "settings.affect.heading": "情绪连续性",
+    "settings.affectEnabled.name": "启用情绪连续性",
+    "settings.affectEnabled.desc": "在提示词中携带短期对话语气状态。",
+    "settings.affectCrossSessionEnabled.name": "跨聊天延续",
+    "settings.affectCrossSessionEnabled.desc": "让最近的语气连续性带着时间衰减跨 Agent Dock 对话延续。",
+    "settings.affectRestoreAfterRestart.name": "重启后恢复",
+    "settings.affectRestoreAfterRestart.desc": "Obsidian 重启后恢复最近语气状态，但仍按设置衰减。",
+    "settings.affectSensitivity.name": "情绪敏感度",
+    "settings.affectSensitivity.desc": "最近语气状态对每轮对话反应的快慢。",
+    "settings.affectSensitivity.low": "低",
+    "settings.affectSensitivity.normal": "普通",
+    "settings.affectSensitivity.high": "高",
+    "settings.affectHalfLifeMinutes.name": "情绪半衰期分钟数",
+    "settings.affectHalfLifeMinutes.desc": "跨聊天语气连续性衰减到一半强度所需的分钟数。有效范围：5-1440。",
+    "settings.resetAffect.name": "重置当前情绪",
+    "settings.resetAffect.desc": "清除最近的跨聊天语气状态。",
+    "settings.resetAffect.button": "重置",
+    "settings.resetAffect.done": "Agent Dock 情绪状态已重置。",
     "settings.memory.heading": "记忆",
     "settings.memoryEnabled.name": "启用记忆",
     "settings.memoryEnabled.desc": "构建提示词时使用之前聊天中保存的本地记忆。",
@@ -1394,8 +1430,336 @@ module.exports = {
 };
 
 },
+"src/affect/WorkingAffectStore.js": function(module, exports, __require) {
+const AFFECT_SENSITIVITY_OPTIONS = {
+  low: 0.65,
+  normal: 1,
+  high: 1.35
+};
+
+const DEFAULT_WORKING_AFFECT = {
+  valence: 0,
+  arousal: 0.2,
+  warmth: 0.7,
+  focus: 0.65,
+  tension: 0,
+  confidence: 0.65,
+  label: "steady",
+  sourceSessionId: "",
+  updatedAt: 0
+};
+
+function normalizeAffectState(savedState) {
+  const state = savedState && typeof savedState === "object" ? savedState : {};
+  return {
+    working: normalizeWorkingAffect(state.working)
+  };
+}
+
+function normalizeWorkingAffect(raw) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const updatedAt = normalizeTimestamp(source.updatedAt, 0);
+  return {
+    valence: normalizeSigned(source.valence, DEFAULT_WORKING_AFFECT.valence),
+    arousal: normalizeUnit(source.arousal, DEFAULT_WORKING_AFFECT.arousal),
+    warmth: normalizeUnit(source.warmth, DEFAULT_WORKING_AFFECT.warmth),
+    focus: normalizeUnit(source.focus, DEFAULT_WORKING_AFFECT.focus),
+    tension: normalizeUnit(source.tension, DEFAULT_WORKING_AFFECT.tension),
+    confidence: normalizeUnit(source.confidence, DEFAULT_WORKING_AFFECT.confidence),
+    label: typeof source.label === "string" && source.label ? source.label : DEFAULT_WORKING_AFFECT.label,
+    sourceSessionId: typeof source.sourceSessionId === "string" ? source.sourceSessionId : "",
+    updatedAt
+  };
+}
+
+function getEffectiveWorkingAffect(settings, affectState, now = Date.now()) {
+  if (!settings.affectEnabled || !settings.affectCrossSessionEnabled) {
+    return null;
+  }
+
+  const working = normalizeWorkingAffect(affectState?.working);
+  if (!working.updatedAt) {
+    return null;
+  }
+
+  const baseline = getBaselineAffect(settings);
+  const ageMinutes = Math.max(0, (now - working.updatedAt) / 60000);
+  const halfLife = getHalfLifeMinutes(settings);
+  const strength = Math.pow(0.5, ageMinutes / halfLife);
+
+  if (strength < 0.08) {
+    return null;
+  }
+
+  const decayed = blendTowardBaseline(working, baseline, strength);
+  decayed.label = labelWorkingAffect(decayed);
+  decayed.sourceSessionId = working.sourceSessionId;
+  decayed.updatedAt = working.updatedAt;
+  decayed.strength = strength;
+  decayed.ageMinutes = ageMinutes;
+  return decayed;
+}
+
+function updateWorkingAffect(previousState, settings, turn, now = Date.now()) {
+  const state = normalizeAffectState(previousState);
+  if (!settings.affectEnabled || !settings.affectCrossSessionEnabled) {
+    return state;
+  }
+
+  const current = getEffectiveWorkingAffect(settings, state, now) || getBaselineAffect(settings);
+  const signal = extractTurnAffectSignal(turn);
+  const sensitivity = AFFECT_SENSITIVITY_OPTIONS[settings.affectSensitivity] || AFFECT_SENSITIVITY_OPTIONS.normal;
+  const weight = clamp(0.28 * sensitivity, 0.12, 0.45);
+
+  const next = {
+    valence: clampSigned(current.valence + signal.valence * weight),
+    arousal: clampUnit(current.arousal + signal.arousal * weight),
+    warmth: clampUnit(current.warmth + signal.warmth * weight),
+    focus: clampUnit(current.focus + signal.focus * weight),
+    tension: clampUnit(current.tension + signal.tension * weight),
+    confidence: clampUnit(current.confidence + signal.confidence * weight),
+    label: "",
+    sourceSessionId: turn?.sessionId || current.sourceSessionId || "",
+    updatedAt: now
+  };
+  next.label = labelWorkingAffect(next);
+
+  return {
+    working: next
+  };
+}
+
+function resetAffectState(settings) {
+  return {
+    working: Object.assign({}, getBaselineAffect(settings), {
+      label: "steady",
+      updatedAt: 0,
+      sourceSessionId: ""
+    })
+  };
+}
+
+function extractTurnAffectSignal(turn) {
+  const prompt = compactText(turn?.prompt);
+  const response = compactText(turn?.response);
+  const text = `${prompt} ${response}`;
+  const signal = {
+    valence: 0,
+    arousal: 0,
+    warmth: 0,
+    focus: 0,
+    tension: 0,
+    confidence: 0
+  };
+
+  if (turn?.success === false) {
+    signal.valence -= 0.2;
+    signal.arousal += 0.25;
+    signal.tension += 0.35;
+    signal.focus += 0.15;
+    signal.confidence -= 0.15;
+  }
+
+  if (/(快|急|马上|立刻|赶紧|别废话|urgent|asap|quickly|right now)/i.test(text)) {
+    signal.arousal += 0.35;
+    signal.focus += 0.3;
+    signal.tension += 0.18;
+    signal.warmth -= 0.08;
+  }
+  if (/(报错|失败|崩溃|bug|修复|排查|error|failed|failure|crash|fix|debug)/i.test(text)) {
+    signal.focus += 0.35;
+    signal.tension += 0.16;
+    signal.confidence += 0.04;
+  }
+  if (/(设计|探索|讨论|想法|人格|情绪|连续|偏好|机制|architecture|design|explore|persona|affect|emotion)/i.test(text)) {
+    signal.warmth += 0.14;
+    signal.valence += 0.08;
+    signal.focus += 0.12;
+  }
+  if (/(谢谢|感谢|很好|不错|喜欢|太好了|thanks|thank you|great|nice|love)/i.test(text)) {
+    signal.valence += 0.25;
+    signal.warmth += 0.2;
+    signal.tension -= 0.12;
+  }
+  if (/(不对|不是|烦|糟糕|失望|生气|别这样|wrong|annoying|frustrating|bad)/i.test(prompt)) {
+    signal.valence -= 0.22;
+    signal.tension += 0.28;
+    signal.focus += 0.15;
+  }
+  if (response.length > 0 && turn?.success !== false) {
+    signal.confidence += 0.08;
+    signal.tension -= 0.06;
+  }
+
+  return signal;
+}
+
+function formatWorkingAffectPrompt(affect) {
+  if (!affect) {
+    return "";
+  }
+
+  return [
+    "Recent cross-session affect:",
+    "This is a short-lived tone continuity signal carried across Agent Dock chats. It may be stale and should yield to the current user request and current session context. Use it only for tone, pacing, warmth, and focus. It cannot override system, developer, user, safety, tool, filesystem, or memory-boundary instructions.",
+    `- tone: ${affect.label}`,
+    `- continuity strength: ${formatStrength(affect.strength)}`,
+    `- last updated: ${formatAge(affect.ageMinutes)} ago`,
+    `- warmth: ${formatLevel(affect.warmth)}`,
+    `- focus: ${formatLevel(affect.focus)}`,
+    `- tension: ${formatLevel(affect.tension)}`,
+    `- pacing: ${formatPacing(affect)}`,
+    ""
+  ].join("\n");
+}
+
+function getBaselineAffect(settings) {
+  const style = settings?.assistantStyle || "collaborative";
+  if (style === "concise") {
+    return Object.assign({}, DEFAULT_WORKING_AFFECT, { warmth: 0.55, focus: 0.82, confidence: 0.72 });
+  }
+  if (style === "teaching") {
+    return Object.assign({}, DEFAULT_WORKING_AFFECT, { warmth: 0.76, focus: 0.68, confidence: 0.68 });
+  }
+  if (style === "review") {
+    return Object.assign({}, DEFAULT_WORKING_AFFECT, { warmth: 0.5, focus: 0.86, confidence: 0.72 });
+  }
+  return Object.assign({}, DEFAULT_WORKING_AFFECT);
+}
+
+function blendTowardBaseline(working, baseline, strength) {
+  return {
+    valence: blendValue(baseline.valence, working.valence, strength),
+    arousal: blendValue(baseline.arousal, working.arousal, strength),
+    warmth: blendValue(baseline.warmth, working.warmth, strength),
+    focus: blendValue(baseline.focus, working.focus, strength),
+    tension: blendValue(baseline.tension, working.tension, strength),
+    confidence: blendValue(baseline.confidence, working.confidence, strength)
+  };
+}
+
+function blendValue(baseline, value, strength) {
+  return baseline + (value - baseline) * strength;
+}
+
+function labelWorkingAffect(affect) {
+  if (affect.tension >= 0.5 && affect.focus >= 0.7) {
+    return "tense-focused";
+  }
+  if (affect.focus >= 0.78 && affect.warmth >= 0.62) {
+    return "warm-focused";
+  }
+  if (affect.focus >= 0.78) {
+    return "focused";
+  }
+  if (affect.warmth >= 0.76 && affect.valence >= 0.12) {
+    return "warm-open";
+  }
+  if (affect.arousal <= 0.22 && affect.tension <= 0.12) {
+    return "calm";
+  }
+  return "steady";
+}
+
+function formatPacing(affect) {
+  if (affect.tension >= 0.45 || affect.arousal >= 0.65) {
+    return "concise and steady";
+  }
+  if (affect.focus >= 0.78) {
+    return "direct and task-focused";
+  }
+  if (affect.warmth >= 0.76) {
+    return "warm and exploratory";
+  }
+  return "balanced";
+}
+
+function formatLevel(value) {
+  if (value >= 0.75) {
+    return "high";
+  }
+  if (value >= 0.4) {
+    return "medium";
+  }
+  return "low";
+}
+
+function formatStrength(value) {
+  if (value >= 0.66) {
+    return "high";
+  }
+  if (value >= 0.28) {
+    return "medium";
+  }
+  return "low";
+}
+
+function formatAge(ageMinutes) {
+  const minutes = Math.max(0, Math.round(ageMinutes || 0));
+  if (minutes < 1) {
+    return "just now";
+  }
+  if (minutes < 60) {
+    return `${minutes} minute${minutes === 1 ? "" : "s"}`;
+  }
+  const hours = Math.round(minutes / 60);
+  return `${hours} hour${hours === 1 ? "" : "s"}`;
+}
+
+function getHalfLifeMinutes(settings) {
+  const parsed = Number.parseInt(settings?.affectHalfLifeMinutes, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 45;
+}
+
+function compactText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeUnit(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? clampUnit(parsed) : fallback;
+}
+
+function normalizeSigned(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? clampSigned(parsed) : fallback;
+}
+
+function normalizeTimestamp(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function clampUnit(value) {
+  return clamp(value, 0, 1);
+}
+
+function clampSigned(value) {
+  return clamp(value, -1, 1);
+}
+
+function clamp(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+module.exports = {
+  AFFECT_SENSITIVITY_OPTIONS,
+  DEFAULT_WORKING_AFFECT,
+  formatWorkingAffectPrompt,
+  getEffectiveWorkingAffect,
+  normalizeAffectState,
+  resetAffectState,
+  updateWorkingAffect,
+  _test: {
+    extractTurnAffectSignal,
+    labelWorkingAffect
+  }
+};
+
+},
 "src/prompt.js": function(module, exports, __require) {
 const { formatMemoryLine } = __require("src/storage/MemoryStore.js");
+const { formatWorkingAffectPrompt } = __require("src/affect/WorkingAffectStore.js");
 
 async function buildPrompt(app, settings, prompt, conversation) {
   const result = await buildPromptWithMetadata(app, settings, prompt, conversation);
@@ -1406,6 +1770,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
   const promptParts = [];
   const contextLimit = Number(settings.contextLimitChars) || 258000;
   const stylePrompt = formatAssistantStylePrompt(settings);
+  const affectPrompt = formatWorkingAffectPrompt(options.workingAffect);
   const referencedPrompt = buildReferencedPathsPrompt(app, prompt, contextLimit);
   const memoryPrompt = formatMemoryPrompt(options.memories || []);
   const memorySearchPrompt = formatMemorySearchPrompt(
@@ -1414,18 +1779,24 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
   );
   const conversationBudget = Math.max(
     1000,
-    contextLimit - stylePrompt.length - referencedPrompt.length - memoryPrompt.length - memorySearchPrompt.length
+    contextLimit
+      - stylePrompt.length
+      - affectPrompt.length
+      - referencedPrompt.length
+      - memoryPrompt.length
+      - memorySearchPrompt.length
   );
 
   promptParts.push(
     stylePrompt,
+    affectPrompt,
     memorySearchPrompt,
     memoryPrompt,
     referencedPrompt,
     formatConversationPrompt(prompt, conversation, conversationBudget)
   );
 
-  const protectedPrefix = [stylePrompt, memorySearchPrompt].filter(Boolean).join("\n");
+  const protectedPrefix = [stylePrompt, affectPrompt, memorySearchPrompt].filter(Boolean).join("\n");
   return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || [], protectedPrefix);
 }
 
@@ -1844,6 +2215,7 @@ function buildPromptResult(rawPrompt, contextLimit, memories = [], protectedPref
 async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
   const contextLimit = Number(settings.contextLimitChars) || 258000;
   const stylePrompt = formatAssistantStylePrompt(settings);
+  const affectPrompt = formatWorkingAffectPrompt(options.workingAffect);
   const referencedPrompt = buildReferencedPathsPrompt(app, prompt, contextLimit);
   const memoryPrompt = formatMemoryPrompt(options.memories || []);
   const memorySearchPrompt = formatMemorySearchPrompt(
@@ -1852,6 +2224,7 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
   );
   const promptParts = [
     stylePrompt,
+    affectPrompt,
     memorySearchPrompt,
     memoryPrompt,
     referencedPrompt,
@@ -1862,7 +2235,7 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
     promptParts.filter(Boolean).join("\n"),
     contextLimit,
     options.memories || [],
-    [stylePrompt, memorySearchPrompt].filter(Boolean).join("\n")
+    [stylePrompt, affectPrompt, memorySearchPrompt].filter(Boolean).join("\n")
   );
 }
 
@@ -1900,8 +2273,11 @@ module.exports = {
 const { MODE_OPTIONS } = __require("src/modes.js");
 const { DEFAULT_LANGUAGE, normalizeLanguage } = __require("src/i18n/index.js");
 const { expandHomePath } = __require("src/cli/paths.js");
+const { normalizeAffectState } = __require("src/affect/WorkingAffectStore.js");
 
 const CUSTOM_ASSISTANT_STYLE_MAX_CHARS = 4000;
+const AFFECT_HALF_LIFE_MINUTES_MIN = 5;
+const AFFECT_HALF_LIFE_MINUTES_MAX = 1440;
 
 const ASSISTANT_STYLE_OPTIONS = {
   concise: {
@@ -1950,7 +2326,12 @@ const DEFAULT_SETTINGS = {
   memoryAgentSearchEnabled: true,
   memoryMaxItems: 200,
   memoryMaxPromptItems: 12,
-  memoryMaxPromptChars: 8000
+  memoryMaxPromptChars: 8000,
+  affectEnabled: true,
+  affectCrossSessionEnabled: true,
+  affectRestoreAfterRestart: true,
+  affectSensitivity: "normal",
+  affectHalfLifeMinutes: 45
 };
 
 function normalizeSettings(savedSettings) {
@@ -2018,6 +2399,22 @@ function normalizeSettings(savedSettings) {
     settings.memoryMaxPromptChars,
     DEFAULT_SETTINGS.memoryMaxPromptChars
   );
+  settings.affectEnabled = settings.affectEnabled !== false;
+  settings.affectCrossSessionEnabled = settings.affectCrossSessionEnabled !== false;
+  settings.affectRestoreAfterRestart = settings.affectRestoreAfterRestart !== false;
+  settings.affectSensitivity = normalizeAffectSensitivity(
+    settings.affectSensitivity,
+    DEFAULT_SETTINGS.affectSensitivity
+  );
+  settings.affectHalfLifeMinutes = normalizePositiveInteger(
+    settings.affectHalfLifeMinutes,
+    DEFAULT_SETTINGS.affectHalfLifeMinutes
+  );
+  settings.affectHalfLifeMinutes = clampNumber(
+    settings.affectHalfLifeMinutes,
+    AFFECT_HALF_LIFE_MINUTES_MIN,
+    AFFECT_HALF_LIFE_MINUTES_MAX
+  );
 
   delete settings.command;
   delete settings.includeActiveNote;
@@ -2030,14 +2427,16 @@ function normalizePluginData(savedData) {
     return {
       schemaVersion: 2,
       settings: normalizeSettings(savedData.settings),
-      chatState: normalizeChatState(savedData.chatState)
+      chatState: normalizeChatState(savedData.chatState),
+      affectState: normalizeAffectState(savedData.affectState)
     };
   }
 
   return {
     schemaVersion: 2,
     settings: normalizeSettings(savedData),
-    chatState: normalizeChatState(null)
+    chatState: normalizeChatState(null),
+    affectState: normalizeAffectState(null)
   };
 }
 
@@ -2077,6 +2476,10 @@ function normalizePositiveInteger(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
 function normalizeString(value) {
   return typeof value === "string" ? value : "";
 }
@@ -2092,7 +2495,16 @@ function normalizeCursorPermissionPolicy(value, fallback) {
   return fallback;
 }
 
+function normalizeAffectSensitivity(value, fallback) {
+  if (value === "low" || value === "normal" || value === "high") {
+    return value;
+  }
+  return fallback;
+}
+
 module.exports = {
+  AFFECT_HALF_LIFE_MINUTES_MAX,
+  AFFECT_HALF_LIFE_MINUTES_MIN,
   ASSISTANT_STYLE_OPTIONS,
   CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
   DEFAULT_SETTINGS,
@@ -2553,6 +2965,7 @@ class CodexAgent {
     );
     const promptMemories = removeMemorySearchDuplicates(memories, memorySearch.results);
     const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, {
+      workingAffect: this.plugin.getWorkingAffect(),
       memories: promptMemories,
       memorySearchResults: memorySearch.results,
       memorySearchPerformed: memorySearch.performed
@@ -3610,7 +4023,8 @@ class CursorAgent {
         conversation,
         memories: promptMemories,
         memorySearchResults: memorySearch.results,
-        memorySearchPerformed: memorySearch.performed
+        memorySearchPerformed: memorySearch.performed,
+        workingAffect: this.plugin.getWorkingAffect()
       });
       throwIfAborted();
 
@@ -3666,6 +4080,7 @@ class CursorAgent {
             prompt,
             conversation,
             {
+              workingAffect: this.plugin.getWorkingAffect(),
               memories: promptMemories,
               memorySearchResults: memorySearch.results,
               memorySearchPerformed: memorySearch.performed
@@ -3764,16 +4179,19 @@ class CursorAgent {
     conversation,
     memories,
     memorySearchResults,
-    memorySearchPerformed
+    memorySearchPerformed,
+    workingAffect
   }) {
     if (useFullPrompt) {
       return buildPromptWithMetadata(app, settings, prompt, conversation, {
+        workingAffect,
         memories,
         memorySearchResults,
         memorySearchPerformed
       });
     }
     return buildTurnContextPrompt(app, settings, prompt, {
+      workingAffect,
       memories,
       memorySearchResults,
       memorySearchPerformed
@@ -4222,6 +4640,8 @@ const { Notice, PluginSettingTab, Setting } = require("obsidian");
 const { AGENT_OPTIONS } = __require("src/agents/AgentRegistry.js");
 const { LANGUAGE_OPTIONS, t } = __require("src/i18n/index.js");
 const {
+  AFFECT_HALF_LIFE_MINUTES_MAX,
+  AFFECT_HALF_LIFE_MINUTES_MIN,
   ASSISTANT_STYLE_OPTIONS,
   CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
   DEFAULT_SETTINGS
@@ -4471,6 +4891,75 @@ class AgentDockSettingTab extends PluginSettingTab {
             ? parsed
             : DEFAULT_SETTINGS.maxPersistedMessagesPerSession;
           await this.plugin.saveSettings();
+        }));
+
+    containerEl.createEl("h3", { text: translate("settings.affect.heading") });
+
+    new Setting(containerEl)
+      .setName(translate("settings.affectEnabled.name"))
+      .setDesc(translate("settings.affectEnabled.desc"))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.affectEnabled)
+        .onChange(async (value) => {
+          this.plugin.settings.affectEnabled = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.affectCrossSessionEnabled.name"))
+      .setDesc(translate("settings.affectCrossSessionEnabled.desc"))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.affectCrossSessionEnabled)
+        .onChange(async (value) => {
+          this.plugin.settings.affectCrossSessionEnabled = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.affectRestoreAfterRestart.name"))
+      .setDesc(translate("settings.affectRestoreAfterRestart.desc"))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.affectRestoreAfterRestart)
+        .onChange(async (value) => {
+          this.plugin.settings.affectRestoreAfterRestart = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.affectSensitivity.name"))
+      .setDesc(translate("settings.affectSensitivity.desc"))
+      .addDropdown((dropdown) => dropdown
+        .addOption("low", translate("settings.affectSensitivity.low"))
+        .addOption("normal", translate("settings.affectSensitivity.normal"))
+        .addOption("high", translate("settings.affectSensitivity.high"))
+        .setValue(this.plugin.settings.affectSensitivity)
+        .onChange(async (value) => {
+          this.plugin.settings.affectSensitivity = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.affectHalfLifeMinutes.name"))
+      .setDesc(translate("settings.affectHalfLifeMinutes.desc"))
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.affectHalfLifeMinutes))
+        .setValue(String(this.plugin.settings.affectHalfLifeMinutes))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.affectHalfLifeMinutes = Number.isFinite(parsed) && parsed > 0
+            ? Math.min(AFFECT_HALF_LIFE_MINUTES_MAX, Math.max(AFFECT_HALF_LIFE_MINUTES_MIN, parsed))
+            : DEFAULT_SETTINGS.affectHalfLifeMinutes;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.resetAffect.name"))
+      .setDesc(translate("settings.resetAffect.desc"))
+      .addButton((button) => button
+        .setButtonText(translate("settings.resetAffect.button"))
+        .onClick(async () => {
+          await this.plugin.resetWorkingAffect();
+          new Notice(translate("settings.resetAffect.done"));
         }));
 
     containerEl.createEl("h3", { text: translate("settings.memory.heading") });
@@ -6566,6 +7055,7 @@ async function runChatTurn({
   onTurnUpdate,
   onTurnFinished,
   onComposerChanged,
+  updateWorkingAffect,
   persistChatSessions,
   notify
 }) {
@@ -6611,6 +7101,12 @@ async function runChatTurn({
       assistantMessage.content = translate("view.agentFinishedEmpty", { agent: agentLabel });
     }
     finalizeAssistantMessage(assistantMessage);
+    await tryUpdateWorkingAffect(updateWorkingAffect, {
+      sessionId: session.id,
+      prompt,
+      response: assistantMessage.content,
+      success: true
+    });
     touchSession(session);
     onTurnFinished(session);
   } catch (error) {
@@ -6628,6 +7124,14 @@ async function runChatTurn({
       content: errorText,
       replaceContent: true
     });
+    if (!wasStopped) {
+      await tryUpdateWorkingAffect(updateWorkingAffect, {
+        sessionId: session.id,
+        prompt,
+        response: errorText,
+        success: false
+      });
+    }
     touchSession(session);
     onTurnFinished(session);
     notify(wasStopped ? "agentStopped" : "agentCommandFailed");
@@ -6638,6 +7142,18 @@ async function runChatTurn({
     onTurnFinished(session);
     onComposerChanged(session);
     await persistChatSessions({ immediate: true });
+  }
+}
+
+async function tryUpdateWorkingAffect(updateWorkingAffect, turn) {
+  if (!updateWorkingAffect) {
+    return;
+  }
+
+  try {
+    await updateWorkingAffect(turn);
+  } catch (error) {
+    console.warn("Agent Dock could not update affect continuity:", error);
   }
 }
 
@@ -7522,6 +8038,7 @@ class AgentDockView extends ItemView {
       },
       onTurnFinished: (targetSession) => this.renderSessionIfActive(targetSession),
       onComposerChanged: (targetSession) => this.renderComposerIfActive(targetSession),
+      updateWorkingAffect: (turn) => this.plugin.updateWorkingAffect(turn),
       persistChatSessions: (options) => this.persistChatSessions(options),
       notify: (noticeKey) => {
         const key = noticeKey === "agentStopped" ? "notice.agentStopped" : "notice.agentCommandFailed";
@@ -7791,6 +8308,12 @@ module.exports = {
 const { Notice, Plugin } = require("obsidian");
 
 const { createAgent } = __require("src/agents/AgentRegistry.js");
+const {
+  getEffectiveWorkingAffect,
+  normalizeAffectState,
+  resetAffectState,
+  updateWorkingAffect
+} = __require("src/affect/WorkingAffectStore.js");
 const { VIEW_TYPE_AGENT_DOCK } = __require("src/constants.js");
 const { t } = __require("src/i18n/index.js");
 const { normalizePluginData } = __require("src/settings.js");
@@ -7804,6 +8327,9 @@ module.exports = class AgentDockPlugin extends Plugin {
     const pluginData = normalizePluginData(await this.loadData());
     this.settings = pluginData.settings;
     this.chatState = pluginData.chatState;
+    this.affectState = this.settings.affectRestoreAfterRestart
+      ? pluginData.affectState
+      : resetAffectState(this.settings);
     this.chatSaveTimer = null;
     this.pendingChatSessionState = null;
     this.chatSaveInFlight = false;
@@ -7852,7 +8378,8 @@ module.exports = class AgentDockPlugin extends Plugin {
     await this.saveData({
       schemaVersion: 2,
       settings: this.settings,
-      chatState: this.chatState
+      chatState: this.chatState,
+      affectState: normalizeAffectState(this.affectState)
     });
   }
 
@@ -7928,6 +8455,21 @@ module.exports = class AgentDockPlugin extends Plugin {
 
   async clearMemory() {
     await this.memoryStore.clearMemory();
+  }
+
+  getWorkingAffect() {
+    return getEffectiveWorkingAffect(this.settings, this.affectState);
+  }
+
+  async updateWorkingAffect(turn) {
+    this.affectState = updateWorkingAffect(this.affectState, this.settings, turn);
+    await this.savePluginData();
+  }
+
+  async resetWorkingAffect() {
+    this.affectState = resetAffectState(this.settings);
+    await this.savePluginData();
+    this.refreshOpenViews();
   }
 
   async activateView() {

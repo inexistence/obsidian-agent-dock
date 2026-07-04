@@ -35,6 +35,7 @@ async function runChatTurn({
   onTurnUpdate,
   onTurnFinished,
   onComposerChanged,
+  updateWorkingAffect,
   persistChatSessions,
   notify
 }) {
@@ -80,6 +81,12 @@ async function runChatTurn({
       assistantMessage.content = translate("view.agentFinishedEmpty", { agent: agentLabel });
     }
     finalizeAssistantMessage(assistantMessage);
+    await tryUpdateWorkingAffect(updateWorkingAffect, {
+      sessionId: session.id,
+      prompt,
+      response: assistantMessage.content,
+      success: true
+    });
     touchSession(session);
     onTurnFinished(session);
   } catch (error) {
@@ -97,6 +104,14 @@ async function runChatTurn({
       content: errorText,
       replaceContent: true
     });
+    if (!wasStopped) {
+      await tryUpdateWorkingAffect(updateWorkingAffect, {
+        sessionId: session.id,
+        prompt,
+        response: errorText,
+        success: false
+      });
+    }
     touchSession(session);
     onTurnFinished(session);
     notify(wasStopped ? "agentStopped" : "agentCommandFailed");
@@ -107,6 +122,18 @@ async function runChatTurn({
     onTurnFinished(session);
     onComposerChanged(session);
     await persistChatSessions({ immediate: true });
+  }
+}
+
+async function tryUpdateWorkingAffect(updateWorkingAffect, turn) {
+  if (!updateWorkingAffect) {
+    return;
+  }
+
+  try {
+    await updateWorkingAffect(turn);
+  } catch (error) {
+    console.warn("Agent Dock could not update affect continuity:", error);
   }
 }
 

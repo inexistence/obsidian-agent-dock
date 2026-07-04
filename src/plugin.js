@@ -1,6 +1,12 @@
 const { Notice, Plugin } = require("obsidian");
 
 const { createAgent } = require("./agents/AgentRegistry");
+const {
+  getEffectiveWorkingAffect,
+  normalizeAffectState,
+  resetAffectState,
+  updateWorkingAffect
+} = require("./affect/WorkingAffectStore");
 const { VIEW_TYPE_AGENT_DOCK } = require("./constants");
 const { t } = require("./i18n");
 const { normalizePluginData } = require("./settings");
@@ -14,6 +20,9 @@ module.exports = class AgentDockPlugin extends Plugin {
     const pluginData = normalizePluginData(await this.loadData());
     this.settings = pluginData.settings;
     this.chatState = pluginData.chatState;
+    this.affectState = this.settings.affectRestoreAfterRestart
+      ? pluginData.affectState
+      : resetAffectState(this.settings);
     this.chatSaveTimer = null;
     this.pendingChatSessionState = null;
     this.chatSaveInFlight = false;
@@ -62,7 +71,8 @@ module.exports = class AgentDockPlugin extends Plugin {
     await this.saveData({
       schemaVersion: 2,
       settings: this.settings,
-      chatState: this.chatState
+      chatState: this.chatState,
+      affectState: normalizeAffectState(this.affectState)
     });
   }
 
@@ -138,6 +148,21 @@ module.exports = class AgentDockPlugin extends Plugin {
 
   async clearMemory() {
     await this.memoryStore.clearMemory();
+  }
+
+  getWorkingAffect() {
+    return getEffectiveWorkingAffect(this.settings, this.affectState);
+  }
+
+  async updateWorkingAffect(turn) {
+    this.affectState = updateWorkingAffect(this.affectState, this.settings, turn);
+    await this.savePluginData();
+  }
+
+  async resetWorkingAffect() {
+    this.affectState = resetAffectState(this.settings);
+    await this.savePluginData();
+    this.refreshOpenViews();
   }
 
   async activateView() {

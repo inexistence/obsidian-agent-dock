@@ -68,6 +68,16 @@ automatic relevant memory section. Settings -> Agent Dock -> Memory can disable
 memory, disable automatic extraction, disable explicit lookup, adjust limits, or
 clear saved memory.
 
+Affect continuity is enabled by default. Agent Dock maintains a short-lived
+cross-session working affect signal for the current plugin/vault, such as
+warmth, focus, tension, and pacing. It is updated locally from simple turn
+signals after successful or failed replies, decays by a configurable half-life,
+and can optionally restore after Obsidian restarts. Future prompts include a
+brief `Recent cross-session affect` section only for tone, pacing, warmth, and
+focus; it cannot override current user requests, facts, permissions, safety, or
+filesystem rules. Settings -> Agent Dock -> Affect continuity can disable it,
+change sensitivity or half-life, and reset the current affect.
+
 ## Architecture
 
 The plugin keeps `main.js` as a thin Obsidian entrypoint and puts implementation code under `src/`:

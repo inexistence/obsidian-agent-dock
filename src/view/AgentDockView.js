@@ -277,6 +277,7 @@ class AgentDockView extends ItemView {
       },
       onTurnFinished: (targetSession) => this.renderSessionIfActive(targetSession),
       onComposerChanged: (targetSession) => this.renderComposerIfActive(targetSession),
+      updateWorkingAffect: (turn) => this.plugin.updateWorkingAffect(turn),
       persistChatSessions: (options) => this.persistChatSessions(options),
       notify: (noticeKey) => {
         const key = noticeKey === "agentStopped" ? "notice.agentStopped" : "notice.agentCommandFailed";

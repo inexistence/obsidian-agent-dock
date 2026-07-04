@@ -1,8 +1,11 @@
 const { MODE_OPTIONS } = require("./modes");
 const { DEFAULT_LANGUAGE, normalizeLanguage } = require("./i18n");
 const { expandHomePath } = require("./cli/paths");
+const { normalizeAffectState } = require("./affect/WorkingAffectStore");
 
 const CUSTOM_ASSISTANT_STYLE_MAX_CHARS = 4000;
+const AFFECT_HALF_LIFE_MINUTES_MIN = 5;
+const AFFECT_HALF_LIFE_MINUTES_MAX = 1440;
 
 const ASSISTANT_STYLE_OPTIONS = {
   concise: {
@@ -51,7 +54,12 @@ const DEFAULT_SETTINGS = {
   memoryAgentSearchEnabled: true,
   memoryMaxItems: 200,
   memoryMaxPromptItems: 12,
-  memoryMaxPromptChars: 8000
+  memoryMaxPromptChars: 8000,
+  affectEnabled: true,
+  affectCrossSessionEnabled: true,
+  affectRestoreAfterRestart: true,
+  affectSensitivity: "normal",
+  affectHalfLifeMinutes: 45
 };
 
 function normalizeSettings(savedSettings) {
@@ -119,6 +127,22 @@ function normalizeSettings(savedSettings) {
     settings.memoryMaxPromptChars,
     DEFAULT_SETTINGS.memoryMaxPromptChars
   );
+  settings.affectEnabled = settings.affectEnabled !== false;
+  settings.affectCrossSessionEnabled = settings.affectCrossSessionEnabled !== false;
+  settings.affectRestoreAfterRestart = settings.affectRestoreAfterRestart !== false;
+  settings.affectSensitivity = normalizeAffectSensitivity(
+    settings.affectSensitivity,
+    DEFAULT_SETTINGS.affectSensitivity
+  );
+  settings.affectHalfLifeMinutes = normalizePositiveInteger(
+    settings.affectHalfLifeMinutes,
+    DEFAULT_SETTINGS.affectHalfLifeMinutes
+  );
+  settings.affectHalfLifeMinutes = clampNumber(
+    settings.affectHalfLifeMinutes,
+    AFFECT_HALF_LIFE_MINUTES_MIN,
+    AFFECT_HALF_LIFE_MINUTES_MAX
+  );
 
   delete settings.command;
   delete settings.includeActiveNote;
@@ -131,14 +155,16 @@ function normalizePluginData(savedData) {
     return {
       schemaVersion: 2,
       settings: normalizeSettings(savedData.settings),
-      chatState: normalizeChatState(savedData.chatState)
+      chatState: normalizeChatState(savedData.chatState),
+      affectState: normalizeAffectState(savedData.affectState)
     };
   }
 
   return {
     schemaVersion: 2,
     settings: normalizeSettings(savedData),
-    chatState: normalizeChatState(null)
+    chatState: normalizeChatState(null),
+    affectState: normalizeAffectState(null)
   };
 }
 
@@ -178,6 +204,10 @@ function normalizePositiveInteger(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
 function normalizeString(value) {
   return typeof value === "string" ? value : "";
 }
@@ -193,7 +223,16 @@ function normalizeCursorPermissionPolicy(value, fallback) {
   return fallback;
 }
 
+function normalizeAffectSensitivity(value, fallback) {
+  if (value === "low" || value === "normal" || value === "high") {
+    return value;
+  }
+  return fallback;
+}
+
 module.exports = {
+  AFFECT_HALF_LIFE_MINUTES_MAX,
+  AFFECT_HALF_LIFE_MINUTES_MIN,
   ASSISTANT_STYLE_OPTIONS,
   CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
   DEFAULT_SETTINGS,

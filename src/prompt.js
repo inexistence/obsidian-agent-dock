@@ -1,4 +1,5 @@
 const { formatMemoryLine } = require("./storage/MemoryStore");
+const { formatWorkingAffectPrompt } = require("./affect/WorkingAffectStore");
 
 async function buildPrompt(app, settings, prompt, conversation) {
   const result = await buildPromptWithMetadata(app, settings, prompt, conversation);
@@ -9,6 +10,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
   const promptParts = [];
   const contextLimit = Number(settings.contextLimitChars) || 258000;
   const stylePrompt = formatAssistantStylePrompt(settings);
+  const affectPrompt = formatWorkingAffectPrompt(options.workingAffect);
   const referencedPrompt = buildReferencedPathsPrompt(app, prompt, contextLimit);
   const memoryPrompt = formatMemoryPrompt(options.memories || []);
   const memorySearchPrompt = formatMemorySearchPrompt(
@@ -17,18 +19,24 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
   );
   const conversationBudget = Math.max(
     1000,
-    contextLimit - stylePrompt.length - referencedPrompt.length - memoryPrompt.length - memorySearchPrompt.length
+    contextLimit
+      - stylePrompt.length
+      - affectPrompt.length
+      - referencedPrompt.length
+      - memoryPrompt.length
+      - memorySearchPrompt.length
   );
 
   promptParts.push(
     stylePrompt,
+    affectPrompt,
     memorySearchPrompt,
     memoryPrompt,
     referencedPrompt,
     formatConversationPrompt(prompt, conversation, conversationBudget)
   );
 
-  const protectedPrefix = [stylePrompt, memorySearchPrompt].filter(Boolean).join("\n");
+  const protectedPrefix = [stylePrompt, affectPrompt, memorySearchPrompt].filter(Boolean).join("\n");
   return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || [], protectedPrefix);
 }
 
@@ -447,6 +455,7 @@ function buildPromptResult(rawPrompt, contextLimit, memories = [], protectedPref
 async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
   const contextLimit = Number(settings.contextLimitChars) || 258000;
   const stylePrompt = formatAssistantStylePrompt(settings);
+  const affectPrompt = formatWorkingAffectPrompt(options.workingAffect);
   const referencedPrompt = buildReferencedPathsPrompt(app, prompt, contextLimit);
   const memoryPrompt = formatMemoryPrompt(options.memories || []);
   const memorySearchPrompt = formatMemorySearchPrompt(
@@ -455,6 +464,7 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
   );
   const promptParts = [
     stylePrompt,
+    affectPrompt,
     memorySearchPrompt,
     memoryPrompt,
     referencedPrompt,
@@ -465,7 +475,7 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
     promptParts.filter(Boolean).join("\n"),
     contextLimit,
     options.memories || [],
-    [stylePrompt, memorySearchPrompt].filter(Boolean).join("\n")
+    [stylePrompt, affectPrompt, memorySearchPrompt].filter(Boolean).join("\n")
   );
 }
 

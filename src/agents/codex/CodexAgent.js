@@ -48,6 +48,7 @@ class CodexAgent {
     );
     const promptMemories = removeMemorySearchDuplicates(memories, memorySearch.results);
     const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, {
+      workingAffect: this.plugin.getWorkingAffect(),
       memories: promptMemories,
       memorySearchResults: memorySearch.results,
       memorySearchPerformed: memorySearch.performed

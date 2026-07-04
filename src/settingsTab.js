@@ -3,6 +3,8 @@ const { Notice, PluginSettingTab, Setting } = require("obsidian");
 const { AGENT_OPTIONS } = require("./agents/AgentRegistry");
 const { LANGUAGE_OPTIONS, t } = require("./i18n");
 const {
+  AFFECT_HALF_LIFE_MINUTES_MAX,
+  AFFECT_HALF_LIFE_MINUTES_MIN,
   ASSISTANT_STYLE_OPTIONS,
   CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
   DEFAULT_SETTINGS
@@ -252,6 +254,75 @@ class AgentDockSettingTab extends PluginSettingTab {
             ? parsed
             : DEFAULT_SETTINGS.maxPersistedMessagesPerSession;
           await this.plugin.saveSettings();
+        }));
+
+    containerEl.createEl("h3", { text: translate("settings.affect.heading") });
+
+    new Setting(containerEl)
+      .setName(translate("settings.affectEnabled.name"))
+      .setDesc(translate("settings.affectEnabled.desc"))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.affectEnabled)
+        .onChange(async (value) => {
+          this.plugin.settings.affectEnabled = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.affectCrossSessionEnabled.name"))
+      .setDesc(translate("settings.affectCrossSessionEnabled.desc"))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.affectCrossSessionEnabled)
+        .onChange(async (value) => {
+          this.plugin.settings.affectCrossSessionEnabled = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.affectRestoreAfterRestart.name"))
+      .setDesc(translate("settings.affectRestoreAfterRestart.desc"))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.affectRestoreAfterRestart)
+        .onChange(async (value) => {
+          this.plugin.settings.affectRestoreAfterRestart = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.affectSensitivity.name"))
+      .setDesc(translate("settings.affectSensitivity.desc"))
+      .addDropdown((dropdown) => dropdown
+        .addOption("low", translate("settings.affectSensitivity.low"))
+        .addOption("normal", translate("settings.affectSensitivity.normal"))
+        .addOption("high", translate("settings.affectSensitivity.high"))
+        .setValue(this.plugin.settings.affectSensitivity)
+        .onChange(async (value) => {
+          this.plugin.settings.affectSensitivity = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.affectHalfLifeMinutes.name"))
+      .setDesc(translate("settings.affectHalfLifeMinutes.desc"))
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.affectHalfLifeMinutes))
+        .setValue(String(this.plugin.settings.affectHalfLifeMinutes))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.affectHalfLifeMinutes = Number.isFinite(parsed) && parsed > 0
+            ? Math.min(AFFECT_HALF_LIFE_MINUTES_MAX, Math.max(AFFECT_HALF_LIFE_MINUTES_MIN, parsed))
+            : DEFAULT_SETTINGS.affectHalfLifeMinutes;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.resetAffect.name"))
+      .setDesc(translate("settings.resetAffect.desc"))
+      .addButton((button) => button
+        .setButtonText(translate("settings.resetAffect.button"))
+        .onClick(async () => {
+          await this.plugin.resetWorkingAffect();
+          new Notice(translate("settings.resetAffect.done"));
         }));
 
     containerEl.createEl("h3", { text: translate("settings.memory.heading") });
