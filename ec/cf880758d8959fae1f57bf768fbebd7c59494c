@@ -1,0 +1,67 @@
+src/i18n/zh.js
+  s_62e4ccce3bd4cd::t_164728e4c8b226 158,168-172
+  s_62e4ccce3bd4cd::t_da260d7537e79c 162-164
+  s_62e4ccce3bd4cd::t_af4a0df3843ec8 159-161,165-167
+src/affect/WorkingAffectStore.js
+  s_62e4ccce3bd4cd::t_ab89f6844aea65 273-281,288,290-297,299,311,315,353,355-358,360
+  s_62e4ccce3bd4cd::t_9a5405596bc315 423-426,432-434,449-451
+  s_62e4ccce3bd4cd::t_61e26fd9258a1d 354,374-377,379-380
+  s_62e4ccce3bd4cd::t_0893495381038f 456-473,484
+  s_62e4ccce3bd4cd::t_67ba1fc7dd5768 435
+  s_62e4ccce3bd4cd::t_0a838f30f894d1 271,282-287,454,474-482
+  s_62e4ccce3bd4cd::t_7f7f44635d46c2 388,446-448,452-453
+  s_62e4ccce3bd4cd::t_3ab61ce0942f76 19-221
+  s_62e4ccce3bd4cd::t_4639bf741e2a67 558,563-565
+  s_62e4ccce3bd4cd::t_b829cc70f85b02 289
+  s_62e4ccce3bd4cd::t_ad99c60e46e374 298
+  s_62e4ccce3bd4cd::t_c2fdcd14833c62 455
+  s_62e4ccce3bd4cd::t_4239fc0199d3a9 483
+src/agents/cursor/CursorAgent.js
+  s_62e4ccce3bd4cd::t_4639bf741e2a67 128,184
+main.js
+  s_62e4ccce3bd4cd::t_3e16ebf6977948 281,291-295,574,584-588
+  s_62e4ccce3bd4cd::t_098c995bd89700 1619-1821,1871-1881,1888-1897,1899,1911,1915,1953,1955-1958,1960,2023-2026,2032-2034,2049-2051,2054-2064,2066-2073,2158,2163-2165,3718,4823,4879,10041,10197-10200
+  s_62e4ccce3bd4cd::t_8004128ed81754 1882-1887,2074-2083
+  s_62e4ccce3bd4cd::t_5f425b115f59f4 1954,1974-1977,1979-1980
+  s_62e4ccce3bd4cd::t_ce877dd77df65f 285-287,578-580
+  s_62e4ccce3bd4cd::t_35b08fb3074941 282-284,288-290,575-577,581-583,1988,2035,2046-2048,2052-2053
+  s_62e4ccce3bd4cd::t_1f7de0f6ed6aa7 1898,2065,2084,10201-10202
+src/agents/codex/CodexAgent.js
+  s_62e4ccce3bd4cd::t_4639bf741e2a67 52
+src/i18n/en.js
+  s_62e4ccce3bd4cd::t_da260d7537e79c 162-164
+  s_62e4ccce3bd4cd::t_164728e4c8b226 158,168-172
+  s_62e4ccce3bd4cd::t_af4a0df3843ec8 159-161,165-167
+src/plugin.js
+  s_62e4ccce3bd4cd::t_4639bf741e2a67 6,162-165
+  s_62e4ccce3bd4cd::t_ee41e78f411f9f 166-167
+scripts/test-affect.js
+  s_62e4ccce3bd4cd::t_6500701677a7c9 342-343,363
+  s_62e4ccce3bd4cd::t_164728e4c8b226 87-92,94-127,171,173-178,226-241,250-273
+  s_62e4ccce3bd4cd::t_54852f17fed4af 172
+  s_62e4ccce3bd4cd::t_26070e0388aa2b 93
+  s_62e4ccce3bd4cd::t_af4a0df3843ec8 66-86,170,179-186,203-225,274-292,365
+  s_62e4ccce3bd4cd::t_7d11696d1b8628 348-349,351
+  s_62e4ccce3bd4cd::t_448ac0abff7f9b 17,159-169,293-302,335-341,344-345,347
+  s_62e4ccce3bd4cd::t_da260d7537e79c 128-158,187-202,242-249
+  s_62e4ccce3bd4cd::t_eaa9c7ca3ce36d 65
+  s_62e4ccce3bd4cd::t_ada469ebc2c825 346
+  s_62e4ccce3bd4cd::t_3ad51ef9929ef9 350
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "eccf880758d8959fae1f57bf768fbebd7c59494c",
+  "prompts": {},
+  "logical_commit_id": "eccf880758d8959fae1f57bf768fbebd7c59494c",
+  "sessions": {
+    "s_62e4ccce3bd4cd": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c8d-4d56-7fa2-af78-e759dd021cdb",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
