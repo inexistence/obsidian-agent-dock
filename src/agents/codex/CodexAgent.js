@@ -15,6 +15,10 @@ const {
   emitContextCompressedNotice,
   emitMemoryNotice
 } = require("../shared/memoryNotices");
+const {
+  getExplicitMemorySearch,
+  removeMemorySearchDuplicates
+} = require("../shared/memorySearch");
 const { codexJsonEventToUpdates } = require("./jsonEvents");
 
 class CodexAgent {
@@ -34,10 +38,23 @@ class CodexAgent {
       activeFilePath,
       workingDirectory: cwd
     });
-    const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, { memories });
+    const memorySearch = await getExplicitMemorySearch(
+      this.plugin.memoryStore,
+      prompt,
+      settings,
+      onUpdate,
+      translate,
+      "codex"
+    );
+    const promptMemories = removeMemorySearchDuplicates(memories, memorySearch.results);
+    const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, {
+      memories: promptMemories,
+      memorySearchResults: memorySearch.results,
+      memorySearchPerformed: memorySearch.performed
+    });
     const finalPrompt = promptResult.prompt;
-    if (memories.length > 0) {
-      emitMemoryNotice(onUpdate, memories, translate, "codex");
+    if (promptMemories.length > 0) {
+      emitMemoryNotice(onUpdate, promptMemories, translate, "codex");
     }
     if (promptResult.context.compressed) {
       emitContextCompressedNotice(onUpdate, promptResult.context, translate, "codex");

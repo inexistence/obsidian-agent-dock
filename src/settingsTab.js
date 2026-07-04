@@ -277,6 +277,16 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
+      .setName(translate("settings.memoryAgentSearchEnabled.name"))
+      .setDesc(translate("settings.memoryAgentSearchEnabled.desc"))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.memoryAgentSearchEnabled)
+        .onChange(async (value) => {
+          this.plugin.settings.memoryAgentSearchEnabled = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
       .setName(translate("settings.memoryMaxPromptChars.name"))
       .setDesc(translate("settings.memoryMaxPromptChars.desc"))
       .addText((text) => text

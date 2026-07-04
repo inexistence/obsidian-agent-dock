@@ -35,6 +35,23 @@ function reasoningEntries(message) {
 }
 
 {
+  const message = createMessage();
+  timelineTest.appendTimelineContent(message, "First");
+  message.timeline.push({ kind: "activity", title: "Cursor ACP", summary: "notification" });
+  timelineTest.appendTimelineContent(message, "Second");
+  assert.strictEqual(contentEntries(message).length, 2);
+  assert.deepStrictEqual(contentEntries(message).map((entry) => entry.text), ["First", "Second"]);
+}
+
+{
+  const message = createMessage();
+  timelineTest.appendTimelineContent(message, "First");
+  message.timeline.push({ kind: "notice", title: "Notice" });
+  timelineTest.appendTimelineContent(message, "Second");
+  assert.strictEqual(contentEntries(message).length, 2);
+}
+
+{
   const message = createMessage([], "Hello world");
   message.timeline = [
     { kind: "content", text: "Hello" },

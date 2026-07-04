@@ -121,8 +121,12 @@ Users can change this in plugin settings.
 - Do not store obvious secrets such as API keys, tokens, passwords, or private keys.
 - Prompt injection must label memories as historical notes, not instructions,
   and must say they cannot override higher-priority instructions.
+- When `memoryAgentSearchEnabled` is enabled, explicit user recall requests may
+  search local memory and inject an `Explicit local memory search results`
+  prompt section. Keep search results bounded, filter sensitive text, and
+  de-duplicate them from the automatic relevant memory section by key/id.
 - Emit concise `notice` events when relevant memory is included or automatic
-  memory is updated.
+  memory is searched, included, or updated.
 
 ## Normalized Agent Events
 
@@ -262,16 +266,10 @@ To add a provider:
 
 Do not put provider-specific parsing logic in `AgentDockView.js`.
 
-## TODO
-
-- Add model-assisted context compression as an optional upgrade over the current
-  deterministic truncation/summary strategy. It should produce structured session
-  state such as user goal, decisions made, current status, constraints, and open
-  tasks, then persist that summary separately from raw chat history.
-
 ## Local Development Notes
 
 - This plugin is desktop-only because it spawns local CLI processes.
+- Project backlog lives in `TODO.md`.
 - It is symlinked during local development into an Obsidian vault plugin folder.
 - `data.json` is local Obsidian plugin data and should stay untracked.
 - `sessions/*.json` contains local persisted chat history and should stay untracked.

@@ -2,6 +2,20 @@ const { spawn } = require("child_process");
 
 const { buildCliPath } = require("../../cli/env");
 
+const DEFAULT_REQUEST_TIMEOUT_MS = 30000;
+const AUTHENTICATE_REQUEST_TIMEOUT_MS = 15000;
+const SESSION_REQUEST_TIMEOUT_MS = 60000;
+const CANCEL_REQUEST_TIMEOUT_MS = 5000;
+const LONG_RUNNING_METHODS = new Set([
+  "session/prompt"
+]);
+const METHOD_REQUEST_TIMEOUTS = {
+  authenticate: AUTHENTICATE_REQUEST_TIMEOUT_MS,
+  "session/cancel": CANCEL_REQUEST_TIMEOUT_MS,
+  "session/load": SESSION_REQUEST_TIMEOUT_MS,
+  "session/new": SESSION_REQUEST_TIMEOUT_MS
+};
+
 class AcpClient {
   constructor(options = {}) {
     this.executablePath = options.executablePath;
@@ -10,8 +24,10 @@ class AcpClient {
     this.permissionPolicy = options.permissionPolicy || "allow-once";
     this.onSessionUpdate = options.onSessionUpdate || (() => {});
     this.onExtensionNotice = options.onExtensionNotice || (() => {});
+    this.onLog = options.onLog || (() => {});
     this.onStderr = options.onStderr || (() => {});
     this.onProcessClose = options.onProcessClose || (() => {});
+    this.requestTimeoutMs = Number(options.requestTimeoutMs) || DEFAULT_REQUEST_TIMEOUT_MS;
 
     this.child = null;
     this.stdoutBuffer = "";
@@ -41,6 +57,11 @@ class AcpClient {
     this.activeAcpSessionId = "";
 
     const args = [...this.extraArgs, "acp"];
+    this.log("start", {
+      executablePath: this.executablePath,
+      cwd: this.cwd,
+      extraArgCount: this.extraArgs.length
+    });
     this.child = spawn(this.executablePath, args, {
       cwd: this.cwd,
       shell: false,
@@ -77,7 +98,9 @@ class AcpClient {
       }
     });
 
+    this.log("authenticating", { methodId: "cursor_login" });
     await this.send("authenticate", { methodId: "cursor_login" });
+    this.log("authenticated", { methodId: "cursor_login" });
     this.initialized = true;
   }
 
@@ -153,15 +176,50 @@ class AcpClient {
 
     const id = this.nextId++;
     const payload = JSON.stringify({ jsonrpc: "2.0", id, method, params }) + "\n";
+    this.log("send", {
+      id,
+      method,
+      summary: summarizeRequestParams(method, params)
+    });
     return new Promise((resolve, reject) => {
-      this.pending.set(id, { resolve, reject });
+      const timeout = this.createRequestTimeout(id, method, reject);
+      this.pending.set(id, { resolve, reject, timeout });
       this.child.stdin.write(payload, (error) => {
         if (error) {
-          this.pending.delete(id);
+          this.deletePending(id);
           reject(error);
         }
       });
     });
+  }
+
+  createRequestTimeout(id, method, reject) {
+    const timeoutMs = this.getRequestTimeoutMs(method);
+    if (timeoutMs <= 0) {
+      return null;
+    }
+
+    return setTimeout(() => {
+      this.pending.delete(id);
+      this.log("timeout", { id, method, timeoutMs });
+      reject(new Error(`ACP request timed out: ${method}`));
+    }, timeoutMs);
+  }
+
+  getRequestTimeoutMs(method) {
+    if (LONG_RUNNING_METHODS.has(method)) {
+      return 0;
+    }
+    return METHOD_REQUEST_TIMEOUTS[method] || this.requestTimeoutMs;
+  }
+
+  deletePending(id) {
+    const waiter = this.pending.get(id);
+    if (waiter?.timeout) {
+      clearTimeout(waiter.timeout);
+    }
+    this.pending.delete(id);
+    return waiter;
   }
 
   respond(id, result) {
@@ -200,16 +258,28 @@ class AcpClient {
       if (!waiter) {
         return;
       }
-      this.pending.delete(message.id);
+      this.deletePending(message.id);
       if (message.error) {
+        this.log("error", {
+          id: message.id,
+          message: message.error?.message || "JSON-RPC error"
+        });
         waiter.reject(normalizeJsonRpcError(message.error));
       } else {
+        this.log("result", {
+          id: message.id,
+          summary: summarizeResult(message.result)
+        });
         waiter.resolve(message.result);
       }
       return;
     }
 
     if (message.method) {
+      this.log("notification", {
+        method: message.method,
+        hasId: message.id !== undefined
+      });
       this.handleNotification(message);
     }
   }
@@ -267,16 +337,65 @@ class AcpClient {
     this.child = null;
     this.initialized = false;
     this.activeAcpSessionId = "";
+    this.log("exit", {
+      message: error instanceof Error ? error.message : "ACP process closed"
+    });
     this.rejectAllPending(error instanceof Error ? error : new Error("ACP process closed"));
     this.onProcessClose(error instanceof Error ? error : new Error("ACP process closed"));
   }
 
   rejectAllPending(error) {
     for (const waiter of this.pending.values()) {
+      if (waiter.timeout) {
+        clearTimeout(waiter.timeout);
+      }
       waiter.reject(error);
     }
     this.pending.clear();
   }
+
+  log(event, details = {}) {
+    try {
+      if (!shouldLogAcpEvent(event, details)) {
+        return;
+      }
+      this.onLog(event, details);
+    } catch {
+      // Logging must never affect ACP control flow.
+    }
+  }
+}
+
+function shouldLogAcpEvent(event, details) {
+  return !(event === "notification" && details?.method === "session/update");
+}
+
+function summarizeRequestParams(method, params) {
+  if (method === "session/prompt") {
+    const prompt = Array.isArray(params?.prompt) ? params.prompt : [];
+    const chars = prompt.reduce((sum, part) => sum + String(part?.text || "").length, 0);
+    return `session=${params?.sessionId || ""} promptChars=${chars}`;
+  }
+  if (method === "session/new" || method === "session/load") {
+    return `cwd=${params?.cwd || ""} mode=${params?.mode || ""} session=${params?.sessionId || ""}`;
+  }
+  if (method === "authenticate") {
+    return `methodId=${params?.methodId || ""}`;
+  }
+  if (method === "initialize") {
+    return `protocolVersion=${params?.protocolVersion || ""}`;
+  }
+  return "";
+}
+
+function summarizeResult(result) {
+  if (!result || typeof result !== "object") {
+    return typeof result;
+  }
+  if (result.sessionId || result.id) {
+    return `session=${result.sessionId || result.id}`;
+  }
+  return Object.keys(result).slice(0, 5).join(",");
 }
 
 function normalizeJsonRpcError(error) {

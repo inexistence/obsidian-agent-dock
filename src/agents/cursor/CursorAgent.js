@@ -2,6 +2,10 @@ const { Notice } = require("obsidian");
 const { spawn } = require("child_process");
 
 const { emitContextCompressedNotice, emitMemoryNotice } = require("../shared/memoryNotices");
+const {
+  getExplicitMemorySearch,
+  removeMemorySearchDuplicates
+} = require("../shared/memorySearch");
 const { buildCliPath } = require("../../cli/env");
 const { expandHomePath } = require("../../cli/paths");
 const { escapeAppleScriptString, shellQuote } = require("../../cli/shell");
@@ -58,6 +62,15 @@ class CursorAgent {
       activeFilePath,
       workingDirectory: cwd
     });
+    const memorySearch = await getExplicitMemorySearch(
+      this.plugin.memoryStore,
+      prompt,
+      settings,
+      onUpdate,
+      translate,
+      "cursor"
+    );
+    const promptMemories = removeMemorySearchDuplicates(memories, memorySearch.results);
 
     let useFullPrompt = !cursorState.acpSessionId;
     let finalOutput = "";
@@ -107,13 +120,20 @@ class CursorAgent {
         settings,
         prompt,
         conversation,
-        memories
+        memories: promptMemories,
+        memorySearchResults: memorySearch.results,
+        memorySearchPerformed: memorySearch.performed
       });
       throwIfAborted();
 
-      applyPromptNotices(emitUpdate, promptResult, memories, translate, "cursor");
+      applyPromptNotices(emitUpdate, promptResult, promptMemories, translate, "cursor");
       const promptText = promptResult.prompt;
 
+      emitUpdate({
+        kind: "notice",
+        title: translate("cursor.connecting.title"),
+        summary: translate("cursor.connecting.summary")
+      });
       client = await this.getOrCreateClient(sessionKey, connectionKey, {
         settings,
         cwd,
@@ -123,11 +143,29 @@ class CursorAgent {
       throwIfAborted();
 
       if (!cursorState.acpSessionId) {
+        emitCursorAuthenticationNoticeIfNeeded(client, emitUpdate, translate);
+        emitUpdate({
+          kind: "notice",
+          title: translate("cursor.sessionStarting.title"),
+          summary: translate("cursor.sessionStarting.summary")
+        });
         cursorState.acpSessionId = await client.createSession(cursorMode);
       } else if (client.activeAcpSessionId !== cursorState.acpSessionId) {
         try {
-          await client.loadSession(cursorState.acpSessionId, cursorMode);
+          emitCursorAuthenticationNoticeIfNeeded(client, emitUpdate, translate);
+          emitUpdate({
+            kind: "notice",
+            title: translate("cursor.sessionLoading.title"),
+            summary: translate("cursor.sessionLoading.summary")
+          });
+          await this.withSuppressedSessionUpdates(client, () => (
+            client.loadSession(cursorState.acpSessionId, cursorMode)
+          ));
         } catch (error) {
+          if (!isStaleSessionError(error)) {
+            throw error;
+          }
+
           emitUpdate({
             kind: "notice",
             title: translate("cursor.sessionReloadFailed.title"),
@@ -139,11 +177,26 @@ class CursorAgent {
             settings,
             prompt,
             conversation,
-            { memories }
+            {
+              memories: promptMemories,
+              memorySearchResults: memorySearch.results,
+              memorySearchPerformed: memorySearch.performed
+            }
           );
-          applyPromptNotices(emitUpdate, reloadPromptResult, memories, translate, "cursor");
+          applyPromptNotices(emitUpdate, reloadPromptResult, promptMemories, translate, "cursor");
+          emitCursorAuthenticationNoticeIfNeeded(client, emitUpdate, translate);
+          emitUpdate({
+            kind: "notice",
+            title: translate("cursor.sessionStarting.title"),
+            summary: translate("cursor.sessionStarting.summary")
+          });
           cursorState.acpSessionId = await client.createSession(cursorMode);
           throwIfAborted();
+          emitUpdate({
+            kind: "notice",
+            title: translate("cursor.promptSent.title"),
+            summary: translate("cursor.promptSent.summary")
+          });
           const result = await client.prompt(cursorState.acpSessionId, reloadPromptResult.prompt);
           return await this.finishTurn({
             result,
@@ -159,6 +212,11 @@ class CursorAgent {
       }
 
       throwIfAborted();
+      emitUpdate({
+        kind: "notice",
+        title: translate("cursor.promptSent.title"),
+        summary: translate("cursor.promptSent.summary")
+      });
       const result = await client.prompt(cursorState.acpSessionId, promptText);
       return await this.finishTurn({
         result,
@@ -193,17 +251,45 @@ class CursorAgent {
         });
       }
 
+      if (isAcpTimeoutError(error)) {
+        const authTimeout = isAcpMethodTimeout(error, "authenticate");
+        emitUpdate({
+          kind: "error",
+          title: translate(authTimeout ? "cursor.authTimedOut.title" : "cursor.acpTimedOut.title"),
+          summary: translate(authTimeout ? "cursor.authTimedOut.summary" : "cursor.acpTimedOut.summary"),
+          detail: error.message
+        });
+        this.removeConnection(options.dockSession?.id);
+      }
+
       throw error;
     } finally {
       options.signal?.removeEventListener("abort", abortRun);
     }
   }
 
-  async buildPromptForTurn({ useFullPrompt, app, settings, prompt, conversation, memories }) {
+  async buildPromptForTurn({
+    useFullPrompt,
+    app,
+    settings,
+    prompt,
+    conversation,
+    memories,
+    memorySearchResults,
+    memorySearchPerformed
+  }) {
     if (useFullPrompt) {
-      return buildPromptWithMetadata(app, settings, prompt, conversation, { memories });
+      return buildPromptWithMetadata(app, settings, prompt, conversation, {
+        memories,
+        memorySearchResults,
+        memorySearchPerformed
+      });
     }
-    return buildTurnContextPrompt(app, settings, prompt, { memories });
+    return buildTurnContextPrompt(app, settings, prompt, {
+      memories,
+      memorySearchResults,
+      memorySearchPerformed
+    });
   }
 
   async finishTurn({ result, finalOutput, emitUpdate, prompt, activeFilePath, options, settings, throwIfAborted }) {
@@ -261,12 +347,23 @@ class CursorAgent {
 
   bindClientHandlers(client, context) {
     client.onSessionUpdate = (update) => {
+      if (client.suppressSessionUpdates) {
+        return;
+      }
       for (const event of acpUpdateToEvents(update, context.translate)) {
         context.onUpdate(event);
       }
     };
     client.onExtensionNotice = (method, params) => {
       context.onUpdate(formatExtensionNotice(method, params, context.translate));
+    };
+    client.onLog = (event, details) => {
+      context.onUpdate({
+        kind: "activity",
+        title: "Cursor ACP",
+        summary: event,
+        detail: formatAcpLogDetail(details)
+      });
     };
     client.onStderr = (text) => {
       context.onUpdate({ kind: "activity", title: "Cursor", detail: text.trim() });
@@ -278,6 +375,16 @@ class CursorAgent {
         this.connections.delete(sessionKey);
       }
     };
+  }
+
+  async withSuppressedSessionUpdates(client, callback) {
+    const previous = client.suppressSessionUpdates === true;
+    client.suppressSessionUpdates = true;
+    try {
+      return await callback();
+    } finally {
+      client.suppressSessionUpdates = previous;
+    }
   }
 
   closeIdleConnections() {
@@ -392,6 +499,18 @@ class CursorAgent {
 function applyPromptNotices(onUpdate, promptResult, memories, translate, keyPrefix) {
   emitMemoryNotice(onUpdate, memories, translate, keyPrefix);
   emitContextCompressedNotice(onUpdate, promptResult.context, translate, keyPrefix);
+}
+
+function emitCursorAuthenticationNoticeIfNeeded(client, emitUpdate, translate) {
+  if (client.initialized) {
+    return;
+  }
+
+  emitUpdate({
+    kind: "notice",
+    title: translate("cursor.authenticating.title"),
+    summary: translate("cursor.authenticating.summary")
+  });
 }
 
 function ensureCursorProviderState(dockSession) {
@@ -525,6 +644,46 @@ function isRecoverableAcpError(error) {
     || message.includes("ACP client closed");
 }
 
+function isStaleSessionError(error) {
+  if (isAcpTimeoutError(error) || isAuthError(error) || isRecoverableAcpError(error)) {
+    return false;
+  }
+
+  const message = String(error?.message || "").toLowerCase();
+  const code = Number(error?.code);
+  return code === 404
+    || code === 410
+    || message.includes("session")
+    || message.includes("not found")
+    || message.includes("expired")
+    || message.includes("invalid");
+}
+
+function isAcpTimeoutError(error) {
+  return String(error?.message || "").includes("ACP request timed out");
+}
+
+function isAcpMethodTimeout(error, method) {
+  return String(error?.message || "").includes(`ACP request timed out: ${method}`);
+}
+
+function formatAcpLogDetail(details) {
+  if (!details || typeof details !== "object") {
+    return "";
+  }
+
+  return Object.entries(details)
+    .filter(([, value]) => value !== undefined && value !== null && value !== "")
+    .map(([key, value]) => `${key}: ${String(value)}`)
+    .join("\n");
+}
+
 module.exports = {
-  CursorAgent
+  CursorAgent,
+  _test: {
+    isStaleSessionError,
+    withSuppressedSessionUpdates: (client, callback) => (
+      CursorAgent.prototype.withSuppressedSessionUpdates.call(null, client, callback)
+    )
+  }
 };

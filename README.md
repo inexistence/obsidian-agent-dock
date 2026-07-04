@@ -58,8 +58,15 @@ updated so the agent can treat older memories as less reliable and prefer newer
 memory when saved notes conflict. The default extractor is local and rule-based, with a
 candidate extraction and classification pipeline isolated from storage so a
 future model-assisted or multilingual provider can be added without changing
-memory persistence. Settings -> Agent Dock -> Memory can disable memory,
-disable automatic extraction, adjust limits, or clear saved memory.
+memory persistence.
+
+When explicit memory lookup is enabled, Agent Dock also searches local memory
+when the user asks about previous preferences, decisions, or notes. Matching
+results are included in a separate `Explicit local memory search results`
+prompt section, filtered for obvious secrets, and de-duplicated from the
+automatic relevant memory section. Settings -> Agent Dock -> Memory can disable
+memory, disable automatic extraction, disable explicit lookup, adjust limits, or
+clear saved memory.
 
 ## Architecture
 
@@ -175,8 +182,9 @@ The composer shows an estimated context usage percentage below the prompt box.
 If a send actually triggers compression, the response timeline includes a
 `Context compressed` notice.
 
-Relevant memory also counts toward the prompt budget. When memory is included,
-the response timeline shows a `Memory included` notice; when a successful turn
+Relevant memory also counts toward the prompt budget. When memory is explicitly
+searched, the response timeline shows a `Memory search` notice. When memory is
+included, the timeline shows a `Memory included` notice; when a successful turn
 saves new memories, it shows a `Memory updated` notice.
 
 For interactive Terminal launches, you can also set optional interactive arguments, for example:

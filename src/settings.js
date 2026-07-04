@@ -48,6 +48,7 @@ const DEFAULT_SETTINGS = {
   maxPersistedMessagesPerSession: 200,
   memoryEnabled: true,
   memoryAutoCapture: true,
+  memoryAgentSearchEnabled: true,
   memoryMaxItems: 200,
   memoryMaxPromptItems: 12,
   memoryMaxPromptChars: 8000
@@ -105,6 +106,7 @@ function normalizeSettings(savedSettings) {
   );
   settings.memoryEnabled = settings.memoryEnabled !== false;
   settings.memoryAutoCapture = settings.memoryAutoCapture !== false;
+  settings.memoryAgentSearchEnabled = settings.memoryAgentSearchEnabled !== false;
   settings.memoryMaxItems = normalizePositiveInteger(
     settings.memoryMaxItems,
     DEFAULT_SETTINGS.memoryMaxItems

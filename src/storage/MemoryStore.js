@@ -6,6 +6,8 @@ const MEMORY_VERSION = 1;
 const MEMORY_DIR_NAME = "memory";
 const MEMORY_FILE_NAME = "memory.json";
 const MAX_EXTRACTED_ITEMS_PER_TURN = 4;
+const DEFAULT_SEARCH_LIMIT = 5;
+const DEFAULT_SEARCH_MAX_CHARS = 3000;
 const STOP_WORDS = new Set([
   "about",
   "after",
@@ -52,7 +54,7 @@ class MemoryStore {
     }
 
     const memory = await this.loadMemory();
-    const items = memory.items.filter((item) => item && item.text);
+    const items = memory.items.filter(isPromptSafeMemory);
     if (items.length === 0) {
       return [];
     }
@@ -66,12 +68,7 @@ class MemoryStore {
     const scored = items
       .map((item) => scoreMemory(item, queryTokens))
       .filter((entry) => entry.matchScore > 0 || isGlobalMemory(entry.item))
-      .sort((left, right) => {
-        if (right.totalScore !== left.totalScore) {
-          return right.totalScore - left.totalScore;
-        }
-        return normalizeTimestamp(right.item.updatedAt, 0) - normalizeTimestamp(left.item.updatedAt, 0);
-      });
+      .sort(compareScoredMemories);
 
     const maxChars = Number(settings.memoryMaxPromptChars) || 8000;
     const maxItems = Math.min(Number(settings.memoryMaxPromptItems) || 12, scored.length);
@@ -87,6 +84,46 @@ class MemoryStore {
         continue;
       }
       selected.push(entry.item);
+      used += text.length + 1;
+    }
+
+    return selected;
+  }
+
+  async searchMemories(query, settings, options = {}) {
+    if (!settings.memoryEnabled || !settings.memoryAgentSearchEnabled) {
+      return [];
+    }
+
+    const memory = await this.loadMemory();
+    const items = memory.items.filter(isPromptSafeMemory);
+    if (items.length === 0) {
+      return [];
+    }
+
+    const queryTokens = tokenize(query);
+    const scored = items
+      .map((item) => scoreMemory(item, queryTokens))
+      .filter((entry) => entry.matchScore > 0)
+      .sort(compareScoredMemories);
+
+    const limit = Math.max(1, Math.min(Number(options.limit) || DEFAULT_SEARCH_LIMIT, scored.length));
+    const maxChars = Number(options.maxChars) || DEFAULT_SEARCH_MAX_CHARS;
+    const selected = [];
+    let used = 0;
+
+    for (const entry of scored) {
+      if (selected.length >= limit) {
+        break;
+      }
+      const text = formatMemoryLine(entry.item);
+      if (used + text.length + 1 > maxChars) {
+        continue;
+      }
+      selected.push(Object.assign({}, entry.item, {
+        matchScore: entry.matchScore,
+        score: entry.totalScore
+      }));
       used += text.length + 1;
     }
 
@@ -222,6 +259,13 @@ function scoreMemory(item, queryTokens) {
   };
 }
 
+function compareScoredMemories(left, right) {
+  if (right.totalScore !== left.totalScore) {
+    return right.totalScore - left.totalScore;
+  }
+  return normalizeTimestamp(right.item.updatedAt, 0) - normalizeTimestamp(left.item.updatedAt, 0);
+}
+
 function isGlobalMemory(item) {
   return (item.kind === "preference" && item.scope === "user")
     || item.kind === "identity";
@@ -288,6 +332,10 @@ function formatMemoryDate(value) {
 
 function containsSensitiveText(text) {
   return /(api[_-]?key|password|passwd|secret|token|bearer|private[_-]?key|ssh-rsa|sk-[a-z0-9]|密码|密钥|令牌)/i.test(text);
+}
+
+function isPromptSafeMemory(item) {
+  return item && item.text && !containsSensitiveText(item.text);
 }
 
 function normalizeMemory(raw) {
@@ -367,6 +415,10 @@ module.exports = {
   MemoryStore,
   formatMemoryLine,
   _test: {
-    isGlobalMemory
+    createEmptyMemory,
+    isPromptSafeMemory,
+    isGlobalMemory,
+    scoreMemory,
+    tokenize
   }
 };

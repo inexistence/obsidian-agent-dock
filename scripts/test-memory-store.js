@@ -11,8 +11,16 @@ Module._load = function patchedLoad(request, parent, isMain) {
   return originalLoad.call(this, request, parent, isMain);
 };
 
-const { _test: memoryStoreTest } = require("../src/storage/MemoryStore");
-const { formatMemoryLine } = require("../src/storage/MemoryStore");
+const {
+  MemoryStore,
+  _test: memoryStoreTest,
+  formatMemoryLine
+} = require("../src/storage/MemoryStore");
+const {
+  removeMemorySearchDuplicates,
+  shouldSearchMemory
+} = require("../src/agents/shared/memorySearch");
+const { buildPromptWithMetadata } = require("../src/prompt");
 const { RuleBasedMemoryExtractor } = require("../src/storage/memoryExtraction/RuleBasedMemoryExtractor");
 
 const extractor = new RuleBasedMemoryExtractor();
@@ -32,6 +40,56 @@ function hasMemory(items, kind, scope, pattern) {
     && item.scope === scope
     && pattern.test(item.text)
   ));
+}
+
+class MemoryAdapter {
+  constructor(files = {}) {
+    this.files = new Map(Object.entries(files));
+  }
+
+  async exists(path) {
+    return this.files.has(path);
+  }
+
+  async read(path) {
+    if (!this.files.has(path)) {
+      throw new Error(`Missing file: ${path}`);
+    }
+    return this.files.get(path);
+  }
+
+  async write(path, content) {
+    this.files.set(path, content);
+  }
+
+  async mkdir(path) {
+    this.files.set(path, this.files.get(path) || "");
+  }
+
+  async remove(path) {
+    this.files.delete(path);
+  }
+}
+
+function createMemoryStore(items) {
+  const adapter = new MemoryAdapter({
+    "agent-dock/memory/memory.json": JSON.stringify({
+      version: 1,
+      items,
+      updatedAt: Date.UTC(2026, 6, 4)
+    })
+  });
+  return new MemoryStore({
+    manifest: {
+      dir: "agent-dock",
+      id: "agent-dock"
+    },
+    app: {
+      vault: {
+        adapter
+      }
+    }
+  });
 }
 
 {
@@ -105,6 +163,188 @@ assert.equal(
 );
 
 {
+  const settings = { memoryEnabled: true, memoryAgentSearchEnabled: true };
+  assert.equal(
+    shouldSearchMemory("我之前说过 Cursor 的配置偏好吗？", settings),
+    true,
+    "explicit preference recall should trigger memory search"
+  );
+  assert.equal(
+    shouldSearchMemory("查一下我以前对这个插件的设计要求。", settings),
+    true,
+    "explicit project requirement recall should trigger memory search"
+  );
+  assert.equal(
+    shouldSearchMemory("有没有记录过我不想用某个方案？", settings),
+    true,
+    "explicit negative preference recall should trigger memory search"
+  );
+  assert.equal(
+    shouldSearchMemory("帮我实现这个设置项。", settings),
+    false,
+    "ordinary implementation requests should not trigger explicit memory search"
+  );
+  assert.equal(
+    shouldSearchMemory("What preferences did I mention before?", settings),
+    true,
+    "reverse-order English preference recall should trigger memory search"
+  );
+  assert.equal(
+    shouldSearchMemory("查一下我以前对这个插件的设计要求。", {
+      memoryEnabled: true,
+      memoryAgentSearchEnabled: false
+    }),
+    false,
+    "the explicit memory search setting should disable memory search"
+  );
+}
+
+async function testSearchMemories() {
+  const settings = { memoryEnabled: true, memoryAgentSearchEnabled: true };
+  const store = createMemoryStore([
+    {
+      id: "mem-1",
+      key: "identity:agent",
+      kind: "identity",
+      scope: "agent",
+      text: "Agent prefers careful reviews.",
+      confidence: 0.8,
+      createdAt: Date.UTC(2026, 0, 1),
+      updatedAt: Date.UTC(2026, 0, 1)
+    },
+    {
+      id: "mem-2",
+      key: "preference:cursor",
+      kind: "preference",
+      scope: "user",
+      text: "User prefers Cursor ACP sessions to reuse the existing session id.",
+      confidence: 0.9,
+      createdAt: Date.UTC(2026, 0, 2),
+      updatedAt: Date.UTC(2026, 6, 4)
+    },
+    {
+      id: "mem-3",
+      key: "fact:secret",
+      kind: "fact",
+      scope: "project",
+      text: "Project token is sk-sensitive-example.",
+      confidence: 0.7,
+      createdAt: Date.UTC(2026, 0, 3),
+      updatedAt: Date.UTC(2026, 6, 4)
+    },
+    {
+      id: "mem-4",
+      key: "decision:timeline",
+      kind: "decision",
+      scope: "project",
+      text: "Timeline rendering keeps the final content outside processed details.",
+      confidence: 0.8,
+      createdAt: Date.UTC(2026, 0, 4),
+      updatedAt: Date.UTC(2026, 6, 4)
+    }
+  ]);
+
+  const cursorResults = await store.searchMemories("Cursor session id preference", settings);
+  assert.equal(cursorResults.length, 1, "explicit search should return matching memories");
+  assert.equal(cursorResults[0].id, "mem-2");
+
+  const noMatchResults = await store.searchMemories("unrelated deployment pipeline", settings);
+  assert.deepEqual(
+    noMatchResults,
+    [],
+    "explicit search should not return unrelated global memories as matches"
+  );
+
+  const secretResults = await store.searchMemories("sensitive token", settings);
+  assert.deepEqual(secretResults, [], "explicit search should exclude sensitive memories");
+
+  const relevantResults = await store.getRelevantMemories("sensitive token", settings);
+  assert.equal(
+    relevantResults.some((memory) => memory.id === "mem-3"),
+    false,
+    "automatic memory injection should exclude sensitive memories"
+  );
+
+  const limitedResults = await store.searchMemories("session timeline content", settings, { limit: 1 });
+  assert.equal(limitedResults.length, 1, "explicit search should respect result limits");
+}
+
+async function testExplicitMemorySearchSurvivesCompression() {
+  const app = {
+    vault: {
+      getAllLoadedFiles: () => []
+    }
+  };
+  const now = Date.UTC(2026, 6, 4);
+  const promptResult = await buildPromptWithMetadata(
+    app,
+    {
+      assistantStyle: "collaborative",
+      contextLimitChars: 1400
+    },
+    `latest request ${"x".repeat(2000)}`,
+    [{
+      role: "user",
+      content: `latest request ${"x".repeat(2000)}`
+    }],
+    {
+      memories: [{
+        kind: "preference",
+        scope: "user",
+        text: "Automatic memory should not break explicit search protection. ".repeat(40),
+        createdAt: now,
+        updatedAt: now
+      }],
+      memorySearchPerformed: true,
+      memorySearchResults: [{
+        kind: "decision",
+        scope: "project",
+        text: "EXPLICIT_SEARCH_RESULT must survive prompt compression.",
+        createdAt: now,
+        updatedAt: now
+      }]
+    }
+  );
+
+  assert.equal(
+    promptResult.prompt.includes("Explicit local memory search results"),
+    true,
+    "explicit memory search section should survive compression when automatic memory is also present"
+  );
+  assert.equal(
+    promptResult.prompt.includes("EXPLICIT_SEARCH_RESULT"),
+    true,
+    "explicit memory search results should survive compression when automatic memory is also present"
+  );
+}
+
+{
+  const memories = [
+    { id: "mem-1", key: "identity:agent", text: "Agent identity" },
+    { id: "mem-2", key: "preference:cursor", text: "Cursor preference" },
+    { id: "mem-3", text: "No key fallback" }
+  ];
+  const filtered = removeMemorySearchDuplicates(memories, [
+    { id: "different-id", key: "preference:cursor" },
+    { id: "mem-3" }
+  ]);
+  assert.deepEqual(
+    filtered.map((memory) => memory.id),
+    ["mem-1"],
+    "automatic memory injection should drop explicit search duplicates by key or id"
+  );
+}
+
+testSearchMemories().then(() => {
+  return testExplicitMemorySearchSurvivesCompression();
+}).then(() => {
+  console.log("MemoryStore tests passed");
+}).catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});
+
+{
   const customExtractor = new RuleBasedMemoryExtractor({
     candidateExtractor: {
       extractCandidates() {
@@ -128,5 +368,3 @@ assert.equal(
   );
   assert.equal(items[0].sourceSessionId, "inject-session");
 }
-
-console.log("MemoryStore tests passed");

@@ -20,12 +20,7 @@ function acpUpdateToEvents(update, translate = defaultTranslate) {
   }
 
   if (sessionUpdate === "user_message_chunk") {
-    const detail = extractChunkText(update.content);
-    return detail ? [{
-      kind: "activity",
-      title: translate("cursor.userEcho"),
-      detail
-    }] : [];
+    return [];
   }
 
   if (sessionUpdate === "tool_call") {
@@ -67,12 +62,8 @@ function acpUpdateToEvents(update, translate = defaultTranslate) {
     }];
   }
 
-  if (sessionUpdate === "usage_update") {
-    return [{
-      kind: "activity",
-      title: translate("cursor.usage"),
-      detail: compactJson(update)
-    }];
+  if (sessionUpdate === "available_commands_update" || sessionUpdate === "usage_update") {
+    return [];
   }
 
   if (sessionUpdate === "plan_removed") {
