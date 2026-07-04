@@ -8978,6 +8978,76 @@ module.exports = {
 };
 
 },
+"src/view/utils/messageTime.js": function(module, exports, __require) {
+const LANGUAGE_LOCALES = {
+  en: "en-US",
+  zh: "zh-CN"
+};
+
+function formatMessageTime(timestamp, options = {}) {
+  const date = normalizeDate(timestamp);
+  if (!date) {
+    return "";
+  }
+
+  const now = normalizeDate(options.now) || new Date();
+  const locale = LANGUAGE_LOCALES[options.language] || LANGUAGE_LOCALES.en;
+  const timeOptions = { hour: "2-digit", minute: "2-digit" };
+  const dateOptions = isSameLocalDate(date, now)
+    ? timeOptions
+    : { month: "short", day: "numeric", ...timeOptions };
+
+  return new Intl.DateTimeFormat(locale, dateOptions).format(date);
+}
+
+function formatMessageTimeTitle(timestamp, options = {}) {
+  const date = normalizeDate(timestamp);
+  if (!date) {
+    return "";
+  }
+
+  const locale = LANGUAGE_LOCALES[options.language] || LANGUAGE_LOCALES.en;
+  return new Intl.DateTimeFormat(locale, {
+    year: "numeric",
+    month: "short",
+    day: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit"
+  }).format(date);
+}
+
+function formatMessageTimeIso(timestamp) {
+  const date = normalizeDate(timestamp);
+  return date ? date.toISOString() : "";
+}
+
+function normalizeDate(value) {
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return null;
+  }
+  const date = new Date(timestamp);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isSameLocalDate(left, right) {
+  return left.getFullYear() === right.getFullYear()
+    && left.getMonth() === right.getMonth()
+    && left.getDate() === right.getDate();
+}
+
+module.exports = {
+  formatMessageTime,
+  formatMessageTimeIso,
+  formatMessageTimeTitle,
+  _test: {
+    isSameLocalDate,
+    normalizeDate
+  }
+};
+
+},
 "src/view/AgentDockView.js": function(module, exports, __require) {
 const { ItemView, MarkdownRenderer, Notice } = require("obsidian");
 
@@ -8992,6 +9062,7 @@ const { renderSessionSwitcher } = __require("src/view/session/SessionSwitcherRen
 const { MessageTimelineRenderer } = __require("src/view/timeline/MessageTimelineRenderer.js");
 const { copyText } = __require("src/view/utils/clipboard.js");
 const { estimateContextChars, formatCompactNumber } = __require("src/view/utils/contextEstimate.js");
+const { formatMessageTime, formatMessageTimeIso, formatMessageTimeTitle } = __require("src/view/utils/messageTime.js");
 
 class AgentDockView extends ItemView {
   constructor(leaf, plugin) {
@@ -9206,10 +9277,7 @@ class AgentDockView extends ItemView {
   renderMessageItem(item, message) {
     item.empty();
     item.className = `codex-dock__message codex-dock__message--${message.role}`;
-    item.createDiv({
-      cls: "codex-dock__role",
-      text: message.role === "user" ? this.translate("view.you") : this.plugin.agent.label
-    });
+    this.renderMessageMeta(item, message);
     if (message.timeline && message.timeline.length > 0) {
       const timeline = item.createDiv({ cls: "codex-dock__timeline" });
       this.renderTimeline(timeline, message);
@@ -9223,6 +9291,38 @@ class AgentDockView extends ItemView {
       dots.createSpan();
       dots.createSpan();
     }
+    this.renderMessageTime(item, message);
+  }
+
+  renderMessageMeta(item, message) {
+    item.createDiv({
+      cls: "codex-dock__role",
+      text: message.role === "user" ? this.translate("view.you") : this.plugin.agent.label
+    });
+  }
+
+  renderMessageTime(item, message) {
+    const displayTime = formatMessageTime(message.createdAt, {
+      language: this.plugin.settings.language,
+      now: Date.now()
+    });
+    if (!displayTime) {
+      return;
+    }
+
+    const title = formatMessageTimeTitle(message.createdAt, {
+      language: this.plugin.settings.language
+    });
+    const iso = formatMessageTimeIso(message.createdAt);
+    const attr = { title: title || displayTime };
+    if (iso) {
+      attr.datetime = iso;
+    }
+    item.createEl("time", {
+      cls: "codex-dock__message-time",
+      text: displayTime,
+      attr
+    });
   }
 
   async submit() {

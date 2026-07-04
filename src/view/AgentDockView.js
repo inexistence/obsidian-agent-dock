@@ -11,6 +11,7 @@ const { renderSessionSwitcher } = require("./session/SessionSwitcherRenderer");
 const { MessageTimelineRenderer } = require("./timeline/MessageTimelineRenderer");
 const { copyText } = require("./utils/clipboard");
 const { estimateContextChars, formatCompactNumber } = require("./utils/contextEstimate");
+const { formatMessageTime, formatMessageTimeIso, formatMessageTimeTitle } = require("./utils/messageTime");
 
 class AgentDockView extends ItemView {
   constructor(leaf, plugin) {
@@ -225,10 +226,7 @@ class AgentDockView extends ItemView {
   renderMessageItem(item, message) {
     item.empty();
     item.className = `codex-dock__message codex-dock__message--${message.role}`;
-    item.createDiv({
-      cls: "codex-dock__role",
-      text: message.role === "user" ? this.translate("view.you") : this.plugin.agent.label
-    });
+    this.renderMessageMeta(item, message);
     if (message.timeline && message.timeline.length > 0) {
       const timeline = item.createDiv({ cls: "codex-dock__timeline" });
       this.renderTimeline(timeline, message);
@@ -242,6 +240,38 @@ class AgentDockView extends ItemView {
       dots.createSpan();
       dots.createSpan();
     }
+    this.renderMessageTime(item, message);
+  }
+
+  renderMessageMeta(item, message) {
+    item.createDiv({
+      cls: "codex-dock__role",
+      text: message.role === "user" ? this.translate("view.you") : this.plugin.agent.label
+    });
+  }
+
+  renderMessageTime(item, message) {
+    const displayTime = formatMessageTime(message.createdAt, {
+      language: this.plugin.settings.language,
+      now: Date.now()
+    });
+    if (!displayTime) {
+      return;
+    }
+
+    const title = formatMessageTimeTitle(message.createdAt, {
+      language: this.plugin.settings.language
+    });
+    const iso = formatMessageTimeIso(message.createdAt);
+    const attr = { title: title || displayTime };
+    if (iso) {
+      attr.datetime = iso;
+    }
+    item.createEl("time", {
+      cls: "codex-dock__message-time",
+      text: displayTime,
+      attr
+    });
   }
 
   async submit() {
