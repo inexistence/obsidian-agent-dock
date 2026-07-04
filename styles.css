@@ -728,7 +728,7 @@
 }
 
 .codex-dock__composer {
-  padding: 10px 12px 12px;
+  padding: 10px 8px 12px;
 }
 
 .codex-dock__composer-shell {
@@ -738,7 +738,7 @@
   gap: 8px;
   box-sizing: border-box;
   width: 100%;
-  padding: 12px 10px 8px;
+  padding: 12px 8px 8px;
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
   background: var(--background-secondary);
@@ -757,7 +757,7 @@
   display: flex;
   flex-direction: column;
   gap: 6px;
-  min-height: 78px;
+  min-height: 62px;
   overflow: hidden;
   border-radius: 6px;
 }
@@ -771,9 +771,9 @@
 .codex-dock__input {
   box-sizing: border-box;
   width: 100%;
-  min-height: 78px;
+  min-height: 62px;
   max-height: 180px;
-  padding: 2px 12px;
+  padding: 2px 6px;
   border: 0;
   background: transparent;
   box-shadow: none;
@@ -803,7 +803,7 @@
   gap: 5px;
   min-width: 0;
   min-height: 0;
-  padding: 0 12px;
+  padding: 0 6px;
 }
 
 .codex-dock__mention-chips.is-empty {
@@ -1227,7 +1227,7 @@
 
 @container (max-width: 360px) {
   .codex-dock__composer {
-    padding-inline: 8px;
+    padding-inline: 6px;
   }
 
   .codex-dock__mode-pill,

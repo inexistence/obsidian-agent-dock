@@ -6597,7 +6597,7 @@ function renderComposerContent(composer, options) {
   const inputEl = inputWrap.createEl("textarea", {
     cls: "codex-dock__input",
     attr: {
-      rows: "4",
+      rows: "3",
       spellcheck: "false",
       placeholder: translate("composer.placeholder")
     }
