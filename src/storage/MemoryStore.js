@@ -268,7 +268,22 @@ function formatMemoryLine(item) {
     task: "Recent task"
   };
   const label = labels[item.kind] || "Fact";
-  return `- ${label}: ${item.text}`;
+  const updatedDate = formatMemoryDate(item.updatedAt);
+  const createdDate = formatMemoryDate(item.createdAt);
+  const metadata = [
+    updatedDate ? `updated ${updatedDate}` : "",
+    createdDate && createdDate !== updatedDate ? `created ${createdDate}` : ""
+  ].filter(Boolean).join(", ");
+  const suffix = metadata ? ` (${metadata})` : "";
+  return `- ${label}${suffix}: ${item.text}`;
+}
+
+function formatMemoryDate(value) {
+  const timestamp = normalizeTimestamp(value, 0);
+  if (!timestamp) {
+    return "";
+  }
+  return new Date(timestamp).toISOString().slice(0, 10);
 }
 
 function containsSensitiveText(text) {

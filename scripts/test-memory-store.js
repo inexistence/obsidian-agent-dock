@@ -12,6 +12,7 @@ Module._load = function patchedLoad(request, parent, isMain) {
 };
 
 const { _test: memoryStoreTest } = require("../src/storage/MemoryStore");
+const { formatMemoryLine } = require("../src/storage/MemoryStore");
 const { RuleBasedMemoryExtractor } = require("../src/storage/memoryExtraction/RuleBasedMemoryExtractor");
 
 const extractor = new RuleBasedMemoryExtractor();
@@ -90,6 +91,17 @@ assert.equal(
   memoryStoreTest.isGlobalMemory({ kind: "shared", scope: "shared" }),
   false,
   "shared memory should require a query match instead of global recall"
+);
+
+assert.equal(
+  formatMemoryLine({
+    kind: "preference",
+    text: "User prefers timestamped memories",
+    createdAt: Date.UTC(2026, 0, 2),
+    updatedAt: Date.UTC(2026, 6, 4)
+  }),
+  "- Preference (updated 2026-07-04, created 2026-01-02): User prefers timestamped memories",
+  "memory lines should include updated and created dates when they differ"
 );
 
 {
