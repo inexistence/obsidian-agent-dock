@@ -218,6 +218,7 @@ module.exports = {
     "view.copy": "Copy",
     "view.copied": "Copied",
     "view.copyMessageText": "Copy message text",
+    "view.copyEventText": "Copy event text",
     "view.contextTitle": "Context {percent}% · {used} / {limit} chars",
     "view.deleteSessionConfirm": "Delete \"{title}\"?",
     "composer.placeholder": "Ask the agent about this vault or the active note...",
@@ -424,6 +425,7 @@ module.exports = {
     "view.copy": "复制",
     "view.copied": "已复制",
     "view.copyMessageText": "复制消息文本",
+    "view.copyEventText": "复制事件文本",
     "view.contextTitle": "上下文 {percent}% · {used} / {limit} 字符",
     "view.deleteSessionConfirm": "删除“{title}”？",
     "composer.placeholder": "询问 agent 关于此 vault 或当前笔记的问题...",
@@ -6955,6 +6957,7 @@ class MessageTimelineRenderer {
     this.getDebugActivity = options.getDebugActivity;
     this.translate = options.translate;
     this.renderMarkdownContent = options.renderMarkdownContent;
+    this.copyText = options.copyText;
     this.groupOpenStates = new WeakMap();
   }
 
@@ -7028,6 +7031,29 @@ class MessageTimelineRenderer {
     }
   }
 
+  renderCopyButton(containerEl, text, label) {
+    if (!text || !this.copyText) {
+      return;
+    }
+
+    const copyButton = containerEl.createEl("button", {
+      cls: "codex-dock__event-copy-button",
+      text: this.translate("view.copy"),
+      attr: {
+        type: "button",
+        "aria-label": label,
+        title: label
+      }
+    });
+    copyButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      await this.copyText(text);
+      copyButton.setText(this.translate("view.copied"));
+      window.setTimeout(() => copyButton.setText(this.translate("view.copy")), 1200);
+    });
+  }
+
   renderEventGroup(containerEl, message, key, entries, label, open) {
     const details = this.renderDetails(containerEl, message, key, {
       cls: "codex-dock__event-group",
@@ -7091,6 +7117,7 @@ class MessageTimelineRenderer {
 
     const eventEl = containerEl.createDiv({ cls: `codex-dock__event codex-dock__event--${entry.kind || "activity"}` });
     eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || this.translate("timeline.event") });
+    this.renderCopyButton(eventEl, entryToClipboardText(entry, this.getDebugActivity()), this.translate("view.copyEventText"));
 
     if (entry.kind === "reasoning") {
       this.renderReasoningBody(eventEl, entry);
@@ -7125,6 +7152,26 @@ class MessageTimelineRenderer {
   shouldShowEvent(entry) {
     return shouldShowEvent(entry, this.getDebugActivity());
   }
+}
+
+function entryToClipboardText(entry, debugActivity) {
+  if (!entry) {
+    return "";
+  }
+
+  if (entry.kind === "message" || entry.kind === "content") {
+    return String(entry.text || "").trim();
+  }
+
+  const body = entry.kind === "reasoning"
+    ? entry.detail || entry.summary || ""
+    : debugActivity
+      ? entry.detail || ""
+      : entry.summary || "";
+  return [entry.title, body]
+    .map((part) => String(part || "").trim())
+    .filter(Boolean)
+    .join("\n");
 }
 
 module.exports = {
@@ -7221,7 +7268,8 @@ class AgentDockView extends ItemView {
     this.timelineRenderer = new MessageTimelineRenderer({
       getDebugActivity: () => this.plugin.settings.debugActivity,
       translate: (key, params) => this.translate(key, params),
-      renderMarkdownContent: (containerEl, text) => this.renderMarkdownContent(containerEl, text)
+      renderMarkdownContent: (containerEl, text) => this.renderMarkdownContent(containerEl, text),
+      copyText: (text) => copyText(text)
     });
     this.referenceController = new ReferenceController({
       app: this.plugin.app,

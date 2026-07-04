@@ -95,6 +95,7 @@ module.exports = {
     "view.copy": "Copy",
     "view.copied": "Copied",
     "view.copyMessageText": "Copy message text",
+    "view.copyEventText": "Copy event text",
     "view.contextTitle": "Context {percent}% · {used} / {limit} chars",
     "view.deleteSessionConfirm": "Delete \"{title}\"?",
     "composer.placeholder": "Ask the agent about this vault or the active note...",

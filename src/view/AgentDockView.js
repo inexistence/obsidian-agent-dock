@@ -23,7 +23,8 @@ class AgentDockView extends ItemView {
     this.timelineRenderer = new MessageTimelineRenderer({
       getDebugActivity: () => this.plugin.settings.debugActivity,
       translate: (key, params) => this.translate(key, params),
-      renderMarkdownContent: (containerEl, text) => this.renderMarkdownContent(containerEl, text)
+      renderMarkdownContent: (containerEl, text) => this.renderMarkdownContent(containerEl, text),
+      copyText: (text) => copyText(text)
     });
     this.referenceController = new ReferenceController({
       app: this.plugin.app,

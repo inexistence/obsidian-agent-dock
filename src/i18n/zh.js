@@ -95,6 +95,7 @@ module.exports = {
     "view.copy": "复制",
     "view.copied": "已复制",
     "view.copyMessageText": "复制消息文本",
+    "view.copyEventText": "复制事件文本",
     "view.contextTitle": "上下文 {percent}% · {used} / {limit} 字符",
     "view.deleteSessionConfirm": "删除“{title}”？",
     "composer.placeholder": "询问 agent 关于此 vault 或当前笔记的问题...",
