@@ -1,4 +1,9 @@
-const { appendTimelineContent } = require("../timeline/timeline");
+const {
+  appendTimelineContent,
+  appendTimelineReasoning,
+  consolidateTimelineContent,
+  replaceTimelineFinalContent
+} = require("../timeline/timeline");
 
 function createUserMessage(prompt, createdAt) {
   return {
@@ -57,6 +62,8 @@ async function runChatTurn({
       if (update.kind === "content") {
         assistantMessage.content += update.text;
         appendTimelineContent(assistantMessage, update.text);
+      } else if (update.kind === "reasoning") {
+        appendTimelineReasoning(assistantMessage, update);
       } else if (update.kind === "tool" && update.toolCallId) {
         mergeToolTimelineUpdate(assistantMessage, update);
       } else {
@@ -69,16 +76,13 @@ async function runChatTurn({
       dockSession: session
     });
 
-    completeAssistantMessage(assistantMessage);
     if (!assistantMessage.content.trim()) {
-      const emptyText = translate("view.agentFinishedEmpty", { agent: agentLabel });
-      assistantMessage.content = emptyText;
-      appendTimelineContent(assistantMessage, emptyText);
+      assistantMessage.content = translate("view.agentFinishedEmpty", { agent: agentLabel });
     }
+    finalizeAssistantMessage(assistantMessage);
     touchSession(session);
     onTurnFinished(session);
   } catch (error) {
-    completeAssistantMessage(assistantMessage);
     const wasStopped = error.name === "AbortError";
     const errorText = wasStopped
       ? translate("view.agentStopped", { agent: agentLabel })
@@ -89,8 +93,10 @@ async function runChatTurn({
           "",
           translate("view.agentRunFailedHint")
         ].join("\n");
-    assistantMessage.content = errorText;
-    appendTimelineContent(assistantMessage, errorText);
+    finalizeAssistantMessage(assistantMessage, {
+      content: errorText,
+      replaceContent: true
+    });
     touchSession(session);
     onTurnFinished(session);
     notify(wasStopped ? "agentStopped" : "agentCommandFailed");
@@ -104,7 +110,14 @@ async function runChatTurn({
   }
 }
 
-function completeAssistantMessage(message) {
+function finalizeAssistantMessage(message, options = {}) {
+  if (options.content !== undefined) {
+    message.content = options.content;
+  }
+  if (options.replaceContent) {
+    replaceTimelineFinalContent(message, message.content);
+  }
+  consolidateTimelineContent(message);
   message.isLoading = false;
   message.isComplete = true;
 }

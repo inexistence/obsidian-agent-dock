@@ -478,6 +478,13 @@
   white-space: pre-wrap;
 }
 
+.codex-dock__event-summary--reasoning {
+  box-sizing: border-box;
+  max-height: 160px;
+  overflow: auto;
+  color: var(--text-muted);
+}
+
 .codex-dock__event-detail {
   box-sizing: border-box;
   max-height: 180px;

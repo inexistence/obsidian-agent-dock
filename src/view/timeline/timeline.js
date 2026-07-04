@@ -37,6 +37,100 @@ function appendTimelineContent(message, text) {
   message.timeline.push({ kind: "content", text });
 }
 
+function replaceTimelineFinalContent(message, text) {
+  message.timeline = message.timeline.filter((entry) => entry.kind !== "content");
+  const normalized = String(text || "");
+  if (normalized) {
+    message.timeline.push({ kind: "content", text: normalized });
+  }
+}
+
+function consolidateTimelineContent(message) {
+  const finalAnswer = String(message.content || "");
+  const contentIndices = [];
+
+  for (let index = 0; index < message.timeline.length; index += 1) {
+    if (message.timeline[index].kind === "content") {
+      contentIndices.push(index);
+    }
+  }
+
+  if (contentIndices.length === 0) {
+    if (finalAnswer) {
+      message.timeline.push({ kind: "content", text: finalAnswer });
+    }
+    return;
+  }
+
+  if (contentIndices.length === 1) {
+    if (finalAnswer) {
+      message.timeline[contentIndices[0]].text = finalAnswer;
+    }
+    return;
+  }
+
+  if (!finalAnswer) {
+    return;
+  }
+
+  const lastContentIndex = contentIndices[contentIndices.length - 1];
+  if (message.timeline[lastContentIndex].text === finalAnswer) {
+    return;
+  }
+
+  message.timeline.push({ kind: "content", text: finalAnswer });
+}
+
+function findLastStreamingReasoningEntry(timeline) {
+  const entry = timeline[timeline.length - 1];
+  if (entry?.kind === "reasoning" && !entry.discrete) {
+    return entry;
+  }
+  return null;
+}
+
+function appendTimelineReasoning(message, update) {
+  const chunk = String(update.detail || "");
+
+  if (update.discrete) {
+    message.timeline.push({
+      kind: "reasoning",
+      title: update.title || "",
+      detail: chunk,
+      summary: update.summary || "",
+      discrete: true
+    });
+    return;
+  }
+
+  const lastEntry = findLastStreamingReasoningEntry(message.timeline);
+  if (lastEntry) {
+    if (update.title) {
+      lastEntry.title = update.title;
+    }
+    if (chunk) {
+      const existing = lastEntry.detail || "";
+      if (existing && chunk.length >= existing.length && chunk.startsWith(existing)) {
+        lastEntry.detail = chunk;
+      } else {
+        lastEntry.detail = `${existing}${chunk}`;
+      }
+    }
+    if (update.summary) {
+      lastEntry.summary = update.summary;
+    }
+    return;
+  }
+
+  message.timeline.push({
+    kind: "reasoning",
+    title: update.title || "",
+    detail: chunk,
+    summary: update.summary || "",
+    discrete: false
+  });
+}
+
 function findLastContentIndex(timeline) {
   for (let index = timeline.length - 1; index >= 0; index -= 1) {
     if (timeline[index].kind === "content") {
@@ -152,9 +246,20 @@ function defaultTranslate(key, params = {}) {
 
 module.exports = {
   appendTimelineContent,
+  appendTimelineReasoning,
+  consolidateTimelineContent,
+  replaceTimelineFinalContent,
   getCompletedTimelineSections,
   getEventGroupLabel,
   groupLiveTimeline,
   groupProcessedEntries,
-  shouldShowEvent
+  shouldShowEvent,
+  _test: {
+    appendTimelineContent,
+    appendTimelineReasoning,
+    consolidateTimelineContent,
+    replaceTimelineFinalContent,
+    findLastContentIndex,
+    getCompletedTimelineSections
+  }
 };

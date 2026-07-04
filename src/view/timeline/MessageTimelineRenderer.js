@@ -30,7 +30,10 @@ class MessageTimelineRenderer {
     for (const group of groupLiveTimeline(message.timeline, this.getDebugActivity(), this.translate)) {
       if (group.type === "eventGroup") {
         const key = this.getTimelineGroupKey("live", message.timeline, group.entries);
-        this.renderEventGroup(containerEl, message, key, group.entries, group.label, false);
+        const openLiveGroup = group.entries.some((entry) => (
+          entry.kind === "reasoning" && Boolean(entry.detail || entry.summary)
+        ));
+        this.renderEventGroup(containerEl, message, key, group.entries, group.label, openLiveGroup);
       } else {
         this.renderTimelineEntry(containerEl, group.entry);
       }
@@ -49,7 +52,10 @@ class MessageTimelineRenderer {
     }
 
     if (finalEntry) {
-      this.renderTimelineEntry(containerEl, finalEntry);
+      const displayText = message.content
+        ? message.content
+        : finalEntry.text;
+      this.renderTimelineEntry(containerEl, { ...finalEntry, text: displayText });
     }
   }
 
@@ -141,12 +147,35 @@ class MessageTimelineRenderer {
 
     const eventEl = containerEl.createDiv({ cls: `codex-dock__event codex-dock__event--${entry.kind || "activity"}` });
     eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || this.translate("timeline.event") });
+
+    if (entry.kind === "reasoning") {
+      this.renderReasoningBody(eventEl, entry);
+      return;
+    }
+
     if (entry.summary && !this.getDebugActivity()) {
       eventEl.createDiv({ cls: "codex-dock__event-summary", text: entry.summary });
     }
     if (entry.detail && this.getDebugActivity()) {
       eventEl.createEl("pre", { cls: "codex-dock__event-detail", text: entry.detail });
     }
+  }
+
+  renderReasoningBody(eventEl, entry) {
+    const streamText = entry.detail || entry.summary || "";
+    if (!streamText) {
+      return;
+    }
+
+    if (this.getDebugActivity()) {
+      eventEl.createEl("pre", { cls: "codex-dock__event-detail", text: streamText });
+      return;
+    }
+
+    eventEl.createDiv({
+      cls: "codex-dock__event-summary codex-dock__event-summary--reasoning",
+      text: streamText
+    });
   }
 
   shouldShowEvent(entry) {

@@ -29,7 +29,7 @@ The sidebar chat has a mode selector below the prompt box:
 - Workspace write: allow edits inside the vault or configured working directory.
 - Full access: allow broad local access. Use carefully.
 
-Sidebar chat uses `codex exec --json` and renders Codex events in stream order while a turn is running. Consecutive reasoning and tool events are grouped into collapsed sections, and answer text appears inline with those groups. When the turn completes, everything except the final answer text collapses into an `已处理` section. Enable Settings -> Agent Dock -> Debug activity to expand command output, stderr, raw events, and full tool payloads. Hidden model reasoning is not exposed.
+Sidebar chat uses `codex exec --json` and renders Codex events in stream order while a turn is running. Reasoning and tool events are grouped into collapsible sections; reasoning streams inline during a turn, and answer text appears inline with those groups. When the turn completes, everything except the final answer text collapses into an `已处理` section. Enable Settings -> Agent Dock -> Debug activity to expand command output, stderr, raw events, and full tool payloads.
 
 Use the conversation selector below the header to switch chats, or `New` to
 start another chat. Conversation sessions are restored after Obsidian restarts

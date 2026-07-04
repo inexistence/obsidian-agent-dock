@@ -52,7 +52,9 @@ function acpUpdateToEvents(update, translate = defaultTranslate) {
     return [{
       kind: "reasoning",
       title: translate("cursor.plan"),
-      detail: formatPlanDetail(update)
+      detail: formatPlanDetail(update),
+      // Standalone plan blocks must not merge into streamed thought chunks.
+      discrete: true
     }];
   }
 

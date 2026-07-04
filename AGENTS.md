@@ -48,10 +48,11 @@ Run these before handing off changes:
 ```sh
 node scripts/build-main.js
 node --check main.js
+node scripts/test-timeline.js
 find src scripts -name '*.js' -print -exec node --check {} \;
 ```
 
-If behavior changes are UI-only, these syntax checks are the current minimum.
+If behavior changes are UI-only, these syntax checks plus `scripts/test-timeline.js` are the current minimum.
 There is no formal automated UI test suite yet.
 
 Install local Git hooks once per clone:
@@ -128,7 +129,7 @@ Users can change this in plugin settings.
 Agent adapters must emit these UI events:
 
 - `content`: assistant answer text. This is the only event kind treated as answer content.
-- `reasoning`: visible reasoning summary/progress, not hidden chain of thought.
+- `reasoning`: visible reasoning summary/progress, not hidden chain of thought. Cursor plan updates may set `discrete: true` so they do not merge into streamed thought chunks.
 - `tool`: command/tool/web/MCP/file-change activity.
 - `error`: user-visible failure.
 - `notice`: visible system notice such as context compression.
@@ -154,7 +155,8 @@ are runtime UI events and are not persisted by default.
 While a turn is running:
 
 - Render events in stream order.
-- Consecutive `reasoning`, `tool`, `notice`, or `error` events are grouped into collapsed sections.
+- Consecutive `reasoning`, `tool`, `notice`, or `error` events are grouped into collapsible sections.
+- Reasoning groups with visible text auto-expand during the turn so streamed thought text stays readable.
 - Content appears inline with those groups.
 - The loading indicator stays at the bottom until the whole turn completes or fails.
 - The loading indicator is only the animated dots; do not restore the `思考中...` text.
@@ -197,7 +199,7 @@ content F
 ## UI Preferences
 
 - Debug activity is hidden by default.
-- Non-debug mode still shows concise reasoning/tool/error status.
+- Non-debug mode still shows concise reasoning/tool/error status. Reasoning streams as plain text in the sidebar during a turn.
 - Tool summaries should be useful without enabling debug. Include command names,
   exit codes, or compact outputs where available.
 - Avoid noisy activity such as raw stderr in normal mode.

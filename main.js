@@ -2903,7 +2903,9 @@ function acpUpdateToEvents(update, translate = defaultTranslate) {
     return [{
       kind: "reasoning",
       title: translate("cursor.plan"),
-      detail: formatPlanDetail(update)
+      detail: formatPlanDetail(update),
+      // Standalone plan blocks must not merge into streamed thought chunks.
+      discrete: true
     }];
   }
 
@@ -5775,6 +5777,100 @@ function appendTimelineContent(message, text) {
   message.timeline.push({ kind: "content", text });
 }
 
+function replaceTimelineFinalContent(message, text) {
+  message.timeline = message.timeline.filter((entry) => entry.kind !== "content");
+  const normalized = String(text || "");
+  if (normalized) {
+    message.timeline.push({ kind: "content", text: normalized });
+  }
+}
+
+function consolidateTimelineContent(message) {
+  const finalAnswer = String(message.content || "");
+  const contentIndices = [];
+
+  for (let index = 0; index < message.timeline.length; index += 1) {
+    if (message.timeline[index].kind === "content") {
+      contentIndices.push(index);
+    }
+  }
+
+  if (contentIndices.length === 0) {
+    if (finalAnswer) {
+      message.timeline.push({ kind: "content", text: finalAnswer });
+    }
+    return;
+  }
+
+  if (contentIndices.length === 1) {
+    if (finalAnswer) {
+      message.timeline[contentIndices[0]].text = finalAnswer;
+    }
+    return;
+  }
+
+  if (!finalAnswer) {
+    return;
+  }
+
+  const lastContentIndex = contentIndices[contentIndices.length - 1];
+  if (message.timeline[lastContentIndex].text === finalAnswer) {
+    return;
+  }
+
+  message.timeline.push({ kind: "content", text: finalAnswer });
+}
+
+function findLastStreamingReasoningEntry(timeline) {
+  const entry = timeline[timeline.length - 1];
+  if (entry?.kind === "reasoning" && !entry.discrete) {
+    return entry;
+  }
+  return null;
+}
+
+function appendTimelineReasoning(message, update) {
+  const chunk = String(update.detail || "");
+
+  if (update.discrete) {
+    message.timeline.push({
+      kind: "reasoning",
+      title: update.title || "",
+      detail: chunk,
+      summary: update.summary || "",
+      discrete: true
+    });
+    return;
+  }
+
+  const lastEntry = findLastStreamingReasoningEntry(message.timeline);
+  if (lastEntry) {
+    if (update.title) {
+      lastEntry.title = update.title;
+    }
+    if (chunk) {
+      const existing = lastEntry.detail || "";
+      if (existing && chunk.length >= existing.length && chunk.startsWith(existing)) {
+        lastEntry.detail = chunk;
+      } else {
+        lastEntry.detail = `${existing}${chunk}`;
+      }
+    }
+    if (update.summary) {
+      lastEntry.summary = update.summary;
+    }
+    return;
+  }
+
+  message.timeline.push({
+    kind: "reasoning",
+    title: update.title || "",
+    detail: chunk,
+    summary: update.summary || "",
+    discrete: false
+  });
+}
+
 function findLastContentIndex(timeline) {
   for (let index = timeline.length - 1; index >= 0; index -= 1) {
     if (timeline[index].kind === "content") {
@@ -5890,16 +5986,32 @@ function defaultTranslate(key, params = {}) {
 
 module.exports = {
   appendTimelineContent,
+  appendTimelineReasoning,
+  consolidateTimelineContent,
+  replaceTimelineFinalContent,
   getCompletedTimelineSections,
   getEventGroupLabel,
   groupLiveTimeline,
   groupProcessedEntries,
-  shouldShowEvent
+  shouldShowEvent,
+  _test: {
+    appendTimelineContent,
+    appendTimelineReasoning,
+    consolidateTimelineContent,
+    replaceTimelineFinalContent,
+    findLastContentIndex,
+    getCompletedTimelineSections
+  }
 };
 
 },
 "src/view/session/ChatTurnRunner.js": function(module, exports, __require) {
-const { appendTimelineContent } = __require("src/view/timeline/timeline.js");
+const {
+  appendTimelineContent,
+  appendTimelineReasoning,
+  consolidateTimelineContent,
+  replaceTimelineFinalContent
+} = __require("src/view/timeline/timeline.js");
 
 function createUserMessage(prompt, createdAt) {
   return {
@@ -5958,6 +6070,8 @@ async function runChatTurn({
       if (update.kind === "content") {
         assistantMessage.content += update.text;
         appendTimelineContent(assistantMessage, update.text);
+      } else if (update.kind === "reasoning") {
+        appendTimelineReasoning(assistantMessage, update);
       } else if (update.kind === "tool" && update.toolCallId) {
         mergeToolTimelineUpdate(assistantMessage, update);
       } else {
@@ -5970,16 +6084,13 @@ async function runChatTurn({
       dockSession: session
     });
 
-    completeAssistantMessage(assistantMessage);
     if (!assistantMessage.content.trim()) {
-      const emptyText = translate("view.agentFinishedEmpty", { agent: agentLabel });
-      assistantMessage.content = emptyText;
-      appendTimelineContent(assistantMessage, emptyText);
+      assistantMessage.content = translate("view.agentFinishedEmpty", { agent: agentLabel });
     }
+    finalizeAssistantMessage(assistantMessage);
     touchSession(session);
     onTurnFinished(session);
   } catch (error) {
-    completeAssistantMessage(assistantMessage);
     const wasStopped = error.name === "AbortError";
     const errorText = wasStopped
       ? translate("view.agentStopped", { agent: agentLabel })
@@ -5990,8 +6101,10 @@ async function runChatTurn({
           "",
           translate("view.agentRunFailedHint")
         ].join("\n");
-    assistantMessage.content = errorText;
-    appendTimelineContent(assistantMessage, errorText);
+    finalizeAssistantMessage(assistantMessage, {
+      content: errorText,
+      replaceContent: true
+    });
     touchSession(session);
     onTurnFinished(session);
     notify(wasStopped ? "agentStopped" : "agentCommandFailed");
@@ -6005,7 +6118,14 @@ async function runChatTurn({
   }
 }
 
-function completeAssistantMessage(message) {
+function finalizeAssistantMessage(message, options = {}) {
+  if (options.content !== undefined) {
+    message.content = options.content;
+  }
+  if (options.replaceContent) {
+    replaceTimelineFinalContent(message, message.content);
+  }
+  consolidateTimelineContent(message);
   message.isLoading = false;
   message.isComplete = true;
 }
@@ -6333,7 +6453,10 @@ class MessageTimelineRenderer {
     for (const group of groupLiveTimeline(message.timeline, this.getDebugActivity(), this.translate)) {
       if (group.type === "eventGroup") {
         const key = this.getTimelineGroupKey("live", message.timeline, group.entries);
-        this.renderEventGroup(containerEl, message, key, group.entries, group.label, false);
+        const openLiveGroup = group.entries.some((entry) => (
+          entry.kind === "reasoning" && Boolean(entry.detail || entry.summary)
+        ));
+        this.renderEventGroup(containerEl, message, key, group.entries, group.label, openLiveGroup);
       } else {
         this.renderTimelineEntry(containerEl, group.entry);
       }
@@ -6352,7 +6475,10 @@ class MessageTimelineRenderer {
     }
 
     if (finalEntry) {
-      this.renderTimelineEntry(containerEl, finalEntry);
+      const displayText = message.content
+        ? message.content
+        : finalEntry.text;
+      this.renderTimelineEntry(containerEl, { ...finalEntry, text: displayText });
     }
   }
 
@@ -6444,12 +6570,35 @@ class MessageTimelineRenderer {
 
     const eventEl = containerEl.createDiv({ cls: `codex-dock__event codex-dock__event--${entry.kind || "activity"}` });
     eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || this.translate("timeline.event") });
+
+    if (entry.kind === "reasoning") {
+      this.renderReasoningBody(eventEl, entry);
+      return;
+    }
+
     if (entry.summary && !this.getDebugActivity()) {
       eventEl.createDiv({ cls: "codex-dock__event-summary", text: entry.summary });
     }
     if (entry.detail && this.getDebugActivity()) {
       eventEl.createEl("pre", { cls: "codex-dock__event-detail", text: entry.detail });
     }
+  }
+
+  renderReasoningBody(eventEl, entry) {
+    const streamText = entry.detail || entry.summary || "";
+    if (!streamText) {
+      return;
+    }
+
+    if (this.getDebugActivity()) {
+      eventEl.createEl("pre", { cls: "codex-dock__event-detail", text: streamText });
+      return;
+    }
+
+    eventEl.createDiv({
+      cls: "codex-dock__event-summary codex-dock__event-summary--reasoning",
+      text: streamText
+    });
   }
 
   shouldShowEvent(entry) {
