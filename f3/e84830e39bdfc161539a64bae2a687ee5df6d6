@@ -1,0 +1,45 @@
+src/settings.js
+  s_2753981916cc62::t_f3f53b220ce4d4 61,134
+README.md
+  s_2753981916cc62::t_4bbef0214e48cc 79-82
+styles.css
+  s_2753981916cc62::t_42cb127885ae60 19-26,28-30,33-154
+src/i18n/en.js
+  s_2753981916cc62::t_6ccfe4e6faeb80 50-51,122-147
+  s_2753981916cc62::t_80e5275e92cd4c 102
+src/settingsTab.js
+  s_2753981916cc62::t_73de6ad0e47241 292-302
+  s_2753981916cc62::t_32c979f4b05f38 291
+src/view/AgentDockView.js
+  s_2753981916cc62::t_e3cd224b6a1744 41,312,354-361,367,374-375,380,383-390
+  s_2753981916cc62::t_2cfccd90724beb 313
+  s_2753981916cc62::t_b159b67de7d3c6 96-99,284-287,305-311,314-353,362-366,368-373,376-379,381-382,391-433
+  s_2753981916cc62::t_63bdd1492ecc54 674
+  s_2753981916cc62::t_72a792c9f3da0e 434-435
+src/view/utils/contextEstimate.js
+  s_2753981916cc62::t_7800632b65bc54 5,16-19
+src/i18n/zh.js
+  s_2753981916cc62::t_da6124f7e3d2fc 102
+  s_2753981916cc62::t_5f1c0b0818b6fa 50-51,122-147
+main.js
+  s_2753981916cc62::t_a83c87f881a862 225,479,7877,8148,8190-8197,8203,8210-8211,8216,8219-8226,8510
+  s_2753981916cc62::t_bb75493be1b98c 173-174,245-270,427-428,499-524,2391,2464,4989-4999,7796,7807-7810,7932-7935,8120-8123,8141-8147,8149-8189,8198-8202,8204-8209,8212-8215,8217-8218,8227-8269
+  s_2753981916cc62::t_31b2ef5aecd6d6 4988,8270-8271
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "f3e84830e39bdfc161539a64bae2a687ee5df6d6",
+  "prompts": {},
+  "logical_commit_id": "f3e84830e39bdfc161539a64bae2a687ee5df6d6",
+  "sessions": {
+    "s_2753981916cc62": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2b50-58ce-7d90-87f2-08666a9097b0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
