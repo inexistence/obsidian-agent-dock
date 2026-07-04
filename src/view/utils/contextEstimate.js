@@ -2,6 +2,7 @@ const { CUSTOM_ASSISTANT_STYLE_MAX_CHARS, DEFAULT_SETTINGS } = require("../../se
 
 const BUILT_IN_ASSISTANT_STYLE_ESTIMATE_CHARS = 700;
 const ASSISTANT_STYLE_PROMPT_OVERHEAD_CHARS = 220;
+const AFFECT_PROMPT_ESTIMATE_CHARS = 700;
 
 function estimateContextChars(messages, draft, settings) {
   const transcriptChars = messages.reduce((total, message) => {
@@ -12,7 +13,10 @@ function estimateContextChars(messages, draft, settings) {
     ? (Number(settings.memoryMaxPromptChars) || DEFAULT_SETTINGS.memoryMaxPromptChars)
     : 0;
   const styleChars = estimateAssistantStyleChars(settings);
-  return transcriptChars + draftChars + memoryChars + styleChars;
+  const affectChars = settings.affectEnabled && settings.affectCrossSessionEnabled
+    ? AFFECT_PROMPT_ESTIMATE_CHARS
+    : 0;
+  return transcriptChars + draftChars + memoryChars + styleChars + affectChars;
 }
 
 function estimateAssistantStyleChars(settings) {

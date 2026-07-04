@@ -76,7 +76,10 @@ and can optionally restore after Obsidian restarts. Future prompts include a
 brief `Recent cross-session affect` section only for tone, pacing, warmth, and
 focus; it cannot override current user requests, facts, permissions, safety, or
 filesystem rules. Settings -> Agent Dock -> Affect continuity can disable it,
-change sensitivity or half-life, and reset the current affect.
+change sensitivity or half-life, and reset the current affect. When a recent
+affect signal is active, the dock header shows a compact connection indicator
+such as `Warm / With you`; opening it shows warmth, focus, tension, continuity,
+and a reset control.
 
 ## Architecture
 

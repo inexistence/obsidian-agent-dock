@@ -58,6 +58,7 @@ const DEFAULT_SETTINGS = {
   affectEnabled: true,
   affectCrossSessionEnabled: true,
   affectRestoreAfterRestart: true,
+  affectShowIndicator: true,
   affectSensitivity: "normal",
   affectHalfLifeMinutes: 45
 };
@@ -130,6 +131,7 @@ function normalizeSettings(savedSettings) {
   settings.affectEnabled = settings.affectEnabled !== false;
   settings.affectCrossSessionEnabled = settings.affectCrossSessionEnabled !== false;
   settings.affectRestoreAfterRestart = settings.affectRestoreAfterRestart !== false;
+  settings.affectShowIndicator = settings.affectShowIndicator !== false;
   settings.affectSensitivity = normalizeAffectSensitivity(
     settings.affectSensitivity,
     DEFAULT_SETTINGS.affectSensitivity

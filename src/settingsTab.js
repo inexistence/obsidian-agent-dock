@@ -289,6 +289,17 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
+      .setName(translate("settings.affectShowIndicator.name"))
+      .setDesc(translate("settings.affectShowIndicator.desc"))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.affectShowIndicator)
+        .onChange(async (value) => {
+          this.plugin.settings.affectShowIndicator = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshOpenViews();
+        }));
+
+    new Setting(containerEl)
       .setName(translate("settings.affectSensitivity.name"))
       .setDesc(translate("settings.affectSensitivity.desc"))
       .addDropdown((dropdown) => dropdown

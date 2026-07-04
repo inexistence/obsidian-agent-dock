@@ -170,6 +170,8 @@ module.exports = {
     "settings.affectCrossSessionEnabled.desc": "Let recent tone continuity follow you across Agent Dock conversations with time decay.",
     "settings.affectRestoreAfterRestart.name": "Restore after restart",
     "settings.affectRestoreAfterRestart.desc": "Restore the recent tone signal after Obsidian restarts, still using the configured decay.",
+    "settings.affectShowIndicator.name": "Show connection indicator",
+    "settings.affectShowIndicator.desc": "Show the current short-lived tone and connection state in the dock header.",
     "settings.affectSensitivity.name": "Affect sensitivity",
     "settings.affectSensitivity.desc": "How quickly the recent tone signal reacts to each turn.",
     "settings.affectSensitivity.low": "Low",
@@ -220,6 +222,7 @@ module.exports = {
     "notice.agentStillWorking": "{agent} is still working in this conversation.",
     "notice.agentStopped": "{agent} stopped.",
     "notice.agentCommandFailed": "{agent} command failed.",
+    "notice.resetAffectFailed": "Agent Dock could not reset the connection state. Check the console for details.",
     "notice.stopBeforeDeleting": "Stop this conversation before deleting it.",
     "notice.noActiveNote": "No active note to reference.",
     "view.terminalButton": "Terminal",
@@ -239,6 +242,32 @@ module.exports = {
     "view.copyEventText": "Copy event text",
     "view.contextTitle": "Context {percent}% · {used} / {limit} chars",
     "view.deleteSessionConfirm": "Delete \"{title}\"?",
+    "affect.open": "Open current connection state",
+    "affect.tooltip": "{label} · {strength} continuity · updated {age} ago",
+    "affect.panelTitle": "Current connection",
+    "affect.boundary": "Used only for tone and pacing.",
+    "affect.reset": "Reset",
+    "affect.row.tone": "Tone",
+    "affect.row.warmth": "Warmth",
+    "affect.row.focus": "Focus",
+    "affect.row.tension": "Tension",
+    "affect.row.continuity": "Continuity",
+    "affect.row.updated": "Updated",
+    "affect.level.high": "High",
+    "affect.level.medium": "Medium",
+    "affect.level.low": "Low",
+    "affect.strength.high": "Strong",
+    "affect.strength.medium": "Present",
+    "affect.strength.low": "Fading",
+    "affect.age.justNow": "just now",
+    "affect.age.minutes": "{count} min",
+    "affect.age.hours": "{count} hr",
+    "affect.label.tense-focused": "Steady / With you",
+    "affect.label.warm-focused": "Warm / With you",
+    "affect.label.focused": "Focused / Present",
+    "affect.label.warm-open": "Bright / Curious",
+    "affect.label.calm": "Quiet / Close",
+    "affect.label.steady": "Steady / Listening",
     "composer.placeholder": "Ask the agent about this vault or the active note...",
     "composer.attachActiveNote": "Attach active note as a reference",
     "composer.referencedFiles": "Referenced files",
@@ -395,6 +424,8 @@ module.exports = {
     "settings.affectCrossSessionEnabled.desc": "让最近的语气连续性带着时间衰减跨 Agent Dock 对话延续。",
     "settings.affectRestoreAfterRestart.name": "重启后恢复",
     "settings.affectRestoreAfterRestart.desc": "Obsidian 重启后恢复最近语气状态，但仍按设置衰减。",
+    "settings.affectShowIndicator.name": "显示连接状态",
+    "settings.affectShowIndicator.desc": "在 dock 顶部显示当前短期语气和连接状态。",
     "settings.affectSensitivity.name": "情绪敏感度",
     "settings.affectSensitivity.desc": "最近语气状态对每轮对话反应的快慢。",
     "settings.affectSensitivity.low": "低",
@@ -445,6 +476,7 @@ module.exports = {
     "notice.agentStillWorking": "{agent} 仍在此对话中工作。",
     "notice.agentStopped": "{agent} 已停止。",
     "notice.agentCommandFailed": "{agent} 命令运行失败。",
+    "notice.resetAffectFailed": "Agent Dock 无法重置连接状态。请查看控制台详情。",
     "notice.stopBeforeDeleting": "删除前请先停止此对话。",
     "notice.noActiveNote": "没有可引用的当前笔记。",
     "view.terminalButton": "终端",
@@ -464,6 +496,32 @@ module.exports = {
     "view.copyEventText": "复制事件文本",
     "view.contextTitle": "上下文 {percent}% · {used} / {limit} 字符",
     "view.deleteSessionConfirm": "删除“{title}”？",
+    "affect.open": "打开当前连接状态",
+    "affect.tooltip": "{label} · 连续性{strength} · {age}前更新",
+    "affect.panelTitle": "当前连接",
+    "affect.boundary": "只用于语气和节奏。",
+    "affect.reset": "重置",
+    "affect.row.tone": "氛围",
+    "affect.row.warmth": "温度",
+    "affect.row.focus": "专注",
+    "affect.row.tension": "张力",
+    "affect.row.continuity": "连续性",
+    "affect.row.updated": "更新",
+    "affect.level.high": "高",
+    "affect.level.medium": "中",
+    "affect.level.low": "低",
+    "affect.strength.high": "强",
+    "affect.strength.medium": "在场",
+    "affect.strength.low": "渐淡",
+    "affect.age.justNow": "刚刚",
+    "affect.age.minutes": "{count} 分钟",
+    "affect.age.hours": "{count} 小时",
+    "affect.label.tense-focused": "稳定 / 和你一起",
+    "affect.label.warm-focused": "温暖 / 和你一起",
+    "affect.label.focused": "专注 / 在场",
+    "affect.label.warm-open": "明亮 / 好奇",
+    "affect.label.calm": "安静 / 靠近",
+    "affect.label.steady": "稳定 / 倾听",
     "composer.placeholder": "询问 agent 关于此 vault 或当前笔记的问题...",
     "composer.attachActiveNote": "将当前笔记附加为引用",
     "composer.referencedFiles": "提及的文件",
@@ -2330,6 +2388,7 @@ const DEFAULT_SETTINGS = {
   affectEnabled: true,
   affectCrossSessionEnabled: true,
   affectRestoreAfterRestart: true,
+  affectShowIndicator: true,
   affectSensitivity: "normal",
   affectHalfLifeMinutes: 45
 };
@@ -2402,6 +2461,7 @@ function normalizeSettings(savedSettings) {
   settings.affectEnabled = settings.affectEnabled !== false;
   settings.affectCrossSessionEnabled = settings.affectCrossSessionEnabled !== false;
   settings.affectRestoreAfterRestart = settings.affectRestoreAfterRestart !== false;
+  settings.affectShowIndicator = settings.affectShowIndicator !== false;
   settings.affectSensitivity = normalizeAffectSensitivity(
     settings.affectSensitivity,
     DEFAULT_SETTINGS.affectSensitivity
@@ -4923,6 +4983,17 @@ class AgentDockSettingTab extends PluginSettingTab {
         .onChange(async (value) => {
           this.plugin.settings.affectRestoreAfterRestart = value;
           await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.affectShowIndicator.name"))
+      .setDesc(translate("settings.affectShowIndicator.desc"))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.affectShowIndicator)
+        .onChange(async (value) => {
+          this.plugin.settings.affectShowIndicator = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshOpenViews();
         }));
 
     new Setting(containerEl)
@@ -7722,6 +7793,7 @@ const { CUSTOM_ASSISTANT_STYLE_MAX_CHARS, DEFAULT_SETTINGS } = __require("src/se
 
 const BUILT_IN_ASSISTANT_STYLE_ESTIMATE_CHARS = 700;
 const ASSISTANT_STYLE_PROMPT_OVERHEAD_CHARS = 220;
+const AFFECT_PROMPT_ESTIMATE_CHARS = 700;
 
 function estimateContextChars(messages, draft, settings) {
   const transcriptChars = messages.reduce((total, message) => {
@@ -7732,7 +7804,10 @@ function estimateContextChars(messages, draft, settings) {
     ? (Number(settings.memoryMaxPromptChars) || DEFAULT_SETTINGS.memoryMaxPromptChars)
     : 0;
   const styleChars = estimateAssistantStyleChars(settings);
-  return transcriptChars + draftChars + memoryChars + styleChars;
+  const affectChars = settings.affectEnabled && settings.affectCrossSessionEnabled
+    ? AFFECT_PROMPT_ESTIMATE_CHARS
+    : 0;
+  return transcriptChars + draftChars + memoryChars + styleChars + affectChars;
 }
 
 function estimateAssistantStyleChars(settings) {
@@ -7799,6 +7874,7 @@ class AgentDockView extends ItemView {
     this.pendingMessageRenderFrame = null;
     this.pendingMessageRenderSessionId = "";
     this.pendingMessageRenderTarget = null;
+    this.affectPanelCloseListener = null;
     this.globalPointerListeners = new Set();
     this.hasLoadedPersistedSessions = false;
     this.autoScrollThresholdPx = 48;
@@ -7853,7 +7929,10 @@ class AgentDockView extends ItemView {
     containerEl.addClass("codex-dock");
 
     const header = containerEl.createDiv({ cls: "codex-dock__header" });
-    header.createDiv({ cls: "codex-dock__title", text: this.plugin.agent.label });
+    const identity = header.createDiv({ cls: "codex-dock__identity" });
+    identity.createDiv({ cls: "codex-dock__title", text: this.plugin.agent.label });
+    this.affectIndicatorEl = identity.createDiv({ cls: "codex-dock__affect-slot" });
+    this.renderAffectIndicator();
 
     const actions = header.createDiv({ cls: "codex-dock__actions" });
     const terminalButton = actions.createEl("button", {
@@ -8038,7 +8117,10 @@ class AgentDockView extends ItemView {
       },
       onTurnFinished: (targetSession) => this.renderSessionIfActive(targetSession),
       onComposerChanged: (targetSession) => this.renderComposerIfActive(targetSession),
-      updateWorkingAffect: (turn) => this.plugin.updateWorkingAffect(turn),
+      updateWorkingAffect: async (turn) => {
+        await this.plugin.updateWorkingAffect(turn);
+        this.renderAffectIndicator();
+      },
       persistChatSessions: (options) => this.persistChatSessions(options),
       notify: (noticeKey) => {
         const key = noticeKey === "agentStopped" ? "notice.agentStopped" : "notice.agentCommandFailed";
@@ -8056,6 +8138,135 @@ class AgentDockView extends ItemView {
     const draft = this.inputEl?.value || "";
     composer.empty();
     this.renderComposerContent(composer, draft);
+  }
+
+  renderAffectIndicator() {
+    if (!this.affectIndicatorEl) {
+      return;
+    }
+
+    this.clearAffectPanelCloseListener();
+    this.affectIndicatorEl.empty();
+    const affect = this.plugin.getWorkingAffect();
+    if (!this.plugin.settings.affectShowIndicator || !affect) {
+      this.affectIndicatorEl.addClass("is-empty");
+      return;
+    }
+    this.affectIndicatorEl.removeClass("is-empty");
+
+    const label = this.getAffectLabel(affect.label);
+    const strength = this.getAffectStrengthLabel(affect.strength);
+    const age = this.formatAffectAge(affect.ageMinutes);
+    const title = this.translate("affect.tooltip", { label, strength, age });
+    const details = this.affectIndicatorEl.createEl("details", { cls: "codex-dock__affect" });
+    const summary = details.createEl("summary", {
+      cls: "codex-dock__affect-summary",
+      attr: {
+        "aria-label": this.translate("affect.open"),
+        title
+      }
+    });
+    summary.createSpan({ cls: "codex-dock__affect-pulse", attr: { "aria-hidden": "true" } });
+    summary.createSpan({ cls: "codex-dock__affect-label", text: label });
+
+    const panel = details.createDiv({ cls: "codex-dock__affect-panel" });
+    panel.createDiv({ cls: "codex-dock__affect-panel-title", text: this.translate("affect.panelTitle") });
+    this.renderAffectRow(panel, "affect.row.tone", label);
+    this.renderAffectRow(panel, "affect.row.warmth", this.getAffectLevelLabel(affect.warmth));
+    this.renderAffectRow(panel, "affect.row.focus", this.getAffectLevelLabel(affect.focus));
+    this.renderAffectRow(panel, "affect.row.tension", this.getAffectLevelLabel(affect.tension));
+    this.renderAffectRow(panel, "affect.row.continuity", strength);
+    this.renderAffectRow(panel, "affect.row.updated", age);
+    panel.createDiv({ cls: "codex-dock__affect-note", text: this.translate("affect.boundary") });
+
+    const resetButton = panel.createEl("button", {
+      cls: "codex-dock__affect-reset",
+      text: this.translate("affect.reset"),
+      attr: { type: "button" }
+    });
+    resetButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      try {
+        await this.plugin.resetWorkingAffect();
+        new Notice(this.translate("settings.resetAffect.done"));
+        this.renderAffectIndicator();
+      } catch (error) {
+        console.warn("Agent Dock could not reset affect continuity:", error);
+        new Notice(this.translate("notice.resetAffectFailed"));
+      }
+    });
+
+    const closeAffectPanel = (event) => {
+      if (!details.contains(event.target)) {
+        details.removeAttribute("open");
+        this.clearAffectPanelCloseListener();
+      }
+    };
+    details.addEventListener("toggle", () => {
+      if (details.open) {
+        window.setTimeout(() => {
+          if (details.isConnected && details.open) {
+            this.clearAffectPanelCloseListener();
+            this.affectPanelCloseListener = closeAffectPanel;
+            this.addGlobalPointerListener(closeAffectPanel);
+          }
+        }, 0);
+      } else {
+        this.clearAffectPanelCloseListener();
+      }
+    });
+  }
+
+  clearAffectPanelCloseListener() {
+    if (!this.affectPanelCloseListener) {
+      return;
+    }
+    this.removeGlobalPointerListener(this.affectPanelCloseListener);
+    this.affectPanelCloseListener = null;
+  }
+
+  renderAffectRow(containerEl, labelKey, value) {
+    const row = containerEl.createDiv({ cls: "codex-dock__affect-row" });
+    row.createSpan({ cls: "codex-dock__affect-row-label", text: this.translate(labelKey) });
+    row.createSpan({ cls: "codex-dock__affect-row-value", text: value });
+  }
+
+  getAffectLabel(label) {
+    const key = `affect.label.${label || "steady"}`;
+    const translated = this.translate(key);
+    return translated === key ? this.translate("affect.label.steady") : translated;
+  }
+
+  getAffectLevelLabel(value) {
+    if (value >= 0.75) {
+      return this.translate("affect.level.high");
+    }
+    if (value >= 0.4) {
+      return this.translate("affect.level.medium");
+    }
+    return this.translate("affect.level.low");
+  }
+
+  getAffectStrengthLabel(value) {
+    if (value >= 0.66) {
+      return this.translate("affect.strength.high");
+    }
+    if (value >= 0.28) {
+      return this.translate("affect.strength.medium");
+    }
+    return this.translate("affect.strength.low");
+  }
+
+  formatAffectAge(ageMinutes) {
+    const minutes = Math.max(0, Math.round(ageMinutes || 0));
+    if (minutes < 1) {
+      return this.translate("affect.age.justNow");
+    }
+    if (minutes < 60) {
+      return this.translate("affect.age.minutes", { count: minutes });
+    }
+    return this.translate("affect.age.hours", { count: Math.round(minutes / 60) });
   }
 
   renderTimeline(containerEl, message) {
@@ -8296,6 +8507,7 @@ class AgentDockView extends ItemView {
       document.removeEventListener("pointerdown", listener);
     }
     this.globalPointerListeners.clear();
+    this.affectPanelCloseListener = null;
   }
 }
 
