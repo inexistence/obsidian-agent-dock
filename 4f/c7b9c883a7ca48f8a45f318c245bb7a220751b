@@ -1,0 +1,30 @@
+main.js
+  s_2e1d4de58012d5::t_e0bce572150bfa 1199-1206,1208-1216,1368
+  s_2e1d4de58012d5::t_e03ecf3d484a97 1207
+README.md
+  s_2e1d4de58012d5::t_b11e2595d49899 56-58
+src/storage/MemoryStore.js
+  s_2e1d4de58012d5::t_b11e2595d49899 271-286
+scripts/test-memory-store.js
+  s_2e1d4de58012d5::t_b11e2595d49899 15,94-104
+  s_2e1d4de58012d5::t_9a0a38ef7db5d8 105-106
+src/prompt.js
+  s_2e1d4de58012d5::t_b11e2595d49899 65
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "4fc7b9c883a7ca48f8a45f318c245bb7a220751b",
+  "prompts": {},
+  "logical_commit_id": "4fc7b9c883a7ca48f8a45f318c245bb7a220751b",
+  "sessions": {
+    "s_2e1d4de58012d5": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2aca-0683-7d71-a935-239e579437f8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
