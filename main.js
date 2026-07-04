@@ -3754,6 +3754,7 @@ class AgentDockSettingTab extends PluginSettingTab {
             this.plugin.settings.agentId = value;
             this.plugin.refreshAgent();
             await this.plugin.saveSettings();
+            this.plugin.refreshOpenViews();
             this.display();
           });
       });
