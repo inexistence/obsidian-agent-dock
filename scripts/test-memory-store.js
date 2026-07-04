@@ -16,6 +16,7 @@ const {
   _test: memoryStoreTest,
   formatMemoryLine
 } = require("../src/storage/MemoryStore");
+const { containsSensitiveText } = require("../src/storage/sensitiveText");
 const {
   removeMemorySearchDuplicates,
   shouldSearchMemory
@@ -190,6 +191,21 @@ assert.equal(
     "reverse-order English preference recall should trigger memory search"
   );
   assert.equal(
+    shouldSearchMemory("按我上回定的风格来处理这次输出。", settings),
+    true,
+    "implicit prior style recall should trigger memory search"
+  );
+  assert.equal(
+    shouldSearchMemory("帮我回忆一下之前的约定。", settings),
+    true,
+    "natural Chinese recall phrasing should trigger memory search"
+  );
+  assert.equal(
+    shouldSearchMemory("Use the convention we agreed last time.", settings),
+    true,
+    "English prior convention recall should trigger memory search"
+  );
+  assert.equal(
     shouldSearchMemory("查一下我以前对这个插件的设计要求。", {
       memoryEnabled: true,
       memoryAgentSearchEnabled: false
@@ -198,6 +214,87 @@ assert.equal(
     "the explicit memory search setting should disable memory search"
   );
 }
+
+{
+  const items = extract({
+    prompt: "以后别把工具输出写进正文，默认按简洁格式来。",
+    response: "记下这个偏好。"
+  });
+  assert.equal(
+    hasMemory(items, "preference", "user", /以后别把工具输出写进正文/),
+    true,
+    "negative future preference phrasing should become user preference"
+  );
+  assert.equal(
+    hasMemory(items, "preference", "user", /默认按简洁格式来/),
+    true,
+    "default formatting phrasing should become user preference"
+  );
+}
+
+{
+  const items = extract({
+    prompt: "记一下：我习惯先看风险再看方案。",
+    response: "收到。"
+  });
+  assert.equal(
+    hasMemory(items, "fact", "user", /我习惯先看风险再看方案/),
+    true,
+    "expanded explicit memory phrasing should become fact memory"
+  );
+}
+
+{
+  const items = extract({
+    prompt: "这次实现需要一个选择。",
+    response: "决定采用本地规则，废弃远程摘要，默认不开额外网络。"
+  });
+  assert.equal(
+    hasMemory(items, "decision", "project", /决定采用本地规则/),
+    true,
+    "expanded decision markers should become project decisions"
+  );
+}
+
+{
+  const items = extract({
+    prompt: "请解释一下。",
+    response: "The user asked for a useful explanation of the behavior."
+  });
+  assert.equal(
+    hasMemory(items, "decision", "project", /useful explanation/),
+    false,
+    "decision extraction should not match use inside user/useful"
+  );
+}
+
+{
+  const items = extract({
+    prompt: "Pick a storage approach.",
+    response: "We should use the local rule approach by default."
+  });
+  assert.equal(
+    hasMemory(items, "decision", "project", /local rule approach/),
+    true,
+    "bounded English decision phrasing should still become project decision"
+  );
+}
+
+assert.equal(
+  containsSensitiveText("client_secret=abc refresh_token=def"),
+  true,
+  "expanded sensitive-text filter should catch OAuth secrets"
+);
+assert.equal(
+  containsSensitiveText("github_pat_1234567890abcdef"),
+  true,
+  "expanded sensitive-text filter should catch GitHub tokens"
+);
+assert.equal(
+  containsSensitiveText("BEGIN OPENSSH PRIVATE KEY"),
+  true,
+  "expanded sensitive-text filter should catch private key headers"
+);
 
 async function testSearchMemories() {
   const settings = { memoryEnabled: true, memoryAgentSearchEnabled: true };

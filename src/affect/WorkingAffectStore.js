@@ -127,23 +127,23 @@ function extractTurnAffectSignal(turn) {
     signal.confidence -= 0.15;
   }
 
-  if (/(快|急|马上|立刻|赶紧|别废话|urgent|asap|quickly|right now)/i.test(text)) {
+  if (/(快|急|马上|立刻|赶紧|尽快|别废话|别绕|直接|先别解释|urgent|asap|quickly|right now|be direct)/i.test(text)) {
     signal.arousal += 0.35;
     signal.focus += 0.3;
     signal.tension += 0.18;
     signal.warmth -= 0.08;
   }
-  if (/(报错|失败|崩溃|bug|修复|排查|error|failed|failure|crash|fix|debug)/i.test(text)) {
+  if (/(报错|失败|崩溃|卡住|不工作|跑不起来|bug|修复|排查|error|failed|failure|crash|fix|debug|broken|stuck)/i.test(text)) {
     signal.focus += 0.35;
     signal.tension += 0.16;
     signal.confidence += 0.04;
   }
-  if (/(设计|探索|讨论|想法|人格|情绪|连续|偏好|机制|architecture|design|explore|persona|affect|emotion)/i.test(text)) {
+  if (/(设计|探索|讨论|想法|人格|情绪|连续|偏好|机制|原理|边界|架构|architecture|design|explore|persona|affect|emotion|mechanism|boundary)/i.test(text)) {
     signal.warmth += 0.14;
     signal.valence += 0.08;
     signal.focus += 0.12;
   }
-  if (/(谢谢|感谢|很好|不错|喜欢|太好了|thanks|thank you|great|nice|love)/i.test(text)) {
+  if (/(谢谢|感谢|辛苦了|很好|不错|喜欢|太好了|舒服|(?:很|挺|非常|这样|这次|讲得|说得|解释得).{0,6}(?:有用|清楚)|thanks|thank you|appreciate|great|nice|love|useful|clear)/i.test(text)) {
     signal.valence += 0.25;
     signal.warmth += 0.2;
     signal.tension -= 0.12;
@@ -155,7 +155,7 @@ function extractTurnAffectSignal(turn) {
     signal.warmth -= 0.18;
     signal.focus += 0.12;
   }
-  if (/(不对|不是|烦|糟糕|失望|生气|别这样|wrong|annoying|frustrating|bad)/i.test(prompt)) {
+  if (/(不对|不是|不是这个意思|不清楚|不靠谱|没有用|烦|糟糕|失望|生气|别这样|跑偏|没用|太慢|wrong|annoying|frustrating|bad|not what i mean|missed the point)/i.test(prompt)) {
     signal.valence -= 0.22;
     signal.tension += 0.28;
     signal.focus += 0.15;

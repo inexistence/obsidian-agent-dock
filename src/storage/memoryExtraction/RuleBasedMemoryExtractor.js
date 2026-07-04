@@ -60,8 +60,12 @@ function extractPreferenceCandidates(text) {
   const candidates = [];
   const patterns = [
     /(?:我|用户)(?:更)?(?:喜欢|偏好|希望|想要)([^。.!?\n]{2,80})/g,
+    /(?:我|用户)(?:通常|一般|习惯|倾向于|更愿意)([^。.!?\n]{2,80})/g,
     /(?:以后|之后|今后)(?:都|请)?([^。.!?\n]{2,80})/g,
+    /(?:以后|之后|今后).{0,12}(?:别|不要|不用|避免)([^。.!?\n]{2,80})/g,
+    /(?:默认|尽量|优先)(?:按|用|走|采用)([^。.!?\n]{2,80})/g,
     /\b(?:prefer|likes?|wants?)\b([^.!?\n]{2,100})/gi,
+    /\b(?:usually|generally|tend to|would rather)\b([^.!?\n]{2,100})/gi,
     /\b(?:always|never)\b([^.!?\n]{2,100})/gi
   ];
 
@@ -84,7 +88,7 @@ function extractPreferenceCandidates(text) {
 }
 
 function extractExplicitMemoryCandidates(text) {
-  const match = text.match(/(?:记住|remember(?: that)?)(?:[:：\s，,]*)([^。.!?\n]{4,180})/i);
+  const match = text.match(/(?:记住|记一下|帮我记|保存一下|作为约定|remember(?: that)?|note(?: that)?)(?:[:：\s，,]*)([^。.!?\n]{4,180})/i);
   if (!match) {
     return [];
   }
@@ -205,14 +209,28 @@ function extractDecisionCandidates(response) {
     "建议",
     "推荐",
     "应该",
+    "决定",
+    "采用",
+    "选用",
+    "约定",
+    "不要",
+    "废弃",
     "MVP",
     "新增",
     "保留",
-    "默认",
-    "recommend",
-    "should",
-    "default",
-    "decision"
+    "默认"
+  ];
+  const englishDecisionPatterns = [
+    /\bchoose\b/i,
+    /\badopt\b/i,
+    /\bavoid\b/i,
+    /\bdrop\b/i,
+    /\bagreed\b/i,
+    /\brecommend\b/i,
+    /\bshould\b/i,
+    /\bdefault\b/i,
+    /\bdecision\b/i,
+    /\buse\b.{0,40}\b(?:approach|strategy|implementation|default|rule|method)\b/i
   ];
   const candidates = [];
 
@@ -224,7 +242,8 @@ function extractDecisionCandidates(response) {
     if (compact.length < 18 || compact.length > 220) {
       continue;
     }
-    if (!decisionMarkers.some((marker) => compact.toLowerCase().includes(marker.toLowerCase()))) {
+    if (!decisionMarkers.some((marker) => compact.includes(marker))
+      && !englishDecisionPatterns.some((pattern) => pattern.test(compact))) {
       continue;
     }
     candidates.push(createCandidate({
@@ -267,7 +286,7 @@ function dedupeExtracted(items) {
 
 function hasTaskMemorySignal(prompt, response) {
   const text = `${prompt}\n${response}`;
-  return /(src\/|main\.js|README|AGENTS|manifest\.json|scripts\/|Obsidian|Codex|plugin|commit|build|review|bug|feature|setting|storage|prompt|实现|修复|增加|设计|重构|提交|插件|设置|记忆|代码|文件)/i.test(text);
+  return /(src\/|main\.js|README|AGENTS|manifest\.json|scripts\/|Obsidian|Codex|plugin|commit|build|review|bug|feature|setting|storage|prompt|实现|修复|增加|新增|设计|重构|提交|插件|设置|记忆|代码|文件|测试|脚本|构建|发布|兼容|回归)/i.test(text);
 }
 
 function looksLikeUserPreference(text) {

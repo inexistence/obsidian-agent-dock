@@ -99,6 +99,41 @@ function createStore(files) {
 {
   const extractor = new ProfileObservationExtractor();
   const observations = extractor.extractTurn({
+    prompt: "这段解释不清楚，也不靠谱。",
+    previousAssistantResponse: "Here is an explanation.",
+    response: "收到。"
+  });
+  assert.equal(
+    observations.some((item) => item.kind === "encouragement"),
+    false,
+    "negated positive words should not become durable positive profile evidence"
+  );
+}
+
+{
+  const extractor = new ProfileObservationExtractor();
+  const observations = extractor.extractTurn({
+    prompt: "没抓住重点，别绕，先给结论，然后拆分成可执行清单。",
+    previousAssistantResponse: "我可以展开解释几个可能方向。",
+    response: "结论是先收紧规则，再补测试。"
+  });
+  assert(
+    observations.some((item) => item.kind === "correction" && item.signal < 0),
+    "expanded negative feedback phrasing should be recognized"
+  );
+  assert(
+    observations.some((item) => item.kind === "pacing" && item.axis === "communication_pacing"),
+    "expanded direct pacing phrasing should be recognized"
+  );
+  assert(
+    observations.some((item) => item.axis === "decision_style" && item.signal > 0),
+    "expanded actionable-list phrasing should create decision-style signal"
+  );
+}
+
+{
+  const extractor = new ProfileObservationExtractor();
+  const observations = extractor.extractTurn({
     prompt: "你真蠢，闭嘴",
     previousAssistantResponse: "我会解释一下。",
     response: "我会保持稳定。"

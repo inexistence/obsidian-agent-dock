@@ -42,6 +42,26 @@ const settings = {
 }
 
 {
+  const signal = affectTest.extractTurnAffectSignal({
+    prompt: "这个跑不起来，卡住了，别绕，直接帮我看下。",
+    response: "我会直接定位问题。",
+    success: true
+  });
+  assert(signal.focus > 0.4, "natural stuck/debug phrasing should increase focus");
+  assert(signal.arousal > 0.2, "direct urgent phrasing should increase arousal");
+}
+
+{
+  const signal = affectTest.extractTurnAffectSignal({
+    prompt: "这段解释不清楚，也不靠谱。",
+    response: "我会修正。",
+    success: true
+  });
+  assert(signal.valence <= 0, "negated clarity should not increase positive affect");
+  assert(signal.tension > 0, "negated clarity should keep correction tension");
+}
+
+{
   const now = Date.UTC(2026, 6, 4, 10, 0, 0);
   const state = updateWorkingAffect(resetAffectState(settings), settings, {
     sessionId: "session-a",

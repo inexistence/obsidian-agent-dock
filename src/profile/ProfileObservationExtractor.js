@@ -6,15 +6,19 @@ const POSITIVE_FEEDBACK = [
   /这次(?:很好|更好|对了|像你)/,
   /我(?:喜欢|认可|接受)(?:你)?(?:刚才|这种|这个)?/,
   /继续(?:这样|这个方向)/,
-  /有用/,
+  /(?:很|挺|非常|这样|这次).{0,6}有用/,
+  /(?:很|挺|非常|这样|这次|讲得|说得|解释得).{0,6}清楚/,
+  /到位/,
+  /(?:很|挺|非常|这样|这次).{0,6}靠谱/,
   /说得(?:对|好)/,
-  /\b(good|great|nice|exactly|that's it|useful|keep going)\b/i
+  /\b(good|great|nice|exactly|that's it|useful|clear|solid|keep going)\b/i
 ];
 
 const THANKS = [
   /谢谢/,
   /感谢/,
   /辛苦了/,
+  /麻烦你了/,
   /\b(thanks|thank you|appreciate it)\b/i
 ];
 
@@ -27,8 +31,12 @@ const NEGATIVE_FEEDBACK = [
   /没有(?:回答|解决|落地)/,
   /这(?:不|没)是我想要的/,
   /跑偏了/,
+  /不是这个意思/,
+  /没抓住重点/,
+  /没用/,
+  /太慢/,
   /别(?:这样|这么)/,
-  /\b(wrong|not what i mean|too vague|too abstract|not useful|missed the point)\b/i
+  /\b(wrong|not what i mean|too vague|too abstract|not useful|missed the point|too slow)\b/i
 ];
 
 const HOSTILITY = [
@@ -41,10 +49,13 @@ const HOSTILITY = [
 const CONCRETE_REQUEST = [
   /具体/,
   /可实施/,
+  /可执行/,
   /落地/,
   /任务/,
   /步骤/,
   /方案/,
+  /拆分/,
+  /清单/,
   /怎么(?:能)?(?:做|实现|达到|识别|判断)/,
   /实现路径/,
   /数据模型/,
@@ -60,6 +71,7 @@ const CONCEPTUAL_REQUEST = [
   /为什么/,
   /本质/,
   /边界/,
+  /取舍/,
   /区别/,
   /怎么理解/,
   /自然生长/,
@@ -74,10 +86,12 @@ const CONCEPTUAL_REQUEST = [
 const PACING_DIRECT = [
   /直接说/,
   /别废话/,
+  /别绕/,
   /简短/,
   /快点/,
   /先给结论/,
   /不要铺垫/,
+  /长话短说/,
   /\b(be direct|short answer|briefly|tl;dr|cut to the chase)\b/i
 ];
 
@@ -88,6 +102,8 @@ const PACING_EXPANSIVE = [
   /慢慢说/,
   /多解释/,
   /完整一点/,
+  /展开讲/,
+  /说细一点/,
   /\b(explain more|go deeper|full detail|walk me through)\b/i
 ];
 
@@ -97,6 +113,8 @@ const JUDGMENT_REQUEST = [
   /你觉得/,
   /你建议/,
   /给个结论/,
+  /你来拍板/,
+  /帮我判断/,
   /不要只列选项/,
   /别只顺着我/,
   /你来决定/,

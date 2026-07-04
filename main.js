@@ -858,8 +858,12 @@ function extractPreferenceCandidates(text) {
   const candidates = [];
   const patterns = [
     /(?:我|用户)(?:更)?(?:喜欢|偏好|希望|想要)([^。.!?\n]{2,80})/g,
+    /(?:我|用户)(?:通常|一般|习惯|倾向于|更愿意)([^。.!?\n]{2,80})/g,
     /(?:以后|之后|今后)(?:都|请)?([^。.!?\n]{2,80})/g,
+    /(?:以后|之后|今后).{0,12}(?:别|不要|不用|避免)([^。.!?\n]{2,80})/g,
+    /(?:默认|尽量|优先)(?:按|用|走|采用)([^。.!?\n]{2,80})/g,
     /\b(?:prefer|likes?|wants?)\b([^.!?\n]{2,100})/gi,
+    /\b(?:usually|generally|tend to|would rather)\b([^.!?\n]{2,100})/gi,
     /\b(?:always|never)\b([^.!?\n]{2,100})/gi
   ];
 
@@ -882,7 +886,7 @@ function extractPreferenceCandidates(text) {
 }
 
 function extractExplicitMemoryCandidates(text) {
-  const match = text.match(/(?:记住|remember(?: that)?)(?:[:：\s，,]*)([^。.!?\n]{4,180})/i);
+  const match = text.match(/(?:记住|记一下|帮我记|保存一下|作为约定|remember(?: that)?|note(?: that)?)(?:[:：\s，,]*)([^。.!?\n]{4,180})/i);
   if (!match) {
     return [];
   }
@@ -1003,14 +1007,28 @@ function extractDecisionCandidates(response) {
     "建议",
     "推荐",
     "应该",
+    "决定",
+    "采用",
+    "选用",
+    "约定",
+    "不要",
+    "废弃",
     "MVP",
     "新增",
     "保留",
-    "默认",
-    "recommend",
-    "should",
-    "default",
-    "decision"
+    "默认"
+  ];
+  const englishDecisionPatterns = [
+    /\bchoose\b/i,
+    /\badopt\b/i,
+    /\bavoid\b/i,
+    /\bdrop\b/i,
+    /\bagreed\b/i,
+    /\brecommend\b/i,
+    /\bshould\b/i,
+    /\bdefault\b/i,
+    /\bdecision\b/i,
+    /\buse\b.{0,40}\b(?:approach|strategy|implementation|default|rule|method)\b/i
   ];
   const candidates = [];
 
@@ -1022,7 +1040,8 @@ function extractDecisionCandidates(response) {
     if (compact.length < 18 || compact.length > 220) {
       continue;
     }
-    if (!decisionMarkers.some((marker) => compact.toLowerCase().includes(marker.toLowerCase()))) {
+    if (!decisionMarkers.some((marker) => compact.includes(marker))
+      && !englishDecisionPatterns.some((pattern) => pattern.test(compact))) {
       continue;
     }
     candidates.push(createCandidate({
@@ -1065,7 +1084,7 @@ function dedupeExtracted(items) {
 
 function hasTaskMemorySignal(prompt, response) {
   const text = `${prompt}\n${response}`;
-  return /(src\/|main\.js|README|AGENTS|manifest\.json|scripts\/|Obsidian|Codex|plugin|commit|build|review|bug|feature|setting|storage|prompt|实现|修复|增加|设计|重构|提交|插件|设置|记忆|代码|文件)/i.test(text);
+  return /(src\/|main\.js|README|AGENTS|manifest\.json|scripts\/|Obsidian|Codex|plugin|commit|build|review|bug|feature|setting|storage|prompt|实现|修复|增加|新增|设计|重构|提交|插件|设置|记忆|代码|文件|测试|脚本|构建|发布|兼容|回归)/i.test(text);
 }
 
 function looksLikeUserPreference(text) {
@@ -1111,7 +1130,7 @@ module.exports = {
 },
 "src/storage/sensitiveText.js": function(module, exports, __require) {
 function containsSensitiveText(text) {
-  return /(api[_-]?key|password|passwd|secret|token|bearer|private[_-]?key|ssh-rsa|sk-[a-z0-9]|密码|密钥|令牌)/i.test(text);
+  return /(api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd|secret|token|bearer|private[_-]?key|ssh-rsa|BEGIN (?:OPENSSH |RSA |EC )?PRIVATE KEY|sk-[a-z0-9]|ghp_[a-z0-9]|github_pat_[a-z0-9_]+|xox[baprs]-[a-z0-9-]+|AKIA[0-9A-Z]{16}|密码|密钥|私钥|令牌|凭证)/i.test(text);
 }
 
 function redactSensitiveText(text) {
@@ -1678,23 +1697,23 @@ function extractTurnAffectSignal(turn) {
     signal.confidence -= 0.15;
   }
 
-  if (/(快|急|马上|立刻|赶紧|别废话|urgent|asap|quickly|right now)/i.test(text)) {
+  if (/(快|急|马上|立刻|赶紧|尽快|别废话|别绕|直接|先别解释|urgent|asap|quickly|right now|be direct)/i.test(text)) {
     signal.arousal += 0.35;
     signal.focus += 0.3;
     signal.tension += 0.18;
     signal.warmth -= 0.08;
   }
-  if (/(报错|失败|崩溃|bug|修复|排查|error|failed|failure|crash|fix|debug)/i.test(text)) {
+  if (/(报错|失败|崩溃|卡住|不工作|跑不起来|bug|修复|排查|error|failed|failure|crash|fix|debug|broken|stuck)/i.test(text)) {
     signal.focus += 0.35;
     signal.tension += 0.16;
     signal.confidence += 0.04;
   }
-  if (/(设计|探索|讨论|想法|人格|情绪|连续|偏好|机制|architecture|design|explore|persona|affect|emotion)/i.test(text)) {
+  if (/(设计|探索|讨论|想法|人格|情绪|连续|偏好|机制|原理|边界|架构|architecture|design|explore|persona|affect|emotion|mechanism|boundary)/i.test(text)) {
     signal.warmth += 0.14;
     signal.valence += 0.08;
     signal.focus += 0.12;
   }
-  if (/(谢谢|感谢|很好|不错|喜欢|太好了|thanks|thank you|great|nice|love)/i.test(text)) {
+  if (/(谢谢|感谢|辛苦了|很好|不错|喜欢|太好了|舒服|(?:很|挺|非常|这样|这次|讲得|说得|解释得).{0,6}(?:有用|清楚)|thanks|thank you|appreciate|great|nice|love|useful|clear)/i.test(text)) {
     signal.valence += 0.25;
     signal.warmth += 0.2;
     signal.tension -= 0.12;
@@ -1706,7 +1725,7 @@ function extractTurnAffectSignal(turn) {
     signal.warmth -= 0.18;
     signal.focus += 0.12;
   }
-  if (/(不对|不是|烦|糟糕|失望|生气|别这样|wrong|annoying|frustrating|bad)/i.test(prompt)) {
+  if (/(不对|不是|不是这个意思|不清楚|不靠谱|没有用|烦|糟糕|失望|生气|别这样|跑偏|没用|太慢|wrong|annoying|frustrating|bad|not what i mean|missed the point)/i.test(prompt)) {
     signal.valence -= 0.22;
     signal.tension += 0.28;
     signal.focus += 0.15;
@@ -3038,10 +3057,15 @@ const MEMORY_SEARCH_LIMIT = 5;
 
 const MEMORY_LOOKUP_PATTERNS = [
   /(?:之前|以前|过去|上次|曾经).{0,24}(?:说过|提过|聊过|记录|记得|偏好|要求|方案)/,
+  /(?:之前|以前|过去|上次|曾经|上回|前面|刚才).{0,24}(?:定的|约定|决定|选的|用的|习惯|风格|规则|结论)/,
+  /(?:按|照|根据).{0,12}(?:之前|以前|上次|上回|过去).{0,24}(?:习惯|偏好|要求|约定|方案|规则|结论)/,
+  /(?:回忆|想起来|记一下|翻一下|看一下).{0,16}(?:记忆|记录|历史|之前|以前|上次|上回|约定)/,
   /(?:查|找|搜索|看看).{0,12}(?:记忆|记录|历史)/,
   /(?:有没有|是否).{0,16}(?:记录|记得|保存).{0,24}(?:不想|不要|偏好|要求|方案)/,
+  /(?:有没有|是否).{0,16}(?:保存|记录|记住|提过).{0,24}(?:约定|决定|结论|习惯|规则|风格)/,
   /(?:do you remember|did i mention|previously|before|earlier|past).{0,48}(?:preference|requirement|decision|memory|note|said|mentioned)/i,
-  /(?:preference|requirement|decision|memory|note|said|mentioned).{0,48}(?:previously|before|earlier|past)/i,
+  /(?:preference|requirement|decision|agreement|convention|rule|style|habit|memory|note|said|mentioned).{0,48}(?:previously|before|earlier|past|last time)/i,
+  /(?:previously|before|earlier|past|last time).{0,48}(?:agreement|convention|rule|style|habit|choice|decision)/i,
   /(?:search|check|look up|find).{0,24}(?:memory|memories|previous notes|past notes|history)/i
 ];
 
@@ -5196,15 +5220,19 @@ const POSITIVE_FEEDBACK = [
   /这次(?:很好|更好|对了|像你)/,
   /我(?:喜欢|认可|接受)(?:你)?(?:刚才|这种|这个)?/,
   /继续(?:这样|这个方向)/,
-  /有用/,
+  /(?:很|挺|非常|这样|这次).{0,6}有用/,
+  /(?:很|挺|非常|这样|这次|讲得|说得|解释得).{0,6}清楚/,
+  /到位/,
+  /(?:很|挺|非常|这样|这次).{0,6}靠谱/,
   /说得(?:对|好)/,
-  /\b(good|great|nice|exactly|that's it|useful|keep going)\b/i
+  /\b(good|great|nice|exactly|that's it|useful|clear|solid|keep going)\b/i
 ];
 
 const THANKS = [
   /谢谢/,
   /感谢/,
   /辛苦了/,
+  /麻烦你了/,
   /\b(thanks|thank you|appreciate it)\b/i
 ];
 
@@ -5217,8 +5245,12 @@ const NEGATIVE_FEEDBACK = [
   /没有(?:回答|解决|落地)/,
   /这(?:不|没)是我想要的/,
   /跑偏了/,
+  /不是这个意思/,
+  /没抓住重点/,
+  /没用/,
+  /太慢/,
   /别(?:这样|这么)/,
-  /\b(wrong|not what i mean|too vague|too abstract|not useful|missed the point)\b/i
+  /\b(wrong|not what i mean|too vague|too abstract|not useful|missed the point|too slow)\b/i
 ];
 
 const HOSTILITY = [
@@ -5231,10 +5263,13 @@ const HOSTILITY = [
 const CONCRETE_REQUEST = [
   /具体/,
   /可实施/,
+  /可执行/,
   /落地/,
   /任务/,
   /步骤/,
   /方案/,
+  /拆分/,
+  /清单/,
   /怎么(?:能)?(?:做|实现|达到|识别|判断)/,
   /实现路径/,
   /数据模型/,
@@ -5250,6 +5285,7 @@ const CONCEPTUAL_REQUEST = [
   /为什么/,
   /本质/,
   /边界/,
+  /取舍/,
   /区别/,
   /怎么理解/,
   /自然生长/,
@@ -5264,10 +5300,12 @@ const CONCEPTUAL_REQUEST = [
 const PACING_DIRECT = [
   /直接说/,
   /别废话/,
+  /别绕/,
   /简短/,
   /快点/,
   /先给结论/,
   /不要铺垫/,
+  /长话短说/,
   /\b(be direct|short answer|briefly|tl;dr|cut to the chase)\b/i
 ];
 
@@ -5278,6 +5316,8 @@ const PACING_EXPANSIVE = [
   /慢慢说/,
   /多解释/,
   /完整一点/,
+  /展开讲/,
+  /说细一点/,
   /\b(explain more|go deeper|full detail|walk me through)\b/i
 ];
 
@@ -5287,6 +5327,8 @@ const JUDGMENT_REQUEST = [
   /你觉得/,
   /你建议/,
   /给个结论/,
+  /你来拍板/,
+  /帮我判断/,
   /不要只列选项/,
   /别只顺着我/,
   /你来决定/,
