@@ -376,7 +376,8 @@
 .codex-dock__messages {
   flex: 1;
   min-height: 0;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   padding: 12px;
 }
 
@@ -390,10 +391,24 @@
 }
 
 .codex-dock__message {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
   margin-bottom: 12px;
 }
 
+.codex-dock__message--user {
+  align-items: flex-end;
+}
+
+.codex-dock__message--user .codex-dock__role,
+.codex-dock__message--user .codex-dock__message-footer {
+  max-width: min(88%, 720px);
+}
+
 .codex-dock__role {
+  max-width: 100%;
   margin-bottom: 4px;
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
@@ -401,25 +416,33 @@
   overflow-wrap: anywhere;
 }
 
-.codex-dock__message-time {
-  display: block;
+.codex-dock__message-footer {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  min-width: 0;
   margin-top: 4px;
+}
+
+.codex-dock__message-time {
   color: var(--text-faint);
   font-size: var(--font-ui-smaller);
   font-variant-numeric: tabular-nums;
   line-height: 1.2;
 }
 
-.codex-dock__message--user .codex-dock__message-time {
+.codex-dock__message--user .codex-dock__message-footer {
   text-align: right;
 }
 
 .codex-dock__content {
   position: relative;
   box-sizing: border-box;
-  width: 100%;
+  width: fit-content;
+  max-width: 100%;
   margin: 0;
-  padding: 10px 48px 10px 10px;
+  padding: 10px;
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
   background: var(--background-secondary);
@@ -455,29 +478,52 @@
   overflow-wrap: anywhere;
 }
 
-.codex-dock__copy-button {
-  position: absolute;
-  top: 6px;
-  right: 6px;
-  min-height: 24px;
-  padding: 0 7px;
-  border-radius: 6px;
+.codex-dock__message-footer .codex-dock__copy-button {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  min-width: 22px;
+  min-height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent !important;
+  background-color: transparent !important;
+  background-image: none !important;
+  box-shadow: none !important;
+  color: var(--text-faint);
   font-size: var(--font-ui-smaller);
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 120ms ease;
+  line-height: 1;
+  opacity: 0.72;
+  transition: opacity 120ms ease, color 120ms ease, background-color 120ms ease;
   user-select: none;
   -webkit-user-select: none;
 }
 
-.codex-dock__content:hover .codex-dock__copy-button,
-.codex-dock__copy-button:focus-visible {
+.codex-dock__message-footer .codex-dock__copy-button:hover,
+.codex-dock__message-footer .codex-dock__copy-button:focus-visible {
   opacity: 1;
-  pointer-events: auto;
+  color: var(--text-muted);
+  background: var(--background-modifier-hover) !important;
+  background-color: var(--background-modifier-hover) !important;
+  box-shadow: none !important;
+}
+
+.codex-dock__message-footer .codex-dock__copy-button.is-copied {
+  color: var(--text-accent);
 }
 
 .codex-dock__message--user .codex-dock__content {
+  align-self: flex-end;
+  max-width: min(88%, 720px);
+  margin-left: auto;
+  margin-right: 0;
   border-color: var(--interactive-accent);
+  background: color-mix(in srgb, var(--interactive-accent) 8%, var(--background-secondary));
 }
 
 .codex-dock__loading {
@@ -536,8 +582,12 @@
 }
 
 .codex-dock__timeline {
+  box-sizing: border-box;
   display: grid;
   gap: 8px;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .codex-dock__event-group {
@@ -576,6 +626,7 @@
 }
 
 .codex-dock__event-group-body {
+  box-sizing: border-box;
   display: grid;
   gap: 6px;
   margin-top: 6px;
@@ -585,6 +636,8 @@
 
 .codex-dock__event {
   position: relative;
+  box-sizing: border-box;
+  min-width: 0;
   border: 1px solid var(--background-modifier-border);
   border-radius: 8px;
   background: var(--background-secondary);

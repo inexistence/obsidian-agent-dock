@@ -9049,7 +9049,7 @@ module.exports = {
 
 },
 "src/view/AgentDockView.js": function(module, exports, __require) {
-const { ItemView, MarkdownRenderer, Notice } = require("obsidian");
+const { ItemView, MarkdownRenderer, Notice, setIcon } = require("obsidian");
 
 const { VIEW_TYPE_AGENT_DOCK } = __require("src/constants.js");
 const { t } = __require("src/i18n/index.js");
@@ -9291,7 +9291,7 @@ class AgentDockView extends ItemView {
       dots.createSpan();
       dots.createSpan();
     }
-    this.renderMessageTime(item, message);
+    this.renderMessageFooter(item, message);
   }
 
   renderMessageMeta(item, message) {
@@ -9301,15 +9301,17 @@ class AgentDockView extends ItemView {
     });
   }
 
-  renderMessageTime(item, message) {
+  renderMessageFooter(item, message) {
     const displayTime = formatMessageTime(message.createdAt, {
       language: this.plugin.settings.language,
       now: Date.now()
     });
-    if (!displayTime) {
+    const copySource = message.content || "";
+    if (!displayTime && !copySource) {
       return;
     }
 
+    const footer = item.createDiv({ cls: "codex-dock__message-footer" });
     const title = formatMessageTimeTitle(message.createdAt, {
       language: this.plugin.settings.language
     });
@@ -9318,10 +9320,42 @@ class AgentDockView extends ItemView {
     if (iso) {
       attr.datetime = iso;
     }
-    item.createEl("time", {
-      cls: "codex-dock__message-time",
-      text: displayTime,
-      attr
+    if (displayTime) {
+      footer.createEl("time", {
+        cls: "codex-dock__message-time",
+        text: displayTime,
+        attr
+      });
+    }
+    if (copySource) {
+      this.renderMessageCopyButton(footer, copySource);
+    }
+  }
+
+  renderMessageCopyButton(containerEl, text) {
+    const copyButton = containerEl.createEl("button", {
+      cls: "codex-dock__copy-button",
+      attr: {
+        type: "button",
+        "aria-label": this.translate("view.copyMessageText"),
+        title: this.translate("view.copyMessageText")
+      }
+    });
+    setIcon(copyButton, "copy");
+    copyButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      await copyText(text || "");
+      copyButton.addClass("is-copied");
+      copyButton.setAttr("title", this.translate("view.copied"));
+      copyButton.setAttr("aria-label", this.translate("view.copied"));
+      setIcon(copyButton, "check");
+      window.setTimeout(() => {
+        copyButton.removeClass("is-copied");
+        copyButton.setAttr("title", this.translate("view.copyMessageText"));
+        copyButton.setAttr("aria-label", this.translate("view.copyMessageText"));
+        setIcon(copyButton, "copy");
+      }, 1200);
     });
   }
 
@@ -9520,23 +9554,6 @@ class AgentDockView extends ItemView {
 
   renderMarkdownContent(containerEl, text) {
     const contentEl = containerEl.createDiv({ cls: "codex-dock__content markdown-rendered" });
-    const copyButton = contentEl.createEl("button", {
-      cls: "codex-dock__copy-button",
-      text: this.translate("view.copy"),
-      attr: {
-        type: "button",
-        "aria-label": this.translate("view.copyMessageText"),
-        title: this.translate("view.copyMessageText")
-      }
-    });
-    copyButton.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      await copyText(text || "");
-      copyButton.setText(this.translate("view.copied"));
-      window.setTimeout(() => copyButton.setText(this.translate("view.copy")), 1200);
-    });
-
     const markdownEl = contentEl.createDiv({ cls: "codex-dock__content-body" });
     const sourcePath = this.app.workspace.getActiveFile()?.path || "";
     MarkdownRenderer.render(this.app, text || "", markdownEl, sourcePath, this).catch(() => {
