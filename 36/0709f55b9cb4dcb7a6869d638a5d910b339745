@@ -1,0 +1,22 @@
+src/settingsTab.js
+  s_83db3a21c6a5b7::t_317e5b408e63bd 53
+main.js
+  s_83db3a21c6a5b7::t_d82d91123a7348 3757
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "360709f55b9cb4dcb7a6869d638a5d910b339745",
+  "prompts": {},
+  "logical_commit_id": "360709f55b9cb4dcb7a6869d638a5d910b339745",
+  "sessions": {
+    "s_83db3a21c6a5b7": {
+      "agent_id": {
+        "tool": "cursor",
+        "id": "7f6b2214-ecfb-4f67-a008-1e8b01895fa0",
+        "model": "default"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
