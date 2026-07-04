@@ -1,0 +1,51 @@
+src/affect/WorkingAffectStore.js
+  s_344323178d68b3::t_a96f97ed9739d4 130,136,141
+  s_344323178d68b3::t_369e9d1a7eac9a 158
+  s_344323178d68b3::t_7d6700304c0248 146
+main.js
+  s_344323178d68b3::t_589153ad49529a 1019,1021-1032,1043-1044,1716,1728,5223-5224,5226
+  s_344323178d68b3::t_828da252f7103a 861,863-864,866,889,1010-1015,1087,1133,1700,1706,1711,3060-3062,3065,3067-3068,5225,5228,5235,5248-5251,5253,5266,5271-5272,5288,5303,5308,5319-5320,5330-5331
+  s_344323178d68b3::t_57cae9fd0f98d9 1020
+src/profile/ProfileObservationExtractor.js
+  s_344323178d68b3::t_7d6700304c0248 9-10,12
+  s_344323178d68b3::t_a96f97ed9739d4 11,14,21,34-37,39,52,57-58,74,89,94,105-106,116-117
+src/storage/memoryExtraction/RuleBasedMemoryExtractor.js
+  s_344323178d68b3::t_7d6700304c0248 221,223-234,245-246
+  s_344323178d68b3::t_a96f97ed9739d4 63,65-66,68,91,212-217,289
+  s_344323178d68b3::t_92e2d4d9f8d0d1 222
+scripts/test-affect.js
+  s_344323178d68b3::t_7d6700304c0248 55-64
+  s_344323178d68b3::t_a96f97ed9739d4 45-54
+  s_344323178d68b3::t_871a8a1adb3d99 44
+scripts/test-memory-store.js
+  s_344323178d68b3::t_a96f97ed9739d4 19,194-208,215-258,283-297
+  s_344323178d68b3::t_7d6700304c0248 259-279,282
+  s_344323178d68b3::t_a2ee5fcf6512e3 193
+  s_344323178d68b3::t_a9d38fd9038280 280-281
+  s_344323178d68b3::t_9f025311374398 298
+src/storage/sensitiveText.js
+  s_344323178d68b3::t_a96f97ed9739d4 2
+src/agents/shared/memorySearch.js
+  s_344323178d68b3::t_a96f97ed9739d4 7-9,12,14-15
+scripts/test-agent-profile.js
+  s_344323178d68b3::t_7d6700304c0248 102-115
+  s_344323178d68b3::t_a96f97ed9739d4 116-136
+  s_344323178d68b3::t_cc1301f6b4f919 99-101
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "2b8e14fb42f29689fd4369b7bd824438d74c3ba7",
+  "prompts": {},
+  "logical_commit_id": "2b8e14fb42f29689fd4369b7bd824438d74c3ba7",
+  "sessions": {
+    "s_344323178d68b3": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2b98-3cc1-7e71-bd9f-6495cabdfd47",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
