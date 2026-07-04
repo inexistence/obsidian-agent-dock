@@ -53,10 +53,7 @@ class MessageTimelineRenderer {
     }
 
     if (finalEntry) {
-      const displayText = message.content
-        ? message.content
-        : finalEntry.text;
-      this.renderTimelineEntry(containerEl, { ...finalEntry, text: displayText });
+      this.renderTimelineEntry(containerEl, finalEntry);
     }
   }
 

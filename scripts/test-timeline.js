@@ -59,8 +59,8 @@ function reasoningEntries(message) {
     { kind: "content", text: " world" }
   ];
   timelineTest.consolidateTimelineContent(message);
-  assert.strictEqual(contentEntries(message).length, 3);
-  assert.strictEqual(contentEntries(message)[2].text, "Hello world");
+  assert.strictEqual(contentEntries(message).length, 2);
+  assert.strictEqual(contentEntries(message)[1].text, " world");
 }
 
 {
@@ -71,8 +71,8 @@ function reasoningEntries(message) {
     { kind: "content", text: "Second" }
   ];
   timelineTest.consolidateTimelineContent(message);
-  assert.strictEqual(contentEntries(message).length, 3);
-  assert.strictEqual(contentEntries(message)[2].text, "FirstSecond");
+  assert.strictEqual(contentEntries(message).length, 2);
+  assert.strictEqual(contentEntries(message)[1].text, "Second");
 }
 
 {
@@ -146,8 +146,8 @@ function reasoningEntries(message) {
   ];
   timelineTest.consolidateTimelineContent(message);
   const sections = timelineTest.getCompletedTimelineSections(message.timeline, false);
-  assert.strictEqual(sections.finalEntry.text, "Hello world\n");
-  assert.ok(sections.processedEntries.some((entry) => entry.kind === "content" && entry.text === " world"));
+  assert.strictEqual(sections.finalEntry.text, " world");
+  assert.ok(sections.processedEntries.some((entry) => entry.kind === "content" && entry.text === "Hello"));
 }
 
 console.log("timeline tests passed");

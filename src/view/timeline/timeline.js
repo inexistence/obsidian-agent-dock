@@ -68,17 +68,6 @@ function consolidateTimelineContent(message) {
     }
     return;
   }
-
-  if (!finalAnswer) {
-    return;
-  }
-
-  const lastContentIndex = contentIndices[contentIndices.length - 1];
-  if (message.timeline[lastContentIndex].text === finalAnswer) {
-    return;
-  }
-
-  message.timeline.push({ kind: "content", text: finalAnswer });
 }
 
 function findLastStreamingReasoningEntry(timeline) {
