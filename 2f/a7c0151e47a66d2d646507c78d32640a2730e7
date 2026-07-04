@@ -1,0 +1,26 @@
+styles.css
+  s_d7b1d36ed23d21::t_803b493be643b1 731,1230
+  s_d7b1d36ed23d21::t_5ff943f4f23791 760,774
+  s_d7b1d36ed23d21::t_763a43b5043b00 741,776,806
+main.js
+  s_d7b1d36ed23d21::t_24acd4adaeadf7 6600
+src/view/composer/ComposerRenderer.js
+  s_d7b1d36ed23d21::t_5ff943f4f23791 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "2fa7c0151e47a66d2d646507c78d32640a2730e7",
+  "prompts": {},
+  "logical_commit_id": "2fa7c0151e47a66d2d646507c78d32640a2730e7",
+  "sessions": {
+    "s_d7b1d36ed23d21": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f2c86-e5d8-7ac1-9ea1-415a858de3c7",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
