@@ -240,6 +240,9 @@ module.exports = {
     "notice.agentStillWorking": "{agent} is still working in this conversation.",
     "notice.agentStopped": "{agent} stopped.",
     "notice.agentCommandFailed": "{agent} command failed.",
+    "notice.backgroundSessionFinished": "Task finished in \"{title}\".",
+    "notice.backgroundSessionFailed": "Task failed in \"{title}\".",
+    "notice.backgroundSessionStopped": "Task stopped in \"{title}\".",
     "notice.resetAffectFailed": "Agent Dock could not reset the connection state. Check the console for details.",
     "notice.stopBeforeDeleting": "Stop this conversation before deleting it.",
     "notice.noActiveNote": "No active note to reference.",
@@ -326,6 +329,12 @@ module.exports = {
     "session.defaultTitle": "Chat {number}",
     "session.fallbackTitle": "Chat",
     "session.untitledConversation": "Untitled conversation",
+    "session.completed": "Task finished",
+    "session.failed": "Task failed",
+    "session.stopped": "Task stopped",
+    "session.completedConversationTitle": "{title} has a finished task",
+    "session.failedConversationTitle": "{title} has a failed task",
+    "session.stoppedConversationTitle": "{title} has a stopped task",
     "timeline.processed": "Processed {count} items",
     "timeline.needsAttention": "Needs attention {count} items",
     "timeline.toolCalls": "Tool calls",
@@ -547,6 +556,9 @@ module.exports = {
     "notice.agentStillWorking": "{agent} 仍在此对话中工作。",
     "notice.agentStopped": "{agent} 已停止。",
     "notice.agentCommandFailed": "{agent} 命令运行失败。",
+    "notice.backgroundSessionFinished": "对话「{title}」任务已完成。",
+    "notice.backgroundSessionFailed": "对话「{title}」任务失败。",
+    "notice.backgroundSessionStopped": "对话「{title}」任务已停止。",
     "notice.resetAffectFailed": "Agent Dock 无法重置连接状态。请查看控制台详情。",
     "notice.stopBeforeDeleting": "删除前请先停止此对话。",
     "notice.noActiveNote": "没有可引用的当前笔记。",
@@ -633,6 +645,12 @@ module.exports = {
     "session.defaultTitle": "对话 {number}",
     "session.fallbackTitle": "对话",
     "session.untitledConversation": "未命名对话",
+    "session.completed": "任务已完成",
+    "session.failed": "任务失败",
+    "session.stopped": "任务已停止",
+    "session.completedConversationTitle": "{title} 有已完成的任务",
+    "session.failedConversationTitle": "{title} 有失败的任务",
+    "session.stoppedConversationTitle": "{title} 有已停止的任务",
     "timeline.processed": "已处理 {count} 项",
     "timeline.needsAttention": "需要关注 {count} 项",
     "timeline.toolCalls": "工具调用",
@@ -6855,6 +6873,8 @@ function serializeSession(session, settings) {
     title: session.title || "Chat",
     isUntitled: session.isUntitled === true,
     draft: String(session.draft || ""),
+    hasUnreadCompletion: session.hasUnreadCompletion === true,
+    unreadTurnStatus: normalizeUnreadTurnStatus(session.unreadTurnStatus, session.hasUnreadCompletion),
     createdAt: normalizeTimestamp(session.createdAt, now),
     updatedAt: normalizeTimestamp(session.updatedAt, now),
     messages,
@@ -6917,6 +6937,8 @@ function normalizePersistedSession(rawSession, indexEntry) {
     isUntitled: source.isUntitled === true || indexEntry?.isUntitled === true,
     currentRun: null,
     draft: typeof source.draft === "string" ? source.draft : "",
+    hasUnreadCompletion: source.hasUnreadCompletion === true || indexEntry?.hasUnreadCompletion === true,
+    unreadTurnStatus: normalizeUnreadTurnStatus(source.unreadTurnStatus || indexEntry?.unreadTurnStatus, source.hasUnreadCompletion || indexEntry?.hasUnreadCompletion),
     createdAt: normalizeTimestamp(source.createdAt, indexEntry?.createdAt || Date.now()),
     updatedAt: normalizeTimestamp(source.updatedAt, indexEntry?.updatedAt || Date.now()),
     messages,
@@ -6987,9 +7009,18 @@ function toSessionIndexEntry(session) {
     id: session.id,
     title: session.title,
     isUntitled: session.isUntitled,
+    hasUnreadCompletion: session.hasUnreadCompletion === true,
+    unreadTurnStatus: normalizeUnreadTurnStatus(session.unreadTurnStatus, session.hasUnreadCompletion),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt
   };
+}
+
+function normalizeUnreadTurnStatus(status, hasUnreadCompletion) {
+  if (status === "success" || status === "failed" || status === "stopped") {
+    return status;
+  }
+  return hasUnreadCompletion === true ? "success" : "";
 }
 
 function safeFileName(value) {
@@ -8832,6 +8863,7 @@ async function runChatTurn({
     assistantMessage
   };
   session.currentRun = run;
+  let turnStatus = "success";
 
   try {
     if (onBeforeAgentRun) {
@@ -8875,9 +8907,10 @@ async function runChatTurn({
       success: true
     });
     touchSession(session);
-    onTurnFinished(session);
+    onTurnFinished(session, { final: false, status: turnStatus });
   } catch (error) {
     const wasStopped = error.name === "AbortError";
+    turnStatus = wasStopped ? "stopped" : "failed";
     const errorText = wasStopped
       ? translate("view.agentStopped", { agent: agentLabel })
       : [
@@ -8900,13 +8933,13 @@ async function runChatTurn({
       });
     }
     touchSession(session);
-    onTurnFinished(session);
-    notify(wasStopped ? "agentStopped" : "agentCommandFailed");
+    onTurnFinished(session, { final: false, status: turnStatus });
+    notify(wasStopped ? "agentStopped" : "agentCommandFailed", session);
   } finally {
     if (session.currentRun === run) {
       session.currentRun = null;
     }
-    onTurnFinished(session);
+    onTurnFinished(session, { final: true, status: turnStatus });
     onComposerChanged(session);
     await persistChatSessions({ immediate: true });
   }
@@ -9113,6 +9146,8 @@ class SessionStore {
       currentRun: null,
       draft: "",
       promptQueue: [],
+      hasUnreadCompletion: false,
+      unreadTurnStatus: "",
       createdAt: now,
       updatedAt: now,
       messages: [],
@@ -9193,6 +9228,8 @@ function normalizeSession(session, fallbackTitle = "Chat") {
     currentRun: null,
     draft: typeof session.draft === "string" ? session.draft : "",
     promptQueue: normalizePromptQueue(session.promptQueue),
+    hasUnreadCompletion: session.hasUnreadCompletion === true,
+    unreadTurnStatus: normalizeUnreadTurnStatus(session.unreadTurnStatus, session.hasUnreadCompletion),
     createdAt: normalizeTimestamp(session.createdAt),
     updatedAt: normalizeTimestamp(session.updatedAt),
     messages: Array.isArray(session.messages) ? session.messages.map(normalizeMessage).filter(Boolean) : [],
@@ -9252,6 +9289,13 @@ function normalizeTimestamp(value) {
   return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : Date.now();
 }
 
+function normalizeUnreadTurnStatus(status, hasUnreadCompletion) {
+  if (status === "success" || status === "failed" || status === "stopped") {
+    return status;
+  }
+  return hasUnreadCompletion === true ? "success" : "";
+}
+
 module.exports = {
   SessionStore
 };
@@ -9296,15 +9340,26 @@ function renderSessionSwitcher(options) {
   for (const session of sessions) {
     const title = getSessionDisplayTitle(session);
     const accessibleTitle = title || translate("session.untitledConversation");
+    const unreadTurnStatus = getUnreadTurnStatus(session);
+    const hasUnreadCompletion = Boolean(unreadTurnStatus) && session.id !== activeSessionId;
+    const completedTitle = hasUnreadCompletion
+      ? translate(getCompletedConversationTitleKey(unreadTurnStatus), { title: accessibleTitle })
+      : accessibleTitle;
     const item = list.createDiv({
-      cls: `codex-dock__conversation-item${session.id === activeSessionId ? " is-active" : ""}${title ? "" : " is-untitled"}`
+      cls: [
+        "codex-dock__conversation-item",
+        session.id === activeSessionId ? "is-active" : "",
+        title ? "" : "is-untitled",
+        hasUnreadCompletion ? "has-unread-completion" : "",
+        hasUnreadCompletion ? `has-unread-completion--${unreadTurnStatus}` : ""
+      ].filter(Boolean).join(" ")
     });
     const switchButton = item.createEl("button", {
       cls: "codex-dock__conversation-item-main",
       attr: {
         type: "button",
-        title: accessibleTitle,
-        "aria-label": accessibleTitle
+        title: completedTitle,
+        "aria-label": completedTitle
       }
     });
     const check = switchButton.createSpan({ cls: "codex-dock__conversation-check", attr: { "aria-hidden": "true" } });
@@ -9313,6 +9368,15 @@ function renderSessionSwitcher(options) {
     }
     if (title) {
       switchButton.createSpan({ cls: "codex-dock__conversation-item-title", text: title });
+    }
+    if (hasUnreadCompletion) {
+      switchButton.createSpan({
+        cls: `codex-dock__conversation-complete-dot codex-dock__conversation-complete-dot--${unreadTurnStatus}`,
+        attr: {
+          "aria-hidden": "true",
+          title: translate(getCompletedLabelKey(unreadTurnStatus))
+        }
+      });
     }
     switchButton.addEventListener("click", () => {
       onSwitchSession(session.id);
@@ -9370,6 +9434,34 @@ function getSessionDisplayTitle(session) {
     return "";
   }
   return String(session.title || "").trim();
+}
+
+function getUnreadTurnStatus(session) {
+  const status = String(session?.unreadTurnStatus || "");
+  if (status === "success" || status === "failed" || status === "stopped") {
+    return status;
+  }
+  return session?.hasUnreadCompletion === true ? "success" : "";
+}
+
+function getCompletedLabelKey(status) {
+  if (status === "failed") {
+    return "session.failed";
+  }
+  if (status === "stopped") {
+    return "session.stopped";
+  }
+  return "session.completed";
+}
+
+function getCompletedConversationTitleKey(status) {
+  if (status === "failed") {
+    return "session.failedConversationTitle";
+  }
+  if (status === "stopped") {
+    return "session.stoppedConversationTitle";
+  }
+  return "session.completedConversationTitle";
 }
 
 module.exports = {
@@ -10506,6 +10598,7 @@ class AgentDockView extends ItemView {
       activeSession,
       onSwitchSession: (sessionId) => {
         this.activeSessionId = sessionId;
+        this.clearUnreadCompletion(this.sessionStore.getSession(sessionId));
         this.persistChatSessions();
         this.render();
       },
@@ -10771,14 +10864,17 @@ class AgentDockView extends ItemView {
       onTurnUpdate: (targetSession, assistantMessage) => {
         this.scheduleSessionRenderIfActive(targetSession, assistantMessage);
       },
-      onTurnFinished: (targetSession) => this.renderSessionIfActive(targetSession),
+      onTurnFinished: (targetSession, result) => this.handleTurnFinished(targetSession, result),
       onComposerChanged: (targetSession) => this.renderComposerIfActive(targetSession),
       updateWorkingAffect: async (turn) => {
         await this.plugin.updateWorkingAffect(turn);
         this.renderAffectIndicator();
       },
       persistChatSessions: (options) => this.persistChatSessions(options),
-      notify: (noticeKey) => {
+      notify: (noticeKey, targetSession) => {
+        if (targetSession && targetSession.id !== this.activeSessionId) {
+          return;
+        }
         const key = noticeKey === "agentStopped" ? "notice.agentStopped" : "notice.agentCommandFailed";
         new Notice(this.translate(key, { agent: this.plugin.agent.label }));
       }
@@ -11190,6 +11286,39 @@ class AgentDockView extends ItemView {
     this.renderSessionSwitcher();
   }
 
+  handleTurnFinished(session, result = {}) {
+    if (session.id === this.activeSessionId) {
+      this.renderSessionIfActive(session);
+      return;
+    }
+
+    if (!result.final || session.currentRun) {
+      return;
+    }
+
+    session.unreadTurnStatus = result.status || "success";
+    session.hasUnreadCompletion = true;
+    this.renderSessionSwitcher();
+    this.persistSessionChange(session);
+    const noticeKey = result.status === "failed"
+      ? "notice.backgroundSessionFailed"
+      : result.status === "stopped"
+        ? "notice.backgroundSessionStopped"
+        : "notice.backgroundSessionFinished";
+    new Notice(this.translate(noticeKey, {
+      title: session.title || this.translate("session.fallbackTitle")
+    }));
+  }
+
+  clearUnreadCompletion(session) {
+    if (session?.hasUnreadCompletion || session?.unreadTurnStatus) {
+      session.hasUnreadCompletion = false;
+      session.unreadTurnStatus = "";
+      return true;
+    }
+    return false;
+  }
+
   async deleteSession(sessionId) {
     const session = this.sessionStore.getSession(sessionId);
     if (!session) {
@@ -11231,6 +11360,10 @@ class AgentDockView extends ItemView {
 
   renderSessionIfActive(session) {
     if (session.id === this.activeSessionId) {
+      if (this.clearUnreadCompletion(session)) {
+        this.persistChatSessions();
+        this.renderSessionSwitcher();
+      }
       this.cancelPendingMessageRender();
       this.renderMessages();
     }

@@ -379,6 +379,10 @@
   text-align: left;
 }
 
+.codex-dock__conversation-item.has-unread-completion .codex-dock__conversation-item-main {
+  color: var(--text-normal);
+}
+
 .codex-dock__conversation-item:hover {
   background: transparent !important;
   background-color: transparent !important;
@@ -409,9 +413,29 @@
 
 .codex-dock__conversation-item-title {
   min-width: 0;
+  flex: 1 1 auto;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.codex-dock__conversation-complete-dot {
+  flex: 0 0 auto;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--interactive-accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--interactive-accent) 18%, transparent);
+}
+
+.codex-dock__conversation-complete-dot--failed {
+  background: var(--text-error);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-error) 18%, transparent);
+}
+
+.codex-dock__conversation-complete-dot--stopped {
+  background: var(--text-muted);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--text-muted) 18%, transparent);
 }
 
 .codex-dock__conversation-item.is-active .codex-dock__conversation-item-title {

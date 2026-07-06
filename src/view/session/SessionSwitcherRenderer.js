@@ -36,15 +36,26 @@ function renderSessionSwitcher(options) {
   for (const session of sessions) {
     const title = getSessionDisplayTitle(session);
     const accessibleTitle = title || translate("session.untitledConversation");
+    const unreadTurnStatus = getUnreadTurnStatus(session);
+    const hasUnreadCompletion = Boolean(unreadTurnStatus) && session.id !== activeSessionId;
+    const completedTitle = hasUnreadCompletion
+      ? translate(getCompletedConversationTitleKey(unreadTurnStatus), { title: accessibleTitle })
+      : accessibleTitle;
     const item = list.createDiv({
-      cls: `codex-dock__conversation-item${session.id === activeSessionId ? " is-active" : ""}${title ? "" : " is-untitled"}`
+      cls: [
+        "codex-dock__conversation-item",
+        session.id === activeSessionId ? "is-active" : "",
+        title ? "" : "is-untitled",
+        hasUnreadCompletion ? "has-unread-completion" : "",
+        hasUnreadCompletion ? `has-unread-completion--${unreadTurnStatus}` : ""
+      ].filter(Boolean).join(" ")
     });
     const switchButton = item.createEl("button", {
       cls: "codex-dock__conversation-item-main",
       attr: {
         type: "button",
-        title: accessibleTitle,
-        "aria-label": accessibleTitle
+        title: completedTitle,
+        "aria-label": completedTitle
       }
     });
     const check = switchButton.createSpan({ cls: "codex-dock__conversation-check", attr: { "aria-hidden": "true" } });
@@ -53,6 +64,15 @@ function renderSessionSwitcher(options) {
     }
     if (title) {
       switchButton.createSpan({ cls: "codex-dock__conversation-item-title", text: title });
+    }
+    if (hasUnreadCompletion) {
+      switchButton.createSpan({
+        cls: `codex-dock__conversation-complete-dot codex-dock__conversation-complete-dot--${unreadTurnStatus}`,
+        attr: {
+          "aria-hidden": "true",
+          title: translate(getCompletedLabelKey(unreadTurnStatus))
+        }
+      });
     }
     switchButton.addEventListener("click", () => {
       onSwitchSession(session.id);
@@ -110,6 +130,34 @@ function getSessionDisplayTitle(session) {
     return "";
   }
   return String(session.title || "").trim();
+}
+
+function getUnreadTurnStatus(session) {
+  const status = String(session?.unreadTurnStatus || "");
+  if (status === "success" || status === "failed" || status === "stopped") {
+    return status;
+  }
+  return session?.hasUnreadCompletion === true ? "success" : "";
+}
+
+function getCompletedLabelKey(status) {
+  if (status === "failed") {
+    return "session.failed";
+  }
+  if (status === "stopped") {
+    return "session.stopped";
+  }
+  return "session.completed";
+}
+
+function getCompletedConversationTitleKey(status) {
+  if (status === "failed") {
+    return "session.failedConversationTitle";
+  }
+  if (status === "stopped") {
+    return "session.stoppedConversationTitle";
+  }
+  return "session.completedConversationTitle";
 }
 
 module.exports = {

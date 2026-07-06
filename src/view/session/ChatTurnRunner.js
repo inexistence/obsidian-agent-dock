@@ -52,6 +52,7 @@ async function runChatTurn({
     assistantMessage
   };
   session.currentRun = run;
+  let turnStatus = "success";
 
   try {
     if (onBeforeAgentRun) {
@@ -95,9 +96,10 @@ async function runChatTurn({
       success: true
     });
     touchSession(session);
-    onTurnFinished(session);
+    onTurnFinished(session, { final: false, status: turnStatus });
   } catch (error) {
     const wasStopped = error.name === "AbortError";
+    turnStatus = wasStopped ? "stopped" : "failed";
     const errorText = wasStopped
       ? translate("view.agentStopped", { agent: agentLabel })
       : [
@@ -120,13 +122,13 @@ async function runChatTurn({
       });
     }
     touchSession(session);
-    onTurnFinished(session);
-    notify(wasStopped ? "agentStopped" : "agentCommandFailed");
+    onTurnFinished(session, { final: false, status: turnStatus });
+    notify(wasStopped ? "agentStopped" : "agentCommandFailed", session);
   } finally {
     if (session.currentRun === run) {
       session.currentRun = null;
     }
-    onTurnFinished(session);
+    onTurnFinished(session, { final: true, status: turnStatus });
     onComposerChanged(session);
     await persistChatSessions({ immediate: true });
   }

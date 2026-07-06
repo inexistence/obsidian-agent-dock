@@ -265,6 +265,7 @@ class AgentDockView extends ItemView {
       activeSession,
       onSwitchSession: (sessionId) => {
         this.activeSessionId = sessionId;
+        this.clearUnreadCompletion(this.sessionStore.getSession(sessionId));
         this.persistChatSessions();
         this.render();
       },
@@ -530,14 +531,17 @@ class AgentDockView extends ItemView {
       onTurnUpdate: (targetSession, assistantMessage) => {
         this.scheduleSessionRenderIfActive(targetSession, assistantMessage);
       },
-      onTurnFinished: (targetSession) => this.renderSessionIfActive(targetSession),
+      onTurnFinished: (targetSession, result) => this.handleTurnFinished(targetSession, result),
       onComposerChanged: (targetSession) => this.renderComposerIfActive(targetSession),
       updateWorkingAffect: async (turn) => {
         await this.plugin.updateWorkingAffect(turn);
         this.renderAffectIndicator();
       },
       persistChatSessions: (options) => this.persistChatSessions(options),
-      notify: (noticeKey) => {
+      notify: (noticeKey, targetSession) => {
+        if (targetSession && targetSession.id !== this.activeSessionId) {
+          return;
+        }
         const key = noticeKey === "agentStopped" ? "notice.agentStopped" : "notice.agentCommandFailed";
         new Notice(this.translate(key, { agent: this.plugin.agent.label }));
       }
@@ -949,6 +953,39 @@ class AgentDockView extends ItemView {
     this.renderSessionSwitcher();
   }
 
+  handleTurnFinished(session, result = {}) {
+    if (session.id === this.activeSessionId) {
+      this.renderSessionIfActive(session);
+      return;
+    }
+
+    if (!result.final || session.currentRun) {
+      return;
+    }
+
+    session.unreadTurnStatus = result.status || "success";
+    session.hasUnreadCompletion = true;
+    this.renderSessionSwitcher();
+    this.persistSessionChange(session);
+    const noticeKey = result.status === "failed"
+      ? "notice.backgroundSessionFailed"
+      : result.status === "stopped"
+        ? "notice.backgroundSessionStopped"
+        : "notice.backgroundSessionFinished";
+    new Notice(this.translate(noticeKey, {
+      title: session.title || this.translate("session.fallbackTitle")
+    }));
+  }
+
+  clearUnreadCompletion(session) {
+    if (session?.hasUnreadCompletion || session?.unreadTurnStatus) {
+      session.hasUnreadCompletion = false;
+      session.unreadTurnStatus = "";
+      return true;
+    }
+    return false;
+  }
+
   async deleteSession(sessionId) {
     const session = this.sessionStore.getSession(sessionId);
     if (!session) {
@@ -990,6 +1027,10 @@ class AgentDockView extends ItemView {
 
   renderSessionIfActive(session) {
     if (session.id === this.activeSessionId) {
+      if (this.clearUnreadCompletion(session)) {
+        this.persistChatSessions();
+        this.renderSessionSwitcher();
+      }
       this.cancelPendingMessageRender();
       this.renderMessages();
     }

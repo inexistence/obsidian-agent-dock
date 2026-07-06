@@ -32,6 +32,8 @@ class SessionStore {
       currentRun: null,
       draft: "",
       promptQueue: [],
+      hasUnreadCompletion: false,
+      unreadTurnStatus: "",
       createdAt: now,
       updatedAt: now,
       messages: [],
@@ -112,6 +114,8 @@ function normalizeSession(session, fallbackTitle = "Chat") {
     currentRun: null,
     draft: typeof session.draft === "string" ? session.draft : "",
     promptQueue: normalizePromptQueue(session.promptQueue),
+    hasUnreadCompletion: session.hasUnreadCompletion === true,
+    unreadTurnStatus: normalizeUnreadTurnStatus(session.unreadTurnStatus, session.hasUnreadCompletion),
     createdAt: normalizeTimestamp(session.createdAt),
     updatedAt: normalizeTimestamp(session.updatedAt),
     messages: Array.isArray(session.messages) ? session.messages.map(normalizeMessage).filter(Boolean) : [],
@@ -169,6 +173,13 @@ function getDefaultTimeline(role, content) {
 function normalizeTimestamp(value) {
   const timestamp = Number(value);
   return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : Date.now();
+}
+
+function normalizeUnreadTurnStatus(status, hasUnreadCompletion) {
+  if (status === "success" || status === "failed" || status === "stopped") {
+    return status;
+  }
+  return hasUnreadCompletion === true ? "success" : "";
 }
 
 module.exports = {

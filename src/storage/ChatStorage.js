@@ -151,6 +151,8 @@ function serializeSession(session, settings) {
     title: session.title || "Chat",
     isUntitled: session.isUntitled === true,
     draft: String(session.draft || ""),
+    hasUnreadCompletion: session.hasUnreadCompletion === true,
+    unreadTurnStatus: normalizeUnreadTurnStatus(session.unreadTurnStatus, session.hasUnreadCompletion),
     createdAt: normalizeTimestamp(session.createdAt, now),
     updatedAt: normalizeTimestamp(session.updatedAt, now),
     messages,
@@ -213,6 +215,8 @@ function normalizePersistedSession(rawSession, indexEntry) {
     isUntitled: source.isUntitled === true || indexEntry?.isUntitled === true,
     currentRun: null,
     draft: typeof source.draft === "string" ? source.draft : "",
+    hasUnreadCompletion: source.hasUnreadCompletion === true || indexEntry?.hasUnreadCompletion === true,
+    unreadTurnStatus: normalizeUnreadTurnStatus(source.unreadTurnStatus || indexEntry?.unreadTurnStatus, source.hasUnreadCompletion || indexEntry?.hasUnreadCompletion),
     createdAt: normalizeTimestamp(source.createdAt, indexEntry?.createdAt || Date.now()),
     updatedAt: normalizeTimestamp(source.updatedAt, indexEntry?.updatedAt || Date.now()),
     messages,
@@ -283,9 +287,18 @@ function toSessionIndexEntry(session) {
     id: session.id,
     title: session.title,
     isUntitled: session.isUntitled,
+    hasUnreadCompletion: session.hasUnreadCompletion === true,
+    unreadTurnStatus: normalizeUnreadTurnStatus(session.unreadTurnStatus, session.hasUnreadCompletion),
     createdAt: session.createdAt,
     updatedAt: session.updatedAt
   };
+}
+
+function normalizeUnreadTurnStatus(status, hasUnreadCompletion) {
+  if (status === "success" || status === "failed" || status === "stopped") {
+    return status;
+  }
+  return hasUnreadCompletion === true ? "success" : "";
 }
 
 function safeFileName(value) {
