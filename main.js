@@ -148,6 +148,8 @@ module.exports = {
     "settings.cursorPermissionPolicy.rejectOnce": "Reject once",
     "settings.workingDirectory.name": "Working directory",
     "settings.workingDirectory.desc": "Defaults to the vault folder.",
+    "settings.assistantDisplayName.name": "Assistant name",
+    "settings.assistantDisplayName.desc": "Name shown on assistant messages. It is independent from the selected provider.",
     "settings.assistantStyle.name": "Assistant style",
     "settings.assistantStyle.desc": "Controls the collaboration tone injected into each prompt. {description}",
     "settings.customAssistantStyle.name": "Custom assistant style",
@@ -242,11 +244,15 @@ module.exports = {
     "notice.stopBeforeDeleting": "Stop this conversation before deleting it.",
     "notice.noActiveNote": "No active note to reference.",
     "notice.openFileLinkFailed": "File does not exist or could not be opened: {path}",
+    "agent.switchProvider": "Switch agent provider",
+    "agent.currentProviderTitle": "{agent} will handle new messages",
+    "agent.providerSwitched": "Switched to {agent}. New messages will be handled by {agent}.",
     "view.terminalButton": "Terminal",
     "view.openInteractiveTerminal": "Open interactive agent in Terminal",
     "view.emptyLine1": "Open a side conversation with an agent.",
     "view.emptyLine2": "Click the file button to reference the active note.",
     "view.you": "You",
+    "view.aiAssistant": "AI assistant",
     "view.folder": "Folder",
     "view.vaultRoot": "Vault root",
     "view.agentFinishedEmpty": "({agent} finished without text output.)",
@@ -313,6 +319,7 @@ module.exports = {
     "session.newConversation": "New conversation",
     "session.defaultTitle": "Chat {number}",
     "session.fallbackTitle": "Chat",
+    "session.untitledConversation": "Untitled conversation",
     "timeline.processed": "Processed {count} items",
     "timeline.needsAttention": "Needs attention {count} items",
     "timeline.toolCalls": "Tool calls",
@@ -442,6 +449,8 @@ module.exports = {
     "settings.cursorPermissionPolicy.rejectOnce": "拒绝一次",
     "settings.workingDirectory.name": "工作目录",
     "settings.workingDirectory.desc": "默认使用当前 vault 文件夹。",
+    "settings.assistantDisplayName.name": "助手名称",
+    "settings.assistantDisplayName.desc": "显示在助手消息上的名称，独立于当前选择的 provider。",
     "settings.assistantStyle.name": "助手风格",
     "settings.assistantStyle.desc": "控制注入每次提示词的协作语气。{description}",
     "settings.customAssistantStyle.name": "自定义助手风格",
@@ -536,11 +545,15 @@ module.exports = {
     "notice.stopBeforeDeleting": "删除前请先停止此对话。",
     "notice.noActiveNote": "没有可引用的当前笔记。",
     "notice.openFileLinkFailed": "文件不存在或无法打开：{path}",
+    "agent.switchProvider": "切换 Agent 提供方",
+    "agent.currentProviderTitle": "之后的新消息将由 {agent} 处理",
+    "agent.providerSwitched": "已切换到 {agent}，之后的新消息将由 {agent} 处理。",
     "view.terminalButton": "终端",
     "view.openInteractiveTerminal": "在终端打开交互式 Agent",
     "view.emptyLine1": "开启一个侧边 Agent 对话。",
     "view.emptyLine2": "点击文件按钮即可引用当前笔记。",
     "view.you": "你",
+    "view.aiAssistant": "AI 助手",
     "view.folder": "文件夹",
     "view.vaultRoot": "Vault 根目录",
     "view.agentFinishedEmpty": "（{agent} 已完成，但没有文本输出。）",
@@ -607,6 +620,7 @@ module.exports = {
     "session.newConversation": "新建对话",
     "session.defaultTitle": "对话 {number}",
     "session.fallbackTitle": "对话",
+    "session.untitledConversation": "未命名对话",
     "timeline.processed": "已处理 {count} 项",
     "timeline.needsAttention": "需要关注 {count} 项",
     "timeline.toolCalls": "工具调用",
@@ -2707,11 +2721,12 @@ const ASSISTANT_STYLE_PROFILES = {
 };
 
 function formatConversationPrompt(prompt, conversation, maxChars) {
-  if (!conversation || conversation.length <= 1) {
+  const promptConversation = filterPromptConversation(conversation);
+  if (!promptConversation || promptConversation.length <= 1) {
     return ["User request:", prompt].join("\n");
   }
 
-  const transcript = formatConversationTranscript(conversation, maxChars);
+  const transcript = formatConversationTranscript(promptConversation, maxChars);
 
   return [
     "Conversation so far:",
@@ -2719,6 +2734,12 @@ function formatConversationPrompt(prompt, conversation, maxChars) {
     "",
     "Respond to the latest user request."
   ].join("\n");
+}
+
+function filterPromptConversation(conversation) {
+  return Array.isArray(conversation)
+    ? conversation.filter((message) => message?.role === "user" || message?.role === "assistant")
+    : [];
 }
 
 function buildReferencedPathsPrompt(app, prompt, contextLimit) {
@@ -3080,6 +3101,7 @@ const { expandHomePath } = __require("src/cli/paths.js");
 const { normalizeAffectState } = __require("src/affect/WorkingAffectStore.js");
 
 const CUSTOM_ASSISTANT_STYLE_MAX_CHARS = 4000;
+const ASSISTANT_DISPLAY_NAME_MAX_CHARS = 80;
 const AFFECT_HALF_LIFE_MINUTES_MIN = 5;
 const AFFECT_HALF_LIFE_MINUTES_MAX = 1440;
 
@@ -3118,6 +3140,7 @@ const DEFAULT_SETTINGS = {
   cursorPermissionPolicy: "allow-once",
   mode: "readOnly",
   workingDirectory: "",
+  assistantDisplayName: "",
   assistantStyle: "collaborative",
   customAssistantStyle: "",
   debugActivity: false,
@@ -3160,6 +3183,10 @@ function normalizeSettings(savedSettings) {
   }
 
   settings.language = normalizeLanguage(settings.language);
+  settings.assistantDisplayName = truncateString(
+    normalizeString(settings.assistantDisplayName).trim(),
+    ASSISTANT_DISPLAY_NAME_MAX_CHARS
+  );
 
   if (!settings.agentId) {
     settings.agentId = DEFAULT_SETTINGS.agentId;
@@ -3330,6 +3357,7 @@ function normalizeAffectSensitivity(value, fallback) {
 module.exports = {
   AFFECT_HALF_LIFE_MINUTES_MAX,
   AFFECT_HALF_LIFE_MINUTES_MIN,
+  ASSISTANT_DISPLAY_NAME_MAX_CHARS,
   ASSISTANT_STYLE_OPTIONS,
   CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
   DEFAULT_SETTINGS,
@@ -6114,6 +6142,7 @@ const { LANGUAGE_OPTIONS, t } = __require("src/i18n/index.js");
 const {
   AFFECT_HALF_LIFE_MINUTES_MAX,
   AFFECT_HALF_LIFE_MINUTES_MIN,
+  ASSISTANT_DISPLAY_NAME_MAX_CHARS,
   ASSISTANT_STYLE_OPTIONS,
   CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
   DEFAULT_SETTINGS
@@ -6158,10 +6187,10 @@ class AgentDockSettingTab extends PluginSettingTab {
         dropdown
           .setValue(this.plugin.settings.agentId)
           .onChange(async (value) => {
-            this.plugin.settings.agentId = value;
-            this.plugin.refreshAgent();
-            await this.plugin.saveSettings();
-            this.plugin.refreshOpenViews();
+            const result = await this.plugin.switchAgentProvider(value);
+            if (result.blocked) {
+              new Notice(translate("notice.agentStillWorking", { agent: result.agentLabel }));
+            }
             this.display();
           });
       });
@@ -6260,6 +6289,20 @@ class AgentDockSettingTab extends PluginSettingTab {
         .onChange(async (value) => {
           this.plugin.settings.workingDirectory = value.trim();
           await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.assistantDisplayName.name"))
+      .setDesc(translate("settings.assistantDisplayName.desc"))
+      .addText((text) => text
+        .setPlaceholder(translate("view.aiAssistant"))
+        .setValue(this.plugin.settings.assistantDisplayName)
+        .onChange(async (value) => {
+          this.plugin.settings.assistantDisplayName = value
+            .trim()
+            .slice(0, ASSISTANT_DISPLAY_NAME_MAX_CHARS);
+          await this.plugin.saveSettings();
+          this.plugin.refreshOpenViews();
         }));
 
     new Setting(containerEl)
@@ -6811,7 +6854,7 @@ function serializeMessage(message) {
   if (!message || typeof message !== "object") {
     return null;
   }
-  if (message.role !== "user" && message.role !== "assistant") {
+  if (!isPersistableMessageRole(message.role)) {
     return null;
   }
 
@@ -6820,11 +6863,26 @@ function serializeMessage(message) {
     return null;
   }
 
-  return {
+  const serialized = {
     role: message.role,
     content,
     createdAt: normalizeTimestamp(message.createdAt, Date.now())
   };
+  if (message.role === "assistant") {
+    if (message.agentId) {
+      serialized.agentId = String(message.agentId);
+    }
+  }
+  if (message.role === "system") {
+    serialized.kind = String(message.kind || "notice");
+    if (message.providerSwitch && typeof message.providerSwitch === "object") {
+      serialized.providerSwitch = {
+        from: String(message.providerSwitch.from || ""),
+        to: String(message.providerSwitch.to || "")
+      };
+    }
+  }
+  return serialized;
 }
 
 function normalizePersistedSession(rawSession, indexEntry) {
@@ -6858,7 +6916,7 @@ function normalizePersistedMessage(message) {
   if (!message || typeof message !== "object") {
     return null;
   }
-  if (message.role !== "user" && message.role !== "assistant") {
+  if (!isPersistableMessageRole(message.role)) {
     return null;
   }
 
@@ -6867,14 +6925,42 @@ function normalizePersistedMessage(message) {
     return null;
   }
 
-  return {
+  const normalized = {
     role: message.role,
     content,
-    timeline: [{ kind: message.role === "assistant" ? "content" : "message", text: content }],
+    timeline: getRestoredTimeline(message.role, content),
     createdAt: normalizeTimestamp(message.createdAt, Date.now()),
     isComplete: true,
     isLoading: false
   };
+  if (message.role === "assistant") {
+    normalized.agentLabel = typeof message.agentLabel === "string" ? message.agentLabel : "";
+    normalized.agentId = typeof message.agentId === "string" ? message.agentId : "";
+  }
+  if (message.role === "system") {
+    normalized.kind = typeof message.kind === "string" ? message.kind : "notice";
+    if (message.providerSwitch && typeof message.providerSwitch === "object") {
+      normalized.providerSwitch = {
+        from: String(message.providerSwitch.from || ""),
+        to: String(message.providerSwitch.to || "")
+      };
+    }
+  }
+  return normalized;
+}
+
+function isPersistableMessageRole(role) {
+  return role === "user" || role === "assistant" || role === "system";
+}
+
+function getRestoredTimeline(role, content) {
+  if (role === "assistant") {
+    return [{ kind: "content", text: content }];
+  }
+  if (role === "user") {
+    return [{ kind: "message", text: content }];
+  }
+  return [];
 }
 
 function limitSessions(sessions, settings) {
@@ -8584,9 +8670,10 @@ function createUserMessage(prompt, createdAt) {
   };
 }
 
-function createAssistantMessage(createdAt) {
+function createAssistantMessage(createdAt, agentId) {
   return {
     role: "assistant",
+    agentId: String(agentId || ""),
     content: "",
     timeline: [],
     isLoading: true,
@@ -8598,6 +8685,7 @@ async function runChatTurn({
   session,
   prompt,
   agentLabel,
+  agentId,
   runAgent,
   translate,
   touchSession,
@@ -8611,7 +8699,7 @@ async function runChatTurn({
 }) {
   const now = Date.now();
   session.messages.push(createUserMessage(prompt, now));
-  const assistantMessage = createAssistantMessage(now);
+  const assistantMessage = createAssistantMessage(now, agentId);
   session.messages.push(assistantMessage);
 
   const run = {
@@ -8875,23 +8963,47 @@ function normalizeMessage(message) {
   if (!message || typeof message !== "object") {
     return null;
   }
-  if (message.role !== "user" && message.role !== "assistant") {
+  if (message.role !== "user" && message.role !== "assistant" && message.role !== "system") {
     return null;
   }
   const content = String(message.content || "");
   if (!content) {
     return null;
   }
-  return {
+  const normalized = {
     role: message.role,
     content,
     timeline: Array.isArray(message.timeline)
       ? message.timeline
-      : [{ kind: message.role === "assistant" ? "content" : "message", text: content }],
+      : getDefaultTimeline(message.role, content),
     isLoading: false,
     isComplete: true,
     createdAt: normalizeTimestamp(message.createdAt)
   };
+  if (message.role === "assistant") {
+    normalized.agentLabel = typeof message.agentLabel === "string" ? message.agentLabel : "";
+    normalized.agentId = typeof message.agentId === "string" ? message.agentId : "";
+  }
+  if (message.role === "system") {
+    normalized.kind = typeof message.kind === "string" ? message.kind : "notice";
+    if (message.providerSwitch && typeof message.providerSwitch === "object") {
+      normalized.providerSwitch = {
+        from: String(message.providerSwitch.from || ""),
+        to: String(message.providerSwitch.to || "")
+      };
+    }
+  }
+  return normalized;
+}
+
+function getDefaultTimeline(role, content) {
+  if (role === "assistant") {
+    return [{ kind: "content", text: content }];
+  }
+  if (role === "user") {
+    return [{ kind: "message", text: content }];
+  }
+  return [];
 }
 
 function normalizeTimestamp(value) {
@@ -8930,7 +9042,10 @@ function renderSessionSwitcher(options) {
       title: translate("session.switchConversation")
     }
   });
-  summary.createSpan({ cls: "codex-dock__conversation-title", text: activeSession.title });
+  const activeTitle = getSessionDisplayTitle(activeSession);
+  if (activeTitle) {
+    summary.createSpan({ cls: "codex-dock__conversation-title", text: activeTitle });
+  }
   const chevron = summary.createSpan({ cls: "codex-dock__conversation-chevron", attr: { "aria-hidden": "true" } });
   setIcon(chevron, "chevron-down");
 
@@ -8938,21 +9053,26 @@ function renderSessionSwitcher(options) {
   menu.createDiv({ cls: "codex-dock__conversation-menu-title", text: translate("session.conversations") });
   const list = menu.createDiv({ cls: "codex-dock__conversation-list" });
   for (const session of sessions) {
+    const title = getSessionDisplayTitle(session);
+    const accessibleTitle = title || translate("session.untitledConversation");
     const item = list.createDiv({
-      cls: `codex-dock__conversation-item${session.id === activeSessionId ? " is-active" : ""}`
+      cls: `codex-dock__conversation-item${session.id === activeSessionId ? " is-active" : ""}${title ? "" : " is-untitled"}`
     });
     const switchButton = item.createEl("button", {
       cls: "codex-dock__conversation-item-main",
       attr: {
         type: "button",
-        title: session.title
+        title: accessibleTitle,
+        "aria-label": accessibleTitle
       }
     });
     const check = switchButton.createSpan({ cls: "codex-dock__conversation-check", attr: { "aria-hidden": "true" } });
     if (session.id === activeSessionId) {
       setIcon(check, "check");
     }
-    switchButton.createSpan({ cls: "codex-dock__conversation-item-title", text: session.title });
+    if (title) {
+      switchButton.createSpan({ cls: "codex-dock__conversation-item-title", text: title });
+    }
     switchButton.addEventListener("click", () => {
       onSwitchSession(session.id);
       switcher.removeAttribute("open");
@@ -8962,7 +9082,7 @@ function renderSessionSwitcher(options) {
       cls: "codex-dock__conversation-delete",
       attr: {
         type: "button",
-        "aria-label": translate("session.deleteNamedConversation", { title: session.title }),
+        "aria-label": translate("session.deleteNamedConversation", { title: accessibleTitle }),
         title: translate("session.deleteConversation")
       }
     });
@@ -9002,6 +9122,13 @@ function renderSessionSwitcher(options) {
       removeGlobalPointerListener(closeConversationMenu);
     }
   });
+}
+
+function getSessionDisplayTitle(session) {
+  if (!session || session.isUntitled) {
+    return "";
+  }
+  return String(session.title || "").trim();
 }
 
 module.exports = {
@@ -9274,6 +9401,9 @@ const AGENT_PROFILE_TRAIT_ESTIMATE_CHARS = 260;
 
 function estimateContextChars(messages, draft, settings) {
   const transcriptChars = messages.reduce((total, message) => {
+    if (message?.role !== "user" && message?.role !== "assistant") {
+      return total;
+    }
     return total + String(message.content || "").length + 16;
   }, 0);
   const draftChars = String(draft || "").length + 16;
@@ -9873,6 +10003,7 @@ const { ItemView, MarkdownRenderer, Notice, setIcon } = require("obsidian");
 const { VIEW_TYPE_AGENT_DOCK } = __require("src/constants.js");
 const { t } = __require("src/i18n/index.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
+const { AGENT_OPTIONS } = __require("src/agents/AgentRegistry.js");
 const { renderComposerContent } = __require("src/view/composer/ComposerRenderer.js");
 const { ReferenceController } = __require("src/view/reference/ReferenceController.js");
 const { runChatTurn } = __require("src/view/session/ChatTurnRunner.js");
@@ -9914,6 +10045,8 @@ class AgentDockView extends ItemView {
     this.globalPointerListeners = new Set();
     this.hasLoadedPersistedSessions = false;
     this.autoScrollThresholdPx = 48;
+    this.keepScrollBottomUntil = 0;
+    this.pendingScrollBottomFrame = null;
   }
 
   get sessions() {
@@ -9957,7 +10090,7 @@ class AgentDockView extends ItemView {
     await this.plugin.flushChatSessions();
   }
 
-  render() {
+  render(options = {}) {
     this.cancelPendingMessageRender();
     this.clearGlobalPointerListeners();
     const { containerEl } = this;
@@ -9966,11 +10099,13 @@ class AgentDockView extends ItemView {
 
     const header = containerEl.createDiv({ cls: "codex-dock__header" });
     const identity = header.createDiv({ cls: "codex-dock__identity" });
-    identity.createDiv({ cls: "codex-dock__title", text: this.plugin.agent.label });
+    identity.createDiv({ cls: "codex-dock__title", text: this.getAssistantDisplayName() });
     this.affectIndicatorEl = identity.createDiv({ cls: "codex-dock__affect-slot" });
     this.renderAffectIndicator();
 
     const actions = header.createDiv({ cls: "codex-dock__actions" });
+    this.agentSwitcherEl = actions.createDiv({ cls: "codex-dock__agent-switcher-slot" });
+    this.renderAgentSwitcher(this.agentSwitcherEl);
     const terminalButton = actions.createEl("button", {
       cls: "codex-dock__icon-button",
       attr: {
@@ -9991,10 +10126,118 @@ class AgentDockView extends ItemView {
     this.renderSessionSwitcher();
 
     this.messageList = containerEl.createDiv({ cls: "codex-dock__messages" });
-    this.renderMessages();
+    this.renderMessages({ forceScrollToBottom: options.forceScrollToBottom });
 
     const composer = containerEl.createDiv({ cls: "codex-dock__composer" });
     this.renderComposerContent(composer, this.getActiveSession()?.draft || "");
+  }
+
+  renderAgentSwitcher(containerEl) {
+    containerEl.empty();
+    const switcher = containerEl.createEl("details", { cls: "codex-dock__agent-switcher" });
+    const summary = switcher.createEl("summary", {
+      cls: "codex-dock__agent-summary",
+      attr: {
+        "aria-label": this.translate("agent.switchProvider"),
+        title: this.translate("agent.currentProviderTitle", { agent: this.plugin.agent.label })
+      }
+    });
+    summary.createSpan({ cls: "codex-dock__agent-label", text: this.plugin.agent.label });
+    const chevron = summary.createSpan({ cls: "codex-dock__agent-chevron", attr: { "aria-hidden": "true" } });
+    setIcon(chevron, "chevron-down");
+
+    const menu = switcher.createDiv({ cls: "codex-dock__mode-menu codex-dock__mode-menu--header", attr: { role: "menu" } });
+    for (const [agentId, option] of Object.entries(AGENT_OPTIONS)) {
+      const button = menu.createEl("button", {
+        cls: "codex-dock__mode-option codex-dock__agent-option",
+        text: option.label,
+        attr: {
+          type: "button",
+          role: "menuitemradio",
+          "aria-checked": String(agentId === this.plugin.settings.agentId),
+          title: option.description
+        }
+      });
+      button.toggleClass("is-selected", agentId === this.plugin.settings.agentId);
+      button.addEventListener("click", async () => {
+        switcher.removeAttribute("open");
+        await this.switchAgentProvider(agentId);
+      });
+    }
+
+    const closeAgentMenu = (event) => {
+      if (!switcher.contains(event.target)) {
+        switcher.removeAttribute("open");
+        this.removeGlobalPointerListener(closeAgentMenu);
+      }
+    };
+    switcher.addEventListener("toggle", () => {
+      if (switcher.open) {
+        window.setTimeout(() => {
+          if (switcher.isConnected && switcher.open) {
+            this.addGlobalPointerListener(closeAgentMenu);
+          }
+        }, 0);
+      } else {
+        this.removeGlobalPointerListener(closeAgentMenu);
+      }
+    });
+  }
+
+  async switchAgentProvider(agentId) {
+    const result = await this.plugin.switchAgentProvider(agentId, { sourceView: this });
+    if (result.blocked) {
+      new Notice(this.translate("notice.agentStillWorking", { agent: result.agentLabel || this.plugin.agent.label }));
+    }
+  }
+
+  async recordProviderSwitch(fromAgent, toAgent) {
+    const session = this.ensureActiveSession();
+    const message = this.appendProviderSwitchMessage(session, fromAgent, toAgent);
+    this.sessionStore.touchSession(session);
+    await this.persistChatSessions({ immediate: true });
+    this.renderAgentSwitcherIfMounted();
+    this.appendRenderedMessageIfActive(session, message);
+  }
+
+  hasRunningSession() {
+    return this.sessions.some((session) => session.currentRun);
+  }
+
+  appendProviderSwitchMessage(session, fromAgent, toAgent) {
+    const message = {
+      role: "system",
+      kind: "provider_switch",
+      content: this.translate("agent.providerSwitched", { agent: toAgent }),
+      providerSwitch: {
+        from: fromAgent,
+        to: toAgent
+      },
+      timeline: [],
+      createdAt: Date.now(),
+      isComplete: true,
+      isLoading: false
+    };
+    session.messages.push(message);
+    return message;
+  }
+
+  renderAgentSwitcherIfMounted() {
+    if (this.agentSwitcherEl?.isConnected) {
+      this.renderAgentSwitcher(this.agentSwitcherEl);
+    }
+  }
+
+  appendRenderedMessageIfActive(session, message) {
+    if (!this.messageList || session.id !== this.activeSessionId) {
+      return;
+    }
+    this.messageList.querySelector(".codex-dock__empty")?.remove();
+    const item = this.messageList.createDiv();
+    this.renderMessageItem(item, message);
+    this.messageEls.set(message, item);
+    this.scrollMessagesToBottom();
+    this.updateContextStatus();
   }
 
   renderSessionSwitcher() {
@@ -10088,6 +10331,7 @@ class AgentDockView extends ItemView {
 
     if (shouldScrollToBottom) {
       this.scrollMessagesToBottom();
+      this.keepMessagesPinnedToBottom(options.forceScrollToBottom ? 900 : 250);
     } else {
       this.messageList.scrollTop = previousScrollTop;
     }
@@ -10097,6 +10341,10 @@ class AgentDockView extends ItemView {
   renderMessageItem(item, message) {
     item.empty();
     item.className = `codex-dock__message codex-dock__message--${message.role}`;
+    if (message.role === "system") {
+      this.renderSystemMessage(item, message);
+      return;
+    }
     this.renderMessageMeta(item, message);
     if (message.timeline && message.timeline.length > 0) {
       const timeline = item.createDiv({ cls: "codex-dock__timeline" });
@@ -10117,8 +10365,36 @@ class AgentDockView extends ItemView {
   renderMessageMeta(item, message) {
     item.createDiv({
       cls: "codex-dock__role",
-      text: message.role === "user" ? this.translate("view.you") : this.plugin.agent.label
+      text: message.role === "user" ? this.translate("view.you") : this.getAssistantDisplayName()
     });
+  }
+
+  getAssistantDisplayName() {
+    return String(this.plugin.settings.assistantDisplayName || "").trim() || this.translate("view.aiAssistant");
+  }
+
+  renderSystemMessage(item, message) {
+    const notice = item.createDiv({ cls: "codex-dock__system-notice" });
+    notice.createSpan({ cls: "codex-dock__system-notice-text", text: message.content || "" });
+    const displayTime = formatMessageTime(message.createdAt, {
+      language: this.plugin.settings.language,
+      now: Date.now()
+    });
+    if (displayTime) {
+      const title = formatMessageTimeTitle(message.createdAt, {
+        language: this.plugin.settings.language
+      });
+      const attr = { title: title || displayTime };
+      const iso = formatMessageTimeIso(message.createdAt);
+      if (iso) {
+        attr.datetime = iso;
+      }
+      notice.createEl("time", {
+        cls: "codex-dock__system-notice-time",
+        text: displayTime,
+        attr
+      });
+    }
   }
 
   renderMessageFooter(item, message) {
@@ -10201,7 +10477,8 @@ class AgentDockView extends ItemView {
     await runChatTurn({
       session,
       prompt,
-      agentLabel: this.plugin.agent.label,
+      agentLabel: this.getAssistantDisplayName(),
+      agentId: this.plugin.settings.agentId,
       runAgent: (agentPrompt, onUpdate, conversation, options) => (
         this.plugin.runAgent(agentPrompt, onUpdate, conversation, options)
       ),
@@ -10383,8 +10660,10 @@ class AgentDockView extends ItemView {
           new Notice(this.translate("notice.openFileLinkFailed", { path: vaultPath }));
         }
       });
+      this.scrollMessagesToBottomIfPinned();
     }).catch(() => {
       markdownEl.setText(text || "");
+      this.scrollMessagesToBottomIfPinned();
     });
   }
 
@@ -10537,6 +10816,31 @@ class AgentDockView extends ItemView {
     }
   }
 
+  keepMessagesPinnedToBottom(durationMs = 250) {
+    this.keepScrollBottomUntil = Math.max(this.keepScrollBottomUntil, Date.now() + durationMs);
+    this.scheduleScrollMessagesToBottom();
+    window.setTimeout(() => this.scrollMessagesToBottomIfPinned(), Math.min(durationMs, 120));
+  }
+
+  scrollMessagesToBottomIfPinned() {
+    if (Date.now() <= this.keepScrollBottomUntil) {
+      this.scrollMessagesToBottom();
+      this.scheduleScrollMessagesToBottom();
+    }
+  }
+
+  scheduleScrollMessagesToBottom() {
+    if (this.pendingScrollBottomFrame !== null) {
+      return;
+    }
+    this.pendingScrollBottomFrame = window.requestAnimationFrame(() => {
+      this.pendingScrollBottomFrame = null;
+      if (Date.now() <= this.keepScrollBottomUntil) {
+        this.scrollMessagesToBottom();
+      }
+    });
+  }
+
   cancelPendingMessageRender() {
     if (this.pendingMessageRenderFrame === null) {
       return;
@@ -10608,7 +10912,7 @@ module.exports = {
 "src/plugin.js": function(module, exports, __require) {
 const { Notice, Plugin } = require("obsidian");
 
-const { createAgent } = __require("src/agents/AgentRegistry.js");
+const { AGENT_OPTIONS, createAgent } = __require("src/agents/AgentRegistry.js");
 const {
   getEffectiveWorkingAffect,
   getPromptWorkingAffect,
@@ -10804,12 +11108,48 @@ module.exports = class AgentDockPlugin extends Plugin {
     return this.agent.openInteractive();
   }
 
-  refreshOpenViews() {
-    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_AGENT_DOCK)) {
-      const view = leaf.view;
-      if (view instanceof AgentDockView) {
-        view.render();
+  async switchAgentProvider(agentId, options = {}) {
+    if (!AGENT_OPTIONS[agentId] || agentId === this.settings.agentId) {
+      return { changed: false };
+    }
+
+    const views = this.getOpenAgentDockViews();
+    if (views.some((view) => view.hasRunningSession())) {
+      return {
+        changed: false,
+        blocked: true,
+        agentLabel: this.agent.label
+      };
+    }
+
+    const fromAgent = this.agent.label;
+    this.settings.agentId = agentId;
+    this.refreshAgent();
+    await this.saveSettings();
+    const toAgent = this.agent.label;
+
+    const sourceView = views.includes(options.sourceView)
+      ? options.sourceView
+      : views[0] || null;
+    if (sourceView) {
+      await sourceView.recordProviderSwitch(fromAgent, toAgent);
+    }
+    this.refreshOpenViews({ exceptView: sourceView });
+    return { changed: true, fromAgent, toAgent };
+  }
+
+  getOpenAgentDockViews() {
+    return this.app.workspace.getLeavesOfType(VIEW_TYPE_AGENT_DOCK)
+      .map((leaf) => leaf.view)
+      .filter((view) => view instanceof AgentDockView);
+  }
+
+  refreshOpenViews(options = {}) {
+    for (const view of this.getOpenAgentDockViews()) {
+      if (view === options.exceptView) {
+        continue;
       }
+      view.render();
     }
   }
 };

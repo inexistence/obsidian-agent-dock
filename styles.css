@@ -21,6 +21,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
+  flex: 1 1 auto;
   min-width: 0;
 }
 
@@ -32,6 +33,59 @@
   font-weight: 700;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.codex-dock__agent-switcher {
+  position: relative;
+  flex: 0 0 auto;
+  min-width: 0;
+}
+
+.codex-dock__agent-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-sizing: border-box;
+  max-width: 100%;
+  min-height: 26px;
+  padding: 0 6px;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  color: var(--text-muted);
+  cursor: pointer !important;
+  font-size: var(--font-ui-smaller);
+  font-weight: 600;
+  line-height: 1;
+  list-style: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.codex-dock__agent-summary::-webkit-details-marker {
+  display: none;
+}
+
+.codex-dock__agent-summary:hover,
+.codex-dock__agent-switcher[open] > .codex-dock__agent-summary {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.codex-dock__agent-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codex-dock__agent-chevron {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  color: var(--text-muted);
 }
 
 .codex-dock__affect-slot {
@@ -60,7 +114,7 @@
   border-radius: 999px;
   background: color-mix(in srgb, var(--interactive-accent) 8%, var(--background-primary));
   color: var(--text-muted);
-  cursor: pointer;
+  cursor: pointer !important;
   font-size: var(--font-ui-smaller);
   line-height: 1;
   list-style: none;
@@ -157,7 +211,9 @@
 .codex-dock__actions {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
   gap: 6px;
+  min-width: 0;
 }
 
 .codex-dock__icon-button {
@@ -192,7 +248,7 @@
   padding: 0 8px;
   border-radius: 6px;
   color: var(--text-normal);
-  cursor: pointer;
+  cursor: pointer !important;
   list-style: none;
   user-select: none;
   -webkit-user-select: none;
@@ -293,6 +349,10 @@
   font-family: inherit;
   font-size: var(--font-ui-small);
   text-align: left;
+}
+
+.codex-dock__conversation-item.is-untitled .codex-dock__conversation-item-main {
+  width: 32px;
 }
 
 .codex-dock__conversation-item:hover {
@@ -400,6 +460,32 @@
 
 .codex-dock__message--user {
   align-items: flex-end;
+}
+
+.codex-dock__message--system {
+  align-items: center;
+  margin: 4px 0 12px;
+}
+
+.codex-dock__system-notice {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  max-width: 100%;
+  padding: 5px 8px;
+  border-radius: 999px;
+  background: var(--background-modifier-hover);
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.codex-dock__system-notice-time {
+  flex: 0 0 auto;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
 }
 
 .codex-dock__message--user .codex-dock__role,
@@ -906,6 +992,7 @@
   background-image: none !important;
   box-shadow: none !important;
   color: var(--text-normal);
+  cursor: pointer;
   font-family: inherit;
   text-align: left;
 }
@@ -1156,6 +1243,14 @@
   box-shadow: var(--shadow-s);
 }
 
+.codex-dock__mode-menu--header {
+  top: calc(100% + 6px);
+  right: 0;
+  bottom: auto;
+  left: auto;
+  z-index: 35;
+}
+
 .codex-dock__mode-option {
   display: block;
   width: 100%;
@@ -1169,6 +1264,7 @@
   background-image: none !important;
   box-shadow: none !important;
   color: var(--text-normal);
+  cursor: pointer !important;
   font-family: inherit;
   font-size: var(--font-ui-small);
   text-align: left;

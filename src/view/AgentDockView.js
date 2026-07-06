@@ -3,6 +3,7 @@ const { ItemView, MarkdownRenderer, Notice, setIcon } = require("obsidian");
 const { VIEW_TYPE_AGENT_DOCK } = require("../constants");
 const { t } = require("../i18n");
 const { DEFAULT_SETTINGS } = require("../settings");
+const { AGENT_OPTIONS } = require("../agents/AgentRegistry");
 const { renderComposerContent } = require("./composer/ComposerRenderer");
 const { ReferenceController } = require("./reference/ReferenceController");
 const { runChatTurn } = require("./session/ChatTurnRunner");
@@ -44,6 +45,8 @@ class AgentDockView extends ItemView {
     this.globalPointerListeners = new Set();
     this.hasLoadedPersistedSessions = false;
     this.autoScrollThresholdPx = 48;
+    this.keepScrollBottomUntil = 0;
+    this.pendingScrollBottomFrame = null;
   }
 
   get sessions() {
@@ -87,7 +90,7 @@ class AgentDockView extends ItemView {
     await this.plugin.flushChatSessions();
   }
 
-  render() {
+  render(options = {}) {
     this.cancelPendingMessageRender();
     this.clearGlobalPointerListeners();
     const { containerEl } = this;
@@ -96,11 +99,13 @@ class AgentDockView extends ItemView {
 
     const header = containerEl.createDiv({ cls: "codex-dock__header" });
     const identity = header.createDiv({ cls: "codex-dock__identity" });
-    identity.createDiv({ cls: "codex-dock__title", text: this.plugin.agent.label });
+    identity.createDiv({ cls: "codex-dock__title", text: this.getAssistantDisplayName() });
     this.affectIndicatorEl = identity.createDiv({ cls: "codex-dock__affect-slot" });
     this.renderAffectIndicator();
 
     const actions = header.createDiv({ cls: "codex-dock__actions" });
+    this.agentSwitcherEl = actions.createDiv({ cls: "codex-dock__agent-switcher-slot" });
+    this.renderAgentSwitcher(this.agentSwitcherEl);
     const terminalButton = actions.createEl("button", {
       cls: "codex-dock__icon-button",
       attr: {
@@ -121,10 +126,118 @@ class AgentDockView extends ItemView {
     this.renderSessionSwitcher();
 
     this.messageList = containerEl.createDiv({ cls: "codex-dock__messages" });
-    this.renderMessages();
+    this.renderMessages({ forceScrollToBottom: options.forceScrollToBottom });
 
     const composer = containerEl.createDiv({ cls: "codex-dock__composer" });
     this.renderComposerContent(composer, this.getActiveSession()?.draft || "");
+  }
+
+  renderAgentSwitcher(containerEl) {
+    containerEl.empty();
+    const switcher = containerEl.createEl("details", { cls: "codex-dock__agent-switcher" });
+    const summary = switcher.createEl("summary", {
+      cls: "codex-dock__agent-summary",
+      attr: {
+        "aria-label": this.translate("agent.switchProvider"),
+        title: this.translate("agent.currentProviderTitle", { agent: this.plugin.agent.label })
+      }
+    });
+    summary.createSpan({ cls: "codex-dock__agent-label", text: this.plugin.agent.label });
+    const chevron = summary.createSpan({ cls: "codex-dock__agent-chevron", attr: { "aria-hidden": "true" } });
+    setIcon(chevron, "chevron-down");
+
+    const menu = switcher.createDiv({ cls: "codex-dock__mode-menu codex-dock__mode-menu--header", attr: { role: "menu" } });
+    for (const [agentId, option] of Object.entries(AGENT_OPTIONS)) {
+      const button = menu.createEl("button", {
+        cls: "codex-dock__mode-option codex-dock__agent-option",
+        text: option.label,
+        attr: {
+          type: "button",
+          role: "menuitemradio",
+          "aria-checked": String(agentId === this.plugin.settings.agentId),
+          title: option.description
+        }
+      });
+      button.toggleClass("is-selected", agentId === this.plugin.settings.agentId);
+      button.addEventListener("click", async () => {
+        switcher.removeAttribute("open");
+        await this.switchAgentProvider(agentId);
+      });
+    }
+
+    const closeAgentMenu = (event) => {
+      if (!switcher.contains(event.target)) {
+        switcher.removeAttribute("open");
+        this.removeGlobalPointerListener(closeAgentMenu);
+      }
+    };
+    switcher.addEventListener("toggle", () => {
+      if (switcher.open) {
+        window.setTimeout(() => {
+          if (switcher.isConnected && switcher.open) {
+            this.addGlobalPointerListener(closeAgentMenu);
+          }
+        }, 0);
+      } else {
+        this.removeGlobalPointerListener(closeAgentMenu);
+      }
+    });
+  }
+
+  async switchAgentProvider(agentId) {
+    const result = await this.plugin.switchAgentProvider(agentId, { sourceView: this });
+    if (result.blocked) {
+      new Notice(this.translate("notice.agentStillWorking", { agent: result.agentLabel || this.plugin.agent.label }));
+    }
+  }
+
+  async recordProviderSwitch(fromAgent, toAgent) {
+    const session = this.ensureActiveSession();
+    const message = this.appendProviderSwitchMessage(session, fromAgent, toAgent);
+    this.sessionStore.touchSession(session);
+    await this.persistChatSessions({ immediate: true });
+    this.renderAgentSwitcherIfMounted();
+    this.appendRenderedMessageIfActive(session, message);
+  }
+
+  hasRunningSession() {
+    return this.sessions.some((session) => session.currentRun);
+  }
+
+  appendProviderSwitchMessage(session, fromAgent, toAgent) {
+    const message = {
+      role: "system",
+      kind: "provider_switch",
+      content: this.translate("agent.providerSwitched", { agent: toAgent }),
+      providerSwitch: {
+        from: fromAgent,
+        to: toAgent
+      },
+      timeline: [],
+      createdAt: Date.now(),
+      isComplete: true,
+      isLoading: false
+    };
+    session.messages.push(message);
+    return message;
+  }
+
+  renderAgentSwitcherIfMounted() {
+    if (this.agentSwitcherEl?.isConnected) {
+      this.renderAgentSwitcher(this.agentSwitcherEl);
+    }
+  }
+
+  appendRenderedMessageIfActive(session, message) {
+    if (!this.messageList || session.id !== this.activeSessionId) {
+      return;
+    }
+    this.messageList.querySelector(".codex-dock__empty")?.remove();
+    const item = this.messageList.createDiv();
+    this.renderMessageItem(item, message);
+    this.messageEls.set(message, item);
+    this.scrollMessagesToBottom();
+    this.updateContextStatus();
   }
 
   renderSessionSwitcher() {
@@ -218,6 +331,7 @@ class AgentDockView extends ItemView {
 
     if (shouldScrollToBottom) {
       this.scrollMessagesToBottom();
+      this.keepMessagesPinnedToBottom(options.forceScrollToBottom ? 900 : 250);
     } else {
       this.messageList.scrollTop = previousScrollTop;
     }
@@ -227,6 +341,10 @@ class AgentDockView extends ItemView {
   renderMessageItem(item, message) {
     item.empty();
     item.className = `codex-dock__message codex-dock__message--${message.role}`;
+    if (message.role === "system") {
+      this.renderSystemMessage(item, message);
+      return;
+    }
     this.renderMessageMeta(item, message);
     if (message.timeline && message.timeline.length > 0) {
       const timeline = item.createDiv({ cls: "codex-dock__timeline" });
@@ -247,8 +365,36 @@ class AgentDockView extends ItemView {
   renderMessageMeta(item, message) {
     item.createDiv({
       cls: "codex-dock__role",
-      text: message.role === "user" ? this.translate("view.you") : this.plugin.agent.label
+      text: message.role === "user" ? this.translate("view.you") : this.getAssistantDisplayName()
     });
+  }
+
+  getAssistantDisplayName() {
+    return String(this.plugin.settings.assistantDisplayName || "").trim() || this.translate("view.aiAssistant");
+  }
+
+  renderSystemMessage(item, message) {
+    const notice = item.createDiv({ cls: "codex-dock__system-notice" });
+    notice.createSpan({ cls: "codex-dock__system-notice-text", text: message.content || "" });
+    const displayTime = formatMessageTime(message.createdAt, {
+      language: this.plugin.settings.language,
+      now: Date.now()
+    });
+    if (displayTime) {
+      const title = formatMessageTimeTitle(message.createdAt, {
+        language: this.plugin.settings.language
+      });
+      const attr = { title: title || displayTime };
+      const iso = formatMessageTimeIso(message.createdAt);
+      if (iso) {
+        attr.datetime = iso;
+      }
+      notice.createEl("time", {
+        cls: "codex-dock__system-notice-time",
+        text: displayTime,
+        attr
+      });
+    }
   }
 
   renderMessageFooter(item, message) {
@@ -331,7 +477,8 @@ class AgentDockView extends ItemView {
     await runChatTurn({
       session,
       prompt,
-      agentLabel: this.plugin.agent.label,
+      agentLabel: this.getAssistantDisplayName(),
+      agentId: this.plugin.settings.agentId,
       runAgent: (agentPrompt, onUpdate, conversation, options) => (
         this.plugin.runAgent(agentPrompt, onUpdate, conversation, options)
       ),
@@ -513,8 +660,10 @@ class AgentDockView extends ItemView {
           new Notice(this.translate("notice.openFileLinkFailed", { path: vaultPath }));
         }
       });
+      this.scrollMessagesToBottomIfPinned();
     }).catch(() => {
       markdownEl.setText(text || "");
+      this.scrollMessagesToBottomIfPinned();
     });
   }
 
@@ -665,6 +814,31 @@ class AgentDockView extends ItemView {
     if (this.messageList) {
       this.messageList.scrollTop = this.messageList.scrollHeight;
     }
+  }
+
+  keepMessagesPinnedToBottom(durationMs = 250) {
+    this.keepScrollBottomUntil = Math.max(this.keepScrollBottomUntil, Date.now() + durationMs);
+    this.scheduleScrollMessagesToBottom();
+    window.setTimeout(() => this.scrollMessagesToBottomIfPinned(), Math.min(durationMs, 120));
+  }
+
+  scrollMessagesToBottomIfPinned() {
+    if (Date.now() <= this.keepScrollBottomUntil) {
+      this.scrollMessagesToBottom();
+      this.scheduleScrollMessagesToBottom();
+    }
+  }
+
+  scheduleScrollMessagesToBottom() {
+    if (this.pendingScrollBottomFrame !== null) {
+      return;
+    }
+    this.pendingScrollBottomFrame = window.requestAnimationFrame(() => {
+      this.pendingScrollBottomFrame = null;
+      if (Date.now() <= this.keepScrollBottomUntil) {
+        this.scrollMessagesToBottom();
+      }
+    });
   }
 
   cancelPendingMessageRender() {

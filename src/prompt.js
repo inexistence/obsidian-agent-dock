@@ -163,11 +163,12 @@ const ASSISTANT_STYLE_PROFILES = {
 };
 
 function formatConversationPrompt(prompt, conversation, maxChars) {
-  if (!conversation || conversation.length <= 1) {
+  const promptConversation = filterPromptConversation(conversation);
+  if (!promptConversation || promptConversation.length <= 1) {
     return ["User request:", prompt].join("\n");
   }
 
-  const transcript = formatConversationTranscript(conversation, maxChars);
+  const transcript = formatConversationTranscript(promptConversation, maxChars);
 
   return [
     "Conversation so far:",
@@ -175,6 +176,12 @@ function formatConversationPrompt(prompt, conversation, maxChars) {
     "",
     "Respond to the latest user request."
   ].join("\n");
+}
+
+function filterPromptConversation(conversation) {
+  return Array.isArray(conversation)
+    ? conversation.filter((message) => message?.role === "user" || message?.role === "assistant")
+    : [];
 }
 
 function buildReferencedPathsPrompt(app, prompt, contextLimit) {

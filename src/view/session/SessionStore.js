@@ -120,23 +120,47 @@ function normalizeMessage(message) {
   if (!message || typeof message !== "object") {
     return null;
   }
-  if (message.role !== "user" && message.role !== "assistant") {
+  if (message.role !== "user" && message.role !== "assistant" && message.role !== "system") {
     return null;
   }
   const content = String(message.content || "");
   if (!content) {
     return null;
   }
-  return {
+  const normalized = {
     role: message.role,
     content,
     timeline: Array.isArray(message.timeline)
       ? message.timeline
-      : [{ kind: message.role === "assistant" ? "content" : "message", text: content }],
+      : getDefaultTimeline(message.role, content),
     isLoading: false,
     isComplete: true,
     createdAt: normalizeTimestamp(message.createdAt)
   };
+  if (message.role === "assistant") {
+    normalized.agentLabel = typeof message.agentLabel === "string" ? message.agentLabel : "";
+    normalized.agentId = typeof message.agentId === "string" ? message.agentId : "";
+  }
+  if (message.role === "system") {
+    normalized.kind = typeof message.kind === "string" ? message.kind : "notice";
+    if (message.providerSwitch && typeof message.providerSwitch === "object") {
+      normalized.providerSwitch = {
+        from: String(message.providerSwitch.from || ""),
+        to: String(message.providerSwitch.to || "")
+      };
+    }
+  }
+  return normalized;
+}
+
+function getDefaultTimeline(role, content) {
+  if (role === "assistant") {
+    return [{ kind: "content", text: content }];
+  }
+  if (role === "user") {
+    return [{ kind: "message", text: content }];
+  }
+  return [];
 }
 
 function normalizeTimestamp(value) {

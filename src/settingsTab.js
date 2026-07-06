@@ -5,6 +5,7 @@ const { LANGUAGE_OPTIONS, t } = require("./i18n");
 const {
   AFFECT_HALF_LIFE_MINUTES_MAX,
   AFFECT_HALF_LIFE_MINUTES_MIN,
+  ASSISTANT_DISPLAY_NAME_MAX_CHARS,
   ASSISTANT_STYLE_OPTIONS,
   CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
   DEFAULT_SETTINGS
@@ -49,10 +50,10 @@ class AgentDockSettingTab extends PluginSettingTab {
         dropdown
           .setValue(this.plugin.settings.agentId)
           .onChange(async (value) => {
-            this.plugin.settings.agentId = value;
-            this.plugin.refreshAgent();
-            await this.plugin.saveSettings();
-            this.plugin.refreshOpenViews();
+            const result = await this.plugin.switchAgentProvider(value);
+            if (result.blocked) {
+              new Notice(translate("notice.agentStillWorking", { agent: result.agentLabel }));
+            }
             this.display();
           });
       });
@@ -151,6 +152,20 @@ class AgentDockSettingTab extends PluginSettingTab {
         .onChange(async (value) => {
           this.plugin.settings.workingDirectory = value.trim();
           await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.assistantDisplayName.name"))
+      .setDesc(translate("settings.assistantDisplayName.desc"))
+      .addText((text) => text
+        .setPlaceholder(translate("view.aiAssistant"))
+        .setValue(this.plugin.settings.assistantDisplayName)
+        .onChange(async (value) => {
+          this.plugin.settings.assistantDisplayName = value
+            .trim()
+            .slice(0, ASSISTANT_DISPLAY_NAME_MAX_CHARS);
+          await this.plugin.saveSettings();
+          this.plugin.refreshOpenViews();
         }));
 
     new Setting(containerEl)

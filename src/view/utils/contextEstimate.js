@@ -7,6 +7,9 @@ const AGENT_PROFILE_TRAIT_ESTIMATE_CHARS = 260;
 
 function estimateContextChars(messages, draft, settings) {
   const transcriptChars = messages.reduce((total, message) => {
+    if (message?.role !== "user" && message?.role !== "assistant") {
+      return total;
+    }
     return total + String(message.content || "").length + 16;
   }, 0);
   const draftChars = String(draft || "").length + 16;

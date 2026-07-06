@@ -4,6 +4,7 @@ const { expandHomePath } = require("./cli/paths");
 const { normalizeAffectState } = require("./affect/WorkingAffectStore");
 
 const CUSTOM_ASSISTANT_STYLE_MAX_CHARS = 4000;
+const ASSISTANT_DISPLAY_NAME_MAX_CHARS = 80;
 const AFFECT_HALF_LIFE_MINUTES_MIN = 5;
 const AFFECT_HALF_LIFE_MINUTES_MAX = 1440;
 
@@ -42,6 +43,7 @@ const DEFAULT_SETTINGS = {
   cursorPermissionPolicy: "allow-once",
   mode: "readOnly",
   workingDirectory: "",
+  assistantDisplayName: "",
   assistantStyle: "collaborative",
   customAssistantStyle: "",
   debugActivity: false,
@@ -84,6 +86,10 @@ function normalizeSettings(savedSettings) {
   }
 
   settings.language = normalizeLanguage(settings.language);
+  settings.assistantDisplayName = truncateString(
+    normalizeString(settings.assistantDisplayName).trim(),
+    ASSISTANT_DISPLAY_NAME_MAX_CHARS
+  );
 
   if (!settings.agentId) {
     settings.agentId = DEFAULT_SETTINGS.agentId;
@@ -254,6 +260,7 @@ function normalizeAffectSensitivity(value, fallback) {
 module.exports = {
   AFFECT_HALF_LIFE_MINUTES_MAX,
   AFFECT_HALF_LIFE_MINUTES_MIN,
+  ASSISTANT_DISPLAY_NAME_MAX_CHARS,
   ASSISTANT_STYLE_OPTIONS,
   CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
   DEFAULT_SETTINGS,

@@ -1,6 +1,6 @@
 const { Notice, Plugin } = require("obsidian");
 
-const { createAgent } = require("./agents/AgentRegistry");
+const { AGENT_OPTIONS, createAgent } = require("./agents/AgentRegistry");
 const {
   getEffectiveWorkingAffect,
   getPromptWorkingAffect,
@@ -196,12 +196,48 @@ module.exports = class AgentDockPlugin extends Plugin {
     return this.agent.openInteractive();
   }
 
-  refreshOpenViews() {
-    for (const leaf of this.app.workspace.getLeavesOfType(VIEW_TYPE_AGENT_DOCK)) {
-      const view = leaf.view;
-      if (view instanceof AgentDockView) {
-        view.render();
+  async switchAgentProvider(agentId, options = {}) {
+    if (!AGENT_OPTIONS[agentId] || agentId === this.settings.agentId) {
+      return { changed: false };
+    }
+
+    const views = this.getOpenAgentDockViews();
+    if (views.some((view) => view.hasRunningSession())) {
+      return {
+        changed: false,
+        blocked: true,
+        agentLabel: this.agent.label
+      };
+    }
+
+    const fromAgent = this.agent.label;
+    this.settings.agentId = agentId;
+    this.refreshAgent();
+    await this.saveSettings();
+    const toAgent = this.agent.label;
+
+    const sourceView = views.includes(options.sourceView)
+      ? options.sourceView
+      : views[0] || null;
+    if (sourceView) {
+      await sourceView.recordProviderSwitch(fromAgent, toAgent);
+    }
+    this.refreshOpenViews({ exceptView: sourceView });
+    return { changed: true, fromAgent, toAgent };
+  }
+
+  getOpenAgentDockViews() {
+    return this.app.workspace.getLeavesOfType(VIEW_TYPE_AGENT_DOCK)
+      .map((leaf) => leaf.view)
+      .filter((view) => view instanceof AgentDockView);
+  }
+
+  refreshOpenViews(options = {}) {
+    for (const view of this.getOpenAgentDockViews()) {
+      if (view === options.exceptView) {
+        continue;
       }
+      view.render();
     }
   }
 };

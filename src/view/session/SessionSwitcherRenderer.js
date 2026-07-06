@@ -23,7 +23,10 @@ function renderSessionSwitcher(options) {
       title: translate("session.switchConversation")
     }
   });
-  summary.createSpan({ cls: "codex-dock__conversation-title", text: activeSession.title });
+  const activeTitle = getSessionDisplayTitle(activeSession);
+  if (activeTitle) {
+    summary.createSpan({ cls: "codex-dock__conversation-title", text: activeTitle });
+  }
   const chevron = summary.createSpan({ cls: "codex-dock__conversation-chevron", attr: { "aria-hidden": "true" } });
   setIcon(chevron, "chevron-down");
 
@@ -31,21 +34,26 @@ function renderSessionSwitcher(options) {
   menu.createDiv({ cls: "codex-dock__conversation-menu-title", text: translate("session.conversations") });
   const list = menu.createDiv({ cls: "codex-dock__conversation-list" });
   for (const session of sessions) {
+    const title = getSessionDisplayTitle(session);
+    const accessibleTitle = title || translate("session.untitledConversation");
     const item = list.createDiv({
-      cls: `codex-dock__conversation-item${session.id === activeSessionId ? " is-active" : ""}`
+      cls: `codex-dock__conversation-item${session.id === activeSessionId ? " is-active" : ""}${title ? "" : " is-untitled"}`
     });
     const switchButton = item.createEl("button", {
       cls: "codex-dock__conversation-item-main",
       attr: {
         type: "button",
-        title: session.title
+        title: accessibleTitle,
+        "aria-label": accessibleTitle
       }
     });
     const check = switchButton.createSpan({ cls: "codex-dock__conversation-check", attr: { "aria-hidden": "true" } });
     if (session.id === activeSessionId) {
       setIcon(check, "check");
     }
-    switchButton.createSpan({ cls: "codex-dock__conversation-item-title", text: session.title });
+    if (title) {
+      switchButton.createSpan({ cls: "codex-dock__conversation-item-title", text: title });
+    }
     switchButton.addEventListener("click", () => {
       onSwitchSession(session.id);
       switcher.removeAttribute("open");
@@ -55,7 +63,7 @@ function renderSessionSwitcher(options) {
       cls: "codex-dock__conversation-delete",
       attr: {
         type: "button",
-        "aria-label": translate("session.deleteNamedConversation", { title: session.title }),
+        "aria-label": translate("session.deleteNamedConversation", { title: accessibleTitle }),
         title: translate("session.deleteConversation")
       }
     });
@@ -95,6 +103,13 @@ function renderSessionSwitcher(options) {
       removeGlobalPointerListener(closeConversationMenu);
     }
   });
+}
+
+function getSessionDisplayTitle(session) {
+  if (!session || session.isUntitled) {
+    return "";
+  }
+  return String(session.title || "").trim();
 }
 
 module.exports = {

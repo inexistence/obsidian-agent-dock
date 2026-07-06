@@ -14,9 +14,10 @@ function createUserMessage(prompt, createdAt) {
   };
 }
 
-function createAssistantMessage(createdAt) {
+function createAssistantMessage(createdAt, agentId) {
   return {
     role: "assistant",
+    agentId: String(agentId || ""),
     content: "",
     timeline: [],
     isLoading: true,
@@ -28,6 +29,7 @@ async function runChatTurn({
   session,
   prompt,
   agentLabel,
+  agentId,
   runAgent,
   translate,
   touchSession,
@@ -41,7 +43,7 @@ async function runChatTurn({
 }) {
   const now = Date.now();
   session.messages.push(createUserMessage(prompt, now));
-  const assistantMessage = createAssistantMessage(now);
+  const assistantMessage = createAssistantMessage(now, agentId);
   session.messages.push(assistantMessage);
 
   const run = {

@@ -162,7 +162,7 @@ function serializeMessage(message) {
   if (!message || typeof message !== "object") {
     return null;
   }
-  if (message.role !== "user" && message.role !== "assistant") {
+  if (!isPersistableMessageRole(message.role)) {
     return null;
   }
 
@@ -171,11 +171,26 @@ function serializeMessage(message) {
     return null;
   }
 
-  return {
+  const serialized = {
     role: message.role,
     content,
     createdAt: normalizeTimestamp(message.createdAt, Date.now())
   };
+  if (message.role === "assistant") {
+    if (message.agentId) {
+      serialized.agentId = String(message.agentId);
+    }
+  }
+  if (message.role === "system") {
+    serialized.kind = String(message.kind || "notice");
+    if (message.providerSwitch && typeof message.providerSwitch === "object") {
+      serialized.providerSwitch = {
+        from: String(message.providerSwitch.from || ""),
+        to: String(message.providerSwitch.to || "")
+      };
+    }
+  }
+  return serialized;
 }
 
 function normalizePersistedSession(rawSession, indexEntry) {
@@ -209,7 +224,7 @@ function normalizePersistedMessage(message) {
   if (!message || typeof message !== "object") {
     return null;
   }
-  if (message.role !== "user" && message.role !== "assistant") {
+  if (!isPersistableMessageRole(message.role)) {
     return null;
   }
 
@@ -218,14 +233,42 @@ function normalizePersistedMessage(message) {
     return null;
   }
 
-  return {
+  const normalized = {
     role: message.role,
     content,
-    timeline: [{ kind: message.role === "assistant" ? "content" : "message", text: content }],
+    timeline: getRestoredTimeline(message.role, content),
     createdAt: normalizeTimestamp(message.createdAt, Date.now()),
     isComplete: true,
     isLoading: false
   };
+  if (message.role === "assistant") {
+    normalized.agentLabel = typeof message.agentLabel === "string" ? message.agentLabel : "";
+    normalized.agentId = typeof message.agentId === "string" ? message.agentId : "";
+  }
+  if (message.role === "system") {
+    normalized.kind = typeof message.kind === "string" ? message.kind : "notice";
+    if (message.providerSwitch && typeof message.providerSwitch === "object") {
+      normalized.providerSwitch = {
+        from: String(message.providerSwitch.from || ""),
+        to: String(message.providerSwitch.to || "")
+      };
+    }
+  }
+  return normalized;
+}
+
+function isPersistableMessageRole(role) {
+  return role === "user" || role === "assistant" || role === "system";
+}
+
+function getRestoredTimeline(role, content) {
+  if (role === "assistant") {
+    return [{ kind: "content", text: content }];
+  }
+  if (role === "user") {
+    return [{ kind: "message", text: content }];
+  }
+  return [];
 }
 
 function limitSessions(sessions, settings) {
