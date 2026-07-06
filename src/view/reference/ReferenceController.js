@@ -21,6 +21,7 @@ class ReferenceController {
     this.getActiveSession = options.getActiveSession;
     this.persistSessionChange = options.persistSessionChange;
     this.updateContextStatus = options.updateContextStatus;
+    this.onInputValueChanged = options.onInputValueChanged || (() => {});
     this.resolver = new ReferenceResolver(options.app);
     this.dropParser = new ReferenceDropParser();
     this.mentionMenu = new MentionMenuController({
@@ -245,6 +246,7 @@ class ReferenceController {
       session.draft = value;
       this.persistSessionChange(session);
     }
+    this.onInputValueChanged();
   }
 
   updateMentionChips() {

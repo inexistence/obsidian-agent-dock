@@ -312,6 +312,10 @@ module.exports = {
     "composer.mode": "Mode",
     "composer.stopAgent": "Stop agent",
     "composer.sendMessage": "Send message",
+    "composer.queueMessage": "Queue message",
+    "composer.queueTitle": "{count} queued",
+    "composer.editQueuedMessage": "Edit queued message",
+    "composer.removeQueuedMessage": "Remove queued message",
     "session.switchConversation": "Switch conversation",
     "session.conversations": "Conversations",
     "session.deleteConversation": "Delete conversation",
@@ -613,6 +617,10 @@ module.exports = {
     "composer.mode": "模式",
     "composer.stopAgent": "停止 agent",
     "composer.sendMessage": "发送消息",
+    "composer.queueMessage": "加入发送队列",
+    "composer.queueTitle": "待发送 {count} 条",
+    "composer.editQueuedMessage": "编辑待发送消息",
+    "composer.removeQueuedMessage": "移除待发送消息",
     "session.switchConversation": "切换对话",
     "session.conversations": "对话",
     "session.deleteConversation": "删除对话",
@@ -6994,11 +7002,80 @@ module.exports = {
 };
 
 },
+"src/view/composer/PromptQueueRenderer.js": function(module, exports, __require) {
+const { setIcon } = require("obsidian");
+
+function renderQueuedPrompts(containerEl, queuedPrompts, options) {
+  const queue = Array.isArray(queuedPrompts) ? queuedPrompts : [];
+  if (queue.length === 0) {
+    return;
+  }
+
+  const { onRemoveQueuedPrompt, onEditQueuedPrompt, translate } = options;
+  const queueEl = containerEl.createDiv({ cls: "codex-dock__prompt-queue" });
+  const header = queueEl.createDiv({ cls: "codex-dock__prompt-queue-header" });
+  header.createSpan({ text: translate("composer.queueTitle", { count: queue.length }) });
+
+  const list = queueEl.createDiv({ cls: "codex-dock__prompt-queue-list" });
+  for (const entry of queue) {
+    renderQueuedPromptItem(list, entry, {
+      onRemoveQueuedPrompt,
+      onEditQueuedPrompt,
+      translate
+    });
+  }
+}
+
+function renderQueuedPromptItem(containerEl, entry, options) {
+  const { onRemoveQueuedPrompt, onEditQueuedPrompt, translate } = options;
+  const item = containerEl.createDiv({ cls: "codex-dock__prompt-queue-item" });
+  item.createDiv({
+    cls: "codex-dock__prompt-queue-text",
+    text: entry.text || "",
+    attr: {
+      title: entry.text || ""
+    }
+  });
+
+  const actions = item.createDiv({ cls: "codex-dock__prompt-queue-actions" });
+  const editButton = actions.createEl("button", {
+    cls: "codex-dock__prompt-queue-button",
+    attr: {
+      type: "button",
+      "aria-label": translate("composer.editQueuedMessage"),
+      title: translate("composer.editQueuedMessage")
+    }
+  });
+  setIcon(editButton, "pencil");
+  editButton.addEventListener("click", () => {
+    onEditQueuedPrompt?.(entry.id);
+  });
+
+  const removeButton = actions.createEl("button", {
+    cls: "codex-dock__prompt-queue-button",
+    attr: {
+      type: "button",
+      "aria-label": translate("composer.removeQueuedMessage"),
+      title: translate("composer.removeQueuedMessage")
+    }
+  });
+  setIcon(removeButton, "x");
+  removeButton.addEventListener("click", () => {
+    onRemoveQueuedPrompt?.(entry.id);
+  });
+}
+
+module.exports = {
+  renderQueuedPrompts
+};
+
+},
 "src/view/composer/ComposerRenderer.js": function(module, exports, __require) {
 const { setIcon } = require("obsidian");
 
 const { MODE_OPTIONS, getModeDescription, getModeLabel } = __require("src/modes.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
+const { renderQueuedPrompts } = __require("src/view/composer/PromptQueueRenderer.js");
 
 function renderComposerContent(composer, options) {
   const {
@@ -7014,6 +7091,9 @@ function renderComposerContent(composer, options) {
     insertActiveNoteReference,
     onDraftChanged,
     handleReferenceDrop,
+    queuedPrompts,
+    onRemoveQueuedPrompt,
+    onEditQueuedPrompt,
     submit,
     cancelActiveSession,
     translate,
@@ -7022,6 +7102,11 @@ function renderComposerContent(composer, options) {
   } = options;
 
   const shell = composer.createDiv({ cls: "codex-dock__composer-shell" });
+  renderQueuedPrompts(shell, queuedPrompts, {
+    onRemoveQueuedPrompt,
+    onEditQueuedPrompt,
+    translate
+  });
   const inputWrap = shell.createDiv({ cls: "codex-dock__input-wrap" });
   const mentionChipsEl = inputWrap.createDiv({
     cls: "codex-dock__mention-chips",
@@ -7062,6 +7147,7 @@ function renderComposerContent(composer, options) {
     updateContextStatus();
     updateMentionChips();
     updateMentionSuggestions();
+    updateSendButtonState();
   });
   inputEl.addEventListener("click", updateMentionSuggestions);
   inputEl.addEventListener("blur", () => {
@@ -7190,24 +7276,42 @@ function renderComposerContent(composer, options) {
     cls: "codex-dock__send",
     attr: { type: "button" }
   });
-  if (getActiveSession()?.currentRun) {
-    sendButton.setAttr("aria-label", translate("composer.stopAgent"));
-    sendButton.setAttr("title", translate("composer.stopAgent"));
-    setIcon(sendButton, "square");
-    sendButton.addEventListener("click", cancelActiveSession);
-  } else {
-    sendButton.setAttr("aria-label", translate("composer.sendMessage"));
-    sendButton.setAttr("title", translate("composer.sendMessage"));
-    setIcon(sendButton, "arrow-up");
-    sendButton.addEventListener("click", submit);
-  }
+  sendButton.addEventListener("click", () => {
+    if (isStopButtonState()) {
+      cancelActiveSession();
+      return;
+    }
+    submit();
+  });
+  updateSendButtonState();
 
   return {
     contextStatusEl,
     inputEl,
     mentionChipsEl,
-    mentionMenuEl
+    mentionMenuEl,
+    refreshSendButtonState: updateSendButtonState
   };
+
+  function isStopButtonState() {
+    return Boolean(getActiveSession()?.currentRun) && !inputEl.value.trim();
+  }
+
+  function updateSendButtonState() {
+    sendButton.empty();
+    if (isStopButtonState()) {
+      sendButton.setAttr("aria-label", translate("composer.stopAgent"));
+      sendButton.setAttr("title", translate("composer.stopAgent"));
+      setIcon(sendButton, "square");
+      return;
+    }
+    const label = getActiveSession()?.currentRun
+      ? translate("composer.queueMessage")
+      : translate("composer.sendMessage");
+    sendButton.setAttr("aria-label", label);
+    sendButton.setAttr("title", label);
+    setIcon(sendButton, "arrow-up");
+  }
 }
 
 module.exports = {
@@ -8119,6 +8223,7 @@ class ReferenceController {
     this.getActiveSession = options.getActiveSession;
     this.persistSessionChange = options.persistSessionChange;
     this.updateContextStatus = options.updateContextStatus;
+    this.onInputValueChanged = options.onInputValueChanged || (() => {});
     this.resolver = new ReferenceResolver(options.app);
     this.dropParser = new ReferenceDropParser();
     this.mentionMenu = new MentionMenuController({
@@ -8343,6 +8448,7 @@ class ReferenceController {
       session.draft = value;
       this.persistSessionChange(session);
     }
+    this.onInputValueChanged();
   }
 
   updateMentionChips() {
@@ -8840,8 +8946,108 @@ module.exports = {
 };
 
 },
+"src/view/session/PromptQueue.js": function(module, exports, __require) {
+function ensurePromptQueue(session) {
+  if (!session) {
+    return [];
+  }
+  if (!Array.isArray(session.promptQueue)) {
+    session.promptQueue = [];
+  }
+  return session.promptQueue;
+}
+
+function normalizePromptQueue(queue) {
+  if (!Array.isArray(queue)) {
+    return [];
+  }
+
+  return queue.map((entry) => {
+    if (typeof entry === "string") {
+      return createPromptQueueEntry(entry);
+    }
+    if (!entry || typeof entry !== "object") {
+      return null;
+    }
+    const text = String(entry.text || "").trim();
+    if (!text) {
+      return null;
+    }
+    return {
+      id: typeof entry.id === "string" && entry.id ? entry.id : createPromptQueueId(),
+      text,
+      createdAt: normalizeTimestamp(entry.createdAt)
+    };
+  }).filter(Boolean);
+}
+
+function enqueuePrompt(session, prompt) {
+  const entry = createPromptQueueEntry(prompt);
+  if (!entry) {
+    return null;
+  }
+  ensurePromptQueue(session).push(entry);
+  return entry;
+}
+
+function removePromptById(session, queuedPromptId) {
+  const queue = ensurePromptQueue(session);
+  const index = queue.findIndex((entry) => entry.id === queuedPromptId);
+  if (index === -1) {
+    return null;
+  }
+  return queue.splice(index, 1)[0] || null;
+}
+
+function shiftPrompt(session) {
+  return ensurePromptQueue(session).shift() || null;
+}
+
+function createDraftFromQueuedPrompt(entry, currentDraft) {
+  const text = String(entry?.text || "").trim();
+  const draft = String(currentDraft || "");
+  if (!text) {
+    return draft;
+  }
+  return draft.trim()
+    ? `${text}\n\n${draft}`
+    : text;
+}
+
+function createPromptQueueEntry(text) {
+  const normalizedText = String(text || "").trim();
+  if (!normalizedText) {
+    return null;
+  }
+  return {
+    id: createPromptQueueId(),
+    text: normalizedText,
+    createdAt: Date.now()
+  };
+}
+
+function createPromptQueueId() {
+  return `queued-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function normalizeTimestamp(value) {
+  const timestamp = Number(value);
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : Date.now();
+}
+
+module.exports = {
+  createDraftFromQueuedPrompt,
+  enqueuePrompt,
+  ensurePromptQueue,
+  normalizePromptQueue,
+  removePromptById,
+  shiftPrompt
+};
+
+},
 "src/view/session/SessionStore.js": function(module, exports, __require) {
 const { normalizeProviderState } = __require("src/storage/providerState.js");
+const { normalizePromptQueue } = __require("src/view/session/PromptQueue.js");
 
 class SessionStore {
   constructor(options = {}) {
@@ -8873,6 +9079,7 @@ class SessionStore {
       isUntitled: true,
       currentRun: null,
       draft: "",
+      promptQueue: [],
       createdAt: now,
       updatedAt: now,
       messages: [],
@@ -8952,6 +9159,7 @@ function normalizeSession(session, fallbackTitle = "Chat") {
     isUntitled: session.isUntitled === true,
     currentRun: null,
     draft: typeof session.draft === "string" ? session.draft : "",
+    promptQueue: normalizePromptQueue(session.promptQueue),
     createdAt: normalizeTimestamp(session.createdAt),
     updatedAt: normalizeTimestamp(session.updatedAt),
     messages: Array.isArray(session.messages) ? session.messages.map(normalizeMessage).filter(Boolean) : [],
@@ -10007,6 +10215,13 @@ const { AGENT_OPTIONS } = __require("src/agents/AgentRegistry.js");
 const { renderComposerContent } = __require("src/view/composer/ComposerRenderer.js");
 const { ReferenceController } = __require("src/view/reference/ReferenceController.js");
 const { runChatTurn } = __require("src/view/session/ChatTurnRunner.js");
+const {
+  createDraftFromQueuedPrompt,
+  enqueuePrompt,
+  ensurePromptQueue,
+  removePromptById,
+  shiftPrompt
+} = __require("src/view/session/PromptQueue.js");
 const { SessionStore } = __require("src/view/session/SessionStore.js");
 const { renderSessionSwitcher } = __require("src/view/session/SessionSwitcherRenderer.js");
 const { MessageTimelineRenderer } = __require("src/view/timeline/MessageTimelineRenderer.js");
@@ -10035,7 +10250,8 @@ class AgentDockView extends ItemView {
       translate: (key, params) => this.translate(key, params),
       getActiveSession: () => this.getActiveSession(),
       persistSessionChange: (session) => this.persistSessionChange(session),
-      updateContextStatus: () => this.updateContextStatus()
+      updateContextStatus: () => this.updateContextStatus(),
+      onInputValueChanged: () => this.refreshComposerSendButtonState?.()
     });
     this.messageEls = new WeakMap();
     this.pendingMessageRenderFrame = null;
@@ -10281,6 +10497,9 @@ class AgentDockView extends ItemView {
       insertActiveNoteReference: () => this.insertActiveNoteReference(),
       onDraftChanged: (session) => this.persistSessionChange(session),
       handleReferenceDrop: (dataTransfer) => this.referenceController.handleReferenceDrop(dataTransfer),
+      queuedPrompts: ensurePromptQueue(this.getActiveSession()),
+      onRemoveQueuedPrompt: (queuedPromptId) => this.removeQueuedPrompt(queuedPromptId),
+      onEditQueuedPrompt: (queuedPromptId) => this.editQueuedPrompt(queuedPromptId),
       submit: () => this.submit(),
       cancelActiveSession: () => this.cancelActiveSession(),
       translate: (key, params) => this.translate(key, params),
@@ -10291,6 +10510,7 @@ class AgentDockView extends ItemView {
     this.mentionChipsEl = refs.mentionChipsEl;
     this.mentionMenuEl = refs.mentionMenuEl;
     this.contextStatusEl = refs.contextStatusEl;
+    this.refreshComposerSendButtonState = refs.refreshSendButtonState;
     this.referenceController.setElements({
       inputEl: this.inputEl,
       mentionChipsEl: this.mentionChipsEl,
@@ -10457,21 +10677,25 @@ class AgentDockView extends ItemView {
 
   async submit() {
     const session = this.ensureActiveSession();
+    const prompt = this.inputEl.value.trim();
     if (session.currentRun) {
-      new Notice(this.translate("notice.agentStillWorking", { agent: this.plugin.agent.label }));
+      if (prompt) {
+        this.queuePrompt(session, prompt);
+      }
       return;
     }
 
-    const prompt = this.inputEl.value.trim();
     if (!prompt) {
       return;
     }
 
+    this.clearComposerDraft(session);
+    await this.startChatTurn(session, prompt);
+  }
+
+  async startChatTurn(session, prompt, options = {}) {
     this.maybeNameSession(session, prompt);
     this.updateSessionSwitcher();
-    this.inputEl.value = "";
-    session.draft = "";
-    this.referenceController.updateMentionChips();
     this.sessionStore.touchSession(session);
 
     await runChatTurn({
@@ -10484,9 +10708,11 @@ class AgentDockView extends ItemView {
       ),
       translate: (key, params) => this.translate(key, params),
       touchSession: (targetSession) => this.sessionStore.touchSession(targetSession),
-      onTurnStarted: () => {
-        this.renderMessages({ forceScrollToBottom: true });
-        this.renderComposer();
+      onTurnStarted: (targetSession) => {
+        if (targetSession.id === this.activeSessionId) {
+          this.renderMessages({ forceScrollToBottom: true });
+          this.renderComposer();
+        }
       },
       onTurnUpdate: (targetSession, assistantMessage) => {
         this.scheduleSessionRenderIfActive(targetSession, assistantMessage);
@@ -10503,6 +10729,73 @@ class AgentDockView extends ItemView {
         new Notice(this.translate(key, { agent: this.plugin.agent.label }));
       }
     });
+    if (options.drainQueue !== false) {
+      await this.drainQueuedPrompts(session);
+    }
+  }
+
+  clearComposerDraft(session) {
+    if (this.inputEl) {
+      this.inputEl.value = "";
+    }
+    session.draft = "";
+    this.referenceController.updateMentionChips();
+  }
+
+  queuePrompt(session, prompt) {
+    if (!enqueuePrompt(session, prompt)) {
+      return;
+    }
+
+    this.clearComposerDraft(session);
+    this.sessionStore.touchSession(session);
+    this.persistSessionChange(session);
+    this.renderComposerIfActive(session);
+    this.updateContextStatus();
+  }
+
+  removeQueuedPrompt(queuedPromptId) {
+    const session = this.getActiveSession();
+    if (!removePromptById(session, queuedPromptId)) {
+      return;
+    }
+
+    this.sessionStore.touchSession(session);
+    this.persistSessionChange(session);
+    this.renderComposerIfActive(session);
+  }
+
+  editQueuedPrompt(queuedPromptId) {
+    const session = this.getActiveSession();
+    const entry = removePromptById(session, queuedPromptId);
+    if (!entry) {
+      return;
+    }
+
+    const currentDraft = String(this.inputEl?.value || session.draft || "");
+    session.draft = createDraftFromQueuedPrompt(entry, currentDraft);
+    this.sessionStore.touchSession(session);
+    this.persistSessionChange(session);
+    this.renderComposerIfActive(session);
+    if (this.inputEl) {
+      this.inputEl.focus();
+      const cursor = entry.text.length;
+      this.inputEl.selectionStart = cursor;
+      this.inputEl.selectionEnd = cursor;
+    }
+  }
+
+  async drainQueuedPrompts(session) {
+    while (session && !session.currentRun && ensurePromptQueue(session).length > 0) {
+      const entry = shiftPrompt(session);
+      if (!entry) {
+        return;
+      }
+      this.sessionStore.touchSession(session);
+      this.persistSessionChange(session);
+      this.renderComposerIfActive(session);
+      await this.startChatTurn(session, entry.text, { drainQueue: false });
+    }
   }
 
   renderComposer() {
@@ -10511,7 +10804,7 @@ class AgentDockView extends ItemView {
       return;
     }
 
-    const draft = this.inputEl?.value || "";
+    const draft = this.getActiveSession()?.draft || "";
     composer.empty();
     this.renderComposerContent(composer, draft);
   }

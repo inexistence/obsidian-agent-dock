@@ -2,6 +2,7 @@ const { setIcon } = require("obsidian");
 
 const { MODE_OPTIONS, getModeDescription, getModeLabel } = require("../../modes");
 const { DEFAULT_SETTINGS } = require("../../settings");
+const { renderQueuedPrompts } = require("./PromptQueueRenderer");
 
 function renderComposerContent(composer, options) {
   const {
@@ -17,6 +18,9 @@ function renderComposerContent(composer, options) {
     insertActiveNoteReference,
     onDraftChanged,
     handleReferenceDrop,
+    queuedPrompts,
+    onRemoveQueuedPrompt,
+    onEditQueuedPrompt,
     submit,
     cancelActiveSession,
     translate,
@@ -25,6 +29,11 @@ function renderComposerContent(composer, options) {
   } = options;
 
   const shell = composer.createDiv({ cls: "codex-dock__composer-shell" });
+  renderQueuedPrompts(shell, queuedPrompts, {
+    onRemoveQueuedPrompt,
+    onEditQueuedPrompt,
+    translate
+  });
   const inputWrap = shell.createDiv({ cls: "codex-dock__input-wrap" });
   const mentionChipsEl = inputWrap.createDiv({
     cls: "codex-dock__mention-chips",
@@ -65,6 +74,7 @@ function renderComposerContent(composer, options) {
     updateContextStatus();
     updateMentionChips();
     updateMentionSuggestions();
+    updateSendButtonState();
   });
   inputEl.addEventListener("click", updateMentionSuggestions);
   inputEl.addEventListener("blur", () => {
@@ -193,24 +203,42 @@ function renderComposerContent(composer, options) {
     cls: "codex-dock__send",
     attr: { type: "button" }
   });
-  if (getActiveSession()?.currentRun) {
-    sendButton.setAttr("aria-label", translate("composer.stopAgent"));
-    sendButton.setAttr("title", translate("composer.stopAgent"));
-    setIcon(sendButton, "square");
-    sendButton.addEventListener("click", cancelActiveSession);
-  } else {
-    sendButton.setAttr("aria-label", translate("composer.sendMessage"));
-    sendButton.setAttr("title", translate("composer.sendMessage"));
-    setIcon(sendButton, "arrow-up");
-    sendButton.addEventListener("click", submit);
-  }
+  sendButton.addEventListener("click", () => {
+    if (isStopButtonState()) {
+      cancelActiveSession();
+      return;
+    }
+    submit();
+  });
+  updateSendButtonState();
 
   return {
     contextStatusEl,
     inputEl,
     mentionChipsEl,
-    mentionMenuEl
+    mentionMenuEl,
+    refreshSendButtonState: updateSendButtonState
   };
+
+  function isStopButtonState() {
+    return Boolean(getActiveSession()?.currentRun) && !inputEl.value.trim();
+  }
+
+  function updateSendButtonState() {
+    sendButton.empty();
+    if (isStopButtonState()) {
+      sendButton.setAttr("aria-label", translate("composer.stopAgent"));
+      sendButton.setAttr("title", translate("composer.stopAgent"));
+      setIcon(sendButton, "square");
+      return;
+    }
+    const label = getActiveSession()?.currentRun
+      ? translate("composer.queueMessage")
+      : translate("composer.sendMessage");
+    sendButton.setAttr("aria-label", label);
+    sendButton.setAttr("title", label);
+    setIcon(sendButton, "arrow-up");
+  }
 }
 
 module.exports = {

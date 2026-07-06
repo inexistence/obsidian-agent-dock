@@ -1,4 +1,5 @@
 const { normalizeProviderState } = require("../../storage/providerState");
+const { normalizePromptQueue } = require("./PromptQueue");
 
 class SessionStore {
   constructor(options = {}) {
@@ -30,6 +31,7 @@ class SessionStore {
       isUntitled: true,
       currentRun: null,
       draft: "",
+      promptQueue: [],
       createdAt: now,
       updatedAt: now,
       messages: [],
@@ -109,6 +111,7 @@ function normalizeSession(session, fallbackTitle = "Chat") {
     isUntitled: session.isUntitled === true,
     currentRun: null,
     draft: typeof session.draft === "string" ? session.draft : "",
+    promptQueue: normalizePromptQueue(session.promptQueue),
     createdAt: normalizeTimestamp(session.createdAt),
     updatedAt: normalizeTimestamp(session.updatedAt),
     messages: Array.isArray(session.messages) ? session.messages.map(normalizeMessage).filter(Boolean) : [],

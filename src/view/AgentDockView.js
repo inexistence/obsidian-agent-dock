@@ -7,6 +7,13 @@ const { AGENT_OPTIONS } = require("../agents/AgentRegistry");
 const { renderComposerContent } = require("./composer/ComposerRenderer");
 const { ReferenceController } = require("./reference/ReferenceController");
 const { runChatTurn } = require("./session/ChatTurnRunner");
+const {
+  createDraftFromQueuedPrompt,
+  enqueuePrompt,
+  ensurePromptQueue,
+  removePromptById,
+  shiftPrompt
+} = require("./session/PromptQueue");
 const { SessionStore } = require("./session/SessionStore");
 const { renderSessionSwitcher } = require("./session/SessionSwitcherRenderer");
 const { MessageTimelineRenderer } = require("./timeline/MessageTimelineRenderer");
@@ -35,7 +42,8 @@ class AgentDockView extends ItemView {
       translate: (key, params) => this.translate(key, params),
       getActiveSession: () => this.getActiveSession(),
       persistSessionChange: (session) => this.persistSessionChange(session),
-      updateContextStatus: () => this.updateContextStatus()
+      updateContextStatus: () => this.updateContextStatus(),
+      onInputValueChanged: () => this.refreshComposerSendButtonState?.()
     });
     this.messageEls = new WeakMap();
     this.pendingMessageRenderFrame = null;
@@ -281,6 +289,9 @@ class AgentDockView extends ItemView {
       insertActiveNoteReference: () => this.insertActiveNoteReference(),
       onDraftChanged: (session) => this.persistSessionChange(session),
       handleReferenceDrop: (dataTransfer) => this.referenceController.handleReferenceDrop(dataTransfer),
+      queuedPrompts: ensurePromptQueue(this.getActiveSession()),
+      onRemoveQueuedPrompt: (queuedPromptId) => this.removeQueuedPrompt(queuedPromptId),
+      onEditQueuedPrompt: (queuedPromptId) => this.editQueuedPrompt(queuedPromptId),
       submit: () => this.submit(),
       cancelActiveSession: () => this.cancelActiveSession(),
       translate: (key, params) => this.translate(key, params),
@@ -291,6 +302,7 @@ class AgentDockView extends ItemView {
     this.mentionChipsEl = refs.mentionChipsEl;
     this.mentionMenuEl = refs.mentionMenuEl;
     this.contextStatusEl = refs.contextStatusEl;
+    this.refreshComposerSendButtonState = refs.refreshSendButtonState;
     this.referenceController.setElements({
       inputEl: this.inputEl,
       mentionChipsEl: this.mentionChipsEl,
@@ -457,21 +469,25 @@ class AgentDockView extends ItemView {
 
   async submit() {
     const session = this.ensureActiveSession();
+    const prompt = this.inputEl.value.trim();
     if (session.currentRun) {
-      new Notice(this.translate("notice.agentStillWorking", { agent: this.plugin.agent.label }));
+      if (prompt) {
+        this.queuePrompt(session, prompt);
+      }
       return;
     }
 
-    const prompt = this.inputEl.value.trim();
     if (!prompt) {
       return;
     }
 
+    this.clearComposerDraft(session);
+    await this.startChatTurn(session, prompt);
+  }
+
+  async startChatTurn(session, prompt, options = {}) {
     this.maybeNameSession(session, prompt);
     this.updateSessionSwitcher();
-    this.inputEl.value = "";
-    session.draft = "";
-    this.referenceController.updateMentionChips();
     this.sessionStore.touchSession(session);
 
     await runChatTurn({
@@ -484,9 +500,11 @@ class AgentDockView extends ItemView {
       ),
       translate: (key, params) => this.translate(key, params),
       touchSession: (targetSession) => this.sessionStore.touchSession(targetSession),
-      onTurnStarted: () => {
-        this.renderMessages({ forceScrollToBottom: true });
-        this.renderComposer();
+      onTurnStarted: (targetSession) => {
+        if (targetSession.id === this.activeSessionId) {
+          this.renderMessages({ forceScrollToBottom: true });
+          this.renderComposer();
+        }
       },
       onTurnUpdate: (targetSession, assistantMessage) => {
         this.scheduleSessionRenderIfActive(targetSession, assistantMessage);
@@ -503,6 +521,73 @@ class AgentDockView extends ItemView {
         new Notice(this.translate(key, { agent: this.plugin.agent.label }));
       }
     });
+    if (options.drainQueue !== false) {
+      await this.drainQueuedPrompts(session);
+    }
+  }
+
+  clearComposerDraft(session) {
+    if (this.inputEl) {
+      this.inputEl.value = "";
+    }
+    session.draft = "";
+    this.referenceController.updateMentionChips();
+  }
+
+  queuePrompt(session, prompt) {
+    if (!enqueuePrompt(session, prompt)) {
+      return;
+    }
+
+    this.clearComposerDraft(session);
+    this.sessionStore.touchSession(session);
+    this.persistSessionChange(session);
+    this.renderComposerIfActive(session);
+    this.updateContextStatus();
+  }
+
+  removeQueuedPrompt(queuedPromptId) {
+    const session = this.getActiveSession();
+    if (!removePromptById(session, queuedPromptId)) {
+      return;
+    }
+
+    this.sessionStore.touchSession(session);
+    this.persistSessionChange(session);
+    this.renderComposerIfActive(session);
+  }
+
+  editQueuedPrompt(queuedPromptId) {
+    const session = this.getActiveSession();
+    const entry = removePromptById(session, queuedPromptId);
+    if (!entry) {
+      return;
+    }
+
+    const currentDraft = String(this.inputEl?.value || session.draft || "");
+    session.draft = createDraftFromQueuedPrompt(entry, currentDraft);
+    this.sessionStore.touchSession(session);
+    this.persistSessionChange(session);
+    this.renderComposerIfActive(session);
+    if (this.inputEl) {
+      this.inputEl.focus();
+      const cursor = entry.text.length;
+      this.inputEl.selectionStart = cursor;
+      this.inputEl.selectionEnd = cursor;
+    }
+  }
+
+  async drainQueuedPrompts(session) {
+    while (session && !session.currentRun && ensurePromptQueue(session).length > 0) {
+      const entry = shiftPrompt(session);
+      if (!entry) {
+        return;
+      }
+      this.sessionStore.touchSession(session);
+      this.persistSessionChange(session);
+      this.renderComposerIfActive(session);
+      await this.startChatTurn(session, entry.text, { drainQueue: false });
+    }
   }
 
   renderComposer() {
@@ -511,7 +596,7 @@ class AgentDockView extends ItemView {
       return;
     }
 
-    const draft = this.inputEl?.value || "";
+    const draft = this.getActiveSession()?.draft || "";
     composer.empty();
     this.renderComposerContent(composer, draft);
   }
