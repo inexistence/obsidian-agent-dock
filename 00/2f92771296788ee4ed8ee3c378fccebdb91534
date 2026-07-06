@@ -1,0 +1,22 @@
+main.js
+  s_28f6681e8d8d73::t_a6eb9fc05f733e 9128
+src/view/session/SessionSwitcherRenderer.js
+  s_28f6681e8d8d73::t_67dfa269f2b969 109
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "002f92771296788ee4ed8ee3c378fccebdb91534",
+  "prompts": {},
+  "logical_commit_id": "002f92771296788ee4ed8ee3c378fccebdb91534",
+  "sessions": {
+    "s_28f6681e8d8d73": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f36bf-256f-7613-8229-beae3ae1e764",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
