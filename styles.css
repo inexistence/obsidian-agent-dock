@@ -992,7 +992,6 @@
   background-image: none !important;
   box-shadow: none !important;
   color: var(--text-normal);
-  cursor: pointer;
   font-family: inherit;
   text-align: left;
 }
@@ -1264,7 +1263,6 @@
   background-image: none !important;
   box-shadow: none !important;
   color: var(--text-normal);
-  cursor: pointer !important;
   font-family: inherit;
   font-size: var(--font-ui-small);
   text-align: left;
