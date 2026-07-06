@@ -54,6 +54,15 @@ function shiftPrompt(session) {
   return ensurePromptQueue(session).shift() || null;
 }
 
+function clearPromptQueue(session) {
+  const queue = ensurePromptQueue(session);
+  const count = queue.length;
+  if (count > 0) {
+    queue.splice(0, count);
+  }
+  return count;
+}
+
 function createDraftFromQueuedPrompt(entry, currentDraft) {
   const text = String(entry?.text || "").trim();
   const draft = String(currentDraft || "");
@@ -87,6 +96,7 @@ function normalizeTimestamp(value) {
 }
 
 module.exports = {
+  clearPromptQueue,
   createDraftFromQueuedPrompt,
   enqueuePrompt,
   ensurePromptQueue,

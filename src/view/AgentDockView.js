@@ -8,6 +8,7 @@ const { renderComposerContent } = require("./composer/ComposerRenderer");
 const { ReferenceController } = require("./reference/ReferenceController");
 const { runChatTurn } = require("./session/ChatTurnRunner");
 const {
+  clearPromptQueue,
   createDraftFromQueuedPrompt,
   enqueuePrompt,
   ensurePromptQueue,
@@ -290,6 +291,7 @@ class AgentDockView extends ItemView {
       onDraftChanged: (session) => this.persistSessionChange(session),
       handleReferenceDrop: (dataTransfer) => this.referenceController.handleReferenceDrop(dataTransfer),
       queuedPrompts: ensurePromptQueue(this.getActiveSession()),
+      onClearQueuedPrompts: () => this.clearQueuedPrompts(),
       onRemoveQueuedPrompt: (queuedPromptId) => this.removeQueuedPrompt(queuedPromptId),
       onEditQueuedPrompt: (queuedPromptId) => this.editQueuedPrompt(queuedPromptId),
       submit: () => this.submit(),
@@ -549,6 +551,17 @@ class AgentDockView extends ItemView {
   removeQueuedPrompt(queuedPromptId) {
     const session = this.getActiveSession();
     if (!removePromptById(session, queuedPromptId)) {
+      return;
+    }
+
+    this.sessionStore.touchSession(session);
+    this.persistSessionChange(session);
+    this.renderComposerIfActive(session);
+  }
+
+  clearQueuedPrompts() {
+    const session = this.getActiveSession();
+    if (clearPromptQueue(session) === 0) {
       return;
     }
 

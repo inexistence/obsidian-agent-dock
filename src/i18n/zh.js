@@ -191,6 +191,7 @@ module.exports = {
     "composer.sendMessage": "发送消息",
     "composer.queueMessage": "加入发送队列",
     "composer.queueTitle": "待发送 {count} 条",
+    "composer.clearQueuedMessages": "清空待发送队列",
     "composer.editQueuedMessage": "编辑待发送消息",
     "composer.removeQueuedMessage": "移除待发送消息",
     "session.switchConversation": "切换对话",

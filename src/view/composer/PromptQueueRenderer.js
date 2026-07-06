@@ -6,10 +6,22 @@ function renderQueuedPrompts(containerEl, queuedPrompts, options) {
     return;
   }
 
-  const { onRemoveQueuedPrompt, onEditQueuedPrompt, translate } = options;
+  const { onClearQueuedPrompts, onRemoveQueuedPrompt, onEditQueuedPrompt, translate } = options;
   const queueEl = containerEl.createDiv({ cls: "codex-dock__prompt-queue" });
   const header = queueEl.createDiv({ cls: "codex-dock__prompt-queue-header" });
   header.createSpan({ text: translate("composer.queueTitle", { count: queue.length }) });
+  const clearButton = header.createEl("button", {
+    cls: "codex-dock__prompt-queue-clear",
+    attr: {
+      type: "button",
+      "aria-label": translate("composer.clearQueuedMessages"),
+      title: translate("composer.clearQueuedMessages")
+    }
+  });
+  setIcon(clearButton, "list-x");
+  clearButton.addEventListener("click", () => {
+    onClearQueuedPrompts?.();
+  });
 
   const list = queueEl.createDiv({ cls: "codex-dock__prompt-queue-list" });
   for (const entry of queue) {

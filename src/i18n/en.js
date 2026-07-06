@@ -191,6 +191,7 @@ module.exports = {
     "composer.sendMessage": "Send message",
     "composer.queueMessage": "Queue message",
     "composer.queueTitle": "{count} queued",
+    "composer.clearQueuedMessages": "Clear queued messages",
     "composer.editQueuedMessage": "Edit queued message",
     "composer.removeQueuedMessage": "Remove queued message",
     "session.switchConversation": "Switch conversation",

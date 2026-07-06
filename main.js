@@ -314,6 +314,7 @@ module.exports = {
     "composer.sendMessage": "Send message",
     "composer.queueMessage": "Queue message",
     "composer.queueTitle": "{count} queued",
+    "composer.clearQueuedMessages": "Clear queued messages",
     "composer.editQueuedMessage": "Edit queued message",
     "composer.removeQueuedMessage": "Remove queued message",
     "session.switchConversation": "Switch conversation",
@@ -619,6 +620,7 @@ module.exports = {
     "composer.sendMessage": "发送消息",
     "composer.queueMessage": "加入发送队列",
     "composer.queueTitle": "待发送 {count} 条",
+    "composer.clearQueuedMessages": "清空待发送队列",
     "composer.editQueuedMessage": "编辑待发送消息",
     "composer.removeQueuedMessage": "移除待发送消息",
     "session.switchConversation": "切换对话",
@@ -7011,10 +7013,22 @@ function renderQueuedPrompts(containerEl, queuedPrompts, options) {
     return;
   }
 
-  const { onRemoveQueuedPrompt, onEditQueuedPrompt, translate } = options;
+  const { onClearQueuedPrompts, onRemoveQueuedPrompt, onEditQueuedPrompt, translate } = options;
   const queueEl = containerEl.createDiv({ cls: "codex-dock__prompt-queue" });
   const header = queueEl.createDiv({ cls: "codex-dock__prompt-queue-header" });
   header.createSpan({ text: translate("composer.queueTitle", { count: queue.length }) });
+  const clearButton = header.createEl("button", {
+    cls: "codex-dock__prompt-queue-clear",
+    attr: {
+      type: "button",
+      "aria-label": translate("composer.clearQueuedMessages"),
+      title: translate("composer.clearQueuedMessages")
+    }
+  });
+  setIcon(clearButton, "list-x");
+  clearButton.addEventListener("click", () => {
+    onClearQueuedPrompts?.();
+  });
 
   const list = queueEl.createDiv({ cls: "codex-dock__prompt-queue-list" });
   for (const entry of queue) {
@@ -7092,6 +7106,7 @@ function renderComposerContent(composer, options) {
     onDraftChanged,
     handleReferenceDrop,
     queuedPrompts,
+    onClearQueuedPrompts,
     onRemoveQueuedPrompt,
     onEditQueuedPrompt,
     submit,
@@ -7103,6 +7118,7 @@ function renderComposerContent(composer, options) {
 
   const shell = composer.createDiv({ cls: "codex-dock__composer-shell" });
   renderQueuedPrompts(shell, queuedPrompts, {
+    onClearQueuedPrompts,
     onRemoveQueuedPrompt,
     onEditQueuedPrompt,
     translate
@@ -9003,6 +9019,15 @@ function shiftPrompt(session) {
   return ensurePromptQueue(session).shift() || null;
 }
 
+function clearPromptQueue(session) {
+  const queue = ensurePromptQueue(session);
+  const count = queue.length;
+  if (count > 0) {
+    queue.splice(0, count);
+  }
+  return count;
+}
+
 function createDraftFromQueuedPrompt(entry, currentDraft) {
   const text = String(entry?.text || "").trim();
   const draft = String(currentDraft || "");
@@ -9036,6 +9061,7 @@ function normalizeTimestamp(value) {
 }
 
 module.exports = {
+  clearPromptQueue,
   createDraftFromQueuedPrompt,
   enqueuePrompt,
   ensurePromptQueue,
@@ -10216,6 +10242,7 @@ const { renderComposerContent } = __require("src/view/composer/ComposerRenderer.
 const { ReferenceController } = __require("src/view/reference/ReferenceController.js");
 const { runChatTurn } = __require("src/view/session/ChatTurnRunner.js");
 const {
+  clearPromptQueue,
   createDraftFromQueuedPrompt,
   enqueuePrompt,
   ensurePromptQueue,
@@ -10498,6 +10525,7 @@ class AgentDockView extends ItemView {
       onDraftChanged: (session) => this.persistSessionChange(session),
       handleReferenceDrop: (dataTransfer) => this.referenceController.handleReferenceDrop(dataTransfer),
       queuedPrompts: ensurePromptQueue(this.getActiveSession()),
+      onClearQueuedPrompts: () => this.clearQueuedPrompts(),
       onRemoveQueuedPrompt: (queuedPromptId) => this.removeQueuedPrompt(queuedPromptId),
       onEditQueuedPrompt: (queuedPromptId) => this.editQueuedPrompt(queuedPromptId),
       submit: () => this.submit(),
@@ -10757,6 +10785,17 @@ class AgentDockView extends ItemView {
   removeQueuedPrompt(queuedPromptId) {
     const session = this.getActiveSession();
     if (!removePromptById(session, queuedPromptId)) {
+      return;
+    }
+
+    this.sessionStore.touchSession(session);
+    this.persistSessionChange(session);
+    this.renderComposerIfActive(session);
+  }
+
+  clearQueuedPrompts() {
+    const session = this.getActiveSession();
+    if (clearPromptQueue(session) === 0) {
       return;
     }
 

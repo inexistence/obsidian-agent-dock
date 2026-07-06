@@ -844,11 +844,37 @@
 .codex-dock__prompt-queue-header {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  gap: 8px;
   min-height: 18px;
   padding: 0 6px;
   color: var(--text-muted);
   font-size: var(--font-ui-smaller);
   font-weight: 700;
+}
+
+.codex-dock__prompt-queue-clear {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  min-width: 24px;
+  min-height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: transparent;
+  box-shadow: none;
+  color: var(--text-muted);
+}
+
+.codex-dock__prompt-queue-clear:hover,
+.codex-dock__prompt-queue-clear:focus {
+  background: var(--background-modifier-hover);
+  color: var(--text-error);
+  box-shadow: none;
 }
 
 .codex-dock__prompt-queue-list {

@@ -19,6 +19,7 @@ function renderComposerContent(composer, options) {
     onDraftChanged,
     handleReferenceDrop,
     queuedPrompts,
+    onClearQueuedPrompts,
     onRemoveQueuedPrompt,
     onEditQueuedPrompt,
     submit,
@@ -30,6 +31,7 @@ function renderComposerContent(composer, options) {
 
   const shell = composer.createDiv({ cls: "codex-dock__composer-shell" });
   renderQueuedPrompts(shell, queuedPrompts, {
+    onClearQueuedPrompts,
     onRemoveQueuedPrompt,
     onEditQueuedPrompt,
     translate
