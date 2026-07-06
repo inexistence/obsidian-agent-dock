@@ -11,6 +11,7 @@ const { renderSessionSwitcher } = require("./session/SessionSwitcherRenderer");
 const { MessageTimelineRenderer } = require("./timeline/MessageTimelineRenderer");
 const { copyText } = require("./utils/clipboard");
 const { estimateContextChars, formatCompactNumber } = require("./utils/contextEstimate");
+const { decorateLocalFileLinks, normalizeLocalFileMarkdownLinks } = require("./utils/fileLinks");
 const { formatMessageTime, formatMessageTimeIso, formatMessageTimeTitle } = require("./utils/messageTime");
 
 class AgentDockView extends ItemView {
@@ -505,7 +506,14 @@ class AgentDockView extends ItemView {
     const contentEl = containerEl.createDiv({ cls: "codex-dock__content markdown-rendered" });
     const markdownEl = contentEl.createDiv({ cls: "codex-dock__content-body" });
     const sourcePath = this.app.workspace.getActiveFile()?.path || "";
-    MarkdownRenderer.render(this.app, text || "", markdownEl, sourcePath, this).catch(() => {
+    const renderText = normalizeLocalFileMarkdownLinks(text || "");
+    MarkdownRenderer.render(this.app, renderText, markdownEl, sourcePath, this).then(() => {
+      decorateLocalFileLinks(markdownEl, this.app, {
+        onOpenFailed: ({ vaultPath }) => {
+          new Notice(this.translate("notice.openFileLinkFailed", { path: vaultPath }));
+        }
+      });
+    }).catch(() => {
       markdownEl.setText(text || "");
     });
   }

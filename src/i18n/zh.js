@@ -118,6 +118,7 @@ module.exports = {
     "notice.resetAffectFailed": "Agent Dock 无法重置连接状态。请查看控制台详情。",
     "notice.stopBeforeDeleting": "删除前请先停止此对话。",
     "notice.noActiveNote": "没有可引用的当前笔记。",
+    "notice.openFileLinkFailed": "文件不存在或无法打开：{path}",
     "view.terminalButton": "终端",
     "view.openInteractiveTerminal": "在终端打开交互式 Agent",
     "view.emptyLine1": "开启一个侧边 Agent 对话。",

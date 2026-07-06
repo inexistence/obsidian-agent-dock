@@ -118,6 +118,7 @@ module.exports = {
     "notice.resetAffectFailed": "Agent Dock could not reset the connection state. Check the console for details.",
     "notice.stopBeforeDeleting": "Stop this conversation before deleting it.",
     "notice.noActiveNote": "No active note to reference.",
+    "notice.openFileLinkFailed": "File does not exist or could not be opened: {path}",
     "view.terminalButton": "Terminal",
     "view.openInteractiveTerminal": "Open interactive agent in Terminal",
     "view.emptyLine1": "Open a side conversation with an agent.",
