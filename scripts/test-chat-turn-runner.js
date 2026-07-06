@@ -94,6 +94,91 @@ async function testAffectFailureDoesNotInterruptErrorTurn() {
   assert.equal(warnings.length, 1, "affect failure should be logged once");
 }
 
+async function testBeforeAgentRunCanInsertMessageBeforeAssistant() {
+  const calls = [];
+  const session = {
+    id: "session-c",
+    messages: [],
+    currentRun: null
+  };
+
+  await runChatTurn({
+    session,
+    prompt: "make it playful",
+    agentLabel: "Codex",
+    runAgent: async (_prompt, onUpdate) => {
+      calls.push("runAgent");
+      onUpdate({ kind: "content", text: "done" });
+    },
+    translate,
+    touchSession: () => {},
+    onBeforeAgentRun: (_session, assistantMessage) => {
+      calls.push("before");
+      const assistantIndex = session.messages.indexOf(assistantMessage);
+      session.messages.splice(assistantIndex, 0, {
+        role: "system",
+        kind: "affect_shift",
+        content: "Tone shifted.",
+        timeline: [],
+        createdAt: Date.now()
+      });
+    },
+    onTurnStarted: () => {
+      calls.push("started");
+    },
+    onTurnUpdate: () => {},
+    onTurnFinished: () => {},
+    onComposerChanged: () => {},
+    updateWorkingAffect: async () => {},
+    persistChatSessions: async () => {},
+    notify: () => {}
+  });
+
+  assert.deepStrictEqual(calls.slice(0, 3), ["before", "started", "runAgent"]);
+  assert.deepStrictEqual(
+    session.messages.map((message) => message.role),
+    ["user", "system", "assistant"]
+  );
+}
+
+async function testBeforeAgentRunFailureClearsCurrentRun() {
+  const session = {
+    id: "session-d",
+    messages: [],
+    currentRun: null
+  };
+  const notified = [];
+
+  await runChatTurn({
+    session,
+    prompt: "hello",
+    agentLabel: "Codex",
+    runAgent: async () => {
+      throw new Error("should not run");
+    },
+    translate,
+    touchSession: () => {},
+    onBeforeAgentRun: () => {
+      throw new Error("before hook failed");
+    },
+    onTurnStarted: () => {},
+    onTurnUpdate: () => {},
+    onTurnFinished: () => {},
+    onComposerChanged: () => {},
+    updateWorkingAffect: async () => {},
+    persistChatSessions: async () => {},
+    notify: (key) => {
+      notified.push(key);
+    }
+  });
+
+  assert.equal(session.currentRun, null);
+  assert.deepStrictEqual(notified, ["agentCommandFailed"]);
+  const assistantMessage = session.messages.find((message) => message.role === "assistant");
+  assert(assistantMessage.content.includes("before hook failed"));
+  assert.equal(assistantMessage.isLoading, false);
+}
+
 async function withCapturedWarnings(warnings, callback) {
   const originalWarn = console.warn;
   console.warn = (...args) => {
@@ -108,6 +193,8 @@ async function withCapturedWarnings(warnings, callback) {
 
 testAffectFailureDoesNotFailSuccessfulTurn()
   .then(() => testAffectFailureDoesNotInterruptErrorTurn())
+  .then(() => testBeforeAgentRunCanInsertMessageBeforeAssistant())
+  .then(() => testBeforeAgentRunFailureClearsCurrentRun())
   .then(() => {
     console.log("ChatTurnRunner tests passed.");
   })

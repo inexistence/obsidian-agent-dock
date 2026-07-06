@@ -51,6 +51,8 @@ class AgentDockView extends ItemView {
     this.pendingMessageRenderSessionId = "";
     this.pendingMessageRenderTarget = null;
     this.affectPanelCloseListener = null;
+    this.affectChangeAnimationTimer = null;
+    this.affectChangeAnimationFrame = null;
     this.globalPointerListeners = new Set();
     this.hasLoadedPersistedSessions = false;
     this.autoScrollThresholdPx = 48;
@@ -95,6 +97,7 @@ class AgentDockView extends ItemView {
   async onClose() {
     this.cancelPendingMessageRender();
     this.clearGlobalPointerListeners();
+    this.clearAffectChangeAnimation();
     this.cancelRunningSessions();
     await this.plugin.flushChatSessions();
   }
@@ -388,7 +391,16 @@ class AgentDockView extends ItemView {
   }
 
   renderSystemMessage(item, message) {
-    const notice = item.createDiv({ cls: "codex-dock__system-notice" });
+    const noticeClasses = ["codex-dock__system-notice"];
+    if (message.kind) {
+      noticeClasses.push(`codex-dock__system-notice--${message.kind}`);
+    }
+    if (message.animateOnRender) {
+      noticeClasses.push("is-fresh");
+      message.animateOnRender = false;
+    }
+    const noticeClass = noticeClasses.join(" ");
+    const notice = item.createDiv({ cls: noticeClass });
     notice.createSpan({ cls: "codex-dock__system-notice-text", text: message.content || "" });
     const displayTime = formatMessageTime(message.createdAt, {
       language: this.plugin.settings.language,
@@ -502,6 +514,13 @@ class AgentDockView extends ItemView {
       ),
       translate: (key, params) => this.translate(key, params),
       touchSession: (targetSession) => this.sessionStore.touchSession(targetSession),
+      onBeforeAgentRun: (targetSession, assistantMessage) => {
+        const affectShift = this.describeCurrentTurnAffectShift(prompt);
+        if (affectShift) {
+          this.insertAffectShiftMessageBeforeAssistant(targetSession, assistantMessage, affectShift);
+          this.renderAffectIndicator({ changed: true, turnAffect: affectShift.affect });
+        }
+      },
       onTurnStarted: (targetSession) => {
         if (targetSession.id === this.activeSessionId) {
           this.renderMessages({ forceScrollToBottom: true });
@@ -614,14 +633,14 @@ class AgentDockView extends ItemView {
     this.renderComposerContent(composer, draft);
   }
 
-  renderAffectIndicator() {
+  renderAffectIndicator(options = {}) {
     if (!this.affectIndicatorEl) {
       return;
     }
 
     this.clearAffectPanelCloseListener();
     this.affectIndicatorEl.empty();
-    const affect = this.plugin.getWorkingAffect();
+    const affect = options.turnAffect || this.plugin.getWorkingAffect();
     if (!this.plugin.settings.affectShowIndicator || !affect) {
       this.affectIndicatorEl.addClass("is-empty");
       return;
@@ -690,6 +709,111 @@ class AgentDockView extends ItemView {
         this.clearAffectPanelCloseListener();
       }
     });
+
+    if (options.changed) {
+      this.playAffectChangeAnimation();
+    }
+  }
+
+  playAffectChangeAnimation() {
+    if (!this.affectIndicatorEl) {
+      return;
+    }
+    this.clearAffectChangeAnimation();
+    this.affectChangeAnimationFrame = window.requestAnimationFrame(() => {
+      // Wait two frames so the rebuilt indicator has a stable pre-animation state.
+      this.affectChangeAnimationFrame = window.requestAnimationFrame(() => {
+        this.affectChangeAnimationFrame = null;
+        this.affectIndicatorEl?.addClass("is-changing");
+        this.affectChangeAnimationTimer = window.setTimeout(() => {
+          this.affectIndicatorEl?.removeClass("is-changing");
+          this.affectChangeAnimationTimer = null;
+        }, 1800);
+      });
+    });
+  }
+
+  clearAffectChangeAnimation() {
+    if (this.affectChangeAnimationFrame) {
+      window.cancelAnimationFrame(this.affectChangeAnimationFrame);
+      this.affectChangeAnimationFrame = null;
+    }
+    if (this.affectChangeAnimationTimer) {
+      window.clearTimeout(this.affectChangeAnimationTimer);
+      this.affectChangeAnimationTimer = null;
+    }
+    this.affectIndicatorEl?.removeClass("is-changing");
+  }
+
+  describeAffectShift(previousAffect, nextAffect) {
+    if (!this.plugin.settings.affectEnabled || !this.plugin.settings.affectCrossSessionEnabled || !nextAffect) {
+      return null;
+    }
+
+    const previousLabel = previousAffect?.label || "";
+    const nextLabel = nextAffect.label || "";
+    const labelChanged = nextLabel && previousLabel && nextLabel !== previousLabel;
+    const movedNoticeably = previousAffect && (
+      Math.abs((nextAffect.warmth || 0) - (previousAffect.warmth || 0)) >= 0.22 ||
+      Math.abs((nextAffect.focus || 0) - (previousAffect.focus || 0)) >= 0.22 ||
+      Math.abs((nextAffect.tension || 0) - (previousAffect.tension || 0)) >= 0.18 ||
+      Math.abs((nextAffect.valence || 0) - (previousAffect.valence || 0)) >= 0.24
+    );
+
+    if (!labelChanged && !movedNoticeably) {
+      return null;
+    }
+
+    return {
+      label: this.getAffectLabel(nextLabel),
+      strength: this.getAffectStrengthLabel(nextAffect.strength)
+    };
+  }
+
+  describeCurrentTurnAffectShift(prompt) {
+    const currentAffect = this.plugin.getWorkingAffect();
+    const promptAffect = this.plugin.getPromptWorkingAffect(prompt);
+    if (!promptAffect?.transient) {
+      return null;
+    }
+
+    const previousLabel = currentAffect?.label || "";
+    const nextLabel = promptAffect.label || "";
+    const initialShift = !previousLabel && nextLabel && nextLabel !== "steady";
+    const shift = this.describeAffectShift(currentAffect, promptAffect);
+    if (!shift && !initialShift) {
+      return null;
+    }
+
+    return {
+      label: this.getAffectLabel(nextLabel),
+      strength: this.getAffectStrengthLabel(promptAffect.strength),
+      affect: promptAffect
+    };
+  }
+
+  insertAffectShiftMessageBeforeAssistant(session, assistantMessage, affectShift) {
+    if (!session || !assistantMessage || !affectShift) {
+      return;
+    }
+
+    const message = {
+      role: "system",
+      kind: "affect_shift",
+      content: this.translate("affect.shiftNotice", affectShift),
+      timeline: [],
+      createdAt: Date.now(),
+      isComplete: true,
+      isLoading: false,
+      animateOnRender: session.id === this.activeSessionId
+    };
+    const assistantIndex = session.messages.indexOf(assistantMessage);
+    if (assistantIndex === -1) {
+      session.messages.push(message);
+    } else {
+      session.messages.splice(assistantIndex, 0, message);
+    }
+    this.sessionStore.touchSession(session);
   }
 
   clearAffectPanelCloseListener() {

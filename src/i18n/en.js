@@ -144,6 +144,7 @@ module.exports = {
     "view.deleteSessionConfirm": "Delete \"{title}\"?",
     "affect.open": "Open current connection state",
     "affect.tooltip": "{label} · {strength} continuity · updated {age} ago",
+    "affect.shiftNotice": "Tone shifted toward {label}.",
     "affect.panelTitle": "Current connection",
     "affect.boundary": "Used only for tone and pacing.",
     "affect.reset": "Reset",

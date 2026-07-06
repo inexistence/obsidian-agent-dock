@@ -144,6 +144,7 @@ module.exports = {
     "view.deleteSessionConfirm": "删除“{title}”？",
     "affect.open": "打开当前连接状态",
     "affect.tooltip": "{label} · 连续性{strength} · {age}前更新",
+    "affect.shiftNotice": "氛围转向：{label}",
     "affect.panelTitle": "当前连接",
     "affect.boundary": "只用于语气和节奏。",
     "affect.reset": "重置",

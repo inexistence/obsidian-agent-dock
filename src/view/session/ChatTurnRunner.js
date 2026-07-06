@@ -33,6 +33,7 @@ async function runChatTurn({
   runAgent,
   translate,
   touchSession,
+  onBeforeAgentRun,
   onTurnStarted,
   onTurnUpdate,
   onTurnFinished,
@@ -51,11 +52,15 @@ async function runChatTurn({
     assistantMessage
   };
   session.currentRun = run;
-  touchSession(session);
-  onTurnStarted(session, assistantMessage);
-  persistChatSessions({ immediate: true });
 
   try {
+    if (onBeforeAgentRun) {
+      onBeforeAgentRun(session, assistantMessage);
+    }
+    touchSession(session);
+    onTurnStarted(session, assistantMessage);
+    persistChatSessions({ immediate: true });
+
     const conversation = session.messages.slice(0, -1);
     await runAgent(prompt, (update) => {
       if (assistantMessage.isComplete || session.currentRun !== run) {
