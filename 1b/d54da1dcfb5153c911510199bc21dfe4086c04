@@ -1,0 +1,59 @@
+src/view/AgentDockView.js
+  s_d7d9c6dca7f81d::t_c8ae70ce94d463 763
+  s_d7d9c6dca7f81d::t_cf079232593da1 54,100,636,716-722,734-736,741-762,764-769,792-794,797-806,809,816
+  s_d7d9c6dca7f81d::t_cf1c77354218da 518,521,643,773
+  s_d7d9c6dca7f81d::t_731de6499522c8 517,519-520,522-523,770-772,774-791,795-796,810-815
+  s_d7d9c6dca7f81d::t_1b6c3d693fcc0c 724,808
+  s_d7d9c6dca7f81d::t_915eba23ea3ac0 394-402,807
+  s_d7d9c6dca7f81d::t_066b60812ea018 403
+  s_d7d9c6dca7f81d::t_9eecec99ea6516 55,712-715,723,737-740
+  s_d7d9c6dca7f81d::t_7d75be800428f4 725-732
+  s_d7d9c6dca7f81d::t_db4487aee7e89d 733
+main.js
+  s_d7d9c6dca7f81d::t_c9b29ced58702a 10296,10953-10956,10964,10978-10981
+  s_d7d9c6dca7f81d::t_24dea609390fe2 10966-10973
+  s_d7d9c6dca7f81d::t_10dae9981a8544 8837-8843,10759,10762,10884,11014
+  s_d7d9c6dca7f81d::t_6e83f130b8aabb 8816,10758,10760-10761,10763-10764,11011-11013,11015-11032,11036-11037,11051-11056
+  s_d7d9c6dca7f81d::t_5709e3d1015f32 10965,11049
+  s_d7d9c6dca7f81d::t_bcb9b3ebfbe2ea 11004
+  s_d7d9c6dca7f81d::t_d6b9ff37c83278 10635-10643,11048
+  s_d7d9c6dca7f81d::t_195979f5020441 270,577,10295,10341,10644,10877,10957-10963,10975-10977,10982-11003,11005-11010,11033-11035,11038-11047,11050,11057
+  s_d7d9c6dca7f81d::t_c6b529e2258585 10974
+src/i18n/zh.js
+  s_d7d9c6dca7f81d::t_3e458e17b13c2b 147
+styles.css
+  s_d7d9c6dca7f81d::t_369c785a706a2c 145,147-149,171,513-518,522
+  s_d7d9c6dca7f81d::t_ecd93597d9489d 143,523,695-696,698-699,713-714,721-723,726,729-740,770-781,784,786-788
+  s_d7d9c6dca7f81d::t_45edc828e80d52 136,146,151-169,700-712,715-720,724-725,727-728,741-769,789-790
+  s_d7d9c6dca7f81d::t_d1a6522e3440ae 520-521,791
+  s_d7d9c6dca7f81d::t_56749f737c5f95 150
+  s_d7d9c6dca7f81d::t_b6a40a27812ae2 170
+  s_d7d9c6dca7f81d::t_3a7724d0c37072 519
+  s_d7d9c6dca7f81d::t_dcc38553db62e3 524
+  s_d7d9c6dca7f81d::t_3fdc367ac92952 782-783
+src/i18n/en.js
+  s_d7d9c6dca7f81d::t_3e458e17b13c2b 147
+scripts/test-chat-turn-runner.js
+  s_d7d9c6dca7f81d::t_f133e05fe619e5 97-143,196
+  s_d7d9c6dca7f81d::t_dfce655f305976 144-181,197
+src/view/session/ChatTurnRunner.js
+  s_d7d9c6dca7f81d::t_0bc969cdc9fe16 57-63
+  s_d7d9c6dca7f81d::t_ed2a9f56828d55 36
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "1bd54da1dcfb5153c911510199bc21dfe4086c04",
+  "prompts": {},
+  "logical_commit_id": "1bd54da1dcfb5153c911510199bc21dfe4086c04",
+  "sessions": {
+    "s_d7d9c6dca7f81d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f37a0-87f0-7e63-9d90-65f46124e3a0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
