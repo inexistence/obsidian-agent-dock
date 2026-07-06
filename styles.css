@@ -548,13 +548,15 @@
   font-variant-numeric: tabular-nums;
 }
 
-.codex-dock__system-notice--affect_shift {
+.codex-dock__system-notice--affect_shift,
+.codex-dock__system-notice--affect_prompt {
   border: 1px solid color-mix(in srgb, var(--interactive-accent) 28%, transparent);
   background: color-mix(in srgb, var(--interactive-accent) 10%, var(--background-modifier-hover));
   color: var(--text-muted);
 }
 
-.codex-dock__system-notice--affect_shift.is-fresh {
+.codex-dock__system-notice--affect_shift.is-fresh,
+.codex-dock__system-notice--affect_prompt.is-fresh {
   animation: codex-dock-system-notice-in 180ms ease-out 1;
 }
 
@@ -826,7 +828,8 @@
   .codex-dock__affect-slot.is-changing .codex-dock__affect-pulse,
   .codex-dock__affect-slot.is-changing .codex-dock__affect-pulse::after,
   .codex-dock__affect-slot.is-changing .codex-dock__affect-label,
-  .codex-dock__system-notice--affect_shift.is-fresh {
+  .codex-dock__system-notice--affect_shift.is-fresh,
+  .codex-dock__system-notice--affect_prompt.is-fresh {
     animation: none;
   }
 }

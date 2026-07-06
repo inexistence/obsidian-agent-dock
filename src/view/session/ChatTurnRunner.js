@@ -39,6 +39,7 @@ async function runChatTurn({
   onTurnFinished,
   onComposerChanged,
   updateWorkingAffect,
+  settleAffectDisplay,
   persistChatSessions,
   notify
 }) {
@@ -94,6 +95,9 @@ async function runChatTurn({
       prompt,
       response: assistantMessage.content,
       success: true
+    }, {
+      session,
+      assistantMessage
     });
     touchSession(session);
     onTurnFinished(session, { final: false, status: turnStatus });
@@ -119,6 +123,14 @@ async function runChatTurn({
         prompt,
         response: errorText,
         success: false
+      }, {
+        session,
+        assistantMessage
+      });
+    } else {
+      await trySettleAffectDisplay(settleAffectDisplay, {
+        session,
+        assistantMessage
       });
     }
     touchSession(session);
@@ -134,15 +146,27 @@ async function runChatTurn({
   }
 }
 
-async function tryUpdateWorkingAffect(updateWorkingAffect, turn) {
+async function tryUpdateWorkingAffect(updateWorkingAffect, turn, context = {}) {
   if (!updateWorkingAffect) {
     return;
   }
 
   try {
-    await updateWorkingAffect(turn);
+    await updateWorkingAffect(turn, context);
   } catch (error) {
     console.warn("Agent Dock could not update affect continuity:", error);
+  }
+}
+
+async function trySettleAffectDisplay(settleAffectDisplay, context = {}) {
+  if (!settleAffectDisplay) {
+    return;
+  }
+
+  try {
+    await settleAffectDisplay(context);
+  } catch (error) {
+    console.warn("Agent Dock could not settle affect display:", error);
   }
 }
 

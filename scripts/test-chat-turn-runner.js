@@ -179,6 +179,87 @@ async function testBeforeAgentRunFailureClearsCurrentRun() {
   assert.equal(assistantMessage.isLoading, false);
 }
 
+async function testWorkingAffectReceivesTurnContext() {
+  const session = {
+    id: "session-e",
+    messages: [],
+    currentRun: null
+  };
+  const contexts = [];
+
+  await runChatTurn({
+    session,
+    prompt: "hello",
+    agentLabel: "Codex",
+    agentId: "codex",
+    runAgent: async (_prompt, onUpdate) => {
+      onUpdate({ kind: "content", text: "done" });
+    },
+    translate,
+    touchSession: () => {},
+    onTurnStarted: () => {},
+    onTurnUpdate: () => {},
+    onTurnFinished: () => {},
+    onComposerChanged: () => {},
+    updateWorkingAffect: async (_turn, context) => {
+      contexts.push(context);
+    },
+    persistChatSessions: async () => {},
+    notify: () => {}
+  });
+
+  const assistantMessage = session.messages.find((message) => message.role === "assistant");
+  assert.equal(contexts.length, 1, "successful turns should update affect once");
+  assert.strictEqual(contexts[0].session, session);
+  assert.strictEqual(contexts[0].assistantMessage, assistantMessage);
+}
+
+async function testStoppedTurnSettlesAffectDisplayWithoutUpdatingWorkingAffect() {
+  const session = {
+    id: "session-f",
+    messages: [],
+    currentRun: null
+  };
+  const settled = [];
+  let affectUpdates = 0;
+  const notified = [];
+
+  await runChatTurn({
+    session,
+    prompt: "stop",
+    agentLabel: "Codex",
+    agentId: "codex",
+    runAgent: async () => {
+      const error = new Error("aborted");
+      error.name = "AbortError";
+      throw error;
+    },
+    translate,
+    touchSession: () => {},
+    onTurnStarted: () => {},
+    onTurnUpdate: () => {},
+    onTurnFinished: () => {},
+    onComposerChanged: () => {},
+    updateWorkingAffect: async () => {
+      affectUpdates += 1;
+    },
+    settleAffectDisplay: async (context) => {
+      settled.push(context);
+    },
+    persistChatSessions: async () => {},
+    notify: (key) => {
+      notified.push(key);
+    }
+  });
+
+  const assistantMessage = session.messages.find((message) => message.role === "assistant");
+  assert.equal(affectUpdates, 0, "stopped turns should not update durable affect");
+  assert.equal(settled.length, 1, "stopped turns should settle visible affect once");
+  assert.strictEqual(settled[0].session, session);
+  assert.strictEqual(settled[0].assistantMessage, assistantMessage);
+  assert.deepStrictEqual(notified, ["agentStopped"]);
+}
+
 async function withCapturedWarnings(warnings, callback) {
   const originalWarn = console.warn;
   console.warn = (...args) => {
@@ -195,6 +276,8 @@ testAffectFailureDoesNotFailSuccessfulTurn()
   .then(() => testAffectFailureDoesNotInterruptErrorTurn())
   .then(() => testBeforeAgentRunCanInsertMessageBeforeAssistant())
   .then(() => testBeforeAgentRunFailureClearsCurrentRun())
+  .then(() => testWorkingAffectReceivesTurnContext())
+  .then(() => testStoppedTurnSettlesAffectDisplayWithoutUpdatingWorkingAffect())
   .then(() => {
     console.log("ChatTurnRunner tests passed.");
   })
