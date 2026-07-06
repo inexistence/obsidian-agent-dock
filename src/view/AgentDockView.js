@@ -524,7 +524,7 @@ class AgentDockView extends ItemView {
       onTurnStarted: (targetSession) => {
         if (targetSession.id === this.activeSessionId) {
           this.renderMessages({ forceScrollToBottom: true });
-          this.renderComposer();
+          this.renderComposer({ focusInput: true });
         }
       },
       onTurnUpdate: (targetSession, assistantMessage) => {
@@ -563,7 +563,7 @@ class AgentDockView extends ItemView {
     this.clearComposerDraft(session);
     this.sessionStore.touchSession(session);
     this.persistSessionChange(session);
-    this.renderComposerIfActive(session);
+    this.renderComposerIfActive(session, { focusInput: true });
     this.updateContextStatus();
   }
 
@@ -617,20 +617,36 @@ class AgentDockView extends ItemView {
       }
       this.sessionStore.touchSession(session);
       this.persistSessionChange(session);
-      this.renderComposerIfActive(session);
+      this.renderComposerIfActive(session, { preserveFocus: true });
       await this.startChatTurn(session, entry.text, { drainQueue: false });
     }
   }
 
-  renderComposer() {
+  renderComposer(options = {}) {
     const composer = this.containerEl.querySelector(".codex-dock__composer");
     if (!composer) {
       return;
     }
 
+    const shouldRestoreFocus = Boolean(
+      options.focusInput
+      || (
+        options.preserveFocus !== false
+        && this.inputEl
+        && document.activeElement === this.inputEl
+      )
+    );
     const draft = this.getActiveSession()?.draft || "";
     composer.empty();
     this.renderComposerContent(composer, draft);
+    if (shouldRestoreFocus && this.inputEl) {
+      const inputToFocus = this.inputEl;
+      window.requestAnimationFrame(() => {
+        if (inputToFocus.isConnected) {
+          inputToFocus.focus();
+        }
+      });
+    }
   }
 
   renderAffectIndicator(options = {}) {
@@ -1074,9 +1090,9 @@ class AgentDockView extends ItemView {
     this.pendingMessageRenderTarget = null;
   }
 
-  renderComposerIfActive(session) {
+  renderComposerIfActive(session, options = {}) {
     if (session.id === this.activeSessionId) {
-      this.renderComposer();
+      this.renderComposer(options);
     }
   }
 
