@@ -351,10 +351,6 @@
   text-align: left;
 }
 
-.codex-dock__conversation-item.is-untitled .codex-dock__conversation-item-main {
-  width: 32px;
-}
-
 .codex-dock__conversation-item:hover {
   background: transparent !important;
   background-color: transparent !important;

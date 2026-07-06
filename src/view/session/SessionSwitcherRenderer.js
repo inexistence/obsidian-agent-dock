@@ -106,7 +106,7 @@ function renderSessionSwitcher(options) {
 }
 
 function getSessionDisplayTitle(session) {
-  if (!session || session.isUntitled) {
+  if (!session) {
     return "";
   }
   return String(session.title || "").trim();
