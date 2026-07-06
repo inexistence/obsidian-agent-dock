@@ -1,3 +1,5 @@
+/* Shell */
+
 .codex-dock {
   container-type: inline-size;
   display: flex;
@@ -6,6 +8,8 @@
   min-height: 0;
   background: var(--background-primary);
 }
+
+/* Header */
 
 .codex-dock__header {
   display: flex;
@@ -87,6 +91,8 @@
   height: 14px;
   color: var(--text-muted);
 }
+
+/* Affect Indicator */
 
 .codex-dock__affect-slot {
   position: relative;
@@ -236,6 +242,8 @@
   font-size: var(--font-ui-smaller);
 }
 
+/* Header Actions */
+
 .codex-dock__actions {
   display: flex;
   align-items: center;
@@ -249,6 +257,8 @@
   padding: 0 10px;
   font-size: var(--font-ui-smaller);
 }
+
+/* Session Switcher */
 
 .codex-dock__session-bar {
   position: relative;
@@ -481,6 +491,8 @@
   color: var(--interactive-accent);
 }
 
+/* Messages */
+
 .codex-dock__messages {
   flex: 1;
   min-height: 0;
@@ -705,6 +717,8 @@
   animation-delay: 0.32s;
 }
 
+/* Motion */
+
 @keyframes codex-dock-thinking {
   0%,
   80%,
@@ -816,6 +830,8 @@
     animation: none;
   }
 }
+
+/* Timeline Events */
 
 .codex-dock__timeline {
   box-sizing: border-box;
@@ -963,6 +979,8 @@
   -webkit-user-select: text;
 }
 
+/* Composer */
+
 .codex-dock__composer {
   padding: 10px 8px 12px;
 }
@@ -988,6 +1006,8 @@
 .codex-dock__composer-shell:focus-within {
   border-color: var(--background-modifier-border);
 }
+
+/* Prompt Queue */
 
 .codex-dock__prompt-queue {
   display: grid;
@@ -1093,6 +1113,8 @@
   box-shadow: none;
 }
 
+/* Input */
+
 .codex-dock__input-wrap {
   display: flex;
   flex-direction: column;
@@ -1136,6 +1158,8 @@
   color: var(--text-faint);
   font-weight: 600;
 }
+
+/* Mentions */
 
 .codex-dock__mention-chips {
   display: flex;
@@ -1364,6 +1388,8 @@
   white-space: nowrap;
 }
 
+/* Composer Controls */
+
 .codex-dock__composer-bar {
   display: flex;
   align-items: center;
@@ -1572,6 +1598,8 @@
   color: var(--text-on-accent);
   box-shadow: none;
 }
+
+/* Responsive */
 
 @container (max-width: 360px) {
   .codex-dock__composer {
