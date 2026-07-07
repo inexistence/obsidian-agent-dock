@@ -260,6 +260,9 @@ module.exports = {
     "view.aiAssistant": "AI assistant",
     "view.folder": "Folder",
     "view.vaultRoot": "Vault root",
+    "view.imagePreview": "Image preview",
+    "view.openImagePreview": "Open image preview",
+    "view.closeImagePreview": "Close image preview",
     "view.agentFinishedEmpty": "({agent} finished without text output.)",
     "view.agentStopped": "({agent} stopped.)",
     "view.agentRunFailed": "{agent} could not run.",
@@ -581,6 +584,9 @@ module.exports = {
     "view.aiAssistant": "AI 助手",
     "view.folder": "文件夹",
     "view.vaultRoot": "Vault 根目录",
+    "view.imagePreview": "图片预览",
+    "view.openImagePreview": "打开图片预览",
+    "view.closeImagePreview": "关闭图片预览",
     "view.agentFinishedEmpty": "（{agent} 已完成，但没有文本输出。）",
     "view.agentStopped": "（{agent} 已停止。）",
     "view.agentRunFailed": "{agent} 无法运行。",
@@ -10989,6 +10995,9 @@ class AgentDockView extends ItemView {
     this.autoScrollThresholdPx = 48;
     this.keepScrollBottomUntil = 0;
     this.pendingScrollBottomFrame = null;
+    this.imagePreviewEl = null;
+    this.imagePreviewKeydown = null;
+    this.imagePreviewPreviouslyFocused = null;
   }
 
   get sessions() {
@@ -11028,6 +11037,7 @@ class AgentDockView extends ItemView {
   async onClose() {
     this.cancelPendingMessageRender();
     this.clearGlobalPointerListeners();
+    this.closeImagePreview();
     this.clearAffectChangeAnimation();
     this.cancelRunningSessions();
     await this.plugin.flushChatSessions();
@@ -11036,6 +11046,7 @@ class AgentDockView extends ItemView {
   render(options = {}) {
     this.cancelPendingMessageRender();
     this.clearGlobalPointerListeners();
+    this.closeImagePreview();
     const { containerEl } = this;
     containerEl.empty();
     containerEl.addClass("codex-dock");
@@ -11888,11 +11899,159 @@ class AgentDockView extends ItemView {
           new Notice(this.translate("notice.openFileLinkFailed", { path: vaultPath }));
         }
       });
+      this.decorateImagePreviews(markdownEl);
       this.scrollMessagesToBottomIfPinned();
     }).catch(() => {
       markdownEl.setText(text || "");
       this.scrollMessagesToBottomIfPinned();
     });
+  }
+
+  decorateImagePreviews(markdownEl) {
+    for (const imageEl of markdownEl.querySelectorAll("img")) {
+      imageEl.classList.add("codex-dock__previewable-image");
+      imageEl.setAttribute("tabindex", "0");
+      imageEl.setAttribute("role", "button");
+      imageEl.setAttribute("aria-label", this.translate("view.openImagePreview"));
+      imageEl.setAttribute("title", this.translate("view.openImagePreview"));
+      imageEl.addEventListener("click", (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        this.openImagePreview(imageEl);
+      });
+      imageEl.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") {
+          return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        this.openImagePreview(imageEl);
+      });
+    }
+  }
+
+  openImagePreview(sourceImageEl) {
+    const src = sourceImageEl?.currentSrc || sourceImageEl?.src || sourceImageEl?.getAttribute("src") || "";
+    if (!src) {
+      return;
+    }
+
+    this.closeImagePreview();
+    this.imagePreviewPreviouslyFocused = document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null;
+    const overlay = this.containerEl.createDiv({
+      cls: "codex-dock__image-preview",
+      attr: {
+        role: "dialog",
+        "aria-modal": "true",
+        "aria-label": this.translate("view.imagePreview")
+      }
+    });
+    const backdrop = overlay.createDiv({ cls: "codex-dock__image-preview-backdrop" });
+    const stage = overlay.createDiv({ cls: "codex-dock__image-preview-stage" });
+    const toolbar = stage.createDiv({ cls: "codex-dock__image-preview-toolbar" });
+    toolbar.createDiv({
+      cls: "codex-dock__image-preview-title",
+      text: this.getImagePreviewTitle(sourceImageEl, src)
+    });
+    const closeButton = toolbar.createEl("button", {
+      cls: "codex-dock__image-preview-close",
+      attr: {
+        type: "button",
+        "aria-label": this.translate("view.closeImagePreview"),
+        title: this.translate("view.closeImagePreview")
+      }
+    });
+    setIcon(closeButton, "x");
+    const imageWrap = stage.createDiv({ cls: "codex-dock__image-preview-wrap" });
+    imageWrap.createEl("img", {
+      cls: "codex-dock__image-preview-img",
+      attr: {
+        src,
+        alt: sourceImageEl.alt || ""
+      }
+    });
+
+    const close = () => this.closeImagePreview();
+    backdrop.addEventListener("click", close);
+    closeButton.addEventListener("click", close);
+    this.imagePreviewKeydown = (event) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        this.closeImagePreview();
+        return;
+      }
+      if (event.key === "Tab") {
+        this.trapImagePreviewFocus(event);
+      }
+    };
+    window.addEventListener("keydown", this.imagePreviewKeydown);
+    this.imagePreviewEl = overlay;
+    closeButton.focus();
+  }
+
+  getImagePreviewTitle(sourceImageEl, src) {
+    const label = String(sourceImageEl?.alt || sourceImageEl?.getAttribute("aria-label") || "").trim();
+    if (label && label !== this.translate("view.openImagePreview")) {
+      return label;
+    }
+    const decodedName = this.getImagePreviewNameFromSource(src);
+    return decodedName || this.translate("view.imagePreview");
+  }
+
+  getImagePreviewNameFromSource(src) {
+    const cleanSrc = String(src || "").split("#")[0].split("?")[0];
+    const name = cleanSrc.split("/").filter(Boolean).pop() || "";
+    if (!name) {
+      return "";
+    }
+    try {
+      return decodeURIComponent(name);
+    } catch {
+      return name;
+    }
+  }
+
+  trapImagePreviewFocus(event) {
+    if (!this.imagePreviewEl) {
+      return;
+    }
+    const focusable = Array.from(this.imagePreviewEl.querySelectorAll(
+      "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"
+    )).filter((element) => !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true");
+    if (focusable.length === 0) {
+      event.preventDefault();
+      this.imagePreviewEl.focus();
+      return;
+    }
+
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+      return;
+    }
+    if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  }
+
+  closeImagePreview() {
+    if (this.imagePreviewKeydown) {
+      window.removeEventListener("keydown", this.imagePreviewKeydown);
+      this.imagePreviewKeydown = null;
+    }
+    if (this.imagePreviewEl) {
+      this.imagePreviewEl.remove();
+      this.imagePreviewEl = null;
+    }
+    if (this.imagePreviewPreviouslyFocused?.isConnected) {
+      this.imagePreviewPreviouslyFocused.focus();
+    }
+    this.imagePreviewPreviouslyFocused = null;
   }
 
   updateContextStatus() {

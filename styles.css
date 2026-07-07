@@ -1,6 +1,7 @@
 /* Shell */
 
 .codex-dock {
+  position: relative;
   container-type: inline-size;
   display: flex;
   flex-direction: column;
@@ -665,6 +666,102 @@
 
 .codex-dock__content code {
   overflow-wrap: anywhere;
+}
+
+.codex-dock__previewable-image {
+  cursor: zoom-in;
+}
+
+.codex-dock__previewable-image:focus-visible {
+  outline: 2px solid var(--interactive-accent);
+  outline-offset: 2px;
+}
+
+.codex-dock__image-preview {
+  position: absolute;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+}
+
+.codex-dock__image-preview-backdrop {
+  position: absolute;
+  inset: 0;
+  background: color-mix(in srgb, var(--background-primary) 82%, transparent);
+}
+
+.codex-dock__image-preview-stage {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  width: min(100%, 980px);
+  max-height: 100%;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background: var(--background-primary);
+  box-shadow: 0 18px 54px rgba(0, 0, 0, 0.32);
+}
+
+.codex-dock__image-preview-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  padding: 8px 8px 8px 12px;
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.codex-dock__image-preview-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  font-weight: 700;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.codex-dock__image-preview-close {
+  appearance: none;
+  -webkit-appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  min-width: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+}
+
+.codex-dock__image-preview-close:hover,
+.codex-dock__image-preview-close:focus-visible {
+  background: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+.codex-dock__image-preview-wrap {
+  display: grid;
+  place-items: center;
+  min-height: 0;
+  overflow: auto;
+  padding: 12px;
+}
+
+.codex-dock__image-preview-img {
+  display: block;
+  max-width: 100%;
+  max-height: calc(100vh - 170px);
+  object-fit: contain;
 }
 
 .codex-dock__message-footer .codex-dock__copy-button {
