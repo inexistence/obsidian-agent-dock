@@ -164,6 +164,8 @@ module.exports = {
     "affect.strength.high": "强",
     "affect.strength.medium": "在场",
     "affect.strength.low": "渐淡",
+    "affect.strength.default": "默认",
+    "affect.age.notUpdated": "尚未更新",
     "affect.age.justNow": "刚刚",
     "affect.age.minutes": "{count} 分钟",
     "affect.age.hours": "{count} 小时",

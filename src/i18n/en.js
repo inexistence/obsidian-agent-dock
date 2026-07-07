@@ -164,6 +164,8 @@ module.exports = {
     "affect.strength.high": "Strong",
     "affect.strength.medium": "Present",
     "affect.strength.low": "Fading",
+    "affect.strength.default": "Default",
+    "affect.age.notUpdated": "not updated yet",
     "affect.age.justNow": "just now",
     "affect.age.minutes": "{count} min",
     "affect.age.hours": "{count} hr",

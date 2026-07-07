@@ -22,6 +22,7 @@ const { copyText } = require("./utils/clipboard");
 const { estimateContextChars, formatCompactNumber } = require("./utils/contextEstimate");
 const { decorateLocalFileLinks, normalizeLocalFileMarkdownLinks } = require("./utils/fileLinks");
 const { formatMessageTime, formatMessageTimeIso, formatMessageTimeTitle } = require("./utils/messageTime");
+const { DEFAULT_WORKING_AFFECT } = require("../affect/WorkingAffectStore");
 
 class AgentDockView extends ItemView {
   constructor(leaf, plugin) {
@@ -684,16 +685,24 @@ class AgentDockView extends ItemView {
 
     this.clearAffectPanelCloseListener();
     this.affectIndicatorEl.empty();
-    const affect = this.plugin.getWorkingAffect();
-    if (!this.plugin.settings.affectShowIndicator || !affect) {
+    if (
+      !this.plugin.settings.affectShowIndicator
+      || !this.plugin.settings.affectEnabled
+      || !this.plugin.settings.affectCrossSessionEnabled
+    ) {
       this.affectIndicatorEl.addClass("is-empty");
       return;
     }
+    const affect = this.plugin.getWorkingAffect() || this.getDefaultAffectIndicatorState();
     this.affectIndicatorEl.removeClass("is-empty");
 
     const label = this.getAffectStateLabel(affect.label);
-    const strength = this.getAffectStrengthLabel(affect.strength);
-    const age = this.formatAffectAge(affect.ageMinutes);
+    const strength = affect.isDefault
+      ? this.translate("affect.strength.default")
+      : this.getAffectStrengthLabel(affect.strength);
+    const age = affect.isDefault
+      ? this.translate("affect.age.notUpdated")
+      : this.formatAffectAge(affect.ageMinutes);
     const title = this.translate("affect.tooltip", { label, strength, age });
     const details = this.affectIndicatorEl.createEl("details", { cls: "codex-dock__affect" });
     const summary = details.createEl("summary", {
@@ -917,6 +926,14 @@ class AgentDockView extends ItemView {
     const row = containerEl.createDiv({ cls: "codex-dock__affect-row" });
     row.createSpan({ cls: "codex-dock__affect-row-label", text: this.translate(labelKey) });
     row.createSpan({ cls: "codex-dock__affect-row-value", text: value });
+  }
+
+  getDefaultAffectIndicatorState() {
+    return Object.assign({}, DEFAULT_WORKING_AFFECT, {
+      strength: 0,
+      ageMinutes: 0,
+      isDefault: true
+    });
   }
 
   getAffectLabel(label) {

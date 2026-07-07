@@ -287,6 +287,8 @@ module.exports = {
     "affect.strength.high": "Strong",
     "affect.strength.medium": "Present",
     "affect.strength.low": "Fading",
+    "affect.strength.default": "Default",
+    "affect.age.notUpdated": "not updated yet",
     "affect.age.justNow": "just now",
     "affect.age.minutes": "{count} min",
     "affect.age.hours": "{count} hr",
@@ -604,6 +606,8 @@ module.exports = {
     "affect.strength.high": "强",
     "affect.strength.medium": "在场",
     "affect.strength.low": "渐淡",
+    "affect.strength.default": "默认",
+    "affect.age.notUpdated": "尚未更新",
     "affect.age.justNow": "刚刚",
     "affect.age.minutes": "{count} 分钟",
     "affect.age.hours": "{count} 小时",
@@ -10381,6 +10385,7 @@ const { copyText } = __require("src/view/utils/clipboard.js");
 const { estimateContextChars, formatCompactNumber } = __require("src/view/utils/contextEstimate.js");
 const { decorateLocalFileLinks, normalizeLocalFileMarkdownLinks } = __require("src/view/utils/fileLinks.js");
 const { formatMessageTime, formatMessageTimeIso, formatMessageTimeTitle } = __require("src/view/utils/messageTime.js");
+const { DEFAULT_WORKING_AFFECT } = __require("src/affect/WorkingAffectStore.js");
 
 class AgentDockView extends ItemView {
   constructor(leaf, plugin) {
@@ -11043,16 +11048,24 @@ class AgentDockView extends ItemView {
 
     this.clearAffectPanelCloseListener();
     this.affectIndicatorEl.empty();
-    const affect = this.plugin.getWorkingAffect();
-    if (!this.plugin.settings.affectShowIndicator || !affect) {
+    if (
+      !this.plugin.settings.affectShowIndicator
+      || !this.plugin.settings.affectEnabled
+      || !this.plugin.settings.affectCrossSessionEnabled
+    ) {
       this.affectIndicatorEl.addClass("is-empty");
       return;
     }
+    const affect = this.plugin.getWorkingAffect() || this.getDefaultAffectIndicatorState();
     this.affectIndicatorEl.removeClass("is-empty");
 
     const label = this.getAffectStateLabel(affect.label);
-    const strength = this.getAffectStrengthLabel(affect.strength);
-    const age = this.formatAffectAge(affect.ageMinutes);
+    const strength = affect.isDefault
+      ? this.translate("affect.strength.default")
+      : this.getAffectStrengthLabel(affect.strength);
+    const age = affect.isDefault
+      ? this.translate("affect.age.notUpdated")
+      : this.formatAffectAge(affect.ageMinutes);
     const title = this.translate("affect.tooltip", { label, strength, age });
     const details = this.affectIndicatorEl.createEl("details", { cls: "codex-dock__affect" });
     const summary = details.createEl("summary", {
@@ -11276,6 +11289,14 @@ class AgentDockView extends ItemView {
     const row = containerEl.createDiv({ cls: "codex-dock__affect-row" });
     row.createSpan({ cls: "codex-dock__affect-row-label", text: this.translate(labelKey) });
     row.createSpan({ cls: "codex-dock__affect-row-value", text: value });
+  }
+
+  getDefaultAffectIndicatorState() {
+    return Object.assign({}, DEFAULT_WORKING_AFFECT, {
+      strength: 0,
+      ageMinutes: 0,
+      isDefault: true
+    });
   }
 
   getAffectLabel(label) {
