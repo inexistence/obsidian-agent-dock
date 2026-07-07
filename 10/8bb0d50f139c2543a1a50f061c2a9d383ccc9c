@@ -1,0 +1,24 @@
+src/i18n/zh.js
+  s_e3437fcf77aa30::t_5f2bc844404e05 172-175,177-192
+src/i18n/en.js
+  s_e3437fcf77aa30::t_5f2bc844404e05 172-192
+main.js
+  s_e3437fcf77aa30::t_3e33d97c3bf203 295-315,614-617,619-634
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "108bb0d50f139c2543a1a50f061c2a9d383ccc9c",
+  "prompts": {},
+  "logical_commit_id": "108bb0d50f139c2543a1a50f061c2a9d383ccc9c",
+  "sessions": {
+    "s_e3437fcf77aa30": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f37c8-3682-70c0-aa33-bbf408e3377c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
