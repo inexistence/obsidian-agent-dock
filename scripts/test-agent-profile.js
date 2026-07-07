@@ -145,6 +145,62 @@ function createStore(files) {
 }
 
 {
+  const extractor = new ProfileObservationExtractor();
+  const observations = extractor.extractTurn({
+    prompt: "我们先修复这个 bug，然后跑测试。",
+    previousAssistantResponse: "我会排查。",
+    response: "先定位失败点。"
+  });
+  assert.equal(
+    observations.some((item) => item.kind === "relational_signal"),
+    false,
+    "ordinary plural task phrasing should not become relational profile evidence"
+  );
+}
+
+{
+  const extractor = new ProfileObservationExtractor();
+  const observations = extractor.extractTurn({
+    prompt: "我们一起探索这个连续性机制和协作边界。",
+    previousAssistantResponse: "可以从 observation 开始。",
+    response: "我会把机制拆清楚。"
+  });
+  assert.equal(
+    observations.some((item) => item.kind === "relational_signal"),
+    true,
+    "shared collaboration phrasing should still become relational profile evidence"
+  );
+}
+
+{
+  const extractor = new ProfileObservationExtractor();
+  const observations = extractor.extractTurn({
+    prompt: "Let's fix this bug together and run tests.",
+    previousAssistantResponse: "I will debug.",
+    response: "I will start with the failing path."
+  });
+  assert.equal(
+    observations.some((item) => item.kind === "relational_signal"),
+    false,
+    "ordinary English together task phrasing should not become relational profile evidence"
+  );
+}
+
+{
+  const extractor = new ProfileObservationExtractor();
+  const observations = extractor.extractTurn({
+    prompt: "Let's explore together how collaboration memory should shape continuity.",
+    previousAssistantResponse: "We can model it locally.",
+    response: "I will separate memory from profile traits."
+  });
+  assert.equal(
+    observations.some((item) => item.kind === "relational_signal"),
+    true,
+    "contextual English together collaboration phrasing should still become relational profile evidence"
+  );
+}
+
+{
   const now = Date.UTC(2026, 6, 4);
   const first = applyProfileObservations(null, [
     {

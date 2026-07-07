@@ -298,9 +298,24 @@ function tokenize(text) {
   for (const match of matches) {
     if (!STOP_WORDS.has(match)) {
       tokens.add(match);
+      addCjkNgrams(tokens, match);
     }
   }
   return tokens;
+}
+
+function addCjkNgrams(tokens, token) {
+  if (!/^[\u4e00-\u9fff]{3,}$/.test(token)) {
+    return;
+  }
+  for (const size of [2, 3]) {
+    for (let index = 0; index <= token.length - size; index += 1) {
+      const gram = token.slice(index, index + size);
+      if (!STOP_WORDS.has(gram)) {
+        tokens.add(gram);
+      }
+    }
+  }
 }
 
 function formatMemoryLine(item) {

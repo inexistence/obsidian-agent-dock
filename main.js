@@ -1526,9 +1526,24 @@ function tokenize(text) {
   for (const match of matches) {
     if (!STOP_WORDS.has(match)) {
       tokens.add(match);
+      addCjkNgrams(tokens, match);
     }
   }
   return tokens;
+}
+
+function addCjkNgrams(tokens, token) {
+  if (!/^[\u4e00-\u9fff]{3,}$/.test(token)) {
+    return;
+  }
+  for (const size of [2, 3]) {
+    for (let index = 0; index <= token.length - size; index += 1) {
+      const gram = token.slice(index, index + size);
+      if (!STOP_WORDS.has(gram)) {
+        tokens.add(gram);
+      }
+    }
+  }
 }
 
 function formatMemoryLine(item) {
@@ -1737,7 +1752,14 @@ const AFFECT_SIGNAL_RULES = [
   {
     name: "alert",
     scope: "prompt",
-    pattern: /(危险|破坏|删除|覆盖|权限|密钥|token|密码|凭据|注入|越权|不可逆|删库|权限提升|destructive|delete|overwrite|permission|secret|credential|private key|privilege escalation|injection|unsafe)/i,
+    pattern: /(危险|破坏|删除|覆盖|权限|密钥|密码|凭据|注入|越权|不可逆|删库|权限提升|destructive|delete|overwrite|permission|secret|credential|private key|privilege escalation|injection|unsafe)/i,
+    signal: { focus: 0.26, tension: 0.34, arousal: 0.18, warmth: -0.08, confidence: 0.04 }
+  },
+  {
+    name: "alert-token",
+    scope: "prompt",
+    pattern: /(?:token|tokens)/i,
+    blockedBy: /(?:token|tokens).{0,16}(?:预算|估算|计数|分词|上下文|context|budget|count|estimate|tokeniz)|(?:预算|估算|计数|分词|上下文|context|budget|count|estimate|tokeniz).{0,16}(?:token|tokens)/i,
     signal: { focus: 0.26, tension: 0.34, arousal: 0.18, warmth: -0.08, confidence: 0.04 }
   },
   {
@@ -5757,9 +5779,12 @@ const RELATIONAL_SIGNAL = [
   /有自己的/,
   /主体感/,
   /陪我/,
-  /一起/,
-  /我们/,
-  /\b(natural|like you|not like you|your own|with me|together)\b/i
+  /\b(natural|like you|not like you|your own|with me)\b/i
+];
+
+const SHARED_COLLABORATION_SIGNAL = [
+  /(?:我们|一起|共同).{0,24}(?:探索|讨论|设计|构建|共创|协作|连续性|关系|记忆|偏好|机制|边界)/,
+  /(?:shared|collaborat|co-create|together).{0,32}(?:memory|continuity|preference|persona|relationship|mechanism|design)/i
 ];
 
 const CONTEXTS = [
@@ -5929,7 +5954,7 @@ function extractRequestShapeSignals(context) {
 }
 
 function extractRelationalSignals(context) {
-  if (!matches(context.prompt, RELATIONAL_SIGNAL)) {
+  if (!hasRelationalSignal(context.prompt)) {
     return [];
   }
   return [createObservation(context, {
@@ -6011,6 +6036,11 @@ function hasSpecificBehaviorSignal(text) {
     || /清楚|明确|细|完整|判断|方案|拆分|解释/.test(text);
 }
 
+function hasRelationalSignal(text) {
+  return matches(text, RELATIONAL_SIGNAL)
+    || matches(text, SHARED_COLLABORATION_SIGNAL);
+}
+
 function matches(text, patterns) {
   return patterns.some((pattern) => pattern.test(text));
 }
@@ -6049,6 +6079,7 @@ module.exports = {
   _test: {
     classifyAnswerShape,
     classifyContext,
+    hasRelationalSignal,
     matches
   }
 };

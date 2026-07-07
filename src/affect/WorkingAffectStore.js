@@ -85,7 +85,14 @@ const AFFECT_SIGNAL_RULES = [
   {
     name: "alert",
     scope: "prompt",
-    pattern: /(危险|破坏|删除|覆盖|权限|密钥|token|密码|凭据|注入|越权|不可逆|删库|权限提升|destructive|delete|overwrite|permission|secret|credential|private key|privilege escalation|injection|unsafe)/i,
+    pattern: /(危险|破坏|删除|覆盖|权限|密钥|密码|凭据|注入|越权|不可逆|删库|权限提升|destructive|delete|overwrite|permission|secret|credential|private key|privilege escalation|injection|unsafe)/i,
+    signal: { focus: 0.26, tension: 0.34, arousal: 0.18, warmth: -0.08, confidence: 0.04 }
+  },
+  {
+    name: "alert-token",
+    scope: "prompt",
+    pattern: /(?:token|tokens)/i,
+    blockedBy: /(?:token|tokens).{0,16}(?:预算|估算|计数|分词|上下文|context|budget|count|estimate|tokeniz)|(?:预算|估算|计数|分词|上下文|context|budget|count|estimate|tokeniz).{0,16}(?:token|tokens)/i,
     signal: { focus: 0.26, tension: 0.34, arousal: 0.18, warmth: -0.08, confidence: 0.04 }
   },
   {

@@ -220,6 +220,36 @@ const settings = {
 
 {
   const signal = affectTest.extractTurnAffectSignal({
+    prompt: "帮我估算一下 token budget 和上下文 token 数。",
+    response: "我会给出字符预算估算。",
+    success: true
+  });
+  assert(signal.tension <= 0, "token budgeting should not create alert tension");
+  assert(signal.arousal <= 0, "token budgeting should not create alert arousal");
+}
+
+{
+  const signal = affectTest.extractTurnAffectSignal({
+    prompt: "这个操作涉及 token、权限和删除，先警觉一点。",
+    response: "我会先说明风险。",
+    success: true
+  });
+  assert(signal.tension > 0.25, "security token contexts should still create alert tension");
+  assert(signal.arousal > 0.15, "security token contexts should still create alert arousal");
+}
+
+{
+  const signal = affectTest.extractTurnAffectSignal({
+    prompt: "帮我看 token budget 这个设置，涉及删除权限吗？",
+    response: "我会先说明风险。",
+    success: true
+  });
+  assert(signal.tension > 0.25, "token budget exceptions must not hide other risk terms");
+  assert(signal.arousal > 0.15, "mixed token budget and permission risks should remain alert");
+}
+
+{
+  const signal = affectTest.extractTurnAffectSignal({
     prompt: "别太正式，温柔点，陪一下。",
     response: "我会放慢一点。",
     success: true

@@ -296,6 +296,13 @@ assert.equal(
   "expanded sensitive-text filter should catch private key headers"
 );
 
+{
+  const tokens = memoryStoreTest.tokenize("会话复用策略");
+  assert.equal(tokens.has("会话"), true, "Chinese memory search should include bigrams");
+  assert.equal(tokens.has("复用"), true, "Chinese memory search should include internal bigrams");
+  assert.equal(tokens.has("会话复"), true, "Chinese memory search should include trigrams");
+}
+
 async function testSearchMemories() {
   const settings = { memoryEnabled: true, memoryAgentSearchEnabled: true };
   const store = createMemoryStore([
@@ -364,6 +371,25 @@ async function testSearchMemories() {
 
   const limitedResults = await store.searchMemories("session timeline content", settings, { limit: 1 });
   assert.equal(limitedResults.length, 1, "explicit search should respect result limits");
+
+  const chineseStore = createMemoryStore([
+    {
+      id: "mem-cn",
+      key: "decision:reuse",
+      kind: "decision",
+      scope: "project",
+      text: "Cursor 会话复用策略需要保留 acpSessionId。",
+      confidence: 0.8,
+      createdAt: Date.UTC(2026, 0, 5),
+      updatedAt: Date.UTC(2026, 6, 4)
+    }
+  ]);
+  const chineseResults = await chineseStore.searchMemories("复用会话", settings);
+  assert.equal(
+    chineseResults.some((memory) => memory.id === "mem-cn"),
+    true,
+    "Chinese n-gram search should recall memories when word order differs slightly"
+  );
 }
 
 async function testExplicitMemorySearchSurvivesCompression() {

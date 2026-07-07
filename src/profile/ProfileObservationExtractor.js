@@ -130,9 +130,12 @@ const RELATIONAL_SIGNAL = [
   /有自己的/,
   /主体感/,
   /陪我/,
-  /一起/,
-  /我们/,
-  /\b(natural|like you|not like you|your own|with me|together)\b/i
+  /\b(natural|like you|not like you|your own|with me)\b/i
+];
+
+const SHARED_COLLABORATION_SIGNAL = [
+  /(?:我们|一起|共同).{0,24}(?:探索|讨论|设计|构建|共创|协作|连续性|关系|记忆|偏好|机制|边界)/,
+  /(?:shared|collaborat|co-create|together).{0,32}(?:memory|continuity|preference|persona|relationship|mechanism|design)/i
 ];
 
 const CONTEXTS = [
@@ -302,7 +305,7 @@ function extractRequestShapeSignals(context) {
 }
 
 function extractRelationalSignals(context) {
-  if (!matches(context.prompt, RELATIONAL_SIGNAL)) {
+  if (!hasRelationalSignal(context.prompt)) {
     return [];
   }
   return [createObservation(context, {
@@ -384,6 +387,11 @@ function hasSpecificBehaviorSignal(text) {
     || /清楚|明确|细|完整|判断|方案|拆分|解释/.test(text);
 }
 
+function hasRelationalSignal(text) {
+  return matches(text, RELATIONAL_SIGNAL)
+    || matches(text, SHARED_COLLABORATION_SIGNAL);
+}
+
 function matches(text, patterns) {
   return patterns.some((pattern) => pattern.test(text));
 }
@@ -422,6 +430,7 @@ module.exports = {
   _test: {
     classifyAnswerShape,
     classifyContext,
+    hasRelationalSignal,
     matches
   }
 };
