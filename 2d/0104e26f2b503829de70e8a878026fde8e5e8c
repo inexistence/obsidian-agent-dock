@@ -1,0 +1,41 @@
+docs/architecture.md
+  s_621449a21e8d70::t_12dfa81cbe84da 374-379
+main.js
+  s_621449a21e8d70::t_08d8fb0a3e92de 7787-7788,7794-7796
+  s_621449a21e8d70::t_0a763467ddb506 7674-7695,7746-7757,7759-7786,7789-7793,7797-7826,7984,8060
+  s_621449a21e8d70::t_c542bf07338edd 7758,7986-7993,7995,8067-8068
+  s_621449a21e8d70::t_1494ba6e11176d 7827-7828,7994
+scripts/test-obsidian-links.js
+  s_621449a21e8d70::t_5f4e097f19c1c2 237-243
+  s_621449a21e8d70::t_40ec722be6e628 165-186,188-236,244-249,251,254-255,282-284
+  s_621449a21e8d70::t_a657ed9b127247 250,252-253
+  s_621449a21e8d70::t_6ac667f4bf1c56 270,276,278-279
+  s_621449a21e8d70::t_af9df5cf9474f1 187,256-269,271-275,277,280-281
+src/view/composer/CodeMirrorComposerInput.js
+  s_621449a21e8d70::t_c74f113807da98 187-199,207-208,259-270,272-299,302-306,310-339,497,573
+  s_621449a21e8d70::t_fcf9a96b5d3534 300-301,307-309
+  s_621449a21e8d70::t_b614514fd79e9c 271,499-506,508,580-581
+  s_621449a21e8d70::t_9cf75a05101380 200-206
+  s_621449a21e8d70::t_d5728b531c2ad3 340-341
+  s_621449a21e8d70::t_38956dbfd88ec5 507
+styles.css
+  s_621449a21e8d70::t_ea0be7afc1b22e 1485-1486,1494-1497
+  s_621449a21e8d70::t_69e73bfbd37151 1459-1484,1487-1493,1498-1500
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "2d0104e26f2b503829de70e8a878026fde8e5e8c",
+  "prompts": {},
+  "logical_commit_id": "2d0104e26f2b503829de70e8a878026fde8e5e8c",
+  "sessions": {
+    "s_621449a21e8d70": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3c6f-2033-73b1-9884-b3d907747f13",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
