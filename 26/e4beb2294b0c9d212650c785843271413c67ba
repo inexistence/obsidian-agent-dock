@@ -1,0 +1,43 @@
+scripts/test-memory-store.js
+  s_ace172a6b732e1::t_6fc7233efd2168 299-305,374-392
+src/storage/MemoryStore.js
+  s_ace172a6b732e1::t_51495f8270f2b2 301,305-318
+  s_ace172a6b732e1::t_ee86bcf283de1c 319-320
+src/affect/WorkingAffectStore.js
+  s_ace172a6b732e1::t_a4b8e22043de57 88-94
+  s_ace172a6b732e1::t_21cae54fa1c008 95
+scripts/test-agent-profile.js
+  s_ace172a6b732e1::t_bbb2ce44d32850 148-175
+  s_ace172a6b732e1::t_68a8b503686f2b 176-203
+  s_ace172a6b732e1::t_0eff4a44f7d415 147
+src/profile/ProfileObservationExtractor.js
+  s_ace172a6b732e1::t_4bc2ea6da46fe2 133
+  s_ace172a6b732e1::t_2b61f0864f1989 136-140,308,388-392,394,433
+  s_ace172a6b732e1::t_27f3d36ab12a3b 134-135
+  s_ace172a6b732e1::t_85a4a7d48f835e 393
+scripts/test-affect.js
+  s_ace172a6b732e1::t_cc5391adbd7c7f 223-242
+  s_ace172a6b732e1::t_19d30fd045d441 243-252
+  s_ace172a6b732e1::t_065852e5e801b1 221-222
+main.js
+  s_ace172a6b732e1::t_c54e55609e2c29 1755,1759-1761,5782
+  s_ace172a6b732e1::t_fceae11973e07a 1529,1535-1548,1762,5784-5789,5957,6037-6041,6043,6082
+  s_ace172a6b732e1::t_714ac5d49d8641 1756-1758,5783,6042
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "26e4beb2294b0c9d212650c785843271413c67ba",
+  "prompts": {},
+  "logical_commit_id": "26e4beb2294b0c9d212650c785843271413c67ba",
+  "sessions": {
+    "s_ace172a6b732e1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3ae9-21e2-73d1-9157-b92d493b106a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
