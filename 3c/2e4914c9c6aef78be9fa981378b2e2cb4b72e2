@@ -1,0 +1,20 @@
+styles.css
+  s_e3437fcf77aa30::t_f02321eb23d5b9 707
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "3c2e4914c9c6aef78be9fa981378b2e2cb4b72e2",
+  "prompts": {},
+  "logical_commit_id": "3c2e4914c9c6aef78be9fa981378b2e2cb4b72e2",
+  "sessions": {
+    "s_e3437fcf77aa30": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f37c8-3682-70c0-aa33-bbf408e3377c",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
