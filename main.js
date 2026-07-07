@@ -7573,6 +7573,10 @@ function createCodeMirrorComposerInput(options = {}) {
     })
   });
   rootEl.classList.toggle("is-empty", view.state.doc.length === 0);
+  console.info("[Agent Dock] CodeMirror composer enabled", {
+    history: Boolean(history),
+    keymap: Boolean(keymap)
+  });
 
   return new CodeMirrorComposerInput(rootEl, view);
 }
