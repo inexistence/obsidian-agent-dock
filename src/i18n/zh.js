@@ -126,6 +126,7 @@ module.exports = {
     "notice.pastedImageSaved": "已保存并引用粘贴的图片。",
     "notice.pastedImageFailed": "无法保存粘贴的图片：{message}",
     "notice.openFileLinkFailed": "文件不存在或无法打开：{path}",
+    "notice.markdownLivePreviewUnavailable": "Markdown 实时预览不可用，已使用普通输入框。",
     "confirm.openExternalLocalFile": "要打开 vault 外部的这个本地文件吗？\n\n{path}",
     "agent.switchProvider": "切换 Agent 提供方",
     "agent.currentProviderTitle": "之后的新消息将由 {agent} 处理",

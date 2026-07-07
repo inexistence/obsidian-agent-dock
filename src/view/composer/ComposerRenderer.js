@@ -2,6 +2,7 @@ const { setIcon } = require("obsidian");
 
 const { MODE_OPTIONS, getModeDescription, getModeLabel } = require("../../modes");
 const { DEFAULT_SETTINGS } = require("../../settings");
+const { createCodeMirrorComposerInput } = require("./CodeMirrorComposerInput");
 const { renderQueuedPrompts } = require("./PromptQueueRenderer");
 
 function renderComposerContent(composer, options) {
@@ -20,6 +21,7 @@ function renderComposerContent(composer, options) {
     handleClipboardImagePaste,
     onDraftChanged,
     handleReferenceDrop,
+    onCodeMirrorUnavailable,
     queuedPrompts,
     onClearQueuedPrompts,
     onRemoveQueuedPrompt,
@@ -45,15 +47,11 @@ function renderComposerContent(composer, options) {
       "aria-label": translate("composer.referencedFiles")
     }
   });
-  const inputEl = inputWrap.createEl("textarea", {
-    cls: "codex-dock__input",
-    attr: {
-      rows: "3",
-      spellcheck: "false",
-      placeholder: translate("composer.placeholder")
-    }
+  const inputEl = createComposerInput(inputWrap, {
+    draft,
+    onCodeMirrorUnavailable,
+    placeholder: translate("composer.placeholder")
   });
-  inputEl.value = draft || "";
   const mentionMenuEl = shell.createDiv({ cls: "codex-dock__mention-menu" });
 
   inputEl.addEventListener("keydown", (event) => {
@@ -96,6 +94,9 @@ function renderComposerContent(composer, options) {
     if (!handleReferenceDrop || !event.dataTransfer) {
       return;
     }
+    if (hasFileDropPayload(event.dataTransfer)) {
+      event.stopPropagation();
+    }
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
     inputWrap.addClass("is-dragging-reference");
@@ -110,16 +111,23 @@ function renderComposerContent(composer, options) {
     if (!handleReferenceDrop || !event.dataTransfer) {
       return;
     }
+    const shouldPreemptDefaultDrop = hasFileDropPayload(event.dataTransfer);
+    if (shouldPreemptDefaultDrop) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    }
     if (handleReferenceDrop(event.dataTransfer)) {
       event.preventDefault();
       event.stopPropagation();
+      event.stopImmediatePropagation?.();
     }
   };
   for (const dropTarget of [shell, inputWrap, inputEl]) {
-    dropTarget.addEventListener("dragenter", onReferenceDragOver);
-    dropTarget.addEventListener("dragover", onReferenceDragOver);
+    dropTarget.addEventListener("dragenter", onReferenceDragOver, true);
+    dropTarget.addEventListener("dragover", onReferenceDragOver, true);
     dropTarget.addEventListener("dragleave", onReferenceDragLeave);
-    dropTarget.addEventListener("drop", onReferenceDrop);
+    dropTarget.addEventListener("drop", onReferenceDrop, true);
   }
 
   const composerBar = shell.createDiv({ cls: "codex-dock__composer-bar" });
@@ -250,6 +258,42 @@ function renderComposerContent(composer, options) {
   }
 }
 
+function hasFileDropPayload(dataTransfer) {
+  if (!dataTransfer) {
+    return false;
+  }
+  if (Array.from(dataTransfer.files || []).length > 0) {
+    return true;
+  }
+  return Array.from(dataTransfer.items || []).some((item) => item?.kind === "file");
+}
+
+function createComposerInput(inputWrap, options) {
+  const codeMirrorInput = createCodeMirrorComposerInput({
+    parent: inputWrap,
+    onUnavailable: options.onCodeMirrorUnavailable,
+    placeholder: options.placeholder,
+    value: options.draft || ""
+  });
+  if (codeMirrorInput) {
+    return codeMirrorInput;
+  }
+
+  const inputEl = inputWrap.createEl("textarea", {
+    cls: "codex-dock__input",
+    attr: {
+      rows: "3",
+      spellcheck: "false",
+      placeholder: options.placeholder
+    }
+  });
+  inputEl.value = options.draft || "";
+  return inputEl;
+}
+
 module.exports = {
-  renderComposerContent
+  renderComposerContent,
+  _test: {
+    hasFileDropPayload
+  }
 };

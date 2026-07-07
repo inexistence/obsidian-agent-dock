@@ -249,6 +249,7 @@ module.exports = {
     "notice.pastedImageSaved": "Pasted image saved and referenced.",
     "notice.pastedImageFailed": "Could not save pasted image: {message}",
     "notice.openFileLinkFailed": "File does not exist or could not be opened: {path}",
+    "notice.markdownLivePreviewUnavailable": "Markdown live preview is unavailable; using the plain composer.",
     "confirm.openExternalLocalFile": "Open this local file outside your vault?\n\n{path}",
     "agent.switchProvider": "Switch agent provider",
     "agent.currentProviderTitle": "{agent} will handle new messages",
@@ -577,6 +578,7 @@ module.exports = {
     "notice.pastedImageSaved": "已保存并引用粘贴的图片。",
     "notice.pastedImageFailed": "无法保存粘贴的图片：{message}",
     "notice.openFileLinkFailed": "文件不存在或无法打开：{path}",
+    "notice.markdownLivePreviewUnavailable": "Markdown 实时预览不可用，已使用普通输入框。",
     "confirm.openExternalLocalFile": "要打开 vault 外部的这个本地文件吗？\n\n{path}",
     "agent.switchProvider": "切换 Agent 提供方",
     "agent.currentProviderTitle": "之后的新消息将由 {agent} 处理",
@@ -7482,6 +7484,345 @@ module.exports = {
 };
 
 },
+"src/view/composer/CodeMirrorComposerInput.js": function(module, exports, __require) {
+function createCodeMirrorComposerInput(options = {}) {
+  const modules = loadCodeMirrorModules();
+  if (!modules) {
+    options.onUnavailable?.();
+    return null;
+  }
+
+  const {
+    defaultKeymap,
+    Decoration,
+    EditorState,
+    EditorView,
+    history,
+    historyKeymap,
+    keymap,
+    ViewPlugin,
+    WidgetType
+  } = modules;
+  const parent = options.parent;
+  if (!parent) {
+    return null;
+  }
+
+  class LinkPreviewWidget extends WidgetType {
+    constructor(label) {
+      super();
+      this.label = label;
+    }
+
+    eq(other) {
+      return other.label === this.label;
+    }
+
+    toDOM() {
+      const span = document.createElement("span");
+      span.className = "codex-dock__cm-link-preview";
+      span.textContent = this.label;
+      return span;
+    }
+
+    ignoreEvent() {
+      return false;
+    }
+  }
+
+  const linkPreviewPlugin = ViewPlugin.fromClass(class {
+    constructor(view) {
+      this.decorations = buildLinkPreviewDecorations(view, Decoration, LinkPreviewWidget);
+    }
+
+    update(update) {
+      if (update.docChanged || update.selectionSet || update.viewportChanged) {
+        this.decorations = buildLinkPreviewDecorations(update.view, Decoration, LinkPreviewWidget);
+      }
+    }
+  }, {
+    decorations: (plugin) => plugin.decorations
+  });
+
+  const rootEl = parent.createDiv({ cls: "codex-dock__cm-input" });
+  rootEl.dataset.placeholder = options.placeholder || "";
+  const view = new EditorView({
+    parent: rootEl,
+    state: EditorState.create({
+      doc: options.value || "",
+      extensions: [
+        history ? history() : [],
+        keymap ? keymap.of([...(defaultKeymap || []), ...(historyKeymap || [])]) : [],
+        EditorView.lineWrapping,
+        linkPreviewPlugin,
+        EditorView.updateListener.of((update) => {
+          rootEl.classList.toggle("is-empty", update.state.doc.length === 0);
+          if (update.docChanged) {
+            rootEl.dispatchEvent(new Event("input", { bubbles: true }));
+          }
+        }),
+        EditorView.theme({
+          "&": {
+            background: "transparent"
+          },
+          ".cm-scroller": {
+            fontFamily: "inherit"
+          }
+        })
+      ]
+    })
+  });
+  rootEl.classList.toggle("is-empty", view.state.doc.length === 0);
+
+  return new CodeMirrorComposerInput(rootEl, view);
+}
+
+class CodeMirrorComposerInput {
+  constructor(rootEl, view) {
+    this.rootEl = rootEl;
+    this.view = view;
+    this.isCodeMirrorComposerInput = true;
+    this.isDestroyed = false;
+  }
+
+  get value() {
+    return this.view.state.doc.toString();
+  }
+
+  set value(nextValue) {
+    const value = String(nextValue || "");
+    this.view.dispatch({
+      changes: {
+        from: 0,
+        to: this.view.state.doc.length,
+        insert: value
+      },
+      selection: {
+        anchor: value.length
+      }
+    });
+  }
+
+  get selectionStart() {
+    return this.view.state.selection.main.from;
+  }
+
+  set selectionStart(position) {
+    const end = this.selectionEnd;
+    this.setSelectionRange(position, Math.max(position, end));
+  }
+
+  get selectionEnd() {
+    return this.view.state.selection.main.to;
+  }
+
+  set selectionEnd(position) {
+    this.setSelectionRange(this.selectionStart, position);
+  }
+
+  get isConnected() {
+    return this.rootEl.isConnected;
+  }
+
+  focus() {
+    this.view.focus();
+  }
+
+  addEventListener(type, listener, options) {
+    this.rootEl.addEventListener(type, listener, getEventOptions(type, options));
+  }
+
+  removeEventListener(type, listener, options) {
+    this.rootEl.removeEventListener(type, listener, getEventOptions(type, options));
+  }
+
+  contains(target) {
+    return this.rootEl.contains(target);
+  }
+
+  destroy() {
+    if (this.isDestroyed) {
+      return;
+    }
+    this.isDestroyed = true;
+    this.view.destroy();
+  }
+
+  setSelectionRange(start, end = start) {
+    const length = this.view.state.doc.length;
+    const anchor = clampPosition(start, length);
+    const head = clampPosition(end, length);
+    this.view.dispatch({
+      selection: {
+        anchor,
+        head
+      },
+      scrollIntoView: true
+    });
+  }
+}
+
+function buildLinkPreviewDecorations(view, Decoration, LinkPreviewWidget) {
+  const ranges = [];
+  const text = view.state.doc.toString();
+  const selection = view.state.selection.main;
+  for (const range of getMarkdownLinkPreviewRanges(text, selection)) {
+    ranges.push(Decoration.replace({
+      widget: new LinkPreviewWidget(range.label),
+      inclusive: false
+    }).range(range.from, range.to));
+  }
+  return Decoration.set(ranges, true);
+}
+
+function getMarkdownLinkPreviewRanges(text, selection) {
+  const ranges = [];
+  const source = String(text || "");
+  const ignoredRanges = getMarkdownCodeRanges(source);
+  const markdownLinkPattern = /(!?)\[([^\]\n]+)\]\(([^)\n]+)\)/g;
+  for (const match of source.matchAll(markdownLinkPattern)) {
+    const from = match.index;
+    const to = from + match[0].length;
+    if (selectionIntersects(selection, from, to) || rangeIntersectsAny(from, to, ignoredRanges)) {
+      continue;
+    }
+    ranges.push({
+      from,
+      to,
+      label: match[2],
+      target: match[3],
+      embed: match[1] === "!"
+    });
+  }
+  const wikiLinkPattern = /(!?)\[\[([^\]\n|]+)(?:\|([^\]\n]+))?\]\]/g;
+  for (const match of source.matchAll(wikiLinkPattern)) {
+    const from = match.index;
+    const to = from + match[0].length;
+    if (selectionIntersects(selection, from, to) || rangeIntersectsAny(from, to, ignoredRanges)) {
+      continue;
+    }
+    const target = match[2];
+    ranges.push({
+      from,
+      to,
+      label: match[3] || getPathName(target),
+      target,
+      embed: match[1] === "!"
+    });
+  }
+  ranges.sort((left, right) => left.from - right.from);
+  return ranges;
+}
+
+function getMarkdownCodeRanges(source) {
+  const ranges = [];
+  const text = String(source || "");
+  const fencePattern = /(^|\n)(`{3,}|~{3,})[^\n]*(?:\n[\s\S]*?\n\2(?=\n|$)|[\s\S]*$)/g;
+  for (const match of text.matchAll(fencePattern)) {
+    const from = match.index + match[1].length;
+    const to = from + match[0].length - match[1].length;
+    ranges.push({ from, to });
+  }
+
+  const inlinePattern = /`+[^`\n]*`+/g;
+  for (const match of text.matchAll(inlinePattern)) {
+    const from = match.index;
+    const to = from + match[0].length;
+    if (!rangeIntersectsAny(from, to, ranges)) {
+      ranges.push({ from, to });
+    }
+  }
+  ranges.sort((left, right) => left.from - right.from);
+  return ranges;
+}
+
+function getPathName(path) {
+  return String(path || "").split("/").filter(Boolean).pop() || String(path || "");
+}
+
+function selectionIntersects(selection, from, to) {
+  if (!selection) {
+    return false;
+  }
+  if (selection.from === selection.to) {
+    return selection.from >= from && selection.from < to;
+  }
+  return selection.from < to && selection.to > from;
+}
+
+function rangeIntersectsAny(from, to, ranges) {
+  return ranges.some((range) => from < range.to && to > range.from);
+}
+
+function createSelection(from, to = from) {
+  return { from, to };
+}
+
+function clampPosition(position, length) {
+  const value = Number.isFinite(position) ? position : length;
+  return Math.max(0, Math.min(length, value));
+}
+
+function getEventOptions(type, options) {
+  if (type !== "blur" && type !== "focus") {
+    return options;
+  }
+  if (typeof options === "boolean") {
+    return true;
+  }
+  return {
+    ...(options || {}),
+    capture: true
+  };
+}
+
+function loadCodeMirrorModules() {
+  try {
+    const { EditorState } = require("@codemirror/state");
+    const { Decoration, EditorView, keymap, ViewPlugin, WidgetType } = require("@codemirror/view");
+    const commands = loadOptionalCodeMirrorCommands();
+    if (!EditorState || !EditorView || !Decoration || !ViewPlugin || !WidgetType) {
+      return null;
+    }
+    return {
+      defaultKeymap: commands.defaultKeymap,
+      Decoration,
+      EditorState,
+      EditorView,
+      history: commands.history,
+      historyKeymap: commands.historyKeymap,
+      keymap,
+      ViewPlugin,
+      WidgetType
+    };
+  } catch (error) {
+    return null;
+  }
+}
+
+function loadOptionalCodeMirrorCommands() {
+  try {
+    return require("@codemirror/commands") || {};
+  } catch (error) {
+    return {};
+  }
+}
+
+module.exports = {
+  createCodeMirrorComposerInput,
+  _test: {
+    buildLinkPreviewDecorations,
+    createSelection,
+    getEventOptions,
+    getMarkdownCodeRanges,
+    getMarkdownLinkPreviewRanges,
+    getPathName,
+    rangeIntersectsAny,
+    selectionIntersects
+  }
+};
+
+},
 "src/view/composer/PromptQueueRenderer.js": function(module, exports, __require) {
 const { setIcon } = require("obsidian");
 
@@ -7567,6 +7908,7 @@ const { setIcon } = require("obsidian");
 
 const { MODE_OPTIONS, getModeDescription, getModeLabel } = __require("src/modes.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
+const { createCodeMirrorComposerInput } = __require("src/view/composer/CodeMirrorComposerInput.js");
 const { renderQueuedPrompts } = __require("src/view/composer/PromptQueueRenderer.js");
 
 function renderComposerContent(composer, options) {
@@ -7585,6 +7927,7 @@ function renderComposerContent(composer, options) {
     handleClipboardImagePaste,
     onDraftChanged,
     handleReferenceDrop,
+    onCodeMirrorUnavailable,
     queuedPrompts,
     onClearQueuedPrompts,
     onRemoveQueuedPrompt,
@@ -7610,15 +7953,11 @@ function renderComposerContent(composer, options) {
       "aria-label": translate("composer.referencedFiles")
     }
   });
-  const inputEl = inputWrap.createEl("textarea", {
-    cls: "codex-dock__input",
-    attr: {
-      rows: "3",
-      spellcheck: "false",
-      placeholder: translate("composer.placeholder")
-    }
+  const inputEl = createComposerInput(inputWrap, {
+    draft,
+    onCodeMirrorUnavailable,
+    placeholder: translate("composer.placeholder")
   });
-  inputEl.value = draft || "";
   const mentionMenuEl = shell.createDiv({ cls: "codex-dock__mention-menu" });
 
   inputEl.addEventListener("keydown", (event) => {
@@ -7661,6 +8000,9 @@ function renderComposerContent(composer, options) {
     if (!handleReferenceDrop || !event.dataTransfer) {
       return;
     }
+    if (hasFileDropPayload(event.dataTransfer)) {
+      event.stopPropagation();
+    }
     event.preventDefault();
     event.dataTransfer.dropEffect = "copy";
     inputWrap.addClass("is-dragging-reference");
@@ -7675,16 +8017,23 @@ function renderComposerContent(composer, options) {
     if (!handleReferenceDrop || !event.dataTransfer) {
       return;
     }
+    const shouldPreemptDefaultDrop = hasFileDropPayload(event.dataTransfer);
+    if (shouldPreemptDefaultDrop) {
+      event.preventDefault();
+      event.stopPropagation();
+      event.stopImmediatePropagation?.();
+    }
     if (handleReferenceDrop(event.dataTransfer)) {
       event.preventDefault();
       event.stopPropagation();
+      event.stopImmediatePropagation?.();
     }
   };
   for (const dropTarget of [shell, inputWrap, inputEl]) {
-    dropTarget.addEventListener("dragenter", onReferenceDragOver);
-    dropTarget.addEventListener("dragover", onReferenceDragOver);
+    dropTarget.addEventListener("dragenter", onReferenceDragOver, true);
+    dropTarget.addEventListener("dragover", onReferenceDragOver, true);
     dropTarget.addEventListener("dragleave", onReferenceDragLeave);
-    dropTarget.addEventListener("drop", onReferenceDrop);
+    dropTarget.addEventListener("drop", onReferenceDrop, true);
   }
 
   const composerBar = shell.createDiv({ cls: "codex-dock__composer-bar" });
@@ -7815,8 +8164,44 @@ function renderComposerContent(composer, options) {
   }
 }
 
+function hasFileDropPayload(dataTransfer) {
+  if (!dataTransfer) {
+    return false;
+  }
+  if (Array.from(dataTransfer.files || []).length > 0) {
+    return true;
+  }
+  return Array.from(dataTransfer.items || []).some((item) => item?.kind === "file");
+}
+
+function createComposerInput(inputWrap, options) {
+  const codeMirrorInput = createCodeMirrorComposerInput({
+    parent: inputWrap,
+    onUnavailable: options.onCodeMirrorUnavailable,
+    placeholder: options.placeholder,
+    value: options.draft || ""
+  });
+  if (codeMirrorInput) {
+    return codeMirrorInput;
+  }
+
+  const inputEl = inputWrap.createEl("textarea", {
+    cls: "codex-dock__input",
+    attr: {
+      rows: "3",
+      spellcheck: "false",
+      placeholder: options.placeholder
+    }
+  });
+  inputEl.value = options.draft || "";
+  return inputEl;
+}
+
 module.exports = {
-  renderComposerContent
+  renderComposerContent,
+  _test: {
+    hasFileDropPayload
+  }
 };
 
 },
@@ -11461,6 +11846,7 @@ class AgentDockView extends ItemView {
     this.autoScrollThresholdPx = 48;
     this.keepScrollBottomUntil = 0;
     this.pendingScrollBottomFrame = null;
+    this.hasWarnedCodeMirrorUnavailable = false;
     this.imagePreviewController = new ImagePreviewController({
       containerEl: this.containerEl,
       translate: (key, params) => this.translate(key, params)
@@ -11502,6 +11888,7 @@ class AgentDockView extends ItemView {
   }
 
   async onClose() {
+    this.destroyComposerInput();
     this.cancelPendingMessageRender();
     this.clearGlobalPointerListeners();
     this.closeImagePreview();
@@ -11511,6 +11898,7 @@ class AgentDockView extends ItemView {
   }
 
   render(options = {}) {
+    this.destroyComposerInput();
     this.cancelPendingMessageRender();
     this.clearGlobalPointerListeners();
     this.closeImagePreview();
@@ -11705,6 +12093,7 @@ class AgentDockView extends ItemView {
       handleClipboardImagePaste: (clipboardData) => this.handleClipboardImagePaste(clipboardData),
       onDraftChanged: (session) => this.persistSessionChange(session),
       handleReferenceDrop: (dataTransfer) => this.referenceController.handleReferenceDrop(dataTransfer),
+      onCodeMirrorUnavailable: () => this.notifyCodeMirrorUnavailable(),
       queuedPrompts: ensurePromptQueue(this.getActiveSession()),
       onClearQueuedPrompts: () => this.clearQueuedPrompts(),
       onRemoveQueuedPrompt: (queuedPromptId) => this.removeQueuedPrompt(queuedPromptId),
@@ -12082,10 +12471,11 @@ class AgentDockView extends ItemView {
       || (
         options.preserveFocus !== false
         && this.inputEl
-        && document.activeElement === this.inputEl
+        && this.isComposerInputFocused()
       )
     );
     const draft = this.getActiveSession()?.draft || "";
+    this.destroyComposerInput();
     composer.empty();
     this.renderComposerContent(composer, draft);
     if (shouldRestoreFocus && this.inputEl) {
@@ -12096,6 +12486,32 @@ class AgentDockView extends ItemView {
         }
       });
     }
+  }
+
+  isComposerInputFocused() {
+    if (!this.inputEl) {
+      return false;
+    }
+    if (this.inputEl.isCodeMirrorComposerInput) {
+      return this.inputEl.contains(document.activeElement);
+    }
+    return document.activeElement === this.inputEl;
+  }
+
+  destroyComposerInput() {
+    if (this.inputEl?.destroy) {
+      this.inputEl.destroy();
+    }
+    this.inputEl = null;
+  }
+
+  notifyCodeMirrorUnavailable() {
+    if (this.hasWarnedCodeMirrorUnavailable) {
+      return;
+    }
+    this.hasWarnedCodeMirrorUnavailable = true;
+    console.warn("Agent Dock Markdown live preview is unavailable; using textarea composer.");
+    new Notice(this.translate("notice.markdownLivePreviewUnavailable"));
   }
 
   renderAffectIndicator(options = {}) {

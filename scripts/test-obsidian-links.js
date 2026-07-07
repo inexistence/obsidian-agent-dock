@@ -5,7 +5,8 @@ const originalLoad = Module._load;
 Module._load = function patchedLoad(request, parent, isMain) {
   if (request === "obsidian") {
     return {
-      normalizePath: (path) => String(path || "").replace(/\\/g, "/")
+      normalizePath: (path) => String(path || "").replace(/\\/g, "/"),
+      setIcon: () => {}
     };
   }
   return originalLoad.call(this, request, parent, isMain);
@@ -25,6 +26,8 @@ const {
 } = require("../src/view/reference/ReferenceDropParser");
 const { ReferenceController } = require("../src/view/reference/ReferenceController");
 const { ReferenceResolver } = require("../src/view/reference/ReferenceResolver");
+const { _test: codeMirrorComposerTest } = require("../src/view/composer/CodeMirrorComposerInput");
+const { _test: composerRendererTest } = require("../src/view/composer/ComposerRenderer");
 const { buildPromptWithMetadata } = require("../src/prompt");
 const { DEFAULT_SETTINGS } = require("../src/settings");
 
@@ -79,6 +82,50 @@ assert.deepStrictEqual(
 );
 assert.strictEqual(isLocalFileReference("file:///Users/bigo/Desktop/Note.md"), true);
 assert.strictEqual(isLocalFileReference("Notes/Today.md"), false);
+assert.strictEqual(composerRendererTest.hasFileDropPayload({ files: [{ name: "Note.md" }] }), true);
+assert.strictEqual(composerRendererTest.hasFileDropPayload({ items: [{ kind: "file" }] }), true);
+assert.strictEqual(composerRendererTest.hasFileDropPayload({ types: ["text/plain"], getData: () => "hello" }), false);
+
+assert.deepStrictEqual(
+  codeMirrorComposerTest.getMarkdownLinkPreviewRanges(
+    "看 [x](zzzzz) 和 [y](Notes/y.md) 还有 [[Notes/Today.md]] 与 [[Notes/Tomorrow.md|明天]]",
+    codeMirrorComposerTest.createSelection(0)
+  ),
+  [
+    { from: 2, to: 12, label: "x", target: "zzzzz", embed: false },
+    { from: 15, to: 30, label: "y", target: "Notes/y.md", embed: false },
+    { from: 34, to: 52, label: "Today.md", target: "Notes/Today.md", embed: false },
+    { from: 55, to: 79, label: "明天", target: "Notes/Tomorrow.md", embed: false }
+  ]
+);
+assert.deepStrictEqual(
+  codeMirrorComposerTest.getMarkdownLinkPreviewRanges(
+    "看 [x](zzzzz)",
+    codeMirrorComposerTest.createSelection(5)
+  ),
+  []
+);
+assert.deepStrictEqual(
+  codeMirrorComposerTest.getMarkdownLinkPreviewRanges(
+    "看 [x](zzzzz)",
+    codeMirrorComposerTest.createSelection(12)
+  ),
+  [{ from: 2, to: 12, label: "x", target: "zzzzz", embed: false }]
+);
+assert.deepStrictEqual(
+  codeMirrorComposerTest.getMarkdownLinkPreviewRanges(
+    "看 `[x](zzzzz)`",
+    codeMirrorComposerTest.createSelection(0)
+  ),
+  []
+);
+assert.deepStrictEqual(
+  codeMirrorComposerTest.getMarkdownLinkPreviewRanges(
+    "```md\n[x](zzzzz)\n```\n看 [y](ok)",
+    codeMirrorComposerTest.createSelection(0)
+  ),
+  [{ from: 23, to: 30, label: "y", target: "ok", embed: false }]
+);
 
 {
   const dataTransfer = {

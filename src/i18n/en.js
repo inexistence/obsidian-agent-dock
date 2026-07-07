@@ -126,6 +126,7 @@ module.exports = {
     "notice.pastedImageSaved": "Pasted image saved and referenced.",
     "notice.pastedImageFailed": "Could not save pasted image: {message}",
     "notice.openFileLinkFailed": "File does not exist or could not be opened: {path}",
+    "notice.markdownLivePreviewUnavailable": "Markdown live preview is unavailable; using the plain composer.",
     "confirm.openExternalLocalFile": "Open this local file outside your vault?\n\n{path}",
     "agent.switchProvider": "Switch agent provider",
     "agent.currentProviderTitle": "{agent} will handle new messages",

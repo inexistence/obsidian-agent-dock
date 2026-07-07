@@ -60,6 +60,7 @@ class AgentDockView extends ItemView {
     this.autoScrollThresholdPx = 48;
     this.keepScrollBottomUntil = 0;
     this.pendingScrollBottomFrame = null;
+    this.hasWarnedCodeMirrorUnavailable = false;
     this.imagePreviewController = new ImagePreviewController({
       containerEl: this.containerEl,
       translate: (key, params) => this.translate(key, params)
@@ -101,6 +102,7 @@ class AgentDockView extends ItemView {
   }
 
   async onClose() {
+    this.destroyComposerInput();
     this.cancelPendingMessageRender();
     this.clearGlobalPointerListeners();
     this.closeImagePreview();
@@ -110,6 +112,7 @@ class AgentDockView extends ItemView {
   }
 
   render(options = {}) {
+    this.destroyComposerInput();
     this.cancelPendingMessageRender();
     this.clearGlobalPointerListeners();
     this.closeImagePreview();
@@ -304,6 +307,7 @@ class AgentDockView extends ItemView {
       handleClipboardImagePaste: (clipboardData) => this.handleClipboardImagePaste(clipboardData),
       onDraftChanged: (session) => this.persistSessionChange(session),
       handleReferenceDrop: (dataTransfer) => this.referenceController.handleReferenceDrop(dataTransfer),
+      onCodeMirrorUnavailable: () => this.notifyCodeMirrorUnavailable(),
       queuedPrompts: ensurePromptQueue(this.getActiveSession()),
       onClearQueuedPrompts: () => this.clearQueuedPrompts(),
       onRemoveQueuedPrompt: (queuedPromptId) => this.removeQueuedPrompt(queuedPromptId),
@@ -681,10 +685,11 @@ class AgentDockView extends ItemView {
       || (
         options.preserveFocus !== false
         && this.inputEl
-        && document.activeElement === this.inputEl
+        && this.isComposerInputFocused()
       )
     );
     const draft = this.getActiveSession()?.draft || "";
+    this.destroyComposerInput();
     composer.empty();
     this.renderComposerContent(composer, draft);
     if (shouldRestoreFocus && this.inputEl) {
@@ -695,6 +700,32 @@ class AgentDockView extends ItemView {
         }
       });
     }
+  }
+
+  isComposerInputFocused() {
+    if (!this.inputEl) {
+      return false;
+    }
+    if (this.inputEl.isCodeMirrorComposerInput) {
+      return this.inputEl.contains(document.activeElement);
+    }
+    return document.activeElement === this.inputEl;
+  }
+
+  destroyComposerInput() {
+    if (this.inputEl?.destroy) {
+      this.inputEl.destroy();
+    }
+    this.inputEl = null;
+  }
+
+  notifyCodeMirrorUnavailable() {
+    if (this.hasWarnedCodeMirrorUnavailable) {
+      return;
+    }
+    this.hasWarnedCodeMirrorUnavailable = true;
+    console.warn("Agent Dock Markdown live preview is unavailable; using textarea composer.");
+    new Notice(this.translate("notice.markdownLivePreviewUnavailable"));
   }
 
   renderAffectIndicator(options = {}) {
