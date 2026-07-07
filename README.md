@@ -42,7 +42,8 @@ the language packs in `src/i18n/`.
 Chat history uses the plugin data folder:
 
 - `data.json` stores settings, the active session id, and a lightweight session index.
-- `sessions/<session-id>.json` stores each conversation's user and assistant message bodies.
+- `sessions/<session-id>.json` stores each conversation's user and assistant message bodies, plus local pasted-image cache references for cleanup.
+- `.agent-dock-cache/pasted-images/` stores temporary images pasted into the composer. Agent Dock prunes old files on startup and before new image pastes, and removes a session's tracked images when that session is deleted.
 - `memory/memory.json` stores automatically extracted local memories when memory is enabled.
 - `profile/agent-profile.json` stores bounded local observations and inferred agent profile tendencies when emergent profile is enabled.
 

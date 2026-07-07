@@ -37,7 +37,8 @@ class SessionStore {
       createdAt: now,
       updatedAt: now,
       messages: [],
-      providerState: {}
+      providerState: {},
+      pastedImagePaths: []
     };
     this.sessions.push(session);
     this.activeSessionId = session.id;
@@ -119,8 +120,26 @@ function normalizeSession(session, fallbackTitle = "Chat") {
     createdAt: normalizeTimestamp(session.createdAt),
     updatedAt: normalizeTimestamp(session.updatedAt),
     messages: Array.isArray(session.messages) ? session.messages.map(normalizeMessage).filter(Boolean) : [],
-    providerState: normalizeProviderState(session.providerState)
+    providerState: normalizeProviderState(session.providerState),
+    pastedImagePaths: normalizePastedImagePaths(session.pastedImagePaths)
   };
+}
+
+function normalizePastedImagePaths(paths) {
+  if (!Array.isArray(paths)) {
+    return [];
+  }
+  const seen = new Set();
+  return paths
+    .map((path) => String(path || "").trim())
+    .filter(Boolean)
+    .filter((path) => {
+      if (seen.has(path)) {
+        return false;
+      }
+      seen.add(path);
+      return true;
+    });
 }
 
 function normalizeMessage(message) {

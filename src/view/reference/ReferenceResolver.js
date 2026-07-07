@@ -1,4 +1,4 @@
-const { getParentPath } = require("./mention");
+const { getParentPath, isImagePath } = require("./mention");
 const {
   normalizeReferenceInput,
   truncateDebugText
@@ -11,7 +11,7 @@ class ReferenceResolver {
     this.app = app;
   }
 
-  getVaultPathSuggestions(query) {
+  getVaultPathSuggestions(query, options = {}) {
     const normalizedQuery = query.toLowerCase();
     const suggestions = this.app.vault.getAllLoadedFiles()
       .map((entry) => this.getMentionSuggestionForEntry(entry))
@@ -26,7 +26,7 @@ class ReferenceResolver {
         ...suggestion,
         matchScore: getMentionSuggestionMatchScore(suggestion, normalizedQuery)
       }))
-      .sort((left, right) => compareMentionSuggestions(left, right, normalizedQuery));
+      .sort((left, right) => compareMentionSuggestions(left, right, normalizedQuery, options));
     const exactNameMatches = normalizedQuery
       ? suggestions.filter((suggestion) => suggestion.matchScore === 0)
       : [];
@@ -158,7 +158,15 @@ class ReferenceResolver {
   }
 }
 
-function compareMentionSuggestions(left, right, normalizedQuery) {
+function compareMentionSuggestions(left, right, normalizedQuery, options = {}) {
+  if (options.preferImages) {
+    const leftImage = isImagePath(left.path);
+    const rightImage = isImagePath(right.path);
+    if (leftImage !== rightImage) {
+      return leftImage ? -1 : 1;
+    }
+  }
+
   const leftScore = typeof left.matchScore === "number"
     ? left.matchScore
     : getMentionSuggestionMatchScore(left, normalizedQuery);

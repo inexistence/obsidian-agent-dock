@@ -238,8 +238,27 @@ function extractMentionPaths(prompt, app) {
     addPath(match[1] || match[2] || "");
   }
 
+  for (const path of extractWikiLinkPaths(prompt)) {
+    addPath(path);
+  }
+
   for (const path of extractObsidianOpenPaths(prompt)) {
     addPath(path);
+  }
+
+  return paths;
+}
+
+function extractWikiLinkPaths(prompt) {
+  const paths = [];
+  const pattern = /!?\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g;
+  let match;
+
+  while ((match = pattern.exec(prompt)) !== null) {
+    const path = String(match[1] || "").trim();
+    if (path) {
+      paths.push(path);
+    }
   }
 
   return paths;

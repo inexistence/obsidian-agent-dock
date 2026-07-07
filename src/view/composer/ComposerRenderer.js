@@ -16,6 +16,8 @@ function renderComposerContent(composer, options) {
     updateMentionSuggestions,
     hideMentionSuggestions,
     insertActiveNoteReference,
+    hasClipboardImagePaste,
+    handleClipboardImagePaste,
     onDraftChanged,
     handleReferenceDrop,
     queuedPrompts,
@@ -82,7 +84,12 @@ function renderComposerContent(composer, options) {
   inputEl.addEventListener("blur", () => {
     window.setTimeout(hideMentionSuggestions, 120);
   });
-  inputEl.addEventListener("paste", () => {
+  inputEl.addEventListener("paste", (event) => {
+    if (hasClipboardImagePaste?.(event.clipboardData)) {
+      event.preventDefault();
+      handleClipboardImagePaste?.(event.clipboardData);
+      return;
+    }
     window.setTimeout(replaceObsidianLinksInInput, 0);
   });
   const onReferenceDragOver = (event) => {

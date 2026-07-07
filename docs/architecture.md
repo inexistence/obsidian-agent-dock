@@ -131,7 +131,11 @@ Persistence model:
 - `data.json` stores settings, active session id, and a lightweight session
   index.
 - `sessions/<session-id>.json` stores persisted user and assistant Markdown
-  message bodies.
+  message bodies and per-session pasted image cache paths used for cleanup.
+- `.agent-dock-cache/pasted-images/` stores temporary composer-pasted images.
+  Agent Dock prunes expired files on plugin startup and before new image
+  pastes, and deletes tracked cache images when a conversation is deleted or
+  pruned from persisted storage.
 - Runtime details such as tool output, reasoning groups, notices, and activity
   events are not persisted by default.
 
@@ -286,7 +290,8 @@ Obsidian plugin data may include:
 
 ```text
 data.json                         settings, active session id, session index
-sessions/<session-id>.json         persisted chat message bodies
+sessions/<session-id>.json         persisted chat message bodies and pasted image refs
+.agent-dock-cache/pasted-images/   temporary composer-pasted images
 memory/memory.json                 local automatic memories
 profile/agent-profile.json         local profile observations and tendencies
 ```

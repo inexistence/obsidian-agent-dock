@@ -60,7 +60,9 @@ class MentionMenuController {
       return;
     }
 
-    const suggestions = this.getSuggestions(match.query);
+    const suggestions = this.getSuggestions(match.query, {
+      preferImages: match.trigger === "embed-wiki"
+    });
     if (suggestions.length === 0) {
       this.hide();
       return;
@@ -70,6 +72,7 @@ class MentionMenuController {
       active: true,
       start: match.start,
       end: match.end,
+      trigger: match.trigger,
       selectedIndex: 0,
       suggestions
     };

@@ -16,6 +16,10 @@ const { AgentDockSettingTab } = require("./settingsTab");
 const { ChatStorage } = require("./storage/ChatStorage");
 const { MemoryStore } = require("./storage/MemoryStore");
 const { AgentDockView } = require("./view/AgentDockView");
+const {
+  cleanupExpiredPastedImages,
+  deletePastedImagePaths
+} = require("./view/reference/ClipboardImageReference");
 
 module.exports = class AgentDockPlugin extends Plugin {
   async onload() {
@@ -33,6 +37,7 @@ module.exports = class AgentDockPlugin extends Plugin {
     this.chatStorage = new ChatStorage(this);
     this.memoryStore = new MemoryStore(this);
     this.agentProfileStore = new AgentProfileStore(this);
+    await this.cleanupPastedImageCache();
     this.refreshAgent();
 
     this.registerView(
@@ -138,6 +143,22 @@ module.exports = class AgentDockPlugin extends Plugin {
 
   async deletePersistedSession(sessionId) {
     await this.chatStorage.deleteSession(sessionId);
+  }
+
+  async cleanupPastedImageCache() {
+    try {
+      await cleanupExpiredPastedImages(this.app);
+    } catch (error) {
+      console.warn("Agent Dock could not clean pasted image cache:", error);
+    }
+  }
+
+  async deletePastedImageCacheFiles(paths) {
+    try {
+      await deletePastedImagePaths(this.app, paths);
+    } catch (error) {
+      console.warn("Agent Dock could not delete pasted image cache files:", error);
+    }
   }
 
   async clearPersistedChatHistory() {

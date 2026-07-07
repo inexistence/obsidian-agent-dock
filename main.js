@@ -246,6 +246,8 @@ module.exports = {
     "notice.resetAffectFailed": "Agent Dock could not reset the mood. Check the console for details.",
     "notice.stopBeforeDeleting": "Stop this conversation before deleting it.",
     "notice.noActiveNote": "No active note to reference.",
+    "notice.pastedImageSaved": "Pasted image saved and referenced.",
+    "notice.pastedImageFailed": "Could not save pasted image: {message}",
     "notice.openFileLinkFailed": "File does not exist or could not be opened: {path}",
     "agent.switchProvider": "Switch agent provider",
     "agent.currentProviderTitle": "{agent} will handle new messages",
@@ -565,6 +567,8 @@ module.exports = {
     "notice.resetAffectFailed": "Agent Dock 无法重置氛围。请查看控制台详情。",
     "notice.stopBeforeDeleting": "删除前请先停止此对话。",
     "notice.noActiveNote": "没有可引用的当前笔记。",
+    "notice.pastedImageSaved": "已保存并引用粘贴的图片。",
+    "notice.pastedImageFailed": "无法保存粘贴的图片：{message}",
     "notice.openFileLinkFailed": "文件不存在或无法打开：{path}",
     "agent.switchProvider": "切换 Agent 提供方",
     "agent.currentProviderTitle": "之后的新消息将由 {agent} 处理",
@@ -2854,8 +2858,27 @@ function extractMentionPaths(prompt, app) {
     addPath(match[1] || match[2] || "");
   }
 
+  for (const path of extractWikiLinkPaths(prompt)) {
+    addPath(path);
+  }
+
   for (const path of extractObsidianOpenPaths(prompt)) {
     addPath(path);
+  }
+
+  return paths;
+}
+
+function extractWikiLinkPaths(prompt) {
+  const paths = [];
+  const pattern = /!?\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g;
+  let match;
+
+  while ((match = pattern.exec(prompt)) !== null) {
+    const path = String(match[1] || "").trim();
+    if (path) {
+      paths.push(path);
+    }
   }
 
   return paths;
@@ -6879,10 +6902,25 @@ class ChatStorage {
         continue;
       }
       try {
+        await this.deletePastedImageCacheForSessionFile(filePath);
         await this.adapter.remove(filePath);
       } catch (error) {
         console.warn(`Agent Dock could not prune persisted session ${fileName}:`, error);
       }
+    }
+  }
+
+  async deletePastedImageCacheForSessionFile(filePath) {
+    if (typeof this.plugin.deletePastedImageCacheFiles !== "function") {
+      return;
+    }
+
+    try {
+      const raw = await this.adapter.read(filePath);
+      const session = JSON.parse(raw);
+      await this.plugin.deletePastedImageCacheFiles(normalizePastedImagePaths(session?.pastedImagePaths));
+    } catch (error) {
+      console.warn(`Agent Dock could not clean pasted image cache for ${filePath}:`, error);
     }
   }
 
@@ -6915,7 +6953,8 @@ function serializeSession(session, settings) {
     createdAt: normalizeTimestamp(session.createdAt, now),
     updatedAt: normalizeTimestamp(session.updatedAt, now),
     messages,
-    providerState: serializeProviderState(session.providerState)
+    providerState: serializeProviderState(session.providerState),
+    pastedImagePaths: normalizePastedImagePaths(session.pastedImagePaths)
   };
 }
 
@@ -6979,7 +7018,8 @@ function normalizePersistedSession(rawSession, indexEntry) {
     createdAt: normalizeTimestamp(source.createdAt, indexEntry?.createdAt || Date.now()),
     updatedAt: normalizeTimestamp(source.updatedAt, indexEntry?.updatedAt || Date.now()),
     messages,
-    providerState: normalizeProviderState(source.providerState)
+    providerState: normalizeProviderState(source.providerState),
+    pastedImagePaths: normalizePastedImagePaths(source.pastedImagePaths)
   };
 }
 
@@ -7067,6 +7107,23 @@ function safeFileName(value) {
 function normalizeTimestamp(value, fallback) {
   const timestamp = Number(value);
   return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : fallback;
+}
+
+function normalizePastedImagePaths(paths) {
+  if (!Array.isArray(paths)) {
+    return [];
+  }
+  const seen = new Set();
+  return paths
+    .map((path) => String(path || "").trim())
+    .filter(Boolean)
+    .filter((path) => {
+      if (seen.has(path)) {
+        return false;
+      }
+      seen.add(path);
+      return true;
+    });
 }
 
 module.exports = {
@@ -7173,6 +7230,8 @@ function renderComposerContent(composer, options) {
     updateMentionSuggestions,
     hideMentionSuggestions,
     insertActiveNoteReference,
+    hasClipboardImagePaste,
+    handleClipboardImagePaste,
     onDraftChanged,
     handleReferenceDrop,
     queuedPrompts,
@@ -7239,7 +7298,12 @@ function renderComposerContent(composer, options) {
   inputEl.addEventListener("blur", () => {
     window.setTimeout(hideMentionSuggestions, 120);
   });
-  inputEl.addEventListener("paste", () => {
+  inputEl.addEventListener("paste", (event) => {
+    if (hasClipboardImagePaste?.(event.clipboardData)) {
+      event.preventDefault();
+      handleClipboardImagePaste?.(event.clipboardData);
+      return;
+    }
     window.setTimeout(replaceObsidianLinksInInput, 0);
   });
   const onReferenceDragOver = (event) => {
@@ -7408,34 +7472,48 @@ module.exports = {
 "src/view/reference/mention.js": function(module, exports, __require) {
 function getMentionMatch(value, cursor) {
   const beforeCursor = value.slice(0, cursor);
-  const match = /(^|\s)@([^\s@]*)$/.exec(beforeCursor);
-  if (!match) {
-    return null;
+  const wikiMatch = /(^|[^\]])(!?)\[\[([^\]\n]*)$/.exec(beforeCursor);
+  if (wikiMatch) {
+    const start = beforeCursor.length - wikiMatch[0].length + wikiMatch[1].length;
+    return {
+      start,
+      end: cursor,
+      query: wikiMatch[3],
+      trigger: wikiMatch[2] ? "embed-wiki" : "wiki"
+    };
   }
 
-  const start = beforeCursor.length - match[2].length - 1;
-  return {
-    start,
-    end: cursor,
-    query: match[2]
-  };
+  const mentionMatch = /(^|\s)@([^\s@]*)$/.exec(beforeCursor);
+  if (mentionMatch) {
+    const start = beforeCursor.length - mentionMatch[2].length - 1;
+    return {
+      start,
+      end: cursor,
+      query: mentionMatch[2],
+      trigger: "mention"
+    };
+  }
+
+  return null;
 }
 
-function formatMentionToken(path) {
-  return /\s/.test(path) ? `@"${path.replace(/"/g, "\\\"")}"` : `@${path}`;
+function formatMentionToken(path, options = {}) {
+  const normalizedPath = normalizeMentionPath(path);
+  const embed = options.embed === true || (options.embed !== false && isImagePath(normalizedPath));
+  return `${embed ? "!" : ""}[[${normalizedPath}]]`;
 }
 
 function extractMentionReferences(value) {
   const references = [];
   const seen = new Set();
-  const pattern = /@(?:"((?:\\"|[^"])*)"|([^\s]+))|obsidian:\/\/open\?[^\s<>"']+/g;
+  const pattern = /(!?)\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]|@(?:"((?:\\"|[^"])*)"|([^\s]+))|obsidian:\/\/open\?[^\s<>"']+/g;
   let match;
 
   while ((match = pattern.exec(value)) !== null) {
     const raw = match[0];
     const path = raw.startsWith("obsidian://")
       ? extractObsidianOpenFilePath(raw)
-      : match[1] || match[2] || "";
+      : match[2] || match[3] || match[4] || "";
     const normalizedPath = normalizeMentionPath(path);
 
     if (normalizedPath && !seen.has(normalizedPath)) {
@@ -7472,6 +7550,10 @@ function replaceObsidianOpenLinks(value, normalizePath = (path) => path) {
   });
 }
 
+function isImagePath(path) {
+  return /\.(png|jpe?g|gif|webp|tiff?|bmp|svg)$/i.test(String(path || "").trim());
+}
+
 function extractObsidianOpenFilePath(url) {
   try {
     const parsed = new URL(url);
@@ -7489,6 +7571,7 @@ module.exports = {
   formatMentionToken,
   getMentionMatch,
   getParentPath,
+  isImagePath,
   replaceObsidianOpenLinks
 };
 
@@ -7556,7 +7639,9 @@ class MentionMenuController {
       return;
     }
 
-    const suggestions = this.getSuggestions(match.query);
+    const suggestions = this.getSuggestions(match.query, {
+      preferImages: match.trigger === "embed-wiki"
+    });
     if (suggestions.length === 0) {
       this.hide();
       return;
@@ -7566,6 +7651,7 @@ class MentionMenuController {
       active: true,
       start: match.start,
       end: match.end,
+      trigger: match.trigger,
       selectedIndex: 0,
       suggestions
     };
@@ -8080,7 +8166,7 @@ module.exports = {
 
 },
 "src/view/reference/ReferenceResolver.js": function(module, exports, __require) {
-const { getParentPath } = __require("src/view/reference/mention.js");
+const { getParentPath, isImagePath } = __require("src/view/reference/mention.js");
 const {
   normalizeReferenceInput,
   truncateDebugText
@@ -8093,7 +8179,7 @@ class ReferenceResolver {
     this.app = app;
   }
 
-  getVaultPathSuggestions(query) {
+  getVaultPathSuggestions(query, options = {}) {
     const normalizedQuery = query.toLowerCase();
     const suggestions = this.app.vault.getAllLoadedFiles()
       .map((entry) => this.getMentionSuggestionForEntry(entry))
@@ -8108,7 +8194,7 @@ class ReferenceResolver {
         ...suggestion,
         matchScore: getMentionSuggestionMatchScore(suggestion, normalizedQuery)
       }))
-      .sort((left, right) => compareMentionSuggestions(left, right, normalizedQuery));
+      .sort((left, right) => compareMentionSuggestions(left, right, normalizedQuery, options));
     const exactNameMatches = normalizedQuery
       ? suggestions.filter((suggestion) => suggestion.matchScore === 0)
       : [];
@@ -8240,7 +8326,15 @@ class ReferenceResolver {
   }
 }
 
-function compareMentionSuggestions(left, right, normalizedQuery) {
+function compareMentionSuggestions(left, right, normalizedQuery, options = {}) {
+  if (options.preferImages) {
+    const leftImage = isImagePath(left.path);
+    const rightImage = isImagePath(right.path);
+    if (leftImage !== rightImage) {
+      return leftImage ? -1 : 1;
+    }
+  }
+
   const leftScore = typeof left.matchScore === "number"
     ? left.matchScore
     : getMentionSuggestionMatchScore(left, normalizedQuery);
@@ -8285,6 +8379,326 @@ module.exports = {
 };
 
 },
+"src/view/reference/ClipboardImageReference.js": function(module, exports, __require) {
+const DEFAULT_PASTE_FOLDER = ".agent-dock-cache/pasted-images";
+const DEFAULT_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+function extractClipboardImageFiles(clipboardData) {
+  const files = [];
+  const genericClipboardImages = [];
+  const seen = new Set();
+
+  for (const item of Array.from(clipboardData?.items || [])) {
+    if (item?.kind !== "file" || !isImageType(item.type)) {
+      continue;
+    }
+    const file = item.getAsFile?.();
+    if (file && !hasSeenClipboardFile(seen, file)) {
+      markClipboardFileSeen(seen, file);
+      addClipboardImageFile(files, genericClipboardImages, file);
+    }
+  }
+
+  for (const file of Array.from(clipboardData?.files || [])) {
+    if (isImageType(file?.type) && !hasSeenClipboardFile(seen, file)) {
+      markClipboardFileSeen(seen, file);
+      addClipboardImageFile(files, genericClipboardImages, file);
+    }
+  }
+
+  return files;
+}
+
+function addClipboardImageFile(files, genericClipboardImages, file) {
+  if (!isGenericClipboardImageFile(file)) {
+    files.push(file);
+    return;
+  }
+  genericClipboardImages.push(file);
+  if (genericClipboardImages.length === 1) {
+    files.push(file);
+  }
+}
+
+function hasSeenClipboardFile(seen, file) {
+  return seen.has(file) || seen.has(getClipboardFileKey(file));
+}
+
+function markClipboardFileSeen(seen, file) {
+  seen.add(file);
+  seen.add(getClipboardFileKey(file));
+}
+
+function getClipboardFileKey(file) {
+  return [
+    String(file?.name || ""),
+    String(file?.type || "").toLowerCase(),
+    Number.isFinite(Number(file?.size)) ? Number(file.size) : "",
+    Number.isFinite(Number(file?.lastModified)) ? Number(file.lastModified) : ""
+  ].join("|");
+}
+
+function isImageType(type) {
+  return String(type || "").toLowerCase().startsWith("image/");
+}
+
+function isGenericClipboardImageFile(file) {
+  const name = String(file?.name || "").trim().toLowerCase();
+  return !name || /^image\.(png|jpe?g|gif|webp|tiff?|bmp|svg)$/.test(name);
+}
+
+async function saveClipboardImageFile(app, file, options = {}) {
+  if (options.cleanup !== false) {
+    await cleanupExpiredPastedImages(app, options);
+  }
+  const folder = resolvePasteFolder(app, options);
+  const extension = getImageExtension(file);
+  const baseName = createPastedImageBaseName(options.now || new Date());
+  await ensureVaultFolder(app, folder);
+  const path = await getAvailableVaultPath(app, joinVaultPath(folder, `${baseName}.${extension}`));
+  const buffer = await file.arrayBuffer();
+  await app.vault.createBinary(path, buffer);
+  return path;
+}
+
+function resolvePasteFolder(app, options = {}) {
+  if (options.useObsidianAttachmentFolder === true) {
+    return resolveObsidianAttachmentFolder(app, options);
+  }
+  return DEFAULT_PASTE_FOLDER;
+}
+
+function resolveObsidianAttachmentFolder(app, options = {}) {
+  const rawConfigured = String(
+    options.attachmentFolderPath
+    ?? app?.vault?.getConfig?.("attachmentFolderPath")
+    ?? ""
+  ).trim();
+  const configured = normalizeVaultPath(rawConfigured);
+  const activeFile = options.activeFile ?? app?.workspace?.getActiveFile?.();
+  const activeFolder = normalizeVaultPath(activeFile?.parent?.path || getParentPath(activeFile?.path || ""));
+
+  if (rawConfigured === "/") {
+    return "";
+  }
+  if (rawConfigured === "." || rawConfigured === "./") {
+    return activeFolder;
+  }
+  if (rawConfigured.startsWith("./")) {
+    return joinVaultPath(activeFolder, rawConfigured.slice(2));
+  }
+  if (!configured) {
+    return DEFAULT_PASTE_FOLDER;
+  }
+  return configured;
+}
+
+async function cleanupExpiredPastedImages(app, options = {}) {
+  const folder = normalizeVaultPath(options.folder || DEFAULT_PASTE_FOLDER);
+  const maxAgeMs = Number(options.maxAgeMs) || DEFAULT_CACHE_MAX_AGE_MS;
+  const now = Number(options.nowMs) || Date.now();
+  const adapter = app?.vault?.adapter;
+  if (!adapter || !folder || !await adapter.exists(folder)) {
+    return 0;
+  }
+
+  const files = await listVaultFiles(adapter, folder);
+  let removed = 0;
+  for (const path of files) {
+    if (!isCacheImagePath(path, folder)) {
+      continue;
+    }
+    const stat = await safeStat(adapter, path);
+    const mtime = Number(stat?.mtime);
+    if (!Number.isFinite(mtime) || now - mtime <= maxAgeMs) {
+      continue;
+    }
+    if (await removeVaultFile(adapter, path)) {
+      removed += 1;
+    }
+  }
+  return removed;
+}
+
+async function deletePastedImagePaths(app, paths, options = {}) {
+  const folder = normalizeVaultPath(options.folder || DEFAULT_PASTE_FOLDER);
+  const adapter = app?.vault?.adapter;
+  if (!adapter || !Array.isArray(paths) || paths.length === 0) {
+    return 0;
+  }
+
+  let removed = 0;
+  const seen = new Set();
+  for (const rawPath of paths) {
+    const path = normalizeVaultPath(rawPath);
+    if (!path || seen.has(path) || !isCacheImagePath(path, folder)) {
+      continue;
+    }
+    seen.add(path);
+    if (await removeVaultFile(adapter, path)) {
+      removed += 1;
+    }
+  }
+  return removed;
+}
+
+async function listVaultFiles(adapter, folder) {
+  const listing = await adapter.list(folder);
+  const files = [...(listing.files || [])];
+  for (const childFolder of listing.folders || []) {
+    files.push(...await listVaultFiles(adapter, childFolder));
+  }
+  return files;
+}
+
+async function safeStat(adapter, path) {
+  try {
+    return await adapter.stat(path);
+  } catch {
+    return null;
+  }
+}
+
+async function removeVaultFile(adapter, path) {
+  try {
+    if (await adapter.exists(path)) {
+      await adapter.remove(path);
+      return true;
+    }
+  } catch (error) {
+    console.warn(`Agent Dock could not remove pasted image cache file ${path}:`, error);
+  }
+  return false;
+}
+
+function isCacheImagePath(path, folder = DEFAULT_PASTE_FOLDER) {
+  const normalizedPath = normalizeVaultPath(path);
+  const normalizedFolder = normalizeVaultPath(folder);
+  if (!normalizedPath || !normalizedFolder || !normalizedPath.startsWith(`${normalizedFolder}/`)) {
+    return false;
+  }
+  return /\.(png|jpe?g|gif|webp|tiff?|bmp|svg)$/i.test(normalizedPath);
+}
+
+async function ensureVaultFolder(app, folder) {
+  const normalizedFolder = normalizeVaultPath(folder);
+  if (!normalizedFolder || app.vault.getAbstractFileByPath(normalizedFolder)) {
+    return;
+  }
+
+  const parts = normalizedFolder.split("/").filter(Boolean);
+  let current = "";
+  for (const part of parts) {
+    current = joinVaultPath(current, part);
+    if (!app.vault.getAbstractFileByPath(current)) {
+      await app.vault.createFolder(current);
+    }
+  }
+}
+
+async function getAvailableVaultPath(app, requestedPath) {
+  const normalizedPath = normalizeVaultPath(requestedPath);
+  if (!app.vault.getAbstractFileByPath(normalizedPath)) {
+    return normalizedPath;
+  }
+
+  const dotIndex = normalizedPath.lastIndexOf(".");
+  const slashIndex = normalizedPath.lastIndexOf("/");
+  const hasExtension = dotIndex > slashIndex;
+  const base = hasExtension ? normalizedPath.slice(0, dotIndex) : normalizedPath;
+  const extension = hasExtension ? normalizedPath.slice(dotIndex) : "";
+  for (let index = 2; index < 10000; index += 1) {
+    const candidate = `${base}-${index}${extension}`;
+    if (!app.vault.getAbstractFileByPath(candidate)) {
+      return candidate;
+    }
+  }
+  throw new Error("Could not create a unique image filename.");
+}
+
+function getImageExtension(file) {
+  const nameExtension = String(file?.name || "").match(/\.([a-z0-9]+)$/i)?.[1];
+  const mimeExtension = getImageExtensionForMime(file?.type);
+  return sanitizeExtension(nameExtension || mimeExtension || "png");
+}
+
+function getImageExtensionForMime(type) {
+  const normalizedType = String(type || "").toLowerCase();
+  if (normalizedType === "image/jpeg" || normalizedType === "image/jpg") {
+    return "jpg";
+  }
+  if (normalizedType === "image/svg+xml") {
+    return "svg";
+  }
+  const match = normalizedType.match(/^image\/([a-z0-9.+-]+)$/);
+  return match ? match[1].replace(/^x-/, "").replace(/\+xml$/, "") : "";
+}
+
+function sanitizeExtension(extension) {
+  const value = String(extension || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return value || "png";
+}
+
+function createPastedImageBaseName(date) {
+  const safeDate = date instanceof Date && Number.isFinite(date.getTime()) ? date : new Date();
+  const pad = (value, size = 2) => String(value).padStart(size, "0");
+  return [
+    "pasted-image",
+    safeDate.getFullYear(),
+    pad(safeDate.getMonth() + 1),
+    pad(safeDate.getDate()),
+    "-",
+    pad(safeDate.getHours()),
+    pad(safeDate.getMinutes()),
+    pad(safeDate.getSeconds()),
+    "-",
+    pad(safeDate.getMilliseconds(), 3)
+  ].join("");
+}
+
+function normalizeVaultPath(path) {
+  return String(path || "")
+    .replace(/\\/g, "/")
+    .replace(/\/+/g, "/")
+    .replace(/^\/+/, "")
+    .replace(/\/+$/, "")
+    .trim()
+    .split("/")
+    .filter((part) => part && part !== ".")
+    .join("/");
+}
+
+function joinVaultPath(...parts) {
+  return normalizeVaultPath(parts.filter((part) => String(part || "").trim()).join("/"));
+}
+
+function getParentPath(path) {
+  const normalizedPath = normalizeVaultPath(path);
+  const index = normalizedPath.lastIndexOf("/");
+  return index >= 0 ? normalizedPath.slice(0, index) : "";
+}
+
+module.exports = {
+  cleanupExpiredPastedImages,
+  deletePastedImagePaths,
+  extractClipboardImageFiles,
+  saveClipboardImageFile,
+  _test: {
+    cleanupExpiredPastedImages,
+    createPastedImageBaseName,
+    deletePastedImagePaths,
+    extractClipboardImageFiles,
+    getImageExtension,
+    isCacheImagePath,
+    isGenericClipboardImageFile,
+    joinVaultPath,
+    normalizeVaultPath,
+    resolvePasteFolder,
+    resolveObsidianAttachmentFolder
+  }
+};
+
+},
 "src/view/reference/ReferenceController.js": function(module, exports, __require) {
 const { setIcon } = require("obsidian");
 
@@ -8302,6 +8716,11 @@ const {
   truncateDebugText
 } = __require("src/view/reference/ReferenceDropParser.js");
 const { ReferenceResolver } = __require("src/view/reference/ReferenceResolver.js");
+const {
+  cleanupExpiredPastedImages,
+  extractClipboardImageFiles,
+  saveClipboardImageFile
+} = __require("src/view/reference/ClipboardImageReference.js");
 
 class ReferenceController {
   constructor(options) {
@@ -8310,10 +8729,11 @@ class ReferenceController {
     this.persistSessionChange = options.persistSessionChange;
     this.updateContextStatus = options.updateContextStatus;
     this.onInputValueChanged = options.onInputValueChanged || (() => {});
+    this.translate = options.translate || ((key) => key);
     this.resolver = new ReferenceResolver(options.app);
     this.dropParser = new ReferenceDropParser();
     this.mentionMenu = new MentionMenuController({
-      getSuggestions: (query) => this.resolver.getVaultPathSuggestions(query),
+      getSuggestions: (query, menuOptions) => this.resolver.getVaultPathSuggestions(query, menuOptions),
       onSelect: (suggestion, state) => this.selectMentionSuggestion(suggestion, state),
       translate: options.translate
     });
@@ -8339,6 +8759,37 @@ class ReferenceController {
 
   hideMentionSuggestions() {
     this.mentionMenu.hide();
+  }
+
+  hasClipboardImagePaste(clipboardData) {
+    return extractClipboardImageFiles(clipboardData).length > 0;
+  }
+
+  async handleClipboardImagePaste(clipboardData) {
+    const files = extractClipboardImageFiles(clipboardData);
+    if (files.length === 0) {
+      return false;
+    }
+
+    const paths = [];
+    await cleanupExpiredPastedImages(this.plugin.app);
+    for (const file of files) {
+      paths.push(await saveClipboardImageFile(this.plugin.app, file, { cleanup: false }));
+    }
+    this.recordPastedImagePaths(paths);
+    this.insertReferenceTokens(paths);
+    return true;
+  }
+
+  recordPastedImagePaths(paths) {
+    const session = this.getActiveSession();
+    if (!session || !Array.isArray(paths) || paths.length === 0) {
+      return;
+    }
+
+    const existing = new Set(Array.isArray(session.pastedImagePaths) ? session.pastedImagePaths : []);
+    session.pastedImagePaths = [...existing, ...paths.filter((path) => !existing.has(path))];
+    this.persistSessionChange(session);
   }
 
   replaceObsidianLinksInInput() {
@@ -8460,10 +8911,11 @@ class ReferenceController {
   }
 
   selectMentionSuggestion(suggestion, state) {
+    const embed = state.trigger === "embed-wiki" ? true : undefined;
     this.replaceInputRange({
       start: state.start,
       end: state.end,
-      insertion: formatMentionToken(suggestion.path),
+      insertion: formatMentionToken(suggestion.path, { embed }),
       prefix: state.insertionPrefix || "",
       suffix: state.insertionSuffix ?? " "
     });
@@ -9212,7 +9664,8 @@ class SessionStore {
       createdAt: now,
       updatedAt: now,
       messages: [],
-      providerState: {}
+      providerState: {},
+      pastedImagePaths: []
     };
     this.sessions.push(session);
     this.activeSessionId = session.id;
@@ -9294,8 +9747,26 @@ function normalizeSession(session, fallbackTitle = "Chat") {
     createdAt: normalizeTimestamp(session.createdAt),
     updatedAt: normalizeTimestamp(session.updatedAt),
     messages: Array.isArray(session.messages) ? session.messages.map(normalizeMessage).filter(Boolean) : [],
-    providerState: normalizeProviderState(session.providerState)
+    providerState: normalizeProviderState(session.providerState),
+    pastedImagePaths: normalizePastedImagePaths(session.pastedImagePaths)
   };
+}
+
+function normalizePastedImagePaths(paths) {
+  if (!Array.isArray(paths)) {
+    return [];
+  }
+  const seen = new Set();
+  return paths
+    .map((path) => String(path || "").trim())
+    .filter(Boolean)
+    .filter((path) => {
+      if (seen.has(path)) {
+        return false;
+      }
+      seen.add(path);
+      return true;
+    });
 }
 
 function normalizeMessage(message) {
@@ -10108,6 +10579,34 @@ function resolveMentionFileReference(app, target) {
   };
 }
 
+function parseObsidianInternalLinkTarget(target) {
+  const text = safeDecodeUri(trimLinkTarget(target)).trim();
+  if (!text || text.startsWith("/") || text.includes("://")) {
+    return null;
+  }
+  const path = normalizePath(text.split("#")[0].split("|")[0]);
+  if (!path || path.split("/").includes("..")) {
+    return null;
+  }
+  return {
+    linkText: text,
+    vaultPath: path
+  };
+}
+
+function resolveObsidianInternalLinkReference(app, target) {
+  const parsed = parseObsidianInternalLinkTarget(target);
+  if (!parsed) {
+    return null;
+  }
+  const file = resolveVaultFile(app, parsed.vaultPath);
+  return {
+    file,
+    parsed,
+    vaultPath: file?.path || parsed.vaultPath
+  };
+}
+
 function getLeafViewEditor(leaf) {
   return leaf?.view?.editor || leaf?.view?.sourceMode?.cmEditor || null;
 }
@@ -10174,8 +10673,41 @@ function attachLocalFileLinkHandler(anchor, app, reference, options) {
   });
 }
 
+function attachObsidianInternalLinkHandler(anchor, app, reference, options) {
+  const { parsed, vaultPath } = reference;
+  addElementClass(anchor, "codex-dock__file-link");
+  setElementAttr(anchor, "title", parsed.linkText || vaultPath);
+  anchor.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      if (typeof app.workspace.openLinkText === "function") {
+        await app.workspace.openLinkText(parsed.linkText, options.sourcePath || "", false);
+        return;
+      }
+      if (!reference.file) {
+        options.onOpenFailed?.({ error: null, vaultPath });
+        return;
+      }
+      await openVaultFileAtLine(app, reference.file, null, null);
+    } catch (error) {
+      console.warn("Agent Dock could not open Obsidian internal link:", error);
+      options.onOpenFailed?.({ error, vaultPath });
+    }
+  });
+}
+
 function decorateRenderedAnchorLinks(markdownEl, app, vaultBasePath, options) {
   for (const anchor of markdownEl.querySelectorAll("a[href]")) {
+    const internalTarget = anchor.getAttribute("data-href") || (
+      anchor.classList.contains("internal-link") ? anchor.getAttribute("href") : ""
+    );
+    const internalReference = resolveObsidianInternalLinkReference(app, internalTarget);
+    if (internalReference) {
+      attachObsidianInternalLinkHandler(anchor, app, internalReference, options);
+      continue;
+    }
+
     const reference = resolveLocalFileReference(app, anchor.getAttribute("href"), vaultBasePath);
     if (!reference) {
       continue;
@@ -10294,11 +10826,13 @@ function linkifyTextFileReferences(markdownEl, app, vaultBasePath, options) {
 
 function decorateLocalFileLinks(markdownEl, app, options = {}) {
   const vaultBasePath = getVaultBasePath(app);
-  if (!markdownEl || !vaultBasePath) {
+  if (!markdownEl) {
     return;
   }
   decorateRenderedAnchorLinks(markdownEl, app, vaultBasePath, options);
-  linkifyTextFileReferences(markdownEl, app, vaultBasePath, options);
+  if (vaultBasePath) {
+    linkifyTextFileReferences(markdownEl, app, vaultBasePath, options);
+  }
 }
 
 module.exports = {
@@ -10312,9 +10846,11 @@ module.exports = {
     findMentionFileReferences,
     findTextFileReferences,
     normalizeLocalFileMarkdownLinks,
+    parseObsidianInternalLinkTarget,
     parseLocalFileLinkTarget,
     parseMentionFileTarget,
     resolveVaultFile,
+    resolveObsidianInternalLinkReference,
     resolveMentionFileReference,
     resolveLocalFileReference
   }
@@ -10687,6 +11223,8 @@ class AgentDockView extends ItemView {
       updateMentionSuggestions: () => this.referenceController.updateMentionSuggestions(),
       hideMentionSuggestions: () => this.referenceController.hideMentionSuggestions(),
       insertActiveNoteReference: () => this.insertActiveNoteReference(),
+      hasClipboardImagePaste: (clipboardData) => this.referenceController.hasClipboardImagePaste(clipboardData),
+      handleClipboardImagePaste: (clipboardData) => this.handleClipboardImagePaste(clipboardData),
       onDraftChanged: (session) => this.persistSessionChange(session),
       handleReferenceDrop: (dataTransfer) => this.referenceController.handleReferenceDrop(dataTransfer),
       queuedPrompts: ensurePromptQueue(this.getActiveSession()),
@@ -10718,6 +11256,20 @@ class AgentDockView extends ItemView {
     }
     new Notice(this.translate("notice.noActiveNote"));
     return false;
+  }
+
+  async handleClipboardImagePaste(clipboardData) {
+    try {
+      const saved = await this.referenceController.handleClipboardImagePaste(clipboardData);
+      if (saved) {
+        new Notice(this.translate("notice.pastedImageSaved"));
+      }
+      return saved;
+    } catch (error) {
+      console.error("Agent Dock failed to save pasted image", error);
+      new Notice(this.translate("notice.pastedImageFailed", { message: error.message || String(error) }));
+      return false;
+    }
   }
 
   renderMessages(options = {}) {
@@ -11331,6 +11883,7 @@ class AgentDockView extends ItemView {
     const renderText = normalizeLocalFileMarkdownLinks(text || "");
     MarkdownRenderer.render(this.app, renderText, markdownEl, sourcePath, this).then(() => {
       decorateLocalFileLinks(markdownEl, this.app, {
+        sourcePath,
         onOpenFailed: ({ vaultPath }) => {
           new Notice(this.translate("notice.openFileLinkFailed", { path: vaultPath }));
         }
@@ -11434,8 +11987,10 @@ class AgentDockView extends ItemView {
       return;
     }
 
+    const pastedImagePaths = Array.isArray(session.pastedImagePaths) ? [...session.pastedImagePaths] : [];
     this.sessionStore.deleteSession(sessionId);
     await this.plugin.agent?.releaseDockSession?.(sessionId);
+    await this.plugin.deletePastedImageCacheFiles(pastedImagePaths);
     await this.plugin.deletePersistedSession(sessionId);
     await this.persistChatSessions({ immediate: true });
     this.render();
@@ -11640,6 +12195,10 @@ const { AgentDockSettingTab } = __require("src/settingsTab.js");
 const { ChatStorage } = __require("src/storage/ChatStorage.js");
 const { MemoryStore } = __require("src/storage/MemoryStore.js");
 const { AgentDockView } = __require("src/view/AgentDockView.js");
+const {
+  cleanupExpiredPastedImages,
+  deletePastedImagePaths
+} = __require("src/view/reference/ClipboardImageReference.js");
 
 module.exports = class AgentDockPlugin extends Plugin {
   async onload() {
@@ -11657,6 +12216,7 @@ module.exports = class AgentDockPlugin extends Plugin {
     this.chatStorage = new ChatStorage(this);
     this.memoryStore = new MemoryStore(this);
     this.agentProfileStore = new AgentProfileStore(this);
+    await this.cleanupPastedImageCache();
     this.refreshAgent();
 
     this.registerView(
@@ -11762,6 +12322,22 @@ module.exports = class AgentDockPlugin extends Plugin {
 
   async deletePersistedSession(sessionId) {
     await this.chatStorage.deleteSession(sessionId);
+  }
+
+  async cleanupPastedImageCache() {
+    try {
+      await cleanupExpiredPastedImages(this.app);
+    } catch (error) {
+      console.warn("Agent Dock could not clean pasted image cache:", error);
+    }
+  }
+
+  async deletePastedImageCacheFiles(paths) {
+    try {
+      await deletePastedImagePaths(this.app, paths);
+    } catch (error) {
+      console.warn("Agent Dock could not delete pasted image cache files:", error);
+    }
   }
 
   async clearPersistedChatHistory() {

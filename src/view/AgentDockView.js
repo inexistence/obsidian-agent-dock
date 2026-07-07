@@ -293,6 +293,8 @@ class AgentDockView extends ItemView {
       updateMentionSuggestions: () => this.referenceController.updateMentionSuggestions(),
       hideMentionSuggestions: () => this.referenceController.hideMentionSuggestions(),
       insertActiveNoteReference: () => this.insertActiveNoteReference(),
+      hasClipboardImagePaste: (clipboardData) => this.referenceController.hasClipboardImagePaste(clipboardData),
+      handleClipboardImagePaste: (clipboardData) => this.handleClipboardImagePaste(clipboardData),
       onDraftChanged: (session) => this.persistSessionChange(session),
       handleReferenceDrop: (dataTransfer) => this.referenceController.handleReferenceDrop(dataTransfer),
       queuedPrompts: ensurePromptQueue(this.getActiveSession()),
@@ -324,6 +326,20 @@ class AgentDockView extends ItemView {
     }
     new Notice(this.translate("notice.noActiveNote"));
     return false;
+  }
+
+  async handleClipboardImagePaste(clipboardData) {
+    try {
+      const saved = await this.referenceController.handleClipboardImagePaste(clipboardData);
+      if (saved) {
+        new Notice(this.translate("notice.pastedImageSaved"));
+      }
+      return saved;
+    } catch (error) {
+      console.error("Agent Dock failed to save pasted image", error);
+      new Notice(this.translate("notice.pastedImageFailed", { message: error.message || String(error) }));
+      return false;
+    }
   }
 
   renderMessages(options = {}) {
@@ -937,6 +953,7 @@ class AgentDockView extends ItemView {
     const renderText = normalizeLocalFileMarkdownLinks(text || "");
     MarkdownRenderer.render(this.app, renderText, markdownEl, sourcePath, this).then(() => {
       decorateLocalFileLinks(markdownEl, this.app, {
+        sourcePath,
         onOpenFailed: ({ vaultPath }) => {
           new Notice(this.translate("notice.openFileLinkFailed", { path: vaultPath }));
         }
@@ -1040,8 +1057,10 @@ class AgentDockView extends ItemView {
       return;
     }
 
+    const pastedImagePaths = Array.isArray(session.pastedImagePaths) ? [...session.pastedImagePaths] : [];
     this.sessionStore.deleteSession(sessionId);
     await this.plugin.agent?.releaseDockSession?.(sessionId);
+    await this.plugin.deletePastedImageCacheFiles(pastedImagePaths);
     await this.plugin.deletePersistedSession(sessionId);
     await this.persistChatSessions({ immediate: true });
     this.render();

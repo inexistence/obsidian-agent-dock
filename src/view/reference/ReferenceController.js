@@ -14,6 +14,11 @@ const {
   truncateDebugText
 } = require("./ReferenceDropParser");
 const { ReferenceResolver } = require("./ReferenceResolver");
+const {
+  cleanupExpiredPastedImages,
+  extractClipboardImageFiles,
+  saveClipboardImageFile
+} = require("./ClipboardImageReference");
 
 class ReferenceController {
   constructor(options) {
@@ -22,10 +27,11 @@ class ReferenceController {
     this.persistSessionChange = options.persistSessionChange;
     this.updateContextStatus = options.updateContextStatus;
     this.onInputValueChanged = options.onInputValueChanged || (() => {});
+    this.translate = options.translate || ((key) => key);
     this.resolver = new ReferenceResolver(options.app);
     this.dropParser = new ReferenceDropParser();
     this.mentionMenu = new MentionMenuController({
-      getSuggestions: (query) => this.resolver.getVaultPathSuggestions(query),
+      getSuggestions: (query, menuOptions) => this.resolver.getVaultPathSuggestions(query, menuOptions),
       onSelect: (suggestion, state) => this.selectMentionSuggestion(suggestion, state),
       translate: options.translate
     });
@@ -51,6 +57,37 @@ class ReferenceController {
 
   hideMentionSuggestions() {
     this.mentionMenu.hide();
+  }
+
+  hasClipboardImagePaste(clipboardData) {
+    return extractClipboardImageFiles(clipboardData).length > 0;
+  }
+
+  async handleClipboardImagePaste(clipboardData) {
+    const files = extractClipboardImageFiles(clipboardData);
+    if (files.length === 0) {
+      return false;
+    }
+
+    const paths = [];
+    await cleanupExpiredPastedImages(this.plugin.app);
+    for (const file of files) {
+      paths.push(await saveClipboardImageFile(this.plugin.app, file, { cleanup: false }));
+    }
+    this.recordPastedImagePaths(paths);
+    this.insertReferenceTokens(paths);
+    return true;
+  }
+
+  recordPastedImagePaths(paths) {
+    const session = this.getActiveSession();
+    if (!session || !Array.isArray(paths) || paths.length === 0) {
+      return;
+    }
+
+    const existing = new Set(Array.isArray(session.pastedImagePaths) ? session.pastedImagePaths : []);
+    session.pastedImagePaths = [...existing, ...paths.filter((path) => !existing.has(path))];
+    this.persistSessionChange(session);
   }
 
   replaceObsidianLinksInInput() {
@@ -172,10 +209,11 @@ class ReferenceController {
   }
 
   selectMentionSuggestion(suggestion, state) {
+    const embed = state.trigger === "embed-wiki" ? true : undefined;
     this.replaceInputRange({
       start: state.start,
       end: state.end,
-      insertion: formatMentionToken(suggestion.path),
+      insertion: formatMentionToken(suggestion.path, { embed }),
       prefix: state.insertionPrefix || "",
       suffix: state.insertionSuffix ?? " "
     });

@@ -123,6 +123,8 @@ module.exports = {
     "notice.resetAffectFailed": "Agent Dock could not reset the mood. Check the console for details.",
     "notice.stopBeforeDeleting": "Stop this conversation before deleting it.",
     "notice.noActiveNote": "No active note to reference.",
+    "notice.pastedImageSaved": "Pasted image saved and referenced.",
+    "notice.pastedImageFailed": "Could not save pasted image: {message}",
     "notice.openFileLinkFailed": "File does not exist or could not be opened: {path}",
     "agent.switchProvider": "Switch agent provider",
     "agent.currentProviderTitle": "{agent} will handle new messages",

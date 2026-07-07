@@ -268,6 +268,34 @@ function resolveMentionFileReference(app, target) {
   };
 }
 
+function parseObsidianInternalLinkTarget(target) {
+  const text = safeDecodeUri(trimLinkTarget(target)).trim();
+  if (!text || text.startsWith("/") || text.includes("://")) {
+    return null;
+  }
+  const path = normalizePath(text.split("#")[0].split("|")[0]);
+  if (!path || path.split("/").includes("..")) {
+    return null;
+  }
+  return {
+    linkText: text,
+    vaultPath: path
+  };
+}
+
+function resolveObsidianInternalLinkReference(app, target) {
+  const parsed = parseObsidianInternalLinkTarget(target);
+  if (!parsed) {
+    return null;
+  }
+  const file = resolveVaultFile(app, parsed.vaultPath);
+  return {
+    file,
+    parsed,
+    vaultPath: file?.path || parsed.vaultPath
+  };
+}
+
 function getLeafViewEditor(leaf) {
   return leaf?.view?.editor || leaf?.view?.sourceMode?.cmEditor || null;
 }
@@ -334,8 +362,41 @@ function attachLocalFileLinkHandler(anchor, app, reference, options) {
   });
 }
 
+function attachObsidianInternalLinkHandler(anchor, app, reference, options) {
+  const { parsed, vaultPath } = reference;
+  addElementClass(anchor, "codex-dock__file-link");
+  setElementAttr(anchor, "title", parsed.linkText || vaultPath);
+  anchor.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    try {
+      if (typeof app.workspace.openLinkText === "function") {
+        await app.workspace.openLinkText(parsed.linkText, options.sourcePath || "", false);
+        return;
+      }
+      if (!reference.file) {
+        options.onOpenFailed?.({ error: null, vaultPath });
+        return;
+      }
+      await openVaultFileAtLine(app, reference.file, null, null);
+    } catch (error) {
+      console.warn("Agent Dock could not open Obsidian internal link:", error);
+      options.onOpenFailed?.({ error, vaultPath });
+    }
+  });
+}
+
 function decorateRenderedAnchorLinks(markdownEl, app, vaultBasePath, options) {
   for (const anchor of markdownEl.querySelectorAll("a[href]")) {
+    const internalTarget = anchor.getAttribute("data-href") || (
+      anchor.classList.contains("internal-link") ? anchor.getAttribute("href") : ""
+    );
+    const internalReference = resolveObsidianInternalLinkReference(app, internalTarget);
+    if (internalReference) {
+      attachObsidianInternalLinkHandler(anchor, app, internalReference, options);
+      continue;
+    }
+
     const reference = resolveLocalFileReference(app, anchor.getAttribute("href"), vaultBasePath);
     if (!reference) {
       continue;
@@ -454,11 +515,13 @@ function linkifyTextFileReferences(markdownEl, app, vaultBasePath, options) {
 
 function decorateLocalFileLinks(markdownEl, app, options = {}) {
   const vaultBasePath = getVaultBasePath(app);
-  if (!markdownEl || !vaultBasePath) {
+  if (!markdownEl) {
     return;
   }
   decorateRenderedAnchorLinks(markdownEl, app, vaultBasePath, options);
-  linkifyTextFileReferences(markdownEl, app, vaultBasePath, options);
+  if (vaultBasePath) {
+    linkifyTextFileReferences(markdownEl, app, vaultBasePath, options);
+  }
 }
 
 module.exports = {
@@ -472,9 +535,11 @@ module.exports = {
     findMentionFileReferences,
     findTextFileReferences,
     normalizeLocalFileMarkdownLinks,
+    parseObsidianInternalLinkTarget,
     parseLocalFileLinkTarget,
     parseMentionFileTarget,
     resolveVaultFile,
+    resolveObsidianInternalLinkReference,
     resolveMentionFileReference,
     resolveLocalFileReference
   }

@@ -81,6 +81,45 @@ const {
 }
 
 {
+  assert.deepStrictEqual(
+    fileLinkTest.parseObsidianInternalLinkTarget("工作/网络/15s协议超时实验/15s协议超时实验结论报告.md"),
+    {
+      linkText: "工作/网络/15s协议超时实验/15s协议超时实验结论报告.md",
+      vaultPath: "工作/网络/15s协议超时实验/15s协议超时实验结论报告.md"
+    }
+  );
+  assert.deepStrictEqual(
+    fileLinkTest.parseObsidianInternalLinkTarget("工作/网络/报告.md#结论"),
+    {
+      linkText: "工作/网络/报告.md#结论",
+      vaultPath: "工作/网络/报告.md"
+    }
+  );
+  assert.strictEqual(fileLinkTest.parseObsidianInternalLinkTarget("https://example.com"), null);
+  assert.strictEqual(fileLinkTest.parseObsidianInternalLinkTarget("../secret.md"), null);
+}
+
+{
+  const reference = fileLinkTest.resolveObsidianInternalLinkReference(
+    {
+      vault: {
+        getAbstractFileByPath(path) {
+          return path === "工作/网络/报告.md"
+            ? { path, extension: "md" }
+            : null;
+        },
+        getAllLoadedFiles() {
+          return [];
+        }
+      }
+    },
+    "工作/网络/报告.md"
+  );
+  assert.strictEqual(reference.file.path, "工作/网络/报告.md");
+  assert.strictEqual(reference.vaultPath, "工作/网络/报告.md");
+}
+
+{
   assert.strictEqual(
     fileLinkTest.normalizeLocalFileMarkdownLinks(
       "[主页.md](/Users/bigo/Library/Mobile Documents/iCloud~md~obsidian/Documents/Work/主页.md:10)"

@@ -120,10 +120,25 @@ class ChatStorage {
         continue;
       }
       try {
+        await this.deletePastedImageCacheForSessionFile(filePath);
         await this.adapter.remove(filePath);
       } catch (error) {
         console.warn(`Agent Dock could not prune persisted session ${fileName}:`, error);
       }
+    }
+  }
+
+  async deletePastedImageCacheForSessionFile(filePath) {
+    if (typeof this.plugin.deletePastedImageCacheFiles !== "function") {
+      return;
+    }
+
+    try {
+      const raw = await this.adapter.read(filePath);
+      const session = JSON.parse(raw);
+      await this.plugin.deletePastedImageCacheFiles(normalizePastedImagePaths(session?.pastedImagePaths));
+    } catch (error) {
+      console.warn(`Agent Dock could not clean pasted image cache for ${filePath}:`, error);
     }
   }
 
@@ -156,7 +171,8 @@ function serializeSession(session, settings) {
     createdAt: normalizeTimestamp(session.createdAt, now),
     updatedAt: normalizeTimestamp(session.updatedAt, now),
     messages,
-    providerState: serializeProviderState(session.providerState)
+    providerState: serializeProviderState(session.providerState),
+    pastedImagePaths: normalizePastedImagePaths(session.pastedImagePaths)
   };
 }
 
@@ -220,7 +236,8 @@ function normalizePersistedSession(rawSession, indexEntry) {
     createdAt: normalizeTimestamp(source.createdAt, indexEntry?.createdAt || Date.now()),
     updatedAt: normalizeTimestamp(source.updatedAt, indexEntry?.updatedAt || Date.now()),
     messages,
-    providerState: normalizeProviderState(source.providerState)
+    providerState: normalizeProviderState(source.providerState),
+    pastedImagePaths: normalizePastedImagePaths(source.pastedImagePaths)
   };
 }
 
@@ -308,6 +325,23 @@ function safeFileName(value) {
 function normalizeTimestamp(value, fallback) {
   const timestamp = Number(value);
   return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : fallback;
+}
+
+function normalizePastedImagePaths(paths) {
+  if (!Array.isArray(paths)) {
+    return [];
+  }
+  const seen = new Set();
+  return paths
+    .map((path) => String(path || "").trim())
+    .filter(Boolean)
+    .filter((path) => {
+      if (seen.has(path)) {
+        return false;
+      }
+      seen.add(path);
+      return true;
+    });
 }
 
 module.exports = {

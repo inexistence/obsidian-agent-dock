@@ -123,6 +123,8 @@ module.exports = {
     "notice.resetAffectFailed": "Agent Dock 无法重置氛围。请查看控制台详情。",
     "notice.stopBeforeDeleting": "删除前请先停止此对话。",
     "notice.noActiveNote": "没有可引用的当前笔记。",
+    "notice.pastedImageSaved": "已保存并引用粘贴的图片。",
+    "notice.pastedImageFailed": "无法保存粘贴的图片：{message}",
     "notice.openFileLinkFailed": "文件不存在或无法打开：{path}",
     "agent.switchProvider": "切换 Agent 提供方",
     "agent.currentProviderTitle": "之后的新消息将由 {agent} 处理",
