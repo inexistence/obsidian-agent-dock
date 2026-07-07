@@ -596,9 +596,11 @@
 
 .codex-dock__content {
   position: relative;
+  flex: 0 1 auto;
   box-sizing: border-box;
   width: fit-content;
   max-width: 100%;
+  min-width: 0;
   margin: 0;
   padding: 10px;
   border: 1px solid var(--background-modifier-border);
@@ -609,6 +611,7 @@
   font-size: var(--font-ui-small);
   line-height: 1.45;
   overflow-wrap: anywhere;
+  word-break: break-word;
   user-select: text;
   -webkit-user-select: text;
 }
@@ -619,6 +622,11 @@
   -webkit-user-select: text;
 }
 
+.codex-dock__content-body {
+  min-width: 0;
+  overflow-x: auto;
+}
+
 .codex-dock__content-body > :first-child {
   margin-top: 0;
 }
@@ -627,9 +635,32 @@
   margin-bottom: 0;
 }
 
+.codex-dock__content-body,
+.codex-dock__content-body > *,
+.codex-dock__content a,
+.codex-dock__content li,
+.codex-dock__content p {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .codex-dock__content pre {
+  max-width: 100%;
   overflow: auto;
   white-space: pre;
+}
+
+.codex-dock__content table {
+  max-width: 100%;
+}
+
+.codex-dock__content th,
+.codex-dock__content td {
+  max-width: min(320px, 70cqw);
+  overflow-wrap: anywhere;
+  white-space: normal;
+  word-break: break-word;
 }
 
 .codex-dock__content code {
