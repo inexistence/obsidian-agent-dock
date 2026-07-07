@@ -7319,7 +7319,8 @@ class ImagePreviewController {
   }
 
   setZoom(value) {
-    this.zoom = Math.min(5, Math.max(0.25, Number(value) || 1));
+    const nextZoom = Number(value);
+    this.zoom = Math.min(5, Math.max(0.25, Number.isFinite(nextZoom) ? nextZoom : 1));
     this.applyZoom();
   }
 
