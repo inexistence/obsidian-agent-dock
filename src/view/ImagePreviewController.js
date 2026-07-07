@@ -53,7 +53,8 @@ class ImagePreviewController {
     this.previouslyFocusedEl = document.activeElement instanceof HTMLElement
       ? document.activeElement
       : null;
-    const overlay = this.containerEl.createDiv({
+    const overlayRoot = document.body || this.containerEl;
+    const overlay = overlayRoot.createDiv({
       cls: "codex-dock__image-preview",
       attr: {
         role: "dialog",
