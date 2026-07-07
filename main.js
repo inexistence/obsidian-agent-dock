@@ -263,6 +263,9 @@ module.exports = {
     "view.imagePreview": "Image preview",
     "view.openImagePreview": "Open image preview",
     "view.closeImagePreview": "Close image preview",
+    "view.zoomInImagePreview": "Zoom in",
+    "view.zoomOutImagePreview": "Zoom out",
+    "view.resetImagePreviewZoom": "Reset zoom",
     "view.agentFinishedEmpty": "({agent} finished without text output.)",
     "view.agentStopped": "({agent} stopped.)",
     "view.agentRunFailed": "{agent} could not run.",
@@ -587,6 +590,9 @@ module.exports = {
     "view.imagePreview": "图片预览",
     "view.openImagePreview": "打开图片预览",
     "view.closeImagePreview": "关闭图片预览",
+    "view.zoomInImagePreview": "放大",
+    "view.zoomOutImagePreview": "缩小",
+    "view.resetImagePreviewZoom": "重置缩放",
     "view.agentFinishedEmpty": "（{agent} 已完成，但没有文本输出。）",
     "view.agentStopped": "（{agent} 已停止。）",
     "view.agentRunFailed": "{agent} 无法运行。",
@@ -10998,6 +11004,9 @@ class AgentDockView extends ItemView {
     this.imagePreviewEl = null;
     this.imagePreviewKeydown = null;
     this.imagePreviewPreviouslyFocused = null;
+    this.imagePreviewZoom = 1;
+    this.imagePreviewImageEl = null;
+    this.imagePreviewZoomLabelEl = null;
   }
 
   get sessions() {
@@ -11955,6 +11964,14 @@ class AgentDockView extends ItemView {
       cls: "codex-dock__image-preview-title",
       text: this.getImagePreviewTitle(sourceImageEl, src)
     });
+    const controls = toolbar.createDiv({ cls: "codex-dock__image-preview-controls" });
+    const zoomOutButton = this.createImagePreviewButton(controls, "minus", "view.zoomOutImagePreview");
+    this.imagePreviewZoomLabelEl = controls.createSpan({
+      cls: "codex-dock__image-preview-zoom",
+      text: "100%"
+    });
+    const zoomInButton = this.createImagePreviewButton(controls, "plus", "view.zoomInImagePreview");
+    const resetZoomButton = this.createImagePreviewButton(controls, "maximize-2", "view.resetImagePreviewZoom");
     const closeButton = toolbar.createEl("button", {
       cls: "codex-dock__image-preview-close",
       attr: {
@@ -11965,7 +11982,7 @@ class AgentDockView extends ItemView {
     });
     setIcon(closeButton, "x");
     const imageWrap = stage.createDiv({ cls: "codex-dock__image-preview-wrap" });
-    imageWrap.createEl("img", {
+    this.imagePreviewImageEl = imageWrap.createEl("img", {
       cls: "codex-dock__image-preview-img",
       attr: {
         src,
@@ -11976,6 +11993,16 @@ class AgentDockView extends ItemView {
     const close = () => this.closeImagePreview();
     backdrop.addEventListener("click", close);
     closeButton.addEventListener("click", close);
+    zoomOutButton.addEventListener("click", () => this.adjustImagePreviewZoom(-0.25));
+    zoomInButton.addEventListener("click", () => this.adjustImagePreviewZoom(0.25));
+    resetZoomButton.addEventListener("click", () => this.setImagePreviewZoom(1));
+    imageWrap.addEventListener("wheel", (event) => {
+      if (!event.ctrlKey && !event.metaKey) {
+        return;
+      }
+      event.preventDefault();
+      this.adjustImagePreviewZoom(event.deltaY > 0 ? -0.15 : 0.15);
+    }, { passive: false });
     this.imagePreviewKeydown = (event) => {
       if (event.key === "Escape") {
         event.preventDefault();
@@ -11984,11 +12011,54 @@ class AgentDockView extends ItemView {
       }
       if (event.key === "Tab") {
         this.trapImagePreviewFocus(event);
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && (event.key === "+" || event.key === "=")) {
+        event.preventDefault();
+        this.adjustImagePreviewZoom(0.25);
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key === "-") {
+        event.preventDefault();
+        this.adjustImagePreviewZoom(-0.25);
+        return;
+      }
+      if ((event.metaKey || event.ctrlKey) && event.key === "0") {
+        event.preventDefault();
+        this.setImagePreviewZoom(1);
       }
     };
     window.addEventListener("keydown", this.imagePreviewKeydown);
     this.imagePreviewEl = overlay;
+    this.setImagePreviewZoom(1);
     closeButton.focus();
+  }
+
+  createImagePreviewButton(containerEl, icon, labelKey) {
+    const button = containerEl.createEl("button", {
+      cls: "codex-dock__image-preview-tool",
+      attr: {
+        type: "button",
+        "aria-label": this.translate(labelKey),
+        title: this.translate(labelKey)
+      }
+    });
+    setIcon(button, icon);
+    return button;
+  }
+
+  adjustImagePreviewZoom(delta) {
+    this.setImagePreviewZoom(this.imagePreviewZoom + delta);
+  }
+
+  setImagePreviewZoom(value) {
+    this.imagePreviewZoom = Math.min(5, Math.max(0.25, Number(value) || 1));
+    if (this.imagePreviewImageEl) {
+      this.imagePreviewImageEl.style.setProperty("--codex-dock-image-preview-width", `${this.imagePreviewZoom * 100}%`);
+    }
+    if (this.imagePreviewZoomLabelEl) {
+      this.imagePreviewZoomLabelEl.setText(`${Math.round(this.imagePreviewZoom * 100)}%`);
+    }
   }
 
   getImagePreviewTitle(sourceImageEl, src) {
@@ -12048,6 +12118,9 @@ class AgentDockView extends ItemView {
       this.imagePreviewEl.remove();
       this.imagePreviewEl = null;
     }
+    this.imagePreviewImageEl = null;
+    this.imagePreviewZoomLabelEl = null;
+    this.imagePreviewZoom = 1;
     if (this.imagePreviewPreviouslyFocused?.isConnected) {
       this.imagePreviewPreviouslyFocused.focus();
     }
