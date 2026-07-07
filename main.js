@@ -7508,19 +7508,20 @@ function createCodeMirrorComposerInput(options = {}) {
     return null;
   }
 
-  class LinkPreviewWidget extends WidgetType {
-    constructor(label) {
+  class InlinePreviewWidget extends WidgetType {
+    constructor(label, className) {
       super();
       this.label = label;
+      this.className = className;
     }
 
     eq(other) {
-      return other.label === this.label;
+      return other.label === this.label && other.className === this.className;
     }
 
     toDOM() {
       const span = document.createElement("span");
-      span.className = "codex-dock__cm-link-preview";
+      span.className = this.className;
       span.textContent = this.label;
       return span;
     }
@@ -7530,14 +7531,14 @@ function createCodeMirrorComposerInput(options = {}) {
     }
   }
 
-  const linkPreviewPlugin = ViewPlugin.fromClass(class {
+  const inlinePreviewPlugin = ViewPlugin.fromClass(class {
     constructor(view) {
-      this.decorations = buildLinkPreviewDecorations(view, Decoration, LinkPreviewWidget);
+      this.decorations = buildInlinePreviewDecorations(view, Decoration, InlinePreviewWidget);
     }
 
     update(update) {
       if (update.docChanged || update.selectionSet || update.viewportChanged) {
-        this.decorations = buildLinkPreviewDecorations(update.view, Decoration, LinkPreviewWidget);
+        this.decorations = buildInlinePreviewDecorations(update.view, Decoration, InlinePreviewWidget);
       }
     }
   }, {
@@ -7554,7 +7555,7 @@ function createCodeMirrorComposerInput(options = {}) {
         history ? history() : [],
         keymap ? keymap.of([...(defaultKeymap || []), ...(historyKeymap || [])]) : [],
         EditorView.lineWrapping,
-        linkPreviewPlugin,
+        inlinePreviewPlugin,
         EditorView.updateListener.of((update) => {
           rootEl.classList.toggle("is-empty", update.state.doc.length === 0);
           if (update.docChanged) {
@@ -7666,16 +7667,59 @@ class CodeMirrorComposerInput {
   }
 }
 
-function buildLinkPreviewDecorations(view, Decoration, LinkPreviewWidget) {
-  const ranges = [];
+function buildInlinePreviewDecorations(view, Decoration, InlinePreviewWidget) {
+  const specs = [];
   const text = view.state.doc.toString();
   const selection = view.state.selection.main;
   for (const range of getMarkdownLinkPreviewRanges(text, selection)) {
-    ranges.push(Decoration.replace({
-      widget: new LinkPreviewWidget(range.label),
-      inclusive: false
-    }).range(range.from, range.to));
+    specs.push({
+      from: range.from,
+      to: range.to,
+      order: 0,
+      create: () => Decoration.replace({
+        widget: new InlinePreviewWidget(range.label, "codex-dock__cm-link-preview"),
+        inclusive: false
+      }).range(range.from, range.to)
+    });
   }
+  for (const range of getMarkdownInlineCodePreviewRanges(text, selection)) {
+    specs.push({
+      from: range.from,
+      to: range.to,
+      order: 0,
+      create: () => Decoration.replace({
+        widget: new InlinePreviewWidget(range.label, "codex-dock__cm-code"),
+        inclusive: false
+      }).range(range.from, range.to)
+    });
+  }
+  for (const range of getMarkdownInlineStylePreviewRanges(text, selection)) {
+    specs.push({
+      from: range.from,
+      to: range.contentFrom,
+      order: 0,
+      create: () => Decoration.replace({ inclusive: false }).range(range.from, range.contentFrom)
+    });
+    specs.push({
+      from: range.contentFrom,
+      to: range.contentTo,
+      order: 1,
+      create: () => Decoration.mark({
+        class: range.className
+      }).range(range.contentFrom, range.contentTo)
+    });
+    specs.push({
+      from: range.contentTo,
+      to: range.to,
+      order: 2,
+      create: () => Decoration.replace({ inclusive: false }).range(range.contentTo, range.to)
+    });
+  }
+  const ranges = specs.sort((left, right) => (
+    left.from - right.from
+    || left.to - right.to
+    || left.order - right.order
+  )).map((spec) => spec.create());
   return Decoration.set(ranges, true);
 }
 
@@ -7718,6 +7762,62 @@ function getMarkdownLinkPreviewRanges(text, selection) {
   return ranges;
 }
 
+function getMarkdownInlineCodePreviewRanges(text, selection) {
+  const ranges = [];
+  for (const range of getMarkdownCodeRanges(text)) {
+    if (range.kind !== "inline" || selectionIntersects(selection, range.from, range.to)) {
+      continue;
+    }
+    ranges.push({
+      from: range.from,
+      to: range.to,
+      label: String(text || "").slice(range.contentFrom, range.contentTo)
+    });
+  }
+  return ranges;
+}
+
+function getMarkdownInlineStylePreviewRanges(text, selection) {
+  const source = String(text || "");
+  const ranges = [];
+  const codeRanges = getMarkdownCodeRanges(source);
+  const linkRanges = getMarkdownLinkSourceRanges(source);
+  const ignoredRanges = [...codeRanges, ...linkRanges];
+  const stylePatterns = [
+    { kind: "bold", className: "codex-dock__cm-strong", pattern: /\*\*([^\s*](?:[\s\S]*?[^\s*])?)\*\*/g, markerLength: 2 },
+    { kind: "bold", className: "codex-dock__cm-strong", pattern: /__([^\s_](?:[\s\S]*?[^\s_])?)__/g, markerLength: 2 },
+    { kind: "strikethrough", className: "codex-dock__cm-strikethrough", pattern: /~~([^\s~](?:[\s\S]*?[^\s~])?)~~/g, markerLength: 2 },
+    { kind: "italic", className: "codex-dock__cm-emphasis", pattern: /(?<!\*)\*([^\s*](?:[^*\n]*?[^\s*])?)\*(?!\*)/g, markerLength: 1 },
+    { kind: "italic", className: "codex-dock__cm-emphasis", pattern: /(?<![\w_])_([^\s_](?:[^_\n]*?[^\s_])?)_(?![\w_])/g, markerLength: 1 }
+  ];
+
+  for (const config of stylePatterns) {
+    for (const match of source.matchAll(config.pattern)) {
+      const from = match.index;
+      const to = from + match[0].length;
+      const contentFrom = from + config.markerLength;
+      const contentTo = to - config.markerLength;
+      if (
+        selectionIntersects(selection, from, to)
+        || rangeIntersectsAny(from, to, ignoredRanges)
+        || rangeIntersectsAny(from, to, ranges)
+      ) {
+        continue;
+      }
+      ranges.push({
+        from,
+        to,
+        contentFrom,
+        contentTo,
+        className: config.className,
+        kind: config.kind
+      });
+    }
+  }
+  ranges.sort((left, right) => left.from - right.from);
+  return ranges;
+}
+
 function getMarkdownCodeRanges(source) {
   const ranges = [];
   const text = String(source || "");
@@ -7725,7 +7825,7 @@ function getMarkdownCodeRanges(source) {
   for (const match of text.matchAll(fencePattern)) {
     const from = match.index + match[1].length;
     const to = from + match[0].length - match[1].length;
-    ranges.push({ from, to });
+    ranges.push({ from, to, contentFrom: from, contentTo: to, kind: "fence" });
   }
 
   const inlinePattern = /`+[^`\n]*`+/g;
@@ -7733,11 +7833,37 @@ function getMarkdownCodeRanges(source) {
     const from = match.index;
     const to = from + match[0].length;
     if (!rangeIntersectsAny(from, to, ranges)) {
-      ranges.push({ from, to });
+      const markerLength = getInlineCodeMarkerLength(match[0]);
+      ranges.push({
+        from,
+        to,
+        contentFrom: from + markerLength,
+        contentTo: Math.max(from + markerLength, to - markerLength),
+        kind: "inline"
+      });
     }
   }
   ranges.sort((left, right) => left.from - right.from);
   return ranges;
+}
+
+function getMarkdownLinkSourceRanges(source) {
+  const ranges = [];
+  const text = String(source || "");
+  const markdownLinkPattern = /(!?)\[([^\]\n]+)\]\(([^)\n]+)\)/g;
+  for (const match of text.matchAll(markdownLinkPattern)) {
+    ranges.push({ from: match.index, to: match.index + match[0].length, kind: "link" });
+  }
+  const wikiLinkPattern = /(!?)\[\[([^\]\n|]+)(?:\|([^\]\n]+))?\]\]/g;
+  for (const match of text.matchAll(wikiLinkPattern)) {
+    ranges.push({ from: match.index, to: match.index + match[0].length, kind: "link" });
+  }
+  return ranges;
+}
+
+function getInlineCodeMarkerLength(value) {
+  const match = /^`+/.exec(String(value || ""));
+  return match ? match[0].length : 1;
 }
 
 function getPathName(path) {
@@ -7815,9 +7941,11 @@ function loadOptionalCodeMirrorCommands() {
 module.exports = {
   createCodeMirrorComposerInput,
   _test: {
-    buildLinkPreviewDecorations,
+    buildInlinePreviewDecorations,
     createSelection,
     getEventOptions,
+    getMarkdownInlineCodePreviewRanges,
+    getMarkdownInlineStylePreviewRanges,
     getMarkdownCodeRanges,
     getMarkdownLinkPreviewRanges,
     getPathName,

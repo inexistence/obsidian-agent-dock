@@ -339,6 +339,8 @@ Important files:
 
 - `src/view/AgentDockView.js`: view orchestration.
 - `src/view/composer/ComposerRenderer.js`: prompt composer.
+- `src/view/composer/CodeMirrorComposerInput.js`: optional CodeMirror-backed
+  composer input with lightweight Markdown live preview.
 - `src/view/timeline/MessageTimelineRenderer.js`: timeline rendering.
 - `src/view/timeline/timeline.js`: timeline grouping helpers.
 - `src/view/session/SessionSwitcherRenderer.js`: chat session controls.
@@ -348,6 +350,33 @@ Important files:
 
 Keep controls compact and robust at narrow sidebar widths. Copy buttons copy the
 original Markdown text, while rendered messages use Obsidian `MarkdownRenderer`.
+
+### Composer Markdown Preview
+
+The composer uses `CodeMirrorComposerInput` when Obsidian's runtime can resolve
+the CodeMirror 6 packages (`@codemirror/state`, `@codemirror/view`, and
+optionally `@codemirror/commands`). This project does not vendor those packages
+through `scripts/build-main.js`; the feature intentionally treats them as an
+Obsidian runtime capability.
+
+When CodeMirror is available, the composer logs:
+
+```text
+[Agent Dock] CodeMirror composer enabled
+```
+
+with a small capability object, for example `{ history: true, keymap: true }`.
+If CodeMirror cannot be loaded, Agent Dock logs a warning, shows one user-visible
+notice, and falls back to the plain textarea composer.
+
+The CodeMirror composer keeps the raw Markdown as the draft and prompt source.
+Its live preview is implemented with local decorations for a bounded Markdown
+subset: links, wiki links, bold, italic, inline code, and strikethrough. It is
+not Obsidian's full editor live-preview engine; block-level Markdown such as
+tables and fenced code block rendering should be added deliberately with tests.
+File drops are intercepted in the composer before the editor default drop
+handler runs, so external files become references instead of pasted file
+contents.
 
 ## Security And Boundary Principles
 

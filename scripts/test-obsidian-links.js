@@ -126,6 +126,42 @@ assert.deepStrictEqual(
   ),
   [{ from: 23, to: 30, label: "y", target: "ok", embed: false }]
 );
+assert.deepStrictEqual(
+  codeMirrorComposerTest.getMarkdownInlineCodePreviewRanges(
+    "a **bold** *em* `code` ~~gone~~ __b2__ _i2_",
+    codeMirrorComposerTest.createSelection(0)
+  ),
+  [{ from: 16, to: 22, label: "code" }]
+);
+assert.deepStrictEqual(
+  codeMirrorComposerTest.getMarkdownInlineStylePreviewRanges(
+    "a **bold** *em* `code` ~~gone~~ __b2__ _i2_",
+    codeMirrorComposerTest.createSelection(0)
+  ),
+  [
+    { from: 2, to: 10, contentFrom: 4, contentTo: 8, className: "codex-dock__cm-strong", kind: "bold" },
+    { from: 11, to: 15, contentFrom: 12, contentTo: 14, className: "codex-dock__cm-emphasis", kind: "italic" },
+    { from: 23, to: 31, contentFrom: 25, contentTo: 29, className: "codex-dock__cm-strikethrough", kind: "strikethrough" },
+    { from: 32, to: 38, contentFrom: 34, contentTo: 36, className: "codex-dock__cm-strong", kind: "bold" },
+    { from: 39, to: 43, contentFrom: 40, contentTo: 42, className: "codex-dock__cm-emphasis", kind: "italic" }
+  ]
+);
+assert.deepStrictEqual(
+  codeMirrorComposerTest.getMarkdownInlineStylePreviewRanges(
+    "a **bold** and `*no*`",
+    codeMirrorComposerTest.createSelection(5)
+  ),
+  []
+);
+assert.deepStrictEqual(
+  codeMirrorComposerTest.getMarkdownInlineStylePreviewRanges(
+    "keep word_with_underscore but preview _i2_",
+    codeMirrorComposerTest.createSelection(0)
+  ),
+  [
+    { from: 38, to: 42, contentFrom: 39, contentTo: 41, className: "codex-dock__cm-emphasis", kind: "italic" }
+  ]
+);
 
 {
   const dataTransfer = {
