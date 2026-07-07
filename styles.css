@@ -696,6 +696,22 @@
   line-height: 1.45;
 }
 
+.codex-dock__loading--tone {
+  padding: 3px 0;
+}
+
+.codex-dock__loading-tone {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  color: var(--text-muted);
+  font-size: var(--font-ui-small);
+  font-weight: 700;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  animation: codex-dock-loading-tone 1.5s ease-in-out infinite;
+}
+
 .codex-dock__loading-dots {
   display: inline-flex;
   align-items: center;
@@ -732,6 +748,19 @@
   40% {
     opacity: 1;
     transform: translateY(-3px);
+  }
+}
+
+@keyframes codex-dock-loading-tone {
+  0%,
+  100% {
+    opacity: 0.62;
+    transform: translateY(0);
+  }
+
+  50% {
+    opacity: 1;
+    transform: translateY(-1px);
   }
 }
 
@@ -823,6 +852,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .codex-dock__loading-tone,
   .codex-dock__loading-dots span,
   .codex-dock__affect-slot.is-changing .codex-dock__affect-summary,
   .codex-dock__affect-slot.is-changing .codex-dock__affect-pulse,

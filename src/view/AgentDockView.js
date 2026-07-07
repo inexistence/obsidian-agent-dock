@@ -373,10 +373,15 @@ class AgentDockView extends ItemView {
     }
     if (message.isLoading) {
       const loading = item.createDiv({ cls: "codex-dock__loading" });
-      const dots = loading.createSpan({ cls: "codex-dock__loading-dots", attr: { "aria-hidden": "true" } });
-      dots.createSpan();
-      dots.createSpan();
-      dots.createSpan();
+      if (message.loadingToneLabel) {
+        loading.addClass("codex-dock__loading--tone");
+        loading.createSpan({ cls: "codex-dock__loading-tone", text: message.loadingToneLabel });
+      } else {
+        const dots = loading.createSpan({ cls: "codex-dock__loading-dots", attr: { "aria-hidden": "true" } });
+        dots.createSpan();
+        dots.createSpan();
+        dots.createSpan();
+      }
     }
     this.renderMessageFooter(item, message);
   }
@@ -526,8 +531,7 @@ class AgentDockView extends ItemView {
       onBeforeAgentRun: (targetSession, assistantMessage) => {
         const promptAffectNotice = this.describePromptAffectNotice(prompt);
         if (promptAffectNotice) {
-          assistantMessage.promptAffectNoticeLabel = promptAffectNotice.rawLabel || "";
-          this.insertAffectMessageBeforeAssistant(targetSession, assistantMessage, promptAffectNotice);
+          assistantMessage.loadingToneLabel = promptAffectNotice.label || "";
         }
       },
       onTurnStarted: (targetSession) => {
@@ -545,18 +549,10 @@ class AgentDockView extends ItemView {
         const previousAffect = this.plugin.getWorkingAffect();
         await this.plugin.updateWorkingAffect(turn);
         const nextAffect = this.plugin.getWorkingAffect();
-        const affectNotice = this.describeVisibleAffectNotice(previousAffect, nextAffect, context.assistantMessage);
+        const affectChanged = this.hasVisibleAffectShift(previousAffect, nextAffect);
         const isActiveSession = context.session?.id === this.activeSessionId;
-        if (affectNotice && context.assistantMessage) {
-          context.assistantMessage.durableAffectNoticeLabel = affectNotice.rawLabel || "";
-          this.insertAffectMessageBeforeAssistant(context.session, context.assistantMessage, affectNotice);
-          if (isActiveSession) {
-            this.renderAffectIndicator({ changed: true });
-          }
-          return;
-        }
         if (isActiveSession) {
-          this.renderAffectIndicator();
+          this.renderAffectIndicator({ changed: affectChanged });
         }
       },
       settleAffectDisplay: async (context = {}) => {
@@ -804,9 +800,9 @@ class AgentDockView extends ItemView {
     this.affectIndicatorEl?.removeClass("is-changing");
   }
 
-  describeAffectShift(previousAffect, nextAffect) {
+  hasVisibleAffectShift(previousAffect, nextAffect) {
     if (!this.plugin.settings.affectEnabled || !this.plugin.settings.affectCrossSessionEnabled || !nextAffect) {
-      return null;
+      return false;
     }
 
     const previousLabel = previousAffect?.label || "";
@@ -820,46 +816,10 @@ class AgentDockView extends ItemView {
     );
 
     if (!labelChanged && !movedNoticeably) {
-      return null;
+      return false;
     }
 
-    return {
-      rawLabel: nextLabel,
-      noticeKey: "affect.shiftNotice",
-      kind: "affect_shift",
-      label: this.getAffectToneLabel(nextLabel),
-      strength: this.getAffectStrengthLabel(nextAffect.strength)
-    };
-  }
-
-  describeVisibleAffectNotice(previousAffect, nextAffect, assistantMessage) {
-    const previousVisibleLabel = assistantMessage?.durableAffectNoticeLabel || "";
-    const nextLabel = nextAffect?.label || "";
-    if (previousVisibleLabel && nextLabel) {
-      return previousVisibleLabel === nextLabel ? null : this.describeAffectLabel(nextAffect);
-    }
-
-    const shift = this.describeAffectShift(previousAffect, nextAffect);
-    if (shift) {
-      return shift;
-    }
-
-    return null;
-  }
-
-  describeAffectLabel(affect) {
-    const label = affect?.label || "";
-    if (!label) {
-      return null;
-    }
-
-    return {
-      rawLabel: label,
-      noticeKey: "affect.shiftNotice",
-      kind: "affect_shift",
-      label: this.getAffectToneLabel(label),
-      strength: this.getAffectStrengthLabel(affect.strength)
-    };
+    return true;
   }
 
   renderAffectIndicatorIfActive(session, options = {}) {
@@ -888,30 +848,6 @@ class AgentDockView extends ItemView {
       strength: this.getAffectStrengthLabel(promptAffect.strength),
       affect: promptAffect
     };
-  }
-
-  insertAffectMessageBeforeAssistant(session, assistantMessage, affectNotice) {
-    if (!session || !assistantMessage || !affectNotice) {
-      return;
-    }
-
-    const message = {
-      role: "system",
-      kind: affectNotice.kind || "affect_shift",
-      content: this.translate(affectNotice.noticeKey || "affect.shiftNotice", affectNotice),
-      timeline: [],
-      createdAt: Date.now(),
-      isComplete: true,
-      isLoading: false,
-      animateOnRender: session.id === this.activeSessionId
-    };
-    const assistantIndex = session.messages.indexOf(assistantMessage);
-    if (assistantIndex === -1) {
-      session.messages.push(message);
-    } else {
-      session.messages.splice(assistantIndex, 0, message);
-    }
-    this.sessionStore.touchSession(session);
   }
 
   clearAffectPanelCloseListener() {
