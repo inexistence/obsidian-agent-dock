@@ -4,6 +4,7 @@ const { VIEW_TYPE_AGENT_DOCK } = require("../constants");
 const { t } = require("../i18n");
 const { DEFAULT_SETTINGS } = require("../settings");
 const { AGENT_OPTIONS } = require("../agents/AgentRegistry");
+const { ImagePreviewController } = require("./ImagePreviewController");
 const { renderComposerContent } = require("./composer/ComposerRenderer");
 const { ReferenceController } = require("./reference/ReferenceController");
 const { runChatTurn } = require("./session/ChatTurnRunner");
@@ -59,12 +60,10 @@ class AgentDockView extends ItemView {
     this.autoScrollThresholdPx = 48;
     this.keepScrollBottomUntil = 0;
     this.pendingScrollBottomFrame = null;
-    this.imagePreviewEl = null;
-    this.imagePreviewKeydown = null;
-    this.imagePreviewPreviouslyFocused = null;
-    this.imagePreviewZoom = 1;
-    this.imagePreviewImageEl = null;
-    this.imagePreviewZoomLabelEl = null;
+    this.imagePreviewController = new ImagePreviewController({
+      containerEl: this.containerEl,
+      translate: (key, params) => this.translate(key, params)
+    });
   }
 
   get sessions() {
@@ -975,214 +974,11 @@ class AgentDockView extends ItemView {
   }
 
   decorateImagePreviews(markdownEl) {
-    for (const imageEl of markdownEl.querySelectorAll("img")) {
-      imageEl.classList.add("codex-dock__previewable-image");
-      imageEl.setAttribute("tabindex", "0");
-      imageEl.setAttribute("role", "button");
-      imageEl.setAttribute("aria-label", this.translate("view.openImagePreview"));
-      imageEl.setAttribute("title", this.translate("view.openImagePreview"));
-      imageEl.addEventListener("click", (event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        this.openImagePreview(imageEl);
-      });
-      imageEl.addEventListener("keydown", (event) => {
-        if (event.key !== "Enter" && event.key !== " ") {
-          return;
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        this.openImagePreview(imageEl);
-      });
-    }
-  }
-
-  openImagePreview(sourceImageEl) {
-    const src = sourceImageEl?.currentSrc || sourceImageEl?.src || sourceImageEl?.getAttribute("src") || "";
-    if (!src) {
-      return;
-    }
-
-    this.closeImagePreview();
-    this.imagePreviewPreviouslyFocused = document.activeElement instanceof HTMLElement
-      ? document.activeElement
-      : null;
-    const overlay = this.containerEl.createDiv({
-      cls: "codex-dock__image-preview",
-      attr: {
-        role: "dialog",
-        "aria-modal": "true",
-        "aria-label": this.translate("view.imagePreview")
-      }
-    });
-    const backdrop = overlay.createDiv({ cls: "codex-dock__image-preview-backdrop" });
-    const stage = overlay.createDiv({ cls: "codex-dock__image-preview-stage" });
-    const toolbar = stage.createDiv({ cls: "codex-dock__image-preview-toolbar" });
-    toolbar.createDiv({
-      cls: "codex-dock__image-preview-title",
-      text: this.getImagePreviewTitle(sourceImageEl, src)
-    });
-    const controls = toolbar.createDiv({ cls: "codex-dock__image-preview-controls" });
-    const zoomOutButton = this.createImagePreviewButton(controls, "minus", "view.zoomOutImagePreview");
-    this.imagePreviewZoomLabelEl = controls.createSpan({
-      cls: "codex-dock__image-preview-zoom",
-      text: "100%"
-    });
-    const zoomInButton = this.createImagePreviewButton(controls, "plus", "view.zoomInImagePreview");
-    const resetZoomButton = this.createImagePreviewButton(controls, "maximize-2", "view.resetImagePreviewZoom");
-    const closeButton = toolbar.createEl("button", {
-      cls: "codex-dock__image-preview-close",
-      attr: {
-        type: "button",
-        "aria-label": this.translate("view.closeImagePreview"),
-        title: this.translate("view.closeImagePreview")
-      }
-    });
-    setIcon(closeButton, "x");
-    const imageWrap = stage.createDiv({ cls: "codex-dock__image-preview-wrap" });
-    this.imagePreviewImageEl = imageWrap.createEl("img", {
-      cls: "codex-dock__image-preview-img",
-      attr: {
-        src,
-        alt: sourceImageEl.alt || ""
-      }
-    });
-
-    const close = () => this.closeImagePreview();
-    backdrop.addEventListener("click", close);
-    closeButton.addEventListener("click", close);
-    zoomOutButton.addEventListener("click", () => this.adjustImagePreviewZoom(-0.25));
-    zoomInButton.addEventListener("click", () => this.adjustImagePreviewZoom(0.25));
-    resetZoomButton.addEventListener("click", () => this.setImagePreviewZoom(1));
-    imageWrap.addEventListener("wheel", (event) => {
-      if (!event.ctrlKey && !event.metaKey) {
-        return;
-      }
-      event.preventDefault();
-      this.adjustImagePreviewZoom(event.deltaY > 0 ? -0.15 : 0.15);
-    }, { passive: false });
-    this.imagePreviewKeydown = (event) => {
-      if (event.key === "Escape") {
-        event.preventDefault();
-        this.closeImagePreview();
-        return;
-      }
-      if (event.key === "Tab") {
-        this.trapImagePreviewFocus(event);
-        return;
-      }
-      if ((event.metaKey || event.ctrlKey) && (event.key === "+" || event.key === "=")) {
-        event.preventDefault();
-        this.adjustImagePreviewZoom(0.25);
-        return;
-      }
-      if ((event.metaKey || event.ctrlKey) && event.key === "-") {
-        event.preventDefault();
-        this.adjustImagePreviewZoom(-0.25);
-        return;
-      }
-      if ((event.metaKey || event.ctrlKey) && event.key === "0") {
-        event.preventDefault();
-        this.setImagePreviewZoom(1);
-      }
-    };
-    window.addEventListener("keydown", this.imagePreviewKeydown);
-    this.imagePreviewEl = overlay;
-    this.setImagePreviewZoom(1);
-    closeButton.focus();
-  }
-
-  createImagePreviewButton(containerEl, icon, labelKey) {
-    const button = containerEl.createEl("button", {
-      cls: "codex-dock__image-preview-tool",
-      attr: {
-        type: "button",
-        "aria-label": this.translate(labelKey),
-        title: this.translate(labelKey)
-      }
-    });
-    setIcon(button, icon);
-    return button;
-  }
-
-  adjustImagePreviewZoom(delta) {
-    this.setImagePreviewZoom(this.imagePreviewZoom + delta);
-  }
-
-  setImagePreviewZoom(value) {
-    this.imagePreviewZoom = Math.min(5, Math.max(0.25, Number(value) || 1));
-    if (this.imagePreviewImageEl) {
-      this.imagePreviewImageEl.style.setProperty("--codex-dock-image-preview-width", `${this.imagePreviewZoom * 100}%`);
-    }
-    if (this.imagePreviewZoomLabelEl) {
-      this.imagePreviewZoomLabelEl.setText(`${Math.round(this.imagePreviewZoom * 100)}%`);
-    }
-  }
-
-  getImagePreviewTitle(sourceImageEl, src) {
-    const label = String(sourceImageEl?.alt || sourceImageEl?.getAttribute("aria-label") || "").trim();
-    if (label && label !== this.translate("view.openImagePreview")) {
-      return label;
-    }
-    const decodedName = this.getImagePreviewNameFromSource(src);
-    return decodedName || this.translate("view.imagePreview");
-  }
-
-  getImagePreviewNameFromSource(src) {
-    const cleanSrc = String(src || "").split("#")[0].split("?")[0];
-    const name = cleanSrc.split("/").filter(Boolean).pop() || "";
-    if (!name) {
-      return "";
-    }
-    try {
-      return decodeURIComponent(name);
-    } catch {
-      return name;
-    }
-  }
-
-  trapImagePreviewFocus(event) {
-    if (!this.imagePreviewEl) {
-      return;
-    }
-    const focusable = Array.from(this.imagePreviewEl.querySelectorAll(
-      "button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])"
-    )).filter((element) => !element.hasAttribute("disabled") && element.getAttribute("aria-hidden") !== "true");
-    if (focusable.length === 0) {
-      event.preventDefault();
-      this.imagePreviewEl.focus();
-      return;
-    }
-
-    const first = focusable[0];
-    const last = focusable[focusable.length - 1];
-    if (event.shiftKey && document.activeElement === first) {
-      event.preventDefault();
-      last.focus();
-      return;
-    }
-    if (!event.shiftKey && document.activeElement === last) {
-      event.preventDefault();
-      first.focus();
-    }
+    this.imagePreviewController.decorate(markdownEl);
   }
 
   closeImagePreview() {
-    if (this.imagePreviewKeydown) {
-      window.removeEventListener("keydown", this.imagePreviewKeydown);
-      this.imagePreviewKeydown = null;
-    }
-    if (this.imagePreviewEl) {
-      this.imagePreviewEl.remove();
-      this.imagePreviewEl = null;
-    }
-    this.imagePreviewImageEl = null;
-    this.imagePreviewZoomLabelEl = null;
-    this.imagePreviewZoom = 1;
-    if (this.imagePreviewPreviouslyFocused?.isConnected) {
-      this.imagePreviewPreviouslyFocused.focus();
-    }
-    this.imagePreviewPreviouslyFocused = null;
+    this.imagePreviewController.close();
   }
 
   updateContextStatus() {
