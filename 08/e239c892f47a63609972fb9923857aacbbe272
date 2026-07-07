@@ -1,0 +1,30 @@
+main.js
+  s_ace172a6b732e1::t_4cf55be3cc6d65 1690,1708-1709,1736-1737,1780-1781,1792
+src/affect/WorkingAffectStore.js
+  s_ace172a6b732e1::t_af907437958c3a 23,41-42,69-70,113-114,125
+scripts/test-affect.js
+  s_ace172a6b732e1::t_e7733352d7d518 57-66,84-89,91,131-136,138,189-198,200,224-229,297-311
+  s_ace172a6b732e1::t_6a7a2f54466782 55-56
+  s_ace172a6b732e1::t_592fc4eea09ea4 90
+  s_ace172a6b732e1::t_e1902feabb54d2 137
+  s_ace172a6b732e1::t_f3963c16a796e2 199
+  s_ace172a6b732e1::t_a684c16c712431 223
+  s_ace172a6b732e1::t_f892927cca1edc 312-313
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "08e239c892f47a63609972fb9923857aacbbe272",
+  "prompts": {},
+  "logical_commit_id": "08e239c892f47a63609972fb9923857aacbbe272",
+  "sessions": {
+    "s_ace172a6b732e1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3ae9-21e2-73d1-9157-b92d493b106a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
