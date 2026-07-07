@@ -1,0 +1,23 @@
+styles.css
+  s_829e582ffe9b5c::t_734b9634eedecc 625-629,636,652-663
+  s_829e582ffe9b5c::t_a83eaf77143972 599,603,614,638-645,647,649
+  s_829e582ffe9b5c::t_bfb451333d6597 646
+  s_829e582ffe9b5c::t_9d637e8a06538f 664-665
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "c96939d16c18fac37788437468d33eac5eed46db",
+  "prompts": {},
+  "logical_commit_id": "c96939d16c18fac37788437468d33eac5eed46db",
+  "sessions": {
+    "s_829e582ffe9b5c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3ac7-ec63-7af1-8cb7-bfd2f13cc0c6",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
