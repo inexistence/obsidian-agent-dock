@@ -162,6 +162,126 @@ assert.deepStrictEqual(
     { from: 38, to: 42, contentFrom: 39, contentTo: 41, className: "codex-dock__cm-emphasis", kind: "italic" }
   ]
 );
+assert.deepStrictEqual(
+  codeMirrorComposerTest.getMarkdownBlockPreviewRanges(
+    "# H\n> q\n- a\n  2. b\nplain",
+    codeMirrorComposerTest.createSelection(25)
+  ),
+  [
+    {
+      kind: "heading",
+      lineFrom: 0,
+      lineClassName: "codex-dock__cm-heading codex-dock__cm-heading-1",
+      markerFrom: 0,
+      markerTo: 2,
+      markerLabel: "",
+      markerClassName: ""
+    },
+    {
+      kind: "blockquote",
+      lineFrom: 4,
+      lineClassName: "codex-dock__cm-blockquote",
+      markerFrom: 4,
+      markerTo: 6,
+      markerLabel: "",
+      markerClassName: "codex-dock__cm-block-marker"
+    },
+    {
+      kind: "unordered-list",
+      lineFrom: 8,
+      lineClassName: "codex-dock__cm-list codex-dock__cm-list-unordered",
+      markerFrom: 8,
+      markerTo: 10,
+      markerLabel: "\u2022 ",
+      markerClassName: "codex-dock__cm-list-marker"
+    },
+    {
+      kind: "ordered-list",
+      lineFrom: 12,
+      lineClassName: "codex-dock__cm-list codex-dock__cm-list-ordered",
+      markerFrom: 12,
+      markerTo: 17,
+      markerLabel: "  2. ",
+      markerClassName: "codex-dock__cm-list-marker"
+    }
+  ]
+);
+assert.deepStrictEqual(
+  codeMirrorComposerTest.getMarkdownBlockPreviewRanges(
+    "# H\n> q\n- a",
+    codeMirrorComposerTest.createSelection(5)
+  ),
+  [
+    {
+      kind: "heading",
+      lineFrom: 0,
+      lineClassName: "codex-dock__cm-heading codex-dock__cm-heading-1",
+      markerFrom: 0,
+      markerTo: 2,
+      markerLabel: "",
+      markerClassName: ""
+    },
+    {
+      kind: "unordered-list",
+      lineFrom: 8,
+      lineClassName: "codex-dock__cm-list codex-dock__cm-list-unordered",
+      markerFrom: 8,
+      markerTo: 10,
+      markerLabel: "\u2022 ",
+      markerClassName: "codex-dock__cm-list-marker"
+    }
+  ]
+);
+assert.deepStrictEqual(
+  codeMirrorComposerTest.getMarkdownBlockPreviewRanges(
+    "# H",
+    codeMirrorComposerTest.createSelection(3)
+  ),
+  []
+);
+assert.deepStrictEqual(
+  codeMirrorComposerTest.getMarkdownBlockPreviewRanges(
+    "```md\n# no\n- no\n```\n## yes",
+    codeMirrorComposerTest.createSelection(0)
+  ),
+  [
+    {
+      kind: "heading",
+      lineFrom: 20,
+      lineClassName: "codex-dock__cm-heading codex-dock__cm-heading-2",
+      markerFrom: 20,
+      markerTo: 23,
+      markerLabel: "",
+      markerClassName: ""
+    }
+  ]
+);
+assert.deepStrictEqual(
+  codeMirrorComposerTest.getMarkdownBlockPreviewRanges(
+    "  >\n  > nested",
+    codeMirrorComposerTest.createSelection(20)
+  ),
+  [
+    {
+      kind: "blockquote",
+      lineFrom: 0,
+      lineClassName: "codex-dock__cm-blockquote",
+      markerFrom: 0,
+      markerTo: 3,
+      markerLabel: "  ",
+      markerClassName: "codex-dock__cm-block-marker"
+    },
+    {
+      kind: "blockquote",
+      lineFrom: 4,
+      lineClassName: "codex-dock__cm-blockquote",
+      markerFrom: 4,
+      markerTo: 8,
+      markerLabel: "  ",
+      markerClassName: "codex-dock__cm-block-marker"
+    }
+  ]
+);
 
 {
   const dataTransfer = {

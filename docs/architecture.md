@@ -371,12 +371,12 @@ notice, and falls back to the plain textarea composer.
 
 The CodeMirror composer keeps the raw Markdown as the draft and prompt source.
 Its live preview is implemented with local decorations for a bounded Markdown
-subset: links, wiki links, bold, italic, inline code, and strikethrough. It is
-not Obsidian's full editor live-preview engine; block-level Markdown such as
-tables and fenced code block rendering should be added deliberately with tests.
-File drops are intercepted in the composer before the editor default drop
-handler runs, so external files become references instead of pasted file
-contents.
+subset: links, wiki links, bold, italic, inline code, strikethrough, headings,
+blockquotes, and ordered/unordered lists. It is not Obsidian's full editor
+live-preview engine; richer block-level Markdown such as tables and fenced code
+block rendering should be added deliberately with tests. File drops are
+intercepted in the composer before the editor default drop handler runs, so
+external files become references instead of pasted file contents.
 
 ## Security And Boundary Principles
 

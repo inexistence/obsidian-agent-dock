@@ -7671,6 +7671,28 @@ function buildInlinePreviewDecorations(view, Decoration, InlinePreviewWidget) {
   const specs = [];
   const text = view.state.doc.toString();
   const selection = view.state.selection.main;
+  for (const range of getMarkdownBlockPreviewRanges(text, selection)) {
+    specs.push({
+      from: range.lineFrom,
+      to: range.lineFrom,
+      order: -1,
+      create: () => Decoration.line({
+        class: range.lineClassName
+      }).range(range.lineFrom)
+    });
+    specs.push({
+      from: range.markerFrom,
+      to: range.markerTo,
+      order: 0,
+      create: () => {
+        const spec = { inclusive: false };
+        if (range.markerLabel) {
+          spec.widget = new InlinePreviewWidget(range.markerLabel, range.markerClassName);
+        }
+        return Decoration.replace(spec).range(range.markerFrom, range.markerTo);
+      }
+    });
+  }
   for (const range of getMarkdownLinkPreviewRanges(text, selection)) {
     specs.push({
       from: range.from,
@@ -7721,6 +7743,87 @@ function buildInlinePreviewDecorations(view, Decoration, InlinePreviewWidget) {
     || left.order - right.order
   )).map((spec) => spec.create());
   return Decoration.set(ranges, true);
+}
+
+function getMarkdownBlockPreviewRanges(text, selection) {
+  const source = String(text || "");
+  const ranges = [];
+  const ignoredRanges = getMarkdownCodeRanges(source).filter((range) => range.kind === "fence");
+  let lineFrom = 0;
+
+  for (const lineText of source.split("\n")) {
+    const lineTo = lineFrom + lineText.length;
+    if (
+      lineText
+      && !selectionIntersectsLine(selection, lineFrom, lineTo)
+      && !rangeIntersectsAny(lineFrom, lineTo, ignoredRanges)
+    ) {
+      const range = getMarkdownBlockPreviewRangeForLine(lineText, lineFrom);
+      if (range) {
+        ranges.push(range);
+      }
+    }
+    lineFrom = lineTo + 1;
+  }
+
+  return ranges;
+}
+
+function getMarkdownBlockPreviewRangeForLine(lineText, lineFrom) {
+  const headingMatch = /^(#{1,6})([ \t]+)(\S.*)$/.exec(lineText);
+  if (headingMatch) {
+    const level = headingMatch[1].length;
+    return {
+      kind: "heading",
+      lineFrom,
+      lineClassName: `codex-dock__cm-heading codex-dock__cm-heading-${level}`,
+      markerFrom: lineFrom,
+      markerTo: lineFrom + headingMatch[1].length + headingMatch[2].length,
+      markerLabel: "",
+      markerClassName: ""
+    };
+  }
+
+  const quoteMatch = /^([ \t]*)(>[ \t]?)(.*)$/.exec(lineText);
+  if (quoteMatch) {
+    return {
+      kind: "blockquote",
+      lineFrom,
+      lineClassName: "codex-dock__cm-blockquote",
+      markerFrom: lineFrom,
+      markerTo: lineFrom + quoteMatch[1].length + quoteMatch[2].length,
+      markerLabel: quoteMatch[1],
+      markerClassName: "codex-dock__cm-block-marker"
+    };
+  }
+
+  const unorderedListMatch = /^([ \t]*)([-+*])([ \t]+)(\S.*)$/.exec(lineText);
+  if (unorderedListMatch) {
+    return {
+      kind: "unordered-list",
+      lineFrom,
+      lineClassName: "codex-dock__cm-list codex-dock__cm-list-unordered",
+      markerFrom: lineFrom,
+      markerTo: lineFrom + unorderedListMatch[1].length + unorderedListMatch[2].length + unorderedListMatch[3].length,
+      markerLabel: `${unorderedListMatch[1]}\u2022 `,
+      markerClassName: "codex-dock__cm-list-marker"
+    };
+  }
+
+  const orderedListMatch = /^([ \t]*)(\d{1,9})([.)])([ \t]+)(\S.*)$/.exec(lineText);
+  if (orderedListMatch) {
+    return {
+      kind: "ordered-list",
+      lineFrom,
+      lineClassName: "codex-dock__cm-list codex-dock__cm-list-ordered",
+      markerFrom: lineFrom,
+      markerTo: lineFrom + orderedListMatch[1].length + orderedListMatch[2].length + orderedListMatch[3].length + orderedListMatch[4].length,
+      markerLabel: `${orderedListMatch[1]}${orderedListMatch[2]}${orderedListMatch[3]} `,
+      markerClassName: "codex-dock__cm-list-marker"
+    };
+  }
+
+  return null;
 }
 
 function getMarkdownLinkPreviewRanges(text, selection) {
@@ -7880,6 +7983,16 @@ function selectionIntersects(selection, from, to) {
   return selection.from < to && selection.to > from;
 }
 
+function selectionIntersectsLine(selection, from, to) {
+  if (!selection) {
+    return false;
+  }
+  if (selection.from === selection.to) {
+    return selection.from >= from && selection.from <= to;
+  }
+  return selection.from <= to && selection.to >= from;
+}
+
 function rangeIntersectsAny(from, to, ranges) {
   return ranges.some((range) => from < range.to && to > range.from);
 }
@@ -7944,13 +8057,15 @@ module.exports = {
     buildInlinePreviewDecorations,
     createSelection,
     getEventOptions,
+    getMarkdownBlockPreviewRanges,
     getMarkdownInlineCodePreviewRanges,
     getMarkdownInlineStylePreviewRanges,
     getMarkdownCodeRanges,
     getMarkdownLinkPreviewRanges,
     getPathName,
     rangeIntersectsAny,
-    selectionIntersects
+    selectionIntersects,
+    selectionIntersectsLine
   }
 };
 

@@ -1456,6 +1456,48 @@
   font-size: 0.9em;
 }
 
+.codex-dock__cm-input .cm-line.codex-dock__cm-heading {
+  color: var(--text-normal);
+  font-weight: 700;
+  line-height: 1.28;
+}
+
+.codex-dock__cm-input .cm-line.codex-dock__cm-heading-1 {
+  font-size: 1.35em;
+}
+
+.codex-dock__cm-input .cm-line.codex-dock__cm-heading-2 {
+  font-size: 1.24em;
+}
+
+.codex-dock__cm-input .cm-line.codex-dock__cm-heading-3 {
+  font-size: 1.16em;
+}
+
+.codex-dock__cm-input .cm-line.codex-dock__cm-heading-4,
+.codex-dock__cm-input .cm-line.codex-dock__cm-heading-5,
+.codex-dock__cm-input .cm-line.codex-dock__cm-heading-6 {
+  font-size: 1.08em;
+}
+
+.codex-dock__cm-input .cm-line.codex-dock__cm-blockquote {
+  padding-left: 0.65em;
+  border-left: 3px solid var(--blockquote-border-color, var(--background-modifier-border));
+  color: var(--blockquote-color, var(--text-muted));
+}
+
+.codex-dock__cm-input .cm-line.codex-dock__cm-list {
+  color: var(--text-normal);
+}
+
+.codex-dock__cm-list-marker {
+  color: var(--text-muted);
+}
+
+.codex-dock__cm-block-marker {
+  color: var(--text-muted);
+}
+
 /* Mentions */
 
 .codex-dock__mention-chips {
