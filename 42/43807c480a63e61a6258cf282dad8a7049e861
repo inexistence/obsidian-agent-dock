@@ -1,0 +1,24 @@
+main.js
+  s_b1e1d0933e77c9::t_2e47f58487ec76 7202-7203
+src/view/ImagePreviewController.js
+  s_b1e1d0933e77c9::t_8c5ee299a1d60f 56-57
+styles.css
+  s_b1e1d0933e77c9::t_f746c5063238a6 681,683,686,700-701
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "4243807c480a63e61a6258cf282dad8a7049e861",
+  "prompts": {},
+  "logical_commit_id": "4243807c480a63e61a6258cf282dad8a7049e861",
+  "sessions": {
+    "s_b1e1d0933e77c9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3b36-cbde-7db1-95a0-74f6334b3254",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
