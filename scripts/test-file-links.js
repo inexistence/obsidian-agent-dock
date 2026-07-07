@@ -303,6 +303,22 @@ const {
 }
 
 {
+  const reference = fileLinkTest.resolveLocalFileReference(
+    {
+      vault: {
+        getAbstractFileByPath: () => null
+      }
+    },
+    "/Users/bigo/Desktop/remote-cursor-workspace/%E6%94%B6%E8%97%8F/2026-03-19.md",
+    "/Users/bigo/Vault"
+  );
+  assert.strictEqual(reference.external, true);
+  assert.strictEqual(reference.file, null);
+  assert.strictEqual(reference.vaultPath, "/Users/bigo/Desktop/remote-cursor-workspace/收藏/2026-03-19.md");
+  assert.strictEqual(reference.parsed.absolutePath, "/Users/bigo/Desktop/remote-cursor-workspace/收藏/2026-03-19.md");
+}
+
+{
   const reference = fileLinkTest.resolveMentionFileReference(
     {
       vault: {
@@ -386,4 +402,97 @@ const {
   assert.strictEqual(failedPath, "周报/2026/TODO.md");
 }
 
-console.log("file link tests passed");
+runAsyncTests()
+  .then(() => {
+    console.log("file link tests passed");
+  })
+  .catch((error) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
+
+async function runAsyncTests() {
+  let openedPath = "";
+  let defaultPrevented = false;
+  let propagationStopped = false;
+  let clickListener = null;
+  const anchor = {
+    classList: {
+      add: () => {}
+    },
+    setAttribute: () => {},
+    addEventListener: (_eventName, listener) => {
+      clickListener = listener;
+    }
+  };
+  fileLinkTest.attachLocalFileLinkHandler(
+    anchor,
+    {},
+    {
+      external: true,
+      file: null,
+      parsed: {
+        absolutePath: "/Users/bigo/Desktop/remote-cursor-workspace/收藏/2026-03-19.md",
+        line: null,
+        column: null
+      },
+      vaultPath: "/Users/bigo/Desktop/remote-cursor-workspace/收藏/2026-03-19.md"
+    },
+    {
+      confirmExternalLocalFile: () => true,
+      openExternalLocalFile: async (path) => {
+        openedPath = path;
+      }
+    }
+  );
+  await clickListener({
+    preventDefault: () => {
+      defaultPrevented = true;
+    },
+    stopPropagation: () => {
+      propagationStopped = true;
+    }
+  });
+  assert.strictEqual(defaultPrevented, true);
+  assert.strictEqual(propagationStopped, true);
+  assert.strictEqual(openedPath, "/Users/bigo/Desktop/remote-cursor-workspace/收藏/2026-03-19.md");
+
+  {
+    let opened = false;
+    let clickListener = null;
+    const anchor = {
+      classList: {
+        add: () => {}
+      },
+      setAttribute: () => {},
+      addEventListener: (_eventName, listener) => {
+        clickListener = listener;
+      }
+    };
+    fileLinkTest.attachLocalFileLinkHandler(
+      anchor,
+      {},
+      {
+        external: true,
+        file: null,
+        parsed: {
+          absolutePath: "/Users/bigo/Desktop/remote-cursor-workspace/收藏/2026-03-19.md",
+          line: null,
+          column: null
+        },
+        vaultPath: "/Users/bigo/Desktop/remote-cursor-workspace/收藏/2026-03-19.md"
+      },
+      {
+        confirmExternalLocalFile: () => false,
+        openExternalLocalFile: async () => {
+          opened = true;
+        }
+      }
+    );
+    await clickListener({
+      preventDefault: () => {},
+      stopPropagation: () => {}
+    });
+    assert.strictEqual(opened, false);
+  }
+}

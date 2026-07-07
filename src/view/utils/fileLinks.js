@@ -243,7 +243,12 @@ function resolveLocalFileReference(app, target, vaultBasePath) {
 
   const vaultPath = absolutePathToVaultPath(parsed.absolutePath, vaultBasePath);
   if (!vaultPath) {
-    return null;
+    return {
+      external: true,
+      file: null,
+      parsed,
+      vaultPath: parsed.absolutePath
+    };
   }
 
   const file = resolveVaultFile(app, vaultPath);
@@ -326,6 +331,45 @@ async function openVaultFileAtLine(app, file, line, column) {
   focusEditorLine(leaf, line, column);
 }
 
+async function openExternalLocalFile(path, options = {}) {
+  const confirmed = typeof options.confirmExternalLocalFile === "function"
+    ? options.confirmExternalLocalFile(path)
+    : confirmExternalLocalFile(path);
+  if (!confirmed) {
+    return;
+  }
+
+  if (typeof options.openExternalLocalFile === "function") {
+    await options.openExternalLocalFile(path);
+    return;
+  }
+
+  const shell = getElectronShell();
+  if (!shell || typeof shell.openPath !== "function") {
+    throw new Error("Electron shell is unavailable.");
+  }
+
+  const error = await shell.openPath(path);
+  if (error) {
+    throw new Error(error);
+  }
+}
+
+function confirmExternalLocalFile(path) {
+  if (typeof window === "undefined" || typeof window.confirm !== "function") {
+    return false;
+  }
+  return window.confirm(`Open this local file outside your vault?\n\n${path}`);
+}
+
+function getElectronShell() {
+  try {
+    return require("electron")?.shell || null;
+  } catch (_error) {
+    return null;
+  }
+}
+
 function addElementClass(element, className) {
   if (typeof element.addClass === "function") {
     element.addClass(className);
@@ -343,18 +387,22 @@ function setElementAttr(element, name, value) {
 }
 
 function attachLocalFileLinkHandler(anchor, app, reference, options) {
-  const { file, parsed, vaultPath } = reference;
+  const { external, file, parsed, vaultPath } = reference;
   addElementClass(anchor, "codex-dock__file-link");
   setElementAttr(anchor, "title", parsed.line ? `${vaultPath}:${parsed.line}` : vaultPath);
   anchor.addEventListener("click", async (event) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!file) {
+    if (!file && !external) {
       options.onOpenFailed?.({ error: null, vaultPath });
       return;
     }
     try {
-      await openVaultFileAtLine(app, file, parsed.line, parsed.column);
+      if (external) {
+        await openExternalLocalFile(parsed.absolutePath, options);
+      } else {
+        await openVaultFileAtLine(app, file, parsed.line, parsed.column);
+      }
     } catch (error) {
       console.warn("Agent Dock could not open local file link:", error);
       options.onOpenFailed?.({ error, vaultPath });
@@ -530,6 +578,8 @@ module.exports = {
   _test: {
     absolutePathToVaultPath,
     attachLocalFileLinkHandler,
+    confirmExternalLocalFile,
+    openExternalLocalFile,
     findVaultFileNameMatches,
     findBareLocalFileReferences,
     findMentionFileReferences,

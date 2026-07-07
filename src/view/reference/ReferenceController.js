@@ -9,6 +9,7 @@ const { MentionMenuController } = require("./MentionMenuController");
 const {
   ReferenceDropParser,
   createReferenceDropDebugInfo,
+  isLocalFileReference,
   logReferenceDropDebug,
   normalizeReferenceInput,
   truncateDebugText
@@ -112,8 +113,9 @@ class ReferenceController {
   handleReferenceDrop(dataTransfer) {
     const debugInfo = createReferenceDropDebugInfo(dataTransfer);
     const debugEnabled = Boolean(this.plugin.settings.debugActivity);
-    const paths = this.extractDroppedReferencePaths(dataTransfer, debugInfo, debugEnabled);
-    if (paths.length === 0) {
+    const references = this.extractDroppedReferences(dataTransfer, debugInfo, debugEnabled);
+    const paths = references.map((reference) => reference.path);
+    if (references.length === 0) {
       const ambiguousReference = debugInfo.ambiguousReferences[0];
       if (ambiguousReference && this.mentionMenu.showChoices(ambiguousReference.suggestions)) {
         logReferenceDropDebug(debugInfo, paths, debugEnabled, { status: "chooser" });
@@ -124,12 +126,18 @@ class ReferenceController {
     }
 
     logReferenceDropDebug(debugInfo, paths, debugEnabled, { status: "accepted" });
-    this.insertReferenceTokens(paths);
+    this.insertReferenceTokens(references);
     return true;
   }
 
   extractDroppedReferencePaths(dataTransfer, debugInfo, debugEnabled = false) {
-    const paths = [];
+    return this.extractDroppedReferences(dataTransfer, debugInfo, debugEnabled)
+      .filter((reference) => reference.kind === "vault")
+      .map((reference) => reference.path);
+  }
+
+  extractDroppedReferences(dataTransfer, debugInfo, debugEnabled = false) {
+    const references = [];
     const seen = new Set();
     const attemptedInputs = new Set();
     const candidates = this.dropParser.extractCandidates(dataTransfer, debugInfo, debugEnabled);
@@ -139,16 +147,16 @@ class ReferenceController {
         attemptedInputs,
         debugEnabled,
         debugInfo,
-        paths,
+        references,
         seen
       });
     }
 
-    return paths;
+    return references;
   }
 
   resolveDropCandidate(candidate, context) {
-    const { attemptedInputs, debugEnabled, debugInfo, paths, seen } = context;
+    const { attemptedInputs, debugEnabled, debugInfo, references, seen } = context;
     const { path, source } = candidate;
     const normalizedInput = normalizeReferenceInput(path);
     if (normalizedInput && attemptedInputs.has(normalizedInput)) {
@@ -188,6 +196,14 @@ class ReferenceController {
       return;
     }
     if (!entry) {
+      if (isLocalFileReference(path)) {
+        seen.add(normalizedPath);
+        references.push({ kind: "local", path: normalizedInput });
+        result.accepted = true;
+        result.reason = "local file outside vault";
+        debugInfo.candidates.push(result);
+        return;
+      }
       const ambiguousSuggestions = this.resolver.getAmbiguousReferenceSuggestions(path);
       if (ambiguousSuggestions.length > 1) {
         debugInfo.ambiguousReferences.push({
@@ -202,7 +218,7 @@ class ReferenceController {
       return;
     }
     seen.add(normalizedPath);
-    paths.push(normalizedPath);
+    references.push({ kind: "vault", path: normalizedPath });
     result.accepted = true;
     result.reason = `resolved to ${entry.path}`;
     debugInfo.candidates.push(result);
@@ -247,7 +263,12 @@ class ReferenceController {
   }
 
   insertReferenceTokens(paths) {
-    const tokens = paths.map((path) => formatMentionToken(path));
+    const references = normalizeReferenceTokenInputs(paths);
+    const tokens = references.map((reference) => (
+      reference.kind === "local"
+        ? formatLocalFileMarkdownReference(reference.path)
+        : formatMentionToken(reference.path)
+    ));
     const value = this.inputEl.value;
     const start = this.inputEl.selectionStart ?? value.length;
     const end = this.inputEl.selectionEnd ?? start;
@@ -331,6 +352,40 @@ function getMentionFileType(name) {
     return "FILE";
   }
   return extension.toUpperCase();
+}
+
+function normalizeReferenceTokenInputs(paths) {
+  return Array.from(paths || [])
+    .map((reference) => {
+      if (typeof reference === "string") {
+        return { kind: "vault", path: reference };
+      }
+      return {
+        kind: reference?.kind === "local" ? "local" : "vault",
+        path: String(reference?.path || "")
+      };
+    })
+    .filter((reference) => reference.path);
+}
+
+function formatLocalFileMarkdownReference(path) {
+  const cleanPath = normalizeReferenceInput(path);
+  const name = cleanPath.split("/").filter(Boolean).pop() || cleanPath;
+  return `[${escapeMarkdownLinkLabel(name)}](${encodeLocalPathForMarkdown(cleanPath)})`;
+}
+
+function escapeMarkdownLinkLabel(label) {
+  return String(label || "").replace(/([\\\[\]])/g, "\\$1");
+}
+
+function encodeLocalPathForMarkdown(path) {
+  const markdownTargetEscapes = {
+    "(": "%28",
+    ")": "%29",
+    "#": "%23",
+    "?": "%3F"
+  };
+  return encodeURI(path).replace(/[()#?]/g, (character) => markdownTargetEscapes[character]);
 }
 
 module.exports = {

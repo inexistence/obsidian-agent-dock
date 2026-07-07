@@ -126,6 +126,7 @@ module.exports = {
     "notice.pastedImageSaved": "Pasted image saved and referenced.",
     "notice.pastedImageFailed": "Could not save pasted image: {message}",
     "notice.openFileLinkFailed": "File does not exist or could not be opened: {path}",
+    "confirm.openExternalLocalFile": "Open this local file outside your vault?\n\n{path}",
     "agent.switchProvider": "Switch agent provider",
     "agent.currentProviderTitle": "{agent} will handle new messages",
     "agent.providerSwitched": "Switched to {agent}. New messages will be handled by {agent}.",

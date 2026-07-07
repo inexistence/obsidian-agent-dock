@@ -75,7 +75,7 @@ class ReferenceDropParser {
 
       const itemEntry = getDataTransferItemEntry(item);
       if (itemEntry) {
-        addPath(itemEntry.fullPath || itemEntry.name || "", `${source}.webkitGetAsEntry`);
+        addPath(getDataTransferEntryPath(itemEntry), `${source}.webkitGetAsEntry`);
       }
     });
 
@@ -175,6 +175,15 @@ function getDataTransferItemEntry(item) {
   } catch {
     return null;
   }
+}
+
+function getDataTransferEntryPath(entry) {
+  const name = String(entry?.name || "");
+  const fullPath = String(entry?.fullPath || "");
+  if (fullPath && fullPath !== `/${name}`) {
+    return fullPath;
+  }
+  return name || fullPath;
 }
 
 function truncateDebugText(value, maxChars = 180) {
@@ -321,7 +330,7 @@ function collectJsonReferenceCandidates(value) {
 function normalizeReferenceInput(path) {
   const value = String(path || "").replace(/\\"/g, "\"").trim();
   const obsidianPath = extractObsidianOpenPathFromValue(value);
-  return String(obsidianPath || value).replace(/\\/g, "/").trim();
+  return decodeUriPath(obsidianPath || value).replace(/^file:\/\//i, "").replace(/\\/g, "/").trim();
 }
 
 function extractObsidianOpenPathFromValue(value) {
@@ -349,12 +358,18 @@ function decodeUriPath(path) {
   }
 }
 
+function isLocalFileReference(path) {
+  const normalizedPath = normalizeReferenceInput(path);
+  return normalizedPath.startsWith("/");
+}
+
 module.exports = {
   ReferenceDropParser,
   containsObsidianOpenUrl,
   createReferenceDropDebugInfo,
   decodeUriPath,
   extractReferenceCandidatesFromText,
+  isLocalFileReference,
   logReferenceDropDebug,
   normalizeReferenceInput,
   truncateDebugText

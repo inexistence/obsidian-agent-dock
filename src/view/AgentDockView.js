@@ -961,6 +961,9 @@ class AgentDockView extends ItemView {
     MarkdownRenderer.render(this.app, renderText, markdownEl, sourcePath, this).then(() => {
       decorateLocalFileLinks(markdownEl, this.app, {
         sourcePath,
+        confirmExternalLocalFile: (path) => window.confirm(
+          this.translate("confirm.openExternalLocalFile", { path })
+        ),
         onOpenFailed: ({ vaultPath }) => {
           new Notice(this.translate("notice.openFileLinkFailed", { path: vaultPath }));
         }

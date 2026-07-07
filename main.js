@@ -249,6 +249,7 @@ module.exports = {
     "notice.pastedImageSaved": "Pasted image saved and referenced.",
     "notice.pastedImageFailed": "Could not save pasted image: {message}",
     "notice.openFileLinkFailed": "File does not exist or could not be opened: {path}",
+    "confirm.openExternalLocalFile": "Open this local file outside your vault?\n\n{path}",
     "agent.switchProvider": "Switch agent provider",
     "agent.currentProviderTitle": "{agent} will handle new messages",
     "agent.providerSwitched": "Switched to {agent}. New messages will be handled by {agent}.",
@@ -576,6 +577,7 @@ module.exports = {
     "notice.pastedImageSaved": "已保存并引用粘贴的图片。",
     "notice.pastedImageFailed": "无法保存粘贴的图片：{message}",
     "notice.openFileLinkFailed": "文件不存在或无法打开：{path}",
+    "confirm.openExternalLocalFile": "要打开 vault 外部的这个本地文件吗？\n\n{path}",
     "agent.switchProvider": "切换 Agent 提供方",
     "agent.currentProviderTitle": "之后的新消息将由 {agent} 处理",
     "agent.providerSwitched": "已切换到 {agent}，之后的新消息将由 {agent} 处理。",
@@ -8228,7 +8230,7 @@ class ReferenceDropParser {
 
       const itemEntry = getDataTransferItemEntry(item);
       if (itemEntry) {
-        addPath(itemEntry.fullPath || itemEntry.name || "", `${source}.webkitGetAsEntry`);
+        addPath(getDataTransferEntryPath(itemEntry), `${source}.webkitGetAsEntry`);
       }
     });
 
@@ -8328,6 +8330,15 @@ function getDataTransferItemEntry(item) {
   } catch {
     return null;
   }
+}
+
+function getDataTransferEntryPath(entry) {
+  const name = String(entry?.name || "");
+  const fullPath = String(entry?.fullPath || "");
+  if (fullPath && fullPath !== `/${name}`) {
+    return fullPath;
+  }
+  return name || fullPath;
 }
 
 function truncateDebugText(value, maxChars = 180) {
@@ -8474,7 +8485,7 @@ function collectJsonReferenceCandidates(value) {
 function normalizeReferenceInput(path) {
   const value = String(path || "").replace(/\\"/g, "\"").trim();
   const obsidianPath = extractObsidianOpenPathFromValue(value);
-  return String(obsidianPath || value).replace(/\\/g, "/").trim();
+  return decodeUriPath(obsidianPath || value).replace(/^file:\/\//i, "").replace(/\\/g, "/").trim();
 }
 
 function extractObsidianOpenPathFromValue(value) {
@@ -8502,12 +8513,18 @@ function decodeUriPath(path) {
   }
 }
 
+function isLocalFileReference(path) {
+  const normalizedPath = normalizeReferenceInput(path);
+  return normalizedPath.startsWith("/");
+}
+
 module.exports = {
   ReferenceDropParser,
   containsObsidianOpenUrl,
   createReferenceDropDebugInfo,
   decodeUriPath,
   extractReferenceCandidatesFromText,
+  isLocalFileReference,
   logReferenceDropDebug,
   normalizeReferenceInput,
   truncateDebugText
@@ -9060,6 +9077,7 @@ const { MentionMenuController } = __require("src/view/reference/MentionMenuContr
 const {
   ReferenceDropParser,
   createReferenceDropDebugInfo,
+  isLocalFileReference,
   logReferenceDropDebug,
   normalizeReferenceInput,
   truncateDebugText
@@ -9163,8 +9181,9 @@ class ReferenceController {
   handleReferenceDrop(dataTransfer) {
     const debugInfo = createReferenceDropDebugInfo(dataTransfer);
     const debugEnabled = Boolean(this.plugin.settings.debugActivity);
-    const paths = this.extractDroppedReferencePaths(dataTransfer, debugInfo, debugEnabled);
-    if (paths.length === 0) {
+    const references = this.extractDroppedReferences(dataTransfer, debugInfo, debugEnabled);
+    const paths = references.map((reference) => reference.path);
+    if (references.length === 0) {
       const ambiguousReference = debugInfo.ambiguousReferences[0];
       if (ambiguousReference && this.mentionMenu.showChoices(ambiguousReference.suggestions)) {
         logReferenceDropDebug(debugInfo, paths, debugEnabled, { status: "chooser" });
@@ -9175,12 +9194,18 @@ class ReferenceController {
     }
 
     logReferenceDropDebug(debugInfo, paths, debugEnabled, { status: "accepted" });
-    this.insertReferenceTokens(paths);
+    this.insertReferenceTokens(references);
     return true;
   }
 
   extractDroppedReferencePaths(dataTransfer, debugInfo, debugEnabled = false) {
-    const paths = [];
+    return this.extractDroppedReferences(dataTransfer, debugInfo, debugEnabled)
+      .filter((reference) => reference.kind === "vault")
+      .map((reference) => reference.path);
+  }
+
+  extractDroppedReferences(dataTransfer, debugInfo, debugEnabled = false) {
+    const references = [];
     const seen = new Set();
     const attemptedInputs = new Set();
     const candidates = this.dropParser.extractCandidates(dataTransfer, debugInfo, debugEnabled);
@@ -9190,16 +9215,16 @@ class ReferenceController {
         attemptedInputs,
         debugEnabled,
         debugInfo,
-        paths,
+        references,
         seen
       });
     }
 
-    return paths;
+    return references;
   }
 
   resolveDropCandidate(candidate, context) {
-    const { attemptedInputs, debugEnabled, debugInfo, paths, seen } = context;
+    const { attemptedInputs, debugEnabled, debugInfo, references, seen } = context;
     const { path, source } = candidate;
     const normalizedInput = normalizeReferenceInput(path);
     if (normalizedInput && attemptedInputs.has(normalizedInput)) {
@@ -9239,6 +9264,14 @@ class ReferenceController {
       return;
     }
     if (!entry) {
+      if (isLocalFileReference(path)) {
+        seen.add(normalizedPath);
+        references.push({ kind: "local", path: normalizedInput });
+        result.accepted = true;
+        result.reason = "local file outside vault";
+        debugInfo.candidates.push(result);
+        return;
+      }
       const ambiguousSuggestions = this.resolver.getAmbiguousReferenceSuggestions(path);
       if (ambiguousSuggestions.length > 1) {
         debugInfo.ambiguousReferences.push({
@@ -9253,7 +9286,7 @@ class ReferenceController {
       return;
     }
     seen.add(normalizedPath);
-    paths.push(normalizedPath);
+    references.push({ kind: "vault", path: normalizedPath });
     result.accepted = true;
     result.reason = `resolved to ${entry.path}`;
     debugInfo.candidates.push(result);
@@ -9298,7 +9331,12 @@ class ReferenceController {
   }
 
   insertReferenceTokens(paths) {
-    const tokens = paths.map((path) => formatMentionToken(path));
+    const references = normalizeReferenceTokenInputs(paths);
+    const tokens = references.map((reference) => (
+      reference.kind === "local"
+        ? formatLocalFileMarkdownReference(reference.path)
+        : formatMentionToken(reference.path)
+    ));
     const value = this.inputEl.value;
     const start = this.inputEl.selectionStart ?? value.length;
     const end = this.inputEl.selectionEnd ?? start;
@@ -9382,6 +9420,40 @@ function getMentionFileType(name) {
     return "FILE";
   }
   return extension.toUpperCase();
+}
+
+function normalizeReferenceTokenInputs(paths) {
+  return Array.from(paths || [])
+    .map((reference) => {
+      if (typeof reference === "string") {
+        return { kind: "vault", path: reference };
+      }
+      return {
+        kind: reference?.kind === "local" ? "local" : "vault",
+        path: String(reference?.path || "")
+      };
+    })
+    .filter((reference) => reference.path);
+}
+
+function formatLocalFileMarkdownReference(path) {
+  const cleanPath = normalizeReferenceInput(path);
+  const name = cleanPath.split("/").filter(Boolean).pop() || cleanPath;
+  return `[${escapeMarkdownLinkLabel(name)}](${encodeLocalPathForMarkdown(cleanPath)})`;
+}
+
+function escapeMarkdownLinkLabel(label) {
+  return String(label || "").replace(/([\\\[\]])/g, "\\$1");
+}
+
+function encodeLocalPathForMarkdown(path) {
+  const markdownTargetEscapes = {
+    "(": "%28",
+    ")": "%29",
+    "#": "%23",
+    "?": "%3F"
+  };
+  return encodeURI(path).replace(/[()#?]/g, (character) => markdownTargetEscapes[character]);
 }
 
 module.exports = {
@@ -10903,7 +10975,12 @@ function resolveLocalFileReference(app, target, vaultBasePath) {
 
   const vaultPath = absolutePathToVaultPath(parsed.absolutePath, vaultBasePath);
   if (!vaultPath) {
-    return null;
+    return {
+      external: true,
+      file: null,
+      parsed,
+      vaultPath: parsed.absolutePath
+    };
   }
 
   const file = resolveVaultFile(app, vaultPath);
@@ -10986,6 +11063,45 @@ async function openVaultFileAtLine(app, file, line, column) {
   focusEditorLine(leaf, line, column);
 }
 
+async function openExternalLocalFile(path, options = {}) {
+  const confirmed = typeof options.confirmExternalLocalFile === "function"
+    ? options.confirmExternalLocalFile(path)
+    : confirmExternalLocalFile(path);
+  if (!confirmed) {
+    return;
+  }
+
+  if (typeof options.openExternalLocalFile === "function") {
+    await options.openExternalLocalFile(path);
+    return;
+  }
+
+  const shell = getElectronShell();
+  if (!shell || typeof shell.openPath !== "function") {
+    throw new Error("Electron shell is unavailable.");
+  }
+
+  const error = await shell.openPath(path);
+  if (error) {
+    throw new Error(error);
+  }
+}
+
+function confirmExternalLocalFile(path) {
+  if (typeof window === "undefined" || typeof window.confirm !== "function") {
+    return false;
+  }
+  return window.confirm(`Open this local file outside your vault?\n\n${path}`);
+}
+
+function getElectronShell() {
+  try {
+    return require("electron")?.shell || null;
+  } catch (_error) {
+    return null;
+  }
+}
+
 function addElementClass(element, className) {
   if (typeof element.addClass === "function") {
     element.addClass(className);
@@ -11003,18 +11119,22 @@ function setElementAttr(element, name, value) {
 }
 
 function attachLocalFileLinkHandler(anchor, app, reference, options) {
-  const { file, parsed, vaultPath } = reference;
+  const { external, file, parsed, vaultPath } = reference;
   addElementClass(anchor, "codex-dock__file-link");
   setElementAttr(anchor, "title", parsed.line ? `${vaultPath}:${parsed.line}` : vaultPath);
   anchor.addEventListener("click", async (event) => {
     event.preventDefault();
     event.stopPropagation();
-    if (!file) {
+    if (!file && !external) {
       options.onOpenFailed?.({ error: null, vaultPath });
       return;
     }
     try {
-      await openVaultFileAtLine(app, file, parsed.line, parsed.column);
+      if (external) {
+        await openExternalLocalFile(parsed.absolutePath, options);
+      } else {
+        await openVaultFileAtLine(app, file, parsed.line, parsed.column);
+      }
     } catch (error) {
       console.warn("Agent Dock could not open local file link:", error);
       options.onOpenFailed?.({ error, vaultPath });
@@ -11190,6 +11310,8 @@ module.exports = {
   _test: {
     absolutePathToVaultPath,
     attachLocalFileLinkHandler,
+    confirmExternalLocalFile,
+    openExternalLocalFile,
     findVaultFileNameMatches,
     findBareLocalFileReferences,
     findMentionFileReferences,
@@ -12240,6 +12362,9 @@ class AgentDockView extends ItemView {
     MarkdownRenderer.render(this.app, renderText, markdownEl, sourcePath, this).then(() => {
       decorateLocalFileLinks(markdownEl, this.app, {
         sourcePath,
+        confirmExternalLocalFile: (path) => window.confirm(
+          this.translate("confirm.openExternalLocalFile", { path })
+        ),
         onOpenFailed: ({ vaultPath }) => {
           new Notice(this.translate("notice.openFileLinkFailed", { path: vaultPath }));
         }
