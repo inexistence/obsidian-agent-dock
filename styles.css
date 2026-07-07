@@ -624,8 +624,11 @@
 }
 
 .codex-dock__content-body {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
   min-width: 0;
-  overflow-x: auto;
+  overflow-x: hidden;
 }
 
 .codex-dock__content-body > :first-child {
@@ -641,19 +644,23 @@
 .codex-dock__content a,
 .codex-dock__content li,
 .codex-dock__content p {
+  min-width: 0;
   max-width: 100%;
   overflow-wrap: anywhere;
   word-break: break-word;
 }
 
 .codex-dock__content pre {
+  box-sizing: border-box;
   max-width: 100%;
   overflow: auto;
   white-space: pre;
 }
 
 .codex-dock__content table {
+  display: block;
   max-width: 100%;
+  overflow-x: auto;
 }
 
 .codex-dock__content th,
@@ -666,6 +673,11 @@
 
 .codex-dock__content code {
   overflow-wrap: anywhere;
+}
+
+.codex-dock__content :not(pre) > code {
+  white-space: break-spaces;
+  word-break: break-word;
 }
 
 .codex-dock__previewable-image {
