@@ -1,0 +1,22 @@
+src/view/composer/CodeMirrorComposerInput.js
+  s_621449a21e8d70::t_4fde5ad708a3a0 89-92
+main.js
+  s_621449a21e8d70::t_40424bcb9f1801 7576-7579
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "43efeff5bc84e8b590c22ce99aa3a87d2fc773a5",
+  "prompts": {},
+  "logical_commit_id": "43efeff5bc84e8b590c22ce99aa3a87d2fc773a5",
+  "sessions": {
+    "s_621449a21e8d70": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f3c6f-2033-73b1-9884-b3d907747f13",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
