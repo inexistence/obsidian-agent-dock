@@ -20,7 +20,7 @@ const AFFECT_SIGNAL_RULES = [
   {
     name: "urgent",
     scope: "prompt",
-    pattern: /(^|[\s，。！？,.!?]|请)(快点|快些|快一点|快一点儿|快快)|(很急|着急|加急|紧急|急需|马上|立刻|赶紧|尽快|别废话|别绕|直接|先别解释|urgent|asap|quickly|right now|be direct)/i,
+    pattern: /(^|[\s，。！？,.!?]|请)(快点|快些|快一点|快一点儿|快快)|(很急|着急|加急|紧急|急需|马上|立刻|立刻处理|赶紧|抓紧|尽快|别废话|别绕|直接|先别解释|urgent|asap|quickly|right now|be direct)/i,
     signal: { arousal: 0.35, focus: 0.3, tension: 0.18, warmth: -0.08 }
   },
   {
@@ -38,8 +38,8 @@ const AFFECT_SIGNAL_RULES = [
   {
     name: "playful",
     scope: "prompt",
-    pattern: /(好玩|有趣|开玩笑|玩一下|整活|轻松|俏皮|哈哈|哈[哈]+|fun|funny|playful|joke|kidding|lighthearted|lol|haha)/i,
-    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(开玩笑|玩笑|playful|俏皮|整活|轻松|好玩|fun|funny|joke|kidding|lighthearted)/i,
+    pattern: /(好玩|有趣|开玩笑|玩一下|整活|轻松|轻快点|活泼点|随意点|松弛点|不用太正式|不那么正式|俏皮|哈哈|哈[哈]+|fun|funny|playful|joke|kidding|lighthearted|casual|relaxed|lol|haha)/i,
+    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(开玩笑|玩笑|playful|俏皮|整活|轻松|轻快|活泼|随意|松弛|好玩|casual|relaxed|fun|funny|joke|kidding|lighthearted)/i,
     signal: { valence: 0.16, arousal: 0.16, warmth: 0.12, tension: -0.12 }
   },
   {
@@ -66,8 +66,8 @@ const AFFECT_SIGNAL_RULES = [
   {
     name: "close",
     scope: "prompt",
-    pattern: /(亲近|靠近|陪我|陪着|陪一下|在旁边|一起待会|安静陪|贴近一点|别太正式|温柔点|close|closer|stay with me|sit with me|gentle company)/i,
-    blockedBy: /((不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(亲近|靠近|陪|贴近|温柔|close|closer|intimate|overfamiliar)|保持[^，。！？,.!?]{0,8}(专业|距离|正式))/i,
+    pattern: /(亲近|靠近|陪我|陪着|陪一下|在旁边|一起待会|安静陪|贴近一点|别太正式|温柔点|柔和点|温和点|软一点|慢一点|别太硬|close|closer|stay with me|sit with me|gentle company|gentle|softer)/i,
+    blockedBy: /((不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(亲近|靠近|陪|贴近|温柔|柔和|温和|软|慢|close|closer|gentle|soft|intimate|overfamiliar)|保持[^，。！？,.!?]{0,8}(专业|距离|正式))/i,
     signal: { valence: 0.08, warmth: 0.24, arousal: -0.08, tension: -0.12 }
   },
   {
@@ -110,8 +110,8 @@ const AFFECT_SIGNAL_RULES = [
   {
     name: "challenging",
     scope: "prompt",
-    pattern: /(挑战|质疑|反驳|挑刺|审视|评审|别顺着我|反对我|找漏洞|站在反方|challenge|push back|critique|review|poke holes|devil's advocate)/i,
-    signal: { focus: 0.24, confidence: 0.12, warmth: -0.04, tension: 0.08 }
+    pattern: /(挑战|质疑|反驳|挑刺|挑毛病|审视|严格审视|评审|别顺着我|反对我|找漏洞|直接指出问题|别客气|说狠一点|站在反方|challenge|push back|critique|review|poke holes|be blunt|devil's advocate)/i,
+    signal: { focus: 0.24, confidence: 0.15, warmth: -0.06, tension: 0.16 }
   },
   {
     name: "patient",
@@ -122,7 +122,7 @@ const AFFECT_SIGNAL_RULES = [
   {
     name: "restrained",
     scope: "prompt",
-    pattern: /(克制|简短|少一点|别太热情|不要太热情|不要夸张|只说结论|少废话|别展开|短一点|tl;dr|restrained|terse|brief|less enthusiastic|just the answer|no flourish)/i,
+    pattern: /(克制|简短|少一点|别太热情|不要太热情|不要夸张|只说结论|只要结论|一句话|短答|说重点|少废话|别展开|别铺开|收着点|短一点|tl;dr|restrained|terse|brief|less enthusiastic|just the answer|no flourish)/i,
     signal: { focus: 0.18, arousal: -0.1, warmth: -0.12, tension: -0.02 }
   },
   {

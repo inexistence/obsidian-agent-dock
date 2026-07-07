@@ -54,6 +54,16 @@ const settings = {
 
 {
   const signal = affectTest.extractTurnAffectSignal({
+    prompt: "抓紧，立刻处理，先别解释。",
+    response: "我会先定位关键点。",
+    success: true
+  });
+  assert(signal.focus > 0.25, "expanded urgent tone words should increase focus");
+  assert(signal.arousal > 0.2, "expanded urgent tone words should increase arousal");
+}
+
+{
+  const signal = affectTest.extractTurnAffectSignal({
     prompt: "这段解释不清楚，也不靠谱。",
     response: "我会修正。",
     success: true
@@ -71,6 +81,12 @@ const settings = {
   assert(signal.valence > 0.1, "playful turns should increase positive affect");
   assert(signal.arousal > 0.1, "playful turns should add some energy");
   assert(signal.tension < 0, "playful turns should reduce tension");
+}
+
+{
+  const promptAffect = getPromptWorkingAffect(settings, resetAffectState(settings), "随意点，轻快点，不用太正式。");
+  assert(promptAffect, "expanded casual phrasing should produce current prompt affect");
+  assert.equal(promptAffect.label, "playful", "expanded casual phrasing should tune toward playful tone");
 }
 
 {
@@ -112,6 +128,12 @@ const settings = {
   });
   assert(signal.focus > 0.2, "challenging turns should increase focus");
   assert(signal.confidence > 0.1, "challenging turns should increase confidence");
+}
+
+{
+  const promptAffect = getPromptWorkingAffect(settings, resetAffectState(settings), "严格审视，别客气，直接指出问题。");
+  assert(promptAffect, "expanded challenging phrasing should produce current prompt affect");
+  assert.equal(promptAffect.label, "challenging", "expanded challenging phrasing should tune toward challenging tone");
 }
 
 {
@@ -167,6 +189,16 @@ const settings = {
 }
 
 {
+  const signal = affectTest.extractTurnAffectSignal({
+    prompt: "不要轻快，不要随意，保持正式。",
+    response: "我会保持正式。",
+    success: true
+  });
+  assert(signal.valence <= 0, "negated casual phrasing should not increase positive affect");
+  assert(signal.arousal <= 0, "negated casual phrasing should not add playful energy");
+}
+
+{
   const promptAffect = getPromptWorkingAffect(settings, resetAffectState(settings), "不要开玩笑，别 playful，认真点。");
   assert.notEqual(promptAffect?.label, "playful", "negated playful request should not label the turn playful");
 }
@@ -186,6 +218,12 @@ const settings = {
   const promptAffect = getPromptWorkingAffect(settings, resetAffectState(settings), "不要太热情，短一点。");
   assert(promptAffect, "restrained phrasing should produce current prompt affect");
   assert.equal(promptAffect.label, "restrained", "restrained phrasing should tune toward restrained tone");
+}
+
+{
+  const promptAffect = getPromptWorkingAffect(settings, resetAffectState(settings), "一句话，短答，只要结论。");
+  assert(promptAffect, "expanded restrained phrasing should produce current prompt affect");
+  assert.equal(promptAffect.label, "restrained", "expanded restrained phrasing should tune toward restrained tone");
 }
 
 {
@@ -256,6 +294,21 @@ const settings = {
   });
   assert(signal.warmth > 0.2, "expanded close synonyms should increase warmth");
   assert(signal.arousal < 0, "expanded close synonyms should lower arousal");
+}
+
+{
+  const promptAffect = getPromptWorkingAffect(settings, resetAffectState(settings), "柔和点，慢一点，别太硬。");
+  assert(promptAffect, "expanded gentle phrasing should produce current prompt affect");
+  assert.equal(promptAffect.label, "close", "expanded gentle phrasing should tune toward close tone");
+}
+
+{
+  const signal = affectTest.extractTurnAffectSignal({
+    prompt: "不要柔和，不要慢，保持专业距离。",
+    response: "我会保持专业。",
+    success: true
+  });
+  assert(signal.warmth <= 0, "negated gentle phrasing should not increase warmth");
 }
 
 {
