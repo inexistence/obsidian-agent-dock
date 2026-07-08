@@ -36,6 +36,7 @@ async function runChatTurn({
   onBeforeAgentRun,
   onTurnStarted,
   onTurnUpdate,
+  updateTurnVisualAffect,
   onTurnFinished,
   onComposerChanged,
   updateWorkingAffect,
@@ -78,6 +79,9 @@ async function runChatTurn({
         mergeToolTimelineUpdate(assistantMessage, update);
       } else {
         assistantMessage.timeline.push(update);
+      }
+      if (updateTurnVisualAffect) {
+        updateTurnVisualAffect(assistantMessage, update);
       }
       onTurnUpdate(session, assistantMessage);
     }, conversation, {

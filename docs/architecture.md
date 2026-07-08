@@ -227,6 +227,9 @@ Core concepts:
 - `getPromptWorkingAffect()` combines current-turn signal with recent
   cross-session working affect for prompt injection.
 - `updateWorkingAffect()` updates the short-lived working state after a turn.
+- `getTurnVisualAffect()` reads visible normalized agent events during a running
+  turn and updates only the loading status label/animation. This is UI feedback,
+  not prompt guidance or stored affect continuity.
 - `labelWorkingAffect()` maps dimensions to labels such as `playful`, `close`,
   `alert`, `composed`, `challenging`, and `restrained`.
 - `formatWorkingAffectPrompt()` converts the label into tone guidance:
@@ -245,6 +248,23 @@ Maintenance rules:
 - Affect prompt sections may only tune tone, pacing, warmth, and focus.
 - Affect cannot override facts, permissions, tool policy, filesystem policy,
   safety instructions, memory boundaries, or the latest user request.
+- Live visual affect may read only visible event text already shown or available
+  to the timeline, such as `content`, visible `reasoning`, `tool`, `notice`, and
+  `error` summaries. It must not read hidden chain-of-thought, update prompt
+  construction, write `affectState.working`, or persist session-only UI fields.
+- Live visual label changes should be smoothed with a minimum readable display
+  duration so fast event streams do not flicker through several tone labels.
+  Strong risk or completion signals may use a shorter delay, but should still
+  remain visible long enough to be perceived. Failure and stop states always own
+  the final completion feedback.
+- Live visual labels should have explicit priority. Higher-priority labels such
+  as `alert`, `serious`, and `celebratory` may preempt lower-priority working or
+  ambience labels; lower-priority labels should wait until the current visible
+  label has been readable long enough.
+- Live visual label changes use a short shared enter/exit transition. The
+  transition should make replacement perceptible without queueing every
+  intermediate state; final `success`, `celebrate`, `error`, or `stopped`
+  feedback still owns the completion display.
 - Positive tone rules should consider a `blockedBy` negation pattern so phrases
   like "do not joke" or "keep it professional" do not trigger playful or close
   tone.

@@ -261,6 +261,73 @@ const AFFECT_LABEL_PROFILES = {
   }
 };
 
+const TURN_VISUAL_EVENT_WEIGHTS = {
+  content: 0.42,
+  reasoning: 0.3,
+  tool: 0.18,
+  notice: 0.14,
+  error: 0.85,
+  activity: 0.08
+};
+
+const TURN_VISUAL_KIND_SIGNALS = {
+  reasoning: { focus: 0.06, confidence: -0.01 },
+  tool: { focus: 0.07, arousal: 0.02 },
+  notice: { focus: 0.03 },
+  content: { confidence: 0.04, tension: -0.02 },
+  error: { valence: -0.24, arousal: 0.22, focus: 0.22, tension: 0.42, confidence: -0.18 }
+};
+
+const TURN_VISUAL_SIGNAL_RULES = [
+  {
+    name: "live-playful",
+    pattern: /(哈哈|哈[哈]+|笑出声|好玩|有趣|俏皮|轻快|fun|funny|playful|haha|lol)/i,
+    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(哈哈|开玩笑|玩笑|好玩|有趣|俏皮|轻快|fun|funny|playful|haha|lol)/i,
+    signal: { valence: 0.4, arousal: 0.3, warmth: 0.18, tension: -0.12 }
+  },
+  {
+    name: "live-celebratory",
+    pattern: /(搞定|成了|通过了|成功|完成|解决了|漂亮|太好了|nice|passed|success|done|fixed|works)/i,
+    blockedBy: /(未|没有|还没|失败|不成功|没通过|not|failed|failure)[^，。！？,.!?]{0,12}(搞定|成了|通过|成功|完成|done|passed|success|works)/i,
+    signal: { valence: 0.75, arousal: 0.18, warmth: 0.22, confidence: 0.2, tension: -0.18 }
+  },
+  {
+    name: "live-absorbed",
+    pattern: /(深入|细看|细想|推演|展开|探索|有趣的是|interesting|explore|deeper|dig into|think through)/i,
+    signal: { valence: 0.12, arousal: 0.14, warmth: 0.22, focus: 0.45 }
+  },
+  {
+    name: "live-confident",
+    pattern: /(确定|明确|定位到|找到了|可以确认|结论是|confident|confirmed|clear|found|solid)/i,
+    signal: { focus: 0.14, confidence: 0.22, tension: -0.06 }
+  },
+  {
+    name: "live-composed",
+    pattern: /(梳理|整理|稳住|冷静|慢慢|收束|calm|composed|settle|organize|sort)/i,
+    signal: { focus: 0.1, arousal: -0.08, tension: -0.08, confidence: 0.04 }
+  },
+  {
+    name: "live-serious",
+    pattern: /(严重|生产|事故|风险|数据丢失|隐私|安全|泄露|serious|production|incident|risk|privacy|security|leak|data loss)/i,
+    signal: { focus: 0.18, tension: 0.26, arousal: 0.08, warmth: -0.04 }
+  },
+  {
+    name: "live-alert",
+    pattern: /(危险|删除|覆盖|权限|密钥|密码|凭据|注入|越权|不可逆|destructive|delete|overwrite|permission|secret|credential|private key|injection|unsafe)/i,
+    signal: { focus: 0.2, tension: 0.32, arousal: 0.16, warmth: -0.06, confidence: 0.04 }
+  },
+  {
+    name: "live-stuck",
+    pattern: /(卡住|失败|报错|崩溃|不工作|没找到|无法|error|failed|failure|crash|stuck|cannot|unable)/i,
+    signal: { valence: -0.16, arousal: 0.16, focus: 0.16, tension: 0.28, confidence: -0.1 }
+  },
+  {
+    name: "live-warm",
+    pattern: /(温柔|放心|没事|一起|陪|别急|gentle|reassur|with you|no rush)/i,
+    signal: { valence: 0.08, warmth: 0.18, arousal: -0.06, tension: -0.08 }
+  }
+];
+
 function normalizeAffectState(savedState) {
   const state = savedState && typeof savedState === "object" ? savedState : {};
   return {
@@ -365,6 +432,26 @@ function updateWorkingAffect(previousState, settings, turn, now = Date.now()) {
   };
 }
 
+function getTurnVisualAffect(previousAffect, event) {
+  const previous = previousAffect
+    ? normalizeWorkingAffect(previousAffect)
+    : Object.assign({}, DEFAULT_WORKING_AFFECT);
+  const signal = extractTurnVisualSignal(event);
+  if (isNeutralSignal(signal)) {
+    const current = Object.assign({}, previous);
+    current.label = labelWorkingAffect(current);
+    addRankedLabels(current);
+    return current;
+  }
+
+  const kind = String(event?.kind || "activity");
+  const weight = TURN_VISUAL_EVENT_WEIGHTS[kind] || TURN_VISUAL_EVENT_WEIGHTS.activity;
+  const next = applySignalToAffect(previous, signal, weight);
+  next.label = labelWorkingAffect(next);
+  addRankedLabels(next);
+  return next;
+}
+
 function resetAffectState(settings) {
   return {
     working: Object.assign({}, getBaselineAffect(settings), {
@@ -412,6 +499,46 @@ function extractTurnAffectSignal(turn) {
   }
 
   return signal;
+}
+
+function extractTurnVisualSignal(event) {
+  const kind = String(event?.kind || "activity");
+  const text = getVisibleEventText(event);
+  const signal = {
+    valence: 0,
+    arousal: 0,
+    warmth: 0,
+    focus: 0,
+    tension: 0,
+    confidence: 0
+  };
+
+  addSignal(signal, TURN_VISUAL_KIND_SIGNALS[kind] || {});
+
+  for (const rule of TURN_VISUAL_SIGNAL_RULES) {
+    if (rule.blockedBy?.test(text)) {
+      continue;
+    }
+    if (rule.pattern.test(text)) {
+      addSignal(signal, rule.signal);
+    }
+  }
+
+  return signal;
+}
+
+function getVisibleEventText(event) {
+  if (!event || typeof event !== "object") {
+    return "";
+  }
+  return compactText([
+    event.text,
+    event.title,
+    event.summary,
+    event.detail,
+    event.content,
+    event.message
+  ].filter(Boolean).join(" "));
 }
 
 function formatWorkingAffectPrompt(affect) {
@@ -642,6 +769,7 @@ module.exports = {
   formatWorkingAffectPrompt,
   getEffectiveWorkingAffect,
   getPromptWorkingAffect,
+  getTurnVisualAffect,
   normalizeAffectState,
   resetAffectState,
   updateWorkingAffect,
@@ -649,6 +777,8 @@ module.exports = {
     AFFECT_LABEL_PROFILES,
     AFFECT_LABEL_RULES,
     AFFECT_SIGNAL_RULES,
+    TURN_VISUAL_SIGNAL_RULES,
+    extractTurnVisualSignal,
     extractTurnAffectSignal,
     labelWorkingAffect
   }

@@ -1968,6 +1968,73 @@ const AFFECT_LABEL_PROFILES = {
   }
 };
 
+const TURN_VISUAL_EVENT_WEIGHTS = {
+  content: 0.42,
+  reasoning: 0.3,
+  tool: 0.18,
+  notice: 0.14,
+  error: 0.85,
+  activity: 0.08
+};
+
+const TURN_VISUAL_KIND_SIGNALS = {
+  reasoning: { focus: 0.06, confidence: -0.01 },
+  tool: { focus: 0.07, arousal: 0.02 },
+  notice: { focus: 0.03 },
+  content: { confidence: 0.04, tension: -0.02 },
+  error: { valence: -0.24, arousal: 0.22, focus: 0.22, tension: 0.42, confidence: -0.18 }
+};
+
+const TURN_VISUAL_SIGNAL_RULES = [
+  {
+    name: "live-playful",
+    pattern: /(哈哈|哈[哈]+|笑出声|好玩|有趣|俏皮|轻快|fun|funny|playful|haha|lol)/i,
+    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(哈哈|开玩笑|玩笑|好玩|有趣|俏皮|轻快|fun|funny|playful|haha|lol)/i,
+    signal: { valence: 0.4, arousal: 0.3, warmth: 0.18, tension: -0.12 }
+  },
+  {
+    name: "live-celebratory",
+    pattern: /(搞定|成了|通过了|成功|完成|解决了|漂亮|太好了|nice|passed|success|done|fixed|works)/i,
+    blockedBy: /(未|没有|还没|失败|不成功|没通过|not|failed|failure)[^，。！？,.!?]{0,12}(搞定|成了|通过|成功|完成|done|passed|success|works)/i,
+    signal: { valence: 0.75, arousal: 0.18, warmth: 0.22, confidence: 0.2, tension: -0.18 }
+  },
+  {
+    name: "live-absorbed",
+    pattern: /(深入|细看|细想|推演|展开|探索|有趣的是|interesting|explore|deeper|dig into|think through)/i,
+    signal: { valence: 0.12, arousal: 0.14, warmth: 0.22, focus: 0.45 }
+  },
+  {
+    name: "live-confident",
+    pattern: /(确定|明确|定位到|找到了|可以确认|结论是|confident|confirmed|clear|found|solid)/i,
+    signal: { focus: 0.14, confidence: 0.22, tension: -0.06 }
+  },
+  {
+    name: "live-composed",
+    pattern: /(梳理|整理|稳住|冷静|慢慢|收束|calm|composed|settle|organize|sort)/i,
+    signal: { focus: 0.1, arousal: -0.08, tension: -0.08, confidence: 0.04 }
+  },
+  {
+    name: "live-serious",
+    pattern: /(严重|生产|事故|风险|数据丢失|隐私|安全|泄露|serious|production|incident|risk|privacy|security|leak|data loss)/i,
+    signal: { focus: 0.18, tension: 0.26, arousal: 0.08, warmth: -0.04 }
+  },
+  {
+    name: "live-alert",
+    pattern: /(危险|删除|覆盖|权限|密钥|密码|凭据|注入|越权|不可逆|destructive|delete|overwrite|permission|secret|credential|private key|injection|unsafe)/i,
+    signal: { focus: 0.2, tension: 0.32, arousal: 0.16, warmth: -0.06, confidence: 0.04 }
+  },
+  {
+    name: "live-stuck",
+    pattern: /(卡住|失败|报错|崩溃|不工作|没找到|无法|error|failed|failure|crash|stuck|cannot|unable)/i,
+    signal: { valence: -0.16, arousal: 0.16, focus: 0.16, tension: 0.28, confidence: -0.1 }
+  },
+  {
+    name: "live-warm",
+    pattern: /(温柔|放心|没事|一起|陪|别急|gentle|reassur|with you|no rush)/i,
+    signal: { valence: 0.08, warmth: 0.18, arousal: -0.06, tension: -0.08 }
+  }
+];
+
 function normalizeAffectState(savedState) {
   const state = savedState && typeof savedState === "object" ? savedState : {};
   return {
@@ -2072,6 +2139,26 @@ function updateWorkingAffect(previousState, settings, turn, now = Date.now()) {
   };
 }
 
+function getTurnVisualAffect(previousAffect, event) {
+  const previous = previousAffect
+    ? normalizeWorkingAffect(previousAffect)
+    : Object.assign({}, DEFAULT_WORKING_AFFECT);
+  const signal = extractTurnVisualSignal(event);
+  if (isNeutralSignal(signal)) {
+    const current = Object.assign({}, previous);
+    current.label = labelWorkingAffect(current);
+    addRankedLabels(current);
+    return current;
+  }
+
+  const kind = String(event?.kind || "activity");
+  const weight = TURN_VISUAL_EVENT_WEIGHTS[kind] || TURN_VISUAL_EVENT_WEIGHTS.activity;
+  const next = applySignalToAffect(previous, signal, weight);
+  next.label = labelWorkingAffect(next);
+  addRankedLabels(next);
+  return next;
+}
+
 function resetAffectState(settings) {
   return {
     working: Object.assign({}, getBaselineAffect(settings), {
@@ -2119,6 +2206,46 @@ function extractTurnAffectSignal(turn) {
   }
 
   return signal;
+}
+
+function extractTurnVisualSignal(event) {
+  const kind = String(event?.kind || "activity");
+  const text = getVisibleEventText(event);
+  const signal = {
+    valence: 0,
+    arousal: 0,
+    warmth: 0,
+    focus: 0,
+    tension: 0,
+    confidence: 0
+  };
+
+  addSignal(signal, TURN_VISUAL_KIND_SIGNALS[kind] || {});
+
+  for (const rule of TURN_VISUAL_SIGNAL_RULES) {
+    if (rule.blockedBy?.test(text)) {
+      continue;
+    }
+    if (rule.pattern.test(text)) {
+      addSignal(signal, rule.signal);
+    }
+  }
+
+  return signal;
+}
+
+function getVisibleEventText(event) {
+  if (!event || typeof event !== "object") {
+    return "";
+  }
+  return compactText([
+    event.text,
+    event.title,
+    event.summary,
+    event.detail,
+    event.content,
+    event.message
+  ].filter(Boolean).join(" "));
 }
 
 function formatWorkingAffectPrompt(affect) {
@@ -2349,6 +2476,7 @@ module.exports = {
   formatWorkingAffectPrompt,
   getEffectiveWorkingAffect,
   getPromptWorkingAffect,
+  getTurnVisualAffect,
   normalizeAffectState,
   resetAffectState,
   updateWorkingAffect,
@@ -2356,6 +2484,8 @@ module.exports = {
     AFFECT_LABEL_PROFILES,
     AFFECT_LABEL_RULES,
     AFFECT_SIGNAL_RULES,
+    TURN_VISUAL_SIGNAL_RULES,
+    extractTurnVisualSignal,
     extractTurnAffectSignal,
     labelWorkingAffect
   }
@@ -10843,6 +10973,7 @@ async function runChatTurn({
   onBeforeAgentRun,
   onTurnStarted,
   onTurnUpdate,
+  updateTurnVisualAffect,
   onTurnFinished,
   onComposerChanged,
   updateWorkingAffect,
@@ -10885,6 +11016,9 @@ async function runChatTurn({
         mergeToolTimelineUpdate(assistantMessage, update);
       } else {
         assistantMessage.timeline.push(update);
+      }
+      if (updateTurnVisualAffect) {
+        updateTurnVisualAffect(assistantMessage, update);
       }
       onTurnUpdate(session, assistantMessage);
     }, conversation, {
@@ -12662,7 +12796,7 @@ const { copyText } = __require("src/view/utils/clipboard.js");
 const { estimateContextChars, formatCompactNumber } = __require("src/view/utils/contextEstimate.js");
 const { decorateLocalFileLinks, normalizeLocalFileMarkdownLinks } = __require("src/view/utils/fileLinks.js");
 const { formatMessageTime, formatMessageTimeIso, formatMessageTimeTitle } = __require("src/view/utils/messageTime.js");
-const { DEFAULT_WORKING_AFFECT } = __require("src/affect/WorkingAffectStore.js");
+const { DEFAULT_WORKING_AFFECT, getTurnVisualAffect } = __require("src/affect/WorkingAffectStore.js");
 
 const TURN_STATUS_PREVIEW_KINDS = ["thinking", "success", "celebrate", "error", "stopped"];
 const PROMPT_TONE_PREVIEW_KINDS = [
@@ -12710,6 +12844,31 @@ const PROMPT_TONE_STATUS_META = {
   "warm-open": { mode: "glint", color: "#7a9f32" },
   calm: { mode: "quiet", color: "#6d8fa3" },
   steady: { mode: "steady", color: "#65758b" }
+};
+const TURN_VISUAL_MIN_CHANGE_MS = 3600;
+const TURN_VISUAL_FAST_CHANGE_MS = 1800;
+const TURN_VISUAL_FAST_LABELS = new Set(["alert", "serious", "celebratory"]);
+const TURN_VISUAL_LABEL_PRIORITY = {
+  alert: 100,
+  serious: 92,
+  "tense-focused": 86,
+  celebratory: 78,
+  confident: 72,
+  challenging: 64,
+  absorbed: 60,
+  focused: 58,
+  "warm-focused": 56,
+  composed: 54,
+  reassuring: 50,
+  surprised: 46,
+  admiring: 44,
+  playful: 42,
+  "warm-open": 38,
+  patient: 36,
+  close: 34,
+  calm: 28,
+  restrained: 24,
+  steady: 0
 };
 
 class AgentDockView extends ItemView {
@@ -12804,6 +12963,7 @@ class AgentDockView extends ItemView {
   async onClose() {
     this.destroyComposerInput();
     this.cancelPendingMessageRender();
+    this.clearTurnVisualFinalDelayTimers();
     this.clearGlobalPointerListeners();
     this.closeImagePreview();
     this.clearAffectChangeAnimation();
@@ -13192,6 +13352,7 @@ class AgentDockView extends ItemView {
   }
 
   renderMessageItem(item, message) {
+    const outgoingStatus = this.captureOutgoingTurnStatus(item, message);
     item.empty();
     this.messagesByEl?.set(item, message);
     item.className = `codex-dock__message codex-dock__message--${message.role}`;
@@ -13210,6 +13371,7 @@ class AgentDockView extends ItemView {
       this.renderMarkdownContent(item, message.content);
     }
     this.renderMessageFooter(item, message);
+    this.attachOutgoingTurnStatus(item, outgoingStatus);
   }
 
   prefersReducedMotion() {
@@ -13240,6 +13402,11 @@ class AgentDockView extends ItemView {
     if (status.play || (isFirstThinkingRender && !toneMeta)) {
       statusClasses.push("is-fresh");
     }
+    const isSwitchingIn = message.turnVisualStatusChanged === true;
+    if (isSwitchingIn) {
+      statusClasses.push("is-switching-in");
+      message.turnVisualStatusChanged = false;
+    }
     if (status.play && status.kind === "error") {
       statusClasses.push("is-alerting");
     } else if (status.play && status.kind === "stopped") {
@@ -13251,11 +13418,17 @@ class AgentDockView extends ItemView {
       cls: statusClasses.join(" "),
       text: status.label,
       attr: {
-        "data-feedback-kind": status.kind
+        "data-feedback-kind": status.kind,
+        "data-status-key": this.getTurnStatusRenderKey(status)
       }
     });
     if (toneMeta) {
       statusEl.style.setProperty("--codex-dock-turn-status-color", toneMeta.color);
+    }
+    if (isSwitchingIn) {
+      window.setTimeout(() => {
+        statusEl.removeClass("is-switching-in");
+      }, 280);
     }
 
     if (status.kind === "thinking") {
@@ -13292,7 +13465,10 @@ class AgentDockView extends ItemView {
     if (!message || message.role !== "assistant") {
       return null;
     }
-    if (message.isLoading) {
+    if (message.turnVisualAwaitingFinalFeedback && message.turnVisualFinalHoldStatus) {
+      return message.turnVisualFinalHoldStatus;
+    }
+    if (message.isLoading || message.turnVisualAwaitingFinalFeedback) {
       return {
         kind: "thinking",
         label: message.loadingToneLabel || this.translate("turnStatus.thinking"),
@@ -13333,6 +13509,133 @@ class AgentDockView extends ItemView {
 
   getPromptToneStatusMeta(toneKind) {
     return PROMPT_TONE_STATUS_META[toneKind] || PROMPT_TONE_STATUS_META.steady;
+  }
+
+  updateTurnVisualAffect(message, update) {
+    if (!message?.isLoading) {
+      return;
+    }
+    const nextAffect = getTurnVisualAffect(message.turnVisualAffect, update);
+    const label = nextAffect?.label || "";
+    if (!label) {
+      return;
+    }
+    const hadVisibleTone = Boolean(message.loadingToneKind);
+    message.turnVisualAffect = nextAffect;
+    if (!this.shouldApplyTurnVisualLabel(message, label)) {
+      return;
+    }
+    if (!hadVisibleTone) {
+      message.turnVisualSuppressNextTransition = true;
+    }
+    message.loadingToneKind = label;
+    message.loadingToneLabel = this.getAffectToneLabel(label);
+  }
+
+  shouldApplyTurnVisualLabel(message, label) {
+    const currentLabel = message.loadingToneKind || "";
+    if (!currentLabel) {
+      message.turnVisualLastLabel = label;
+      message.turnVisualLastChangedAt = Date.now();
+      message.turnVisualPendingLabel = "";
+      message.turnVisualPendingCount = 0;
+      return true;
+    }
+    if (currentLabel === label) {
+      if (!message.turnVisualLastChangedAt) {
+        message.turnVisualLastChangedAt = Date.now();
+      }
+      message.turnVisualLastLabel = label;
+      message.turnVisualPendingLabel = "";
+      message.turnVisualPendingCount = 0;
+      return true;
+    }
+
+    const now = Date.now();
+    const lastChangedAt = Number(message.turnVisualLastChangedAt || 0);
+    const elapsed = lastChangedAt ? now - lastChangedAt : Number.POSITIVE_INFINITY;
+    const currentPriority = this.getTurnVisualLabelPriority(currentLabel);
+    const candidatePriority = this.getTurnVisualLabelPriority(label);
+    const isHigherPriority = candidatePriority > currentPriority;
+    const isLowerPriority = candidatePriority < currentPriority;
+    const fastLabel = TURN_VISUAL_FAST_LABELS.has(label);
+    const minDelay = (fastLabel || isHigherPriority) ? TURN_VISUAL_FAST_CHANGE_MS : TURN_VISUAL_MIN_CHANGE_MS;
+    const pendingCount = message.turnVisualPendingLabel === label
+      ? Number(message.turnVisualPendingCount || 0) + 1
+      : 1;
+
+    message.turnVisualPendingLabel = label;
+    message.turnVisualPendingCount = pendingCount;
+
+    if (isLowerPriority && elapsed < TURN_VISUAL_MIN_CHANGE_MS) {
+      return false;
+    }
+
+    if (elapsed < minDelay && pendingCount < 2) {
+      return false;
+    }
+
+    message.turnVisualLastLabel = label;
+    message.turnVisualLastChangedAt = now;
+    message.turnVisualPendingLabel = "";
+    message.turnVisualPendingCount = 0;
+    message.turnVisualStatusChanged = Boolean(currentLabel && currentLabel !== label);
+    return true;
+  }
+
+  getTurnVisualLabelPriority(label) {
+    return TURN_VISUAL_LABEL_PRIORITY[label] ?? TURN_VISUAL_LABEL_PRIORITY.steady;
+  }
+
+  getTurnStatusRenderKey(status) {
+    if (!status) {
+      return "";
+    }
+    return [
+      status.kind || "",
+      status.toneKind || "",
+      status.label || ""
+    ].join(":");
+  }
+
+  captureOutgoingTurnStatus(item, message) {
+    if (this.prefersReducedMotion()) {
+      return null;
+    }
+    if (message?.turnVisualSuppressNextTransition) {
+      message.turnVisualSuppressNextTransition = false;
+      return null;
+    }
+    const oldStatusEl = item?.querySelector?.(".codex-dock__turn-status:not(.is-exiting)");
+    if (!oldStatusEl) {
+      return null;
+    }
+    const nextStatus = this.getTurnStatus(message);
+    const oldKey = oldStatusEl.getAttr("data-status-key") || oldStatusEl.textContent || "";
+    const nextKey = this.getTurnStatusRenderKey(nextStatus);
+    if (!nextKey || oldKey === nextKey) {
+      return null;
+    }
+    return oldStatusEl.cloneNode(true);
+  }
+
+  attachOutgoingTurnStatus(item, outgoingStatus) {
+    if (!outgoingStatus) {
+      return;
+    }
+    const statusSlot = item?.querySelector?.(".codex-dock__turn-status-slot");
+    if (!statusSlot) {
+      return;
+    }
+    outgoingStatus.addClass("is-exiting");
+    outgoingStatus.removeClass("is-fresh");
+    outgoingStatus.removeClass("is-switching-in");
+    statusSlot.appendChild(outgoingStatus);
+    window.setTimeout(() => {
+      if (outgoingStatus.isConnected) {
+        outgoingStatus.remove();
+      }
+    }, 280);
   }
 
   renderMessageMeta(item, message) {
@@ -13509,6 +13812,9 @@ class AgentDockView extends ItemView {
         if (promptAffectNotice) {
           assistantMessage.loadingToneLabel = promptAffectNotice.label || "";
           assistantMessage.loadingToneKind = promptAffectNotice.rawLabel || "";
+          assistantMessage.turnVisualAffect = promptAffectNotice.affect || null;
+          assistantMessage.turnVisualLastLabel = promptAffectNotice.rawLabel || "";
+          assistantMessage.turnVisualLastChangedAt = Date.now();
           if (promptAffectNotice.rawLabel === "celebratory") {
             assistantMessage.emotiveCompletionKind = "celebrate";
           }
@@ -13523,6 +13829,7 @@ class AgentDockView extends ItemView {
       onTurnUpdate: (targetSession, assistantMessage) => {
         this.scheduleSessionRenderIfActive(targetSession, assistantMessage);
       },
+      updateTurnVisualAffect: (assistantMessage, update) => this.updateTurnVisualAffect(assistantMessage, update),
       onTurnFinished: (targetSession, result) => this.handleTurnFinished(targetSession, result),
       onComposerChanged: (targetSession) => this.renderComposerIfActive(targetSession),
       updateWorkingAffect: async (turn, context = {}) => {
@@ -14023,7 +14330,13 @@ class AgentDockView extends ItemView {
   handleTurnFinished(session, result = {}) {
     if (session.id === this.activeSessionId) {
       const message = findLastAssistantMessage(session);
+      if (!result.final && message?.isComplete) {
+        return;
+      }
       if (result.final) {
+        if (this.deferTurnFeedbackUntilLiveStatusSettles(session, message, result.status || "success")) {
+          return;
+        }
         this.prepareTurnFeedback(session, result.status || "success");
       }
       if (this.hasActiveTransientFeedback(session)) {
@@ -14055,6 +14368,59 @@ class AgentDockView extends ItemView {
     }));
   }
 
+  deferTurnFeedbackUntilLiveStatusSettles(session, message, status) {
+    if (!message || status !== "success" || message.turnVisualFinalDelayTimer) {
+      return false;
+    }
+
+    const remainingMs = this.getTurnVisualRemainingDisplayMs(message);
+    if (remainingMs <= 0) {
+      return false;
+    }
+
+    message.turnVisualPendingLabel = "";
+    message.turnVisualPendingCount = 0;
+    message.turnVisualAwaitingFinalFeedback = true;
+    message.turnVisualFinalHoldStatus = {
+      kind: "thinking",
+      label: message.loadingToneLabel || this.translate("turnStatus.thinking"),
+      toneKind: message.loadingToneKind || "",
+      play: false
+    };
+    this.cancelPendingMessageRender();
+    message.turnVisualFinalDelayTimer = window.setTimeout(() => {
+      message.turnVisualFinalDelayTimer = null;
+      message.turnVisualAwaitingFinalFeedback = false;
+      message.turnVisualFinalHoldStatus = null;
+      if (session.id !== this.activeSessionId) {
+        return;
+      }
+      this.prepareTurnFeedback(session, status);
+      if (this.hasActiveTransientFeedback(session)) {
+        this.pendingRenderAfterTransient = true;
+        return;
+      }
+      this.cancelPendingMessageRender();
+      if (!this.renderMessageIfMounted(message)) {
+        this.renderSessionIfActive(session);
+      }
+    }, remainingMs);
+    return true;
+  }
+
+  getTurnVisualRemainingDisplayMs(message) {
+    const label = message?.loadingToneKind || "";
+    const changedAt = Number(message?.turnVisualLastChangedAt || 0);
+    if (!label || !changedAt) {
+      return 0;
+    }
+
+    const minimumMs = TURN_VISUAL_FAST_LABELS.has(label)
+      ? TURN_VISUAL_FAST_CHANGE_MS
+      : TURN_VISUAL_MIN_CHANGE_MS;
+    return Math.max(0, minimumMs - (Date.now() - changedAt));
+  }
+
   prepareTurnFeedback(session, status) {
     const message = findLastAssistantMessage(session);
     if (!message) {
@@ -14063,8 +14429,10 @@ class AgentDockView extends ItemView {
     if (message.emotiveFeedback?.kind) {
       return;
     }
-    const kind = status === "success" && message.emotiveCompletionKind
-      ? message.emotiveCompletionKind
+    const completionKind = message.emotiveCompletionKind
+      || (status === "success" && message.loadingToneKind === "celebratory" ? "celebrate" : "");
+    const kind = status === "success" && completionKind
+      ? completionKind
       : status === "failed"
       ? "error"
       : status === "stopped"
@@ -14207,6 +14575,9 @@ class AgentDockView extends ItemView {
       return;
     }
     message.emotiveFeedback = null;
+    if (message.turnVisualAwaitingFinalFeedback) {
+      return;
+    }
     window.requestAnimationFrame(() => {
       if (this.pendingRenderAfterTransient) {
         this.pendingRenderAfterTransient = false;
@@ -14269,6 +14640,23 @@ class AgentDockView extends ItemView {
     this.pendingMessageRenderSessionId = "";
     this.pendingMessageRenderTarget = null;
     this.pendingRenderAfterTransient = false;
+  }
+
+  clearTurnVisualFinalDelayTimers() {
+    for (const session of this.sessions) {
+      for (const message of session.messages || []) {
+        if (message?.turnVisualFinalDelayTimer) {
+          window.clearTimeout(message.turnVisualFinalDelayTimer);
+          message.turnVisualFinalDelayTimer = null;
+        }
+        if (message?.turnVisualAwaitingFinalFeedback) {
+          message.turnVisualAwaitingFinalFeedback = false;
+        }
+        if (message?.turnVisualFinalHoldStatus) {
+          message.turnVisualFinalHoldStatus = null;
+        }
+      }
+    }
   }
 
   renderComposerIfActive(session, options = {}) {

@@ -15,6 +15,7 @@ const {
   formatWorkingAffectPrompt,
   getEffectiveWorkingAffect,
   getPromptWorkingAffect,
+  getTurnVisualAffect,
   normalizeAffectState,
   resetAffectState,
   updateWorkingAffect,
@@ -320,6 +321,43 @@ const settings = {
   assert(signal.valence === 0, "assistant response praise should not create user positive affect");
   assert(signal.warmth === 0, "assistant response warmth words should not feed durable affect");
   assert(signal.confidence > 0, "successful responses should still add light confidence");
+}
+
+{
+  const visual = getTurnVisualAffect(null, {
+    kind: "content",
+    text: "哈哈哈，这个方向确实有趣。"
+  });
+  assert.equal(visual.label, "playful", "visible assistant laughter should show a playful live visual cue");
+  assert(visual.valence > 0, "visible assistant laughter should raise live visual valence");
+  assert(visual.warmth > 0.7, "visible assistant laughter should keep the live visual warm");
+}
+
+{
+  const visual = getTurnVisualAffect(null, {
+    kind: "reasoning",
+    detail: "这个机制很有趣，继续深入推演。"
+  });
+  assert.equal(visual.label, "absorbed", "visible exploratory reasoning should show an absorbed live visual cue");
+  assert(visual.focus > 0.65, "visible exploratory reasoning should increase live visual focus");
+}
+
+{
+  const visual = getTurnVisualAffect(null, {
+    kind: "content",
+    text: "通过了，搞定。"
+  });
+  assert.equal(visual.label, "celebratory", "visible success text should show a small-celebration live visual cue");
+}
+
+{
+  const visual = getTurnVisualAffect(null, {
+    kind: "error",
+    title: "Command failed",
+    detail: "permission denied while deleting a file"
+  });
+  assert(["alert", "serious", "tense-focused"].includes(visual.label), "visible error text should produce an alert live visual state");
+  assert(visual.tension > 0.3, "visible errors should raise live visual tension");
 }
 
 {

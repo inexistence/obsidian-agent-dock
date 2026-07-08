@@ -996,6 +996,21 @@
   animation: codex-dock-turn-status-in 220ms cubic-bezier(0.22, 1, 0.36, 1) 1;
 }
 
+.codex-dock__turn-status.is-switching-in {
+  z-index: 1;
+  animation: codex-dock-turn-status-switch-in 280ms cubic-bezier(0.22, 1, 0.36, 1) 1 !important;
+}
+
+.codex-dock__turn-status.is-exiting {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 0;
+  max-width: 100%;
+  pointer-events: none;
+  animation: codex-dock-turn-status-switch-out 280ms cubic-bezier(0.55, 0, 0.2, 1) 1 forwards !important;
+}
+
 .codex-dock__turn-status::before {
   content: "";
   position: relative;
@@ -1318,6 +1333,32 @@
 
   72% {
     transform: translate(0.25px, 0.35px) rotate(0.1deg);
+  }
+}
+
+@keyframes codex-dock-turn-status-switch-in {
+  0% {
+    opacity: 0;
+    transform: translateX(14px) scale(0.992);
+  }
+
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes codex-dock-turn-status-switch-out {
+  0% {
+    opacity: 0.72;
+    transform: translateX(0) scale(1);
+    filter: blur(0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translateX(-14px) scale(0.992);
+    filter: blur(0.6px);
   }
 }
 
@@ -1686,6 +1727,8 @@
   .codex-dock__turn-status.is-glinting::after,
   .codex-dock__turn-status.is-alerting,
   .codex-dock__turn-status.is-settling,
+  .codex-dock__turn-status.is-switching-in,
+  .codex-dock__turn-status.is-exiting,
   .codex-dock__turn-status--tone-excited,
   .codex-dock__turn-status--tone-absorbed,
   .codex-dock__turn-status--tone-lock,

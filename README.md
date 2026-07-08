@@ -82,6 +82,11 @@ change sensitivity or half-life, and reset the current affect. When a recent
 affect signal is active, the dock header shows a compact connection indicator
 such as `Warm / With you`; opening it shows warmth, focus, tension, continuity,
 and a reset control.
+During a running reply, the loading status can also reflect lightweight live
+state cues from visible agent events, such as streamed reasoning summaries,
+answer text, tool notices, or errors. These live cues reuse the same tone labels
+for UI feedback only, are smoothed to avoid rapid flicker, and are not injected
+into prompts or saved as affect continuity.
 
 Emergent agent profile is enabled by default. After successful replies, Agent
 Dock records bounded local observations about explicit feedback, request shape,
