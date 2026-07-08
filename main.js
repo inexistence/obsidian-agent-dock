@@ -13535,7 +13535,6 @@ class AgentDockView extends ItemView {
   shouldApplyTurnVisualLabel(message, label) {
     const currentLabel = message.loadingToneKind || "";
     if (!currentLabel) {
-      message.turnVisualLastLabel = label;
       message.turnVisualLastChangedAt = Date.now();
       message.turnVisualPendingLabel = "";
       message.turnVisualPendingCount = 0;
@@ -13545,7 +13544,6 @@ class AgentDockView extends ItemView {
       if (!message.turnVisualLastChangedAt) {
         message.turnVisualLastChangedAt = Date.now();
       }
-      message.turnVisualLastLabel = label;
       message.turnVisualPendingLabel = "";
       message.turnVisualPendingCount = 0;
       return true;
@@ -13575,7 +13573,6 @@ class AgentDockView extends ItemView {
       return false;
     }
 
-    message.turnVisualLastLabel = label;
     message.turnVisualLastChangedAt = now;
     message.turnVisualPendingLabel = "";
     message.turnVisualPendingCount = 0;
@@ -13813,7 +13810,6 @@ class AgentDockView extends ItemView {
           assistantMessage.loadingToneLabel = promptAffectNotice.label || "";
           assistantMessage.loadingToneKind = promptAffectNotice.rawLabel || "";
           assistantMessage.turnVisualAffect = promptAffectNotice.affect || null;
-          assistantMessage.turnVisualLastLabel = promptAffectNotice.rawLabel || "";
           assistantMessage.turnVisualLastChangedAt = Date.now();
           if (promptAffectNotice.rawLabel === "celebratory") {
             assistantMessage.emotiveCompletionKind = "celebrate";
@@ -14411,7 +14407,7 @@ class AgentDockView extends ItemView {
   getTurnVisualRemainingDisplayMs(message) {
     const label = message?.loadingToneKind || "";
     const changedAt = Number(message?.turnVisualLastChangedAt || 0);
-    if (!label || !changedAt) {
+    if (!label || label === "steady" || !changedAt) {
       return 0;
     }
 
