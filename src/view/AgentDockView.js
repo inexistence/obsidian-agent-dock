@@ -61,6 +61,7 @@ class AgentDockView extends ItemView {
     this.keepScrollBottomUntil = 0;
     this.pendingScrollBottomFrame = null;
     this.hasWarnedCodeMirrorUnavailable = false;
+    this.composerInputHeight = null;
     this.imagePreviewController = new ImagePreviewController({
       containerEl: this.containerEl,
       translate: (key, params) => this.translate(key, params)
@@ -314,6 +315,10 @@ class AgentDockView extends ItemView {
       onEditQueuedPrompt: (queuedPromptId) => this.editQueuedPrompt(queuedPromptId),
       submit: () => this.submit(),
       cancelActiveSession: () => this.cancelActiveSession(),
+      inputHeight: this.composerInputHeight,
+      onInputHeightChanged: (height) => {
+        this.composerInputHeight = height;
+      },
       translate: (key, params) => this.translate(key, params),
       addGlobalPointerListener: (listener) => this.addGlobalPointerListener(listener),
       removeGlobalPointerListener: (listener) => this.removeGlobalPointerListener(listener)

@@ -1189,7 +1189,7 @@
 /* Composer */
 
 .codex-dock__composer {
-  padding: 10px 8px 12px;
+  padding: 0 8px 12px;
 }
 
 .codex-dock__composer-shell {
@@ -1212,6 +1212,11 @@
 
 .codex-dock__composer-shell:focus-within {
   border-color: var(--background-modifier-border);
+}
+
+.codex-dock__composer-shell.is-input-resize-edge,
+.codex-dock__composer-shell.is-resizing-input {
+  cursor: ns-resize;
 }
 
 /* Prompt Queue */
@@ -1323,6 +1328,7 @@
 /* Input */
 
 .codex-dock__input-wrap {
+  --codex-dock-composer-input-height: 62px;
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -1340,8 +1346,9 @@
 .codex-dock__input {
   box-sizing: border-box;
   width: 100%;
-  min-height: 62px;
-  max-height: 180px;
+  height: var(--codex-dock-composer-input-height);
+  min-height: var(--codex-dock-composer-input-height);
+  max-height: var(--codex-dock-composer-input-height);
   padding: 2px 6px;
   border: 0;
   background: transparent;
@@ -1370,8 +1377,8 @@
   position: relative;
   box-sizing: border-box;
   width: 100%;
-  min-height: 62px;
-  max-height: 180px;
+  min-height: var(--codex-dock-composer-input-height);
+  max-height: var(--codex-dock-composer-input-height);
   overflow: hidden;
   color: var(--text-normal);
   font-size: var(--font-ui-medium);
@@ -1399,8 +1406,8 @@
 }
 
 .codex-dock__cm-input .cm-editor {
-  min-height: 62px;
-  max-height: 180px;
+  min-height: var(--codex-dock-composer-input-height);
+  max-height: var(--codex-dock-composer-input-height);
   background: transparent;
   color: var(--text-normal);
   outline: none;
@@ -1411,15 +1418,15 @@
 }
 
 .codex-dock__cm-input .cm-scroller {
-  min-height: 62px;
-  max-height: 180px;
+  min-height: var(--codex-dock-composer-input-height);
+  max-height: var(--codex-dock-composer-input-height);
   overflow: auto;
   font-family: inherit;
   line-height: 1.45;
 }
 
 .codex-dock__cm-input .cm-content {
-  min-height: 62px;
+  min-height: var(--codex-dock-composer-input-height);
   padding: 2px 6px;
   font-family: inherit;
   caret-color: var(--text-normal);

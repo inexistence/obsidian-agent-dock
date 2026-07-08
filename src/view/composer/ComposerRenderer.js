@@ -28,6 +28,8 @@ function renderComposerContent(composer, options) {
     onEditQueuedPrompt,
     submit,
     cancelActiveSession,
+    inputHeight,
+    onInputHeightChanged,
     translate,
     addGlobalPointerListener,
     removeGlobalPointerListener
@@ -41,6 +43,7 @@ function renderComposerContent(composer, options) {
     translate
   });
   const inputWrap = shell.createDiv({ cls: "codex-dock__input-wrap" });
+  applyInputHeight(inputWrap, inputHeight);
   const mentionChipsEl = inputWrap.createDiv({
     cls: "codex-dock__mention-chips",
     attr: {
@@ -129,6 +132,10 @@ function renderComposerContent(composer, options) {
     dropTarget.addEventListener("dragleave", onReferenceDragLeave);
     dropTarget.addEventListener("drop", onReferenceDrop, true);
   }
+  setupInputResizeEdge(shell, inputWrap, {
+    initialHeight: inputHeight,
+    onInputHeightChanged
+  });
 
   const composerBar = shell.createDiv({ cls: "codex-dock__composer-bar" });
   const leftTools = composerBar.createDiv({ cls: "codex-dock__composer-tools" });
@@ -268,6 +275,90 @@ function hasFileDropPayload(dataTransfer) {
   return Array.from(dataTransfer.items || []).some((item) => item?.kind === "file");
 }
 
+const MIN_INPUT_HEIGHT = 62;
+const DEFAULT_INPUT_HEIGHT = 62;
+const INPUT_RESIZE_EDGE_HEIGHT = 8;
+
+function setupInputResizeEdge(shell, inputWrap, options = {}) {
+  if (!shell || !inputWrap) {
+    return;
+  }
+
+  shell.addEventListener("pointermove", (event) => {
+    shell.toggleClass("is-input-resize-edge", isPointerOnInputResizeEdge(shell, event));
+  });
+  shell.addEventListener("pointerleave", () => {
+    shell.removeClass("is-input-resize-edge");
+  });
+  shell.addEventListener("pointerdown", (event) => {
+    if (event.button !== 0 || !isPointerOnInputResizeEdge(shell, event)) {
+      return;
+    }
+    event.preventDefault();
+    const startY = event.clientY;
+    const startHeight = getCurrentInputHeight(inputWrap, options.initialHeight);
+    inputWrap.addClass("is-resizing-input");
+    shell.addClass("is-resizing-input");
+    shell.setPointerCapture?.(event.pointerId);
+
+    const onPointerMove = (moveEvent) => {
+      const nextHeight = clampInputHeight(startHeight + startY - moveEvent.clientY);
+      applyInputHeight(inputWrap, nextHeight);
+      options.onInputHeightChanged?.(nextHeight);
+    };
+    const onPointerUp = (upEvent) => {
+      inputWrap.removeClass("is-resizing-input");
+      shell.removeClass("is-resizing-input");
+      shell.releasePointerCapture?.(upEvent.pointerId);
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+      document.removeEventListener("pointercancel", onPointerUp);
+    };
+
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp);
+    document.addEventListener("pointercancel", onPointerUp);
+  });
+}
+
+function isPointerOnInputResizeEdge(shell, event) {
+  const rect = shell.getBoundingClientRect();
+  return event.clientY >= rect.top && event.clientY <= rect.top + INPUT_RESIZE_EDGE_HEIGHT;
+}
+
+function getCurrentInputHeight(inputWrap, fallbackHeight) {
+  const customHeight = Number(inputWrap.style.getPropertyValue("--codex-dock-composer-input-height").replace("px", ""));
+  if (Number.isFinite(customHeight) && customHeight > 0) {
+    return customHeight;
+  }
+  if (Number.isFinite(fallbackHeight) && fallbackHeight > 0) {
+    return fallbackHeight;
+  }
+  return inputWrap.getBoundingClientRect().height || DEFAULT_INPUT_HEIGHT;
+}
+
+function applyInputHeight(inputWrap, height) {
+  const nextHeight = Number(height);
+  if (!Number.isFinite(nextHeight) || nextHeight <= 0) {
+    inputWrap.style.removeProperty("--codex-dock-composer-input-height");
+    return;
+  }
+  inputWrap.style.setProperty("--codex-dock-composer-input-height", `${clampInputHeight(nextHeight)}px`);
+}
+
+function clampInputHeight(height) {
+  const maxHeight = getMaxInputHeight();
+  return Math.round(Math.min(Math.max(height, MIN_INPUT_HEIGHT), maxHeight));
+}
+
+function getMaxInputHeight() {
+  const viewportHeight = typeof window === "undefined" ? 0 : window.innerHeight;
+  if (!Number.isFinite(viewportHeight) || viewportHeight <= 0) {
+    return 360;
+  }
+  return Math.max(180, Math.min(420, Math.floor(viewportHeight * 0.55)));
+}
+
 function createComposerInput(inputWrap, options) {
   const codeMirrorInput = createCodeMirrorComposerInput({
     parent: inputWrap,
@@ -294,6 +385,7 @@ function createComposerInput(inputWrap, options) {
 module.exports = {
   renderComposerContent,
   _test: {
+    clampInputHeight,
     hasFileDropPayload
   }
 };
