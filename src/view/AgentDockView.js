@@ -4,6 +4,7 @@ const { VIEW_TYPE_AGENT_DOCK } = require("../constants");
 const { t } = require("../i18n");
 const { DEFAULT_SETTINGS } = require("../settings");
 const { AGENT_OPTIONS } = require("../agents/AgentRegistry");
+const { EmotiveFeedbackController } = require("./EmotiveFeedbackController");
 const { ImagePreviewController } = require("./ImagePreviewController");
 const { renderComposerContent } = require("./composer/ComposerRenderer");
 const { ReferenceController } = require("./reference/ReferenceController");
@@ -25,6 +26,54 @@ const { decorateLocalFileLinks, normalizeLocalFileMarkdownLinks } = require("./u
 const { formatMessageTime, formatMessageTimeIso, formatMessageTimeTitle } = require("./utils/messageTime");
 const { DEFAULT_WORKING_AFFECT } = require("../affect/WorkingAffectStore");
 
+const TURN_STATUS_PREVIEW_KINDS = ["thinking", "success", "celebrate", "error", "stopped"];
+const PROMPT_TONE_PREVIEW_KINDS = [
+  "alert",
+  "serious",
+  "reassuring",
+  "challenging",
+  "excited-open",
+  "surprised",
+  "admiring",
+  "celebratory",
+  "playful",
+  "confident",
+  "absorbed",
+  "close",
+  "patient",
+  "restrained",
+  "composed",
+  "tense-focused",
+  "warm-focused",
+  "focused",
+  "warm-open",
+  "calm",
+  "steady"
+];
+const PROMPT_TONE_STATUS_META = {
+  alert: { mode: "alert-loop", color: "#b45309" },
+  serious: { mode: "serious", color: "#6f5a4f" },
+  reassuring: { mode: "settle", color: "#4d7c5a" },
+  challenging: { mode: "alert", color: "#7c5aa6" },
+  "excited-open": { mode: "excited", color: "#ea7a1a" },
+  surprised: { mode: "glint", color: "#7a9f32" },
+  admiring: { mode: "warm", color: "#8b6f3f" },
+  celebratory: { mode: "celebrate", color: "#d45f4f" },
+  playful: { mode: "excited", color: "#d27a2f" },
+  confident: { mode: "lock", color: "#4f63b6" },
+  absorbed: { mode: "absorbed", color: "#2f766f" },
+  close: { mode: "warm", color: "#b76e79" },
+  patient: { mode: "warm-focus", color: "#5f8a72" },
+  restrained: { mode: "quiet", color: "#7b8190" },
+  composed: { mode: "settle", color: "#3f7f88" },
+  "tense-focused": { mode: "focus-loop", color: "#6b7280" },
+  "warm-focused": { mode: "warm-focus", color: "#3f8f7a" },
+  focused: { mode: "focus-loop", color: "#2f78b7" },
+  "warm-open": { mode: "glint", color: "#7a9f32" },
+  calm: { mode: "quiet", color: "#6d8fa3" },
+  steady: { mode: "steady", color: "#65758b" }
+};
+
 class AgentDockView extends ItemView {
   constructor(leaf, plugin) {
     super(leaf);
@@ -39,6 +88,15 @@ class AgentDockView extends ItemView {
       renderMarkdownContent: (containerEl, text) => this.renderMarkdownContent(containerEl, text),
       copyText: (text) => copyText(text)
     });
+    this.emotiveFeedback = new EmotiveFeedbackController({
+      prefersReducedMotion: () => (
+        typeof window !== "undefined"
+        && typeof window.matchMedia === "function"
+        && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      ),
+      getLayerRoot: () => this.containerEl,
+      onTransientStatusRemoved: (messageEl) => this.renderMessageAfterTransientStatus(messageEl)
+    });
     this.referenceController = new ReferenceController({
       app: this.plugin.app,
       plugin: this.plugin,
@@ -49,9 +107,13 @@ class AgentDockView extends ItemView {
       onInputValueChanged: () => this.refreshComposerSendButtonState?.()
     });
     this.messageEls = new WeakMap();
+    this.messagesByEl = new WeakMap();
+    this.debugFeedbackPreviewMessage = null;
+    this.debugFeedbackPreviewEl = null;
     this.pendingMessageRenderFrame = null;
     this.pendingMessageRenderSessionId = "";
     this.pendingMessageRenderTarget = null;
+    this.pendingRenderAfterTransient = false;
     this.affectPanelCloseListener = null;
     this.affectChangeAnimationTimer = null;
     this.affectChangeAnimationFrame = null;
@@ -151,6 +213,10 @@ class AgentDockView extends ItemView {
 
     this.messageList = containerEl.createDiv({ cls: "codex-dock__messages" });
     this.renderMessages({ forceScrollToBottom: options.forceScrollToBottom });
+
+    if (this.plugin.settings.debugActivity) {
+      this.renderDebugFeedbackControls(containerEl.createDiv({ cls: "codex-dock__debug-feedback" }));
+    }
 
     const composer = containerEl.createDiv({ cls: "codex-dock__composer" });
     this.renderComposerContent(composer, this.getActiveSession()?.draft || "");
@@ -260,8 +326,105 @@ class AgentDockView extends ItemView {
     const item = this.messageList.createDiv();
     this.renderMessageItem(item, message);
     this.messageEls.set(message, item);
+    this.messagesByEl.set(item, message);
     this.scrollMessagesToBottom();
     this.updateContextStatus();
+  }
+
+  renderDebugFeedbackControls(containerEl) {
+    const label = containerEl.createSpan({
+      cls: "codex-dock__debug-feedback-label",
+      text: this.translate("debugFeedback.label")
+    });
+    label.setAttr("aria-hidden", "true");
+    for (const kind of TURN_STATUS_PREVIEW_KINDS) {
+      const button = containerEl.createEl("button", {
+        cls: "codex-dock__debug-feedback-button",
+        text: this.getTurnStatusLabel(kind),
+        attr: {
+          type: "button",
+          title: this.translate("debugFeedback.preview", { label: this.getTurnStatusLabel(kind) })
+        }
+      });
+      button.addEventListener("click", () => this.previewDebugFeedback(kind));
+    }
+    const promptLabel = containerEl.createSpan({
+      cls: "codex-dock__debug-feedback-label codex-dock__debug-feedback-label--prompt",
+      text: this.translate("debugFeedback.promptLabel")
+    });
+    promptLabel.setAttr("aria-hidden", "true");
+    for (const toneKind of PROMPT_TONE_PREVIEW_KINDS) {
+      const toneLabel = this.getAffectToneLabel(toneKind);
+      const button = containerEl.createEl("button", {
+        cls: "codex-dock__debug-feedback-button",
+        text: toneLabel,
+        attr: {
+          type: "button",
+          title: this.translate("debugFeedback.preview", { label: toneLabel })
+        }
+      });
+      button.addEventListener("click", () => this.previewDebugFeedback("thinking", {
+        label: toneLabel,
+        toneKind
+      }));
+    }
+    const clearButton = containerEl.createEl("button", {
+      cls: "codex-dock__debug-feedback-button codex-dock__debug-feedback-button--clear",
+      text: this.translate("debugFeedback.clear"),
+      attr: {
+        type: "button"
+      }
+    });
+    clearButton.addEventListener("click", () => this.clearDebugFeedbackPreview());
+  }
+
+  previewDebugFeedback(kind, options = {}) {
+    if (!this.messageList) {
+      return;
+    }
+    this.clearDebugFeedbackPreview();
+    const label = options.label || this.getTurnStatusLabel(kind);
+    const message = {
+      role: "assistant",
+      agentId: this.plugin.settings.agentId,
+      content: this.translate("debugFeedback.previewContent", { label }),
+      timeline: [],
+      createdAt: Date.now(),
+      isLoading: kind === "thinking",
+      isComplete: kind !== "thinking",
+      debugFeedbackPreview: true
+    };
+    if (kind === "thinking") {
+      message.loadingToneLabel = label;
+      message.loadingToneKind = options.toneKind || "";
+    }
+    if (kind !== "thinking") {
+      message.emotiveFeedback = {
+        kind,
+        label,
+        play: true
+      };
+    }
+    this.debugFeedbackPreviewMessage = message;
+    this.messageList.querySelector(".codex-dock__empty")?.remove();
+    const item = this.messageList.createDiv();
+    this.renderMessageItem(item, message);
+    item.addClass("codex-dock__message--debug-preview");
+    this.messageEls.set(message, item);
+    this.messagesByEl.set(item, message);
+    this.debugFeedbackPreviewEl = item;
+    this.scrollMessagesToBottom();
+  }
+
+  clearDebugFeedbackPreview() {
+    if (this.debugFeedbackPreviewEl) {
+      this.emotiveFeedback.clearParticles(this.debugFeedbackPreviewEl, { scope: "dock" });
+    }
+    if (this.debugFeedbackPreviewEl?.isConnected) {
+      this.debugFeedbackPreviewEl.remove();
+    }
+    this.debugFeedbackPreviewMessage = null;
+    this.debugFeedbackPreviewEl = null;
   }
 
   renderSessionSwitcher() {
@@ -363,6 +526,7 @@ class AgentDockView extends ItemView {
     const previousScrollTop = this.messageList.scrollTop;
     this.messageList.empty();
     this.messageEls = new WeakMap();
+    this.messagesByEl = new WeakMap();
     const session = this.ensureActiveSession();
     const messages = session.messages;
 
@@ -378,6 +542,7 @@ class AgentDockView extends ItemView {
       const item = this.messageList.createDiv();
       this.renderMessageItem(item, message);
       this.messageEls.set(message, item);
+      this.messagesByEl.set(item, message);
     }
 
     if (shouldScrollToBottom) {
@@ -391,7 +556,11 @@ class AgentDockView extends ItemView {
 
   renderMessageItem(item, message) {
     item.empty();
+    this.messagesByEl?.set(item, message);
     item.className = `codex-dock__message codex-dock__message--${message.role}`;
+    if (message.debugFeedbackPreview) {
+      item.addClass("codex-dock__message--debug-preview");
+    }
     if (message.role === "system") {
       this.renderSystemMessage(item, message);
       return;
@@ -403,19 +572,122 @@ class AgentDockView extends ItemView {
     } else if (message.content) {
       this.renderMarkdownContent(item, message.content);
     }
-    if (message.isLoading) {
-      const loading = item.createDiv({ cls: "codex-dock__loading" });
-      if (message.loadingToneLabel) {
-        loading.addClass("codex-dock__loading--tone");
-        loading.createSpan({ cls: "codex-dock__loading-tone", text: message.loadingToneLabel });
-      } else {
-        const dots = loading.createSpan({ cls: "codex-dock__loading-dots", attr: { "aria-hidden": "true" } });
-        dots.createSpan();
-        dots.createSpan();
-        dots.createSpan();
+    this.renderMessageFooter(item, message);
+  }
+
+  renderTurnStatus(item, message, providedStatus = null) {
+    const status = providedStatus || this.getTurnStatus(message);
+    if (!status) {
+      return;
+    }
+    const isFirstThinkingRender = status.kind === "thinking" && !message.emotiveFeedbackPlayed?.thinking;
+    const statusClasses = [
+      "codex-dock__turn-status",
+      `codex-dock__turn-status--${status.kind}`
+    ];
+    const toneMeta = status.kind === "thinking" && status.toneKind
+      ? this.getPromptToneStatusMeta(status.toneKind)
+      : null;
+    if (toneMeta) {
+      statusClasses.push("codex-dock__turn-status--tone");
+      statusClasses.push(`codex-dock__turn-status--tone-${toneMeta.mode}`);
+    }
+    if (status.play || (isFirstThinkingRender && !toneMeta)) {
+      statusClasses.push("is-fresh");
+    }
+    if (status.play && status.kind === "error") {
+      statusClasses.push("is-alerting");
+    } else if (status.play && status.kind === "stopped") {
+      statusClasses.push("is-settling");
+    }
+
+    const statusSlot = item.createDiv({ cls: "codex-dock__turn-status-slot" });
+    const statusEl = statusSlot.createSpan({
+      cls: statusClasses.join(" "),
+      text: status.label,
+      attr: {
+        "data-feedback-kind": status.kind
+      }
+    });
+    if (toneMeta) {
+      statusEl.style.setProperty("--codex-dock-turn-status-color", toneMeta.color);
+    }
+
+    if (status.kind === "thinking") {
+      if (!message.emotiveFeedbackPlayed) {
+        message.emotiveFeedbackPlayed = {};
+      }
+      if (isFirstThinkingRender) {
+        message.emotiveFeedbackPlayed.thinking = true;
+      }
+      window.requestAnimationFrame(() => {
+        if (item.isConnected && statusEl.isConnected) {
+          this.emotiveFeedback.play(item, statusEl, "thinking");
+        }
+      });
+      return;
+    }
+
+    if (status.play) {
+      window.requestAnimationFrame(() => {
+        if (item.isConnected && statusEl.isConnected) {
+          this.emotiveFeedback.play(item, statusEl, status.kind);
+        }
+      });
+      if (message.emotiveFeedback) {
+        message.emotiveFeedback.played = true;
       }
     }
-    this.renderMessageFooter(item, message);
+    if (status.transient) {
+      this.emotiveFeedback.settleTransientStatus(statusEl, status.kind);
+    }
+  }
+
+  getTurnStatus(message) {
+    if (!message || message.role !== "assistant") {
+      return null;
+    }
+    if (message.isLoading) {
+      return {
+        kind: "thinking",
+        label: message.loadingToneLabel || this.translate("turnStatus.thinking"),
+        toneKind: message.loadingToneKind || "",
+        play: false
+      };
+    }
+    const feedback = message.emotiveFeedback;
+    if (!feedback || !feedback.kind) {
+      return null;
+    }
+    if (feedback.played) {
+      return null;
+    }
+    return {
+      kind: feedback.kind,
+      label: feedback.label || this.getTurnStatusLabel(feedback.kind),
+      play: feedback.play !== false,
+      transient: feedback.transient !== false
+    };
+  }
+
+  getTurnStatusLabel(kind) {
+    if (kind === "success") {
+      return this.translate("turnStatus.success");
+    }
+    if (kind === "celebrate") {
+      return this.translate("turnStatus.celebrate");
+    }
+    if (kind === "error") {
+      return this.translate("turnStatus.error");
+    }
+    if (kind === "stopped") {
+      return this.translate("turnStatus.stopped");
+    }
+    return this.translate("turnStatus.thinking");
+  }
+
+  getPromptToneStatusMeta(toneKind) {
+    return PROMPT_TONE_STATUS_META[toneKind] || PROMPT_TONE_STATUS_META.steady;
   }
 
   renderMessageMeta(item, message) {
@@ -470,16 +742,42 @@ class AgentDockView extends ItemView {
   }
 
   renderMessageFooter(item, message) {
+    const status = this.getTurnStatus(message);
+    if (status) {
+      const footerClasses = ["codex-dock__message-footer", "codex-dock__message-footer--status"];
+      const shouldHandoffToMeta = status.kind !== "thinking" && status.transient;
+      if (shouldHandoffToMeta) {
+        footerClasses.push("codex-dock__message-footer--handoff");
+      }
+      const footer = item.createDiv({ cls: footerClasses.join(" ") });
+      this.renderTurnStatus(footer, message, status);
+      if (shouldHandoffToMeta) {
+        this.renderMessageFooterMeta(footer, message, { pending: true });
+      }
+      return;
+    }
+
+    this.renderMessageFooterMeta(item, message);
+  }
+
+  renderMessageFooterMeta(item, message, options = {}) {
     const displayTime = formatMessageTime(message.createdAt, {
       language: this.plugin.settings.language,
       now: Date.now()
     });
     const copySource = message.content || "";
     if (!displayTime && !copySource) {
-      return;
+      return false;
     }
 
-    const footer = item.createDiv({ cls: "codex-dock__message-footer" });
+    const footer = options.pending
+      ? item
+      : item.createDiv({ cls: "codex-dock__message-footer" });
+    const metaClasses = ["codex-dock__message-footer-meta"];
+    if (options.pending) {
+      metaClasses.push("codex-dock__message-footer-meta--pending");
+    }
+    const meta = footer.createSpan({ cls: metaClasses.join(" ") });
     const title = formatMessageTimeTitle(message.createdAt, {
       language: this.plugin.settings.language
     });
@@ -489,15 +787,16 @@ class AgentDockView extends ItemView {
       attr.datetime = iso;
     }
     if (displayTime) {
-      footer.createEl("time", {
+      meta.createEl("time", {
         cls: "codex-dock__message-time",
         text: displayTime,
         attr
       });
     }
     if (copySource) {
-      this.renderMessageCopyButton(footer, copySource);
+      this.renderMessageCopyButton(meta, copySource);
     }
+    return true;
   }
 
   renderMessageCopyButton(containerEl, text) {
@@ -564,6 +863,10 @@ class AgentDockView extends ItemView {
         const promptAffectNotice = this.describePromptAffectNotice(prompt);
         if (promptAffectNotice) {
           assistantMessage.loadingToneLabel = promptAffectNotice.label || "";
+          assistantMessage.loadingToneKind = promptAffectNotice.rawLabel || "";
+          if (promptAffectNotice.rawLabel === "celebratory") {
+            assistantMessage.emotiveCompletionKind = "celebrate";
+          }
         }
       },
       onTurnStarted: (targetSession) => {
@@ -1066,6 +1369,9 @@ class AgentDockView extends ItemView {
 
   handleTurnFinished(session, result = {}) {
     if (session.id === this.activeSessionId) {
+      if (result.final) {
+        this.prepareTurnFeedback(session, result.status || "success");
+      }
       this.renderSessionIfActive(session);
       return;
     }
@@ -1086,6 +1392,28 @@ class AgentDockView extends ItemView {
     new Notice(this.translate(noticeKey, {
       title: session.title || this.translate("session.fallbackTitle")
     }));
+  }
+
+  prepareTurnFeedback(session, status) {
+    const message = findLastAssistantMessage(session);
+    if (!message) {
+      return;
+    }
+    if (message.emotiveFeedback?.kind) {
+      return;
+    }
+    const kind = status === "success" && message.emotiveCompletionKind
+      ? message.emotiveCompletionKind
+      : status === "failed"
+      ? "error"
+      : status === "stopped"
+        ? "stopped"
+        : "success";
+    message.emotiveFeedback = {
+      kind,
+      label: this.getTurnStatusLabel(kind),
+      play: true
+    };
   }
 
   clearUnreadCompletion(session) {
@@ -1144,6 +1472,10 @@ class AgentDockView extends ItemView {
         this.persistChatSessions();
         this.renderSessionSwitcher();
       }
+      if (this.hasActiveTransientFeedback(session)) {
+        this.pendingRenderAfterTransient = true;
+        return;
+      }
       this.cancelPendingMessageRender();
       this.renderMessages();
     }
@@ -1167,6 +1499,10 @@ class AgentDockView extends ItemView {
       this.pendingMessageRenderSessionId = "";
       this.pendingMessageRenderTarget = null;
       if (renderSession && renderSession.id === this.activeSessionId) {
+        if (this.hasActiveTransientFeedback(renderSession)) {
+          this.pendingRenderAfterTransient = true;
+          return;
+        }
         this.renderMessageIfMounted(renderMessage) || this.renderMessages();
       }
     });
@@ -1189,6 +1525,35 @@ class AgentDockView extends ItemView {
     }
     this.updateContextStatus();
     return true;
+  }
+
+  hasActiveTransientFeedback(session) {
+    return Boolean(session?.messages?.some((message) => this.isActiveTransientFeedback(message)));
+  }
+
+  isActiveTransientFeedback(message) {
+    return Boolean(
+      message?.role === "assistant"
+      && message.emotiveFeedback?.kind
+      && message.emotiveFeedback.played
+      && message.emotiveFeedback.transient !== false
+    );
+  }
+
+  renderMessageAfterTransientStatus(messageEl) {
+    const message = messageEl ? this.messagesByEl?.get(messageEl) : null;
+    if (!message) {
+      return;
+    }
+    message.emotiveFeedback = null;
+    window.requestAnimationFrame(() => {
+      if (this.pendingRenderAfterTransient) {
+        this.pendingRenderAfterTransient = false;
+        this.renderMessages();
+        return;
+      }
+      this.renderMessageIfMounted(message);
+    });
   }
 
   isMessageListNearBottom() {
@@ -1242,6 +1607,7 @@ class AgentDockView extends ItemView {
     this.pendingMessageRenderFrame = null;
     this.pendingMessageRenderSessionId = "";
     this.pendingMessageRenderTarget = null;
+    this.pendingRenderAfterTransient = false;
   }
 
   renderComposerIfActive(session, options = {}) {
@@ -1294,6 +1660,17 @@ class AgentDockView extends ItemView {
     this.globalPointerListeners.clear();
     this.affectPanelCloseListener = null;
   }
+}
+
+function findLastAssistantMessage(session) {
+  const messages = Array.isArray(session?.messages) ? session.messages : [];
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (message?.role === "assistant") {
+      return message;
+    }
+  }
+  return null;
 }
 
 module.exports = {
