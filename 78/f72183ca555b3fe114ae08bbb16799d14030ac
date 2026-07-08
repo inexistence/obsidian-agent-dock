@@ -1,0 +1,24 @@
+src/view/composer/ComposerRenderer.js
+  s_d979ee9cf328e8::t_8c7061ef9601aa 55,57,366,369
+src/view/composer/CodeMirrorComposerInput.js
+  s_d979ee9cf328e8::t_1d603355d05dfd 69-84
+main.js
+  s_d979ee9cf328e8::t_41d8f16844ecd7 7556-7571,8224,8226,8535,8538
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "78f72183ca555b3fe114ae08bbb16799d14030ac",
+  "prompts": {},
+  "logical_commit_id": "78f72183ca555b3fe114ae08bbb16799d14030ac",
+  "sessions": {
+    "s_d979ee9cf328e8": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4072-44cf-7d20-a4a1-d80156d7a1d8",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
