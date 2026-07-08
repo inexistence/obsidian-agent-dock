@@ -1,0 +1,34 @@
+src/i18n/en.js
+  s_9986e713ab218b::t_d5739ff67ce50b 193,195
+  s_9986e713ab218b::t_87b31f375b5b30 182-184,186-188,190-192,194,196,198-202
+src/i18n/zh.js
+  s_9986e713ab218b::t_56e2664f0bd7ad 184
+  s_9986e713ab218b::t_d5739ff67ce50b 186
+  s_9986e713ab218b::t_4d122a6feb165b 183,188,190-192,194,196,198-199
+  s_9986e713ab218b::t_e25526cf3b852f 187,193,195,201
+  s_9986e713ab218b::t_ddcdd76115c8c2 202
+main.js
+  s_9986e713ab218b::t_f8efafd6089efb 639,645,647,653
+  s_9986e713ab218b::t_5902274427e6b7 654
+  s_9986e713ab218b::t_fd84271d94953a 305-307,309-311,313-315,317,319,321-325
+  s_9986e713ab218b::t_b41c9913febd8f 636
+  s_9986e713ab218b::t_ca9fcab2974180 635,640,642-644,646,648,650-651
+  s_9986e713ab218b::t_7808778ede6f9c 316,318,638
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "368a2ebff83336a9cf0cc1643af75d68eac19f53",
+  "prompts": {},
+  "logical_commit_id": "368a2ebff83336a9cf0cc1643af75d68eac19f53",
+  "sessions": {
+    "s_9986e713ab218b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f40d7-99a0-7720-93be-78e5f147d7cc",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
