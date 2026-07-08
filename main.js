@@ -7553,6 +7553,22 @@ function createCodeMirrorComposerInput(options = {}) {
       doc: options.value || "",
       extensions: [
         history ? history() : [],
+        EditorView.domEventHandlers({
+          keydown: (event) => {
+            if (options.handleKeydown?.(event)) {
+              event.stopPropagation();
+              return true;
+            }
+            const isComposing = event.isComposing || event.keyCode === 229;
+            if (event.key === "Enter" && !event.shiftKey && !isComposing) {
+              event.preventDefault();
+              event.stopPropagation();
+              options.onSubmit?.();
+              return true;
+            }
+            return false;
+          }
+        }),
         keymap ? keymap.of([...(defaultKeymap || []), ...(historyKeymap || [])]) : [],
         EditorView.lineWrapping,
         inlinePreviewPlugin,
@@ -8205,7 +8221,9 @@ function renderComposerContent(composer, options) {
   });
   const inputEl = createComposerInput(inputWrap, {
     draft,
+    handleMentionKeydown,
     onCodeMirrorUnavailable,
+    onSubmit: submit,
     placeholder: translate("composer.placeholder")
   });
   const mentionMenuEl = shell.createDiv({ cls: "codex-dock__mention-menu" });
@@ -8514,8 +8532,10 @@ function getMaxInputHeight() {
 
 function createComposerInput(inputWrap, options) {
   const codeMirrorInput = createCodeMirrorComposerInput({
+    handleKeydown: options.handleMentionKeydown,
     parent: inputWrap,
     onUnavailable: options.onCodeMirrorUnavailable,
+    onSubmit: options.onSubmit,
     placeholder: options.placeholder,
     value: options.draft || ""
   });

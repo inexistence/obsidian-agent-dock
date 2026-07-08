@@ -52,7 +52,9 @@ function renderComposerContent(composer, options) {
   });
   const inputEl = createComposerInput(inputWrap, {
     draft,
+    handleMentionKeydown,
     onCodeMirrorUnavailable,
+    onSubmit: submit,
     placeholder: translate("composer.placeholder")
   });
   const mentionMenuEl = shell.createDiv({ cls: "codex-dock__mention-menu" });
@@ -361,8 +363,10 @@ function getMaxInputHeight() {
 
 function createComposerInput(inputWrap, options) {
   const codeMirrorInput = createCodeMirrorComposerInput({
+    handleKeydown: options.handleMentionKeydown,
     parent: inputWrap,
     onUnavailable: options.onCodeMirrorUnavailable,
+    onSubmit: options.onSubmit,
     placeholder: options.placeholder,
     value: options.draft || ""
   });

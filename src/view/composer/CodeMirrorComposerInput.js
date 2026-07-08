@@ -66,6 +66,22 @@ function createCodeMirrorComposerInput(options = {}) {
       doc: options.value || "",
       extensions: [
         history ? history() : [],
+        EditorView.domEventHandlers({
+          keydown: (event) => {
+            if (options.handleKeydown?.(event)) {
+              event.stopPropagation();
+              return true;
+            }
+            const isComposing = event.isComposing || event.keyCode === 229;
+            if (event.key === "Enter" && !event.shiftKey && !isComposing) {
+              event.preventDefault();
+              event.stopPropagation();
+              options.onSubmit?.();
+              return true;
+            }
+            return false;
+          }
+        }),
         keymap ? keymap.of([...(defaultKeymap || []), ...(historyKeymap || [])]) : [],
         EditorView.lineWrapping,
         inlinePreviewPlugin,
