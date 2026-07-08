@@ -12,6 +12,9 @@ class MessageTimelineRenderer {
     this.translate = options.translate;
     this.renderMarkdownContent = options.renderMarkdownContent;
     this.copyText = options.copyText;
+    this.prefersReducedMotion = options.prefersReducedMotion;
+    this.onDetailsToggleStart = options.onDetailsToggleStart;
+    this.onDetailsLayoutChanged = options.onDetailsLayoutChanged;
     this.groupOpenStates = new WeakMap();
   }
 
@@ -66,7 +69,7 @@ class MessageTimelineRenderer {
       cls: "codex-dock__event-group codex-dock__event-group--processed",
       defaultOpen: false
     });
-    details.createEl("summary", {
+    const summary = details.createEl("summary", {
       cls: "codex-dock__event-group-summary",
       text: this.translate("timeline.processed", { count: entries.length })
     });
@@ -80,6 +83,7 @@ class MessageTimelineRenderer {
         this.renderTimelineEntry(body, group.entry);
       }
     }
+    this.prepareAnimatedDetails(details, summary, body, message, "processed");
   }
 
   renderCopyButton(containerEl, text, label) {
@@ -110,7 +114,7 @@ class MessageTimelineRenderer {
       cls: "codex-dock__event-group",
       defaultOpen: open
     });
-    details.createEl("summary", {
+    const summary = details.createEl("summary", {
       cls: "codex-dock__event-group-summary",
       text: label
     });
@@ -119,6 +123,7 @@ class MessageTimelineRenderer {
     for (const entry of entries) {
       this.renderTimelineEntry(body, entry);
     }
+    this.prepareAnimatedDetails(details, summary, body, message, key);
   }
 
   renderDetails(containerEl, message, key, options) {
@@ -154,6 +159,152 @@ class MessageTimelineRenderer {
       this.groupOpenStates.set(message, states);
     }
     states.set(key, open);
+  }
+
+  prepareAnimatedDetails(details, summary, body, message, key) {
+    if (!details || !summary || !body) {
+      return;
+    }
+
+    const toggle = (event) => {
+      if (event.defaultPrevented) {
+        return;
+      }
+      if (this.shouldReduceMotion()) {
+        const shouldAnchorToBottom = this.notifyDetailsToggleStart(!details.open);
+        if (shouldAnchorToBottom) {
+          window.requestAnimationFrame(() => this.notifyDetailsLayoutChanged());
+        }
+        return;
+      }
+      event.preventDefault();
+      this.toggleDetailsAnimated(details, body, message, key);
+    };
+
+    summary.addEventListener("click", toggle);
+    summary.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      toggle(event);
+    });
+  }
+
+  toggleDetailsAnimated(details, body, message, key) {
+    if (details.dataset.codexDockAnimating === "true") {
+      return;
+    }
+
+    if (!details.isConnected) {
+      details.open = !details.open;
+      this.setStoredOpenState(message, key, details.open);
+      return;
+    }
+
+    const opening = !details.open;
+    const shouldAnchorToBottom = this.notifyDetailsToggleStart(opening);
+    details.dataset.codexDockAnimating = "true";
+    details.classList.add("is-animating");
+    this.setStoredOpenState(message, key, opening);
+
+    if (opening) {
+      details.open = true;
+    }
+
+    if (opening && shouldAnchorToBottom) {
+      this.animateDetailsAtPinnedBottom(details, body);
+      return;
+    }
+
+    const bodyHeight = body.scrollHeight;
+    const fromHeight = opening ? "0px" : `${bodyHeight}px`;
+    const toHeight = opening ? `${bodyHeight}px` : "0px";
+    const duration = opening ? 180 : 135;
+    body.style.overflow = "hidden";
+    body.style.maxHeight = fromHeight;
+    body.style.opacity = opening ? "0" : "1";
+    body.style.transform = opening ? "translateY(-3px)" : "translateY(0)";
+    body.style.transition = [
+      `max-height ${duration}ms cubic-bezier(0.22, 1, 0.36, 1)`,
+      `opacity ${duration}ms cubic-bezier(0.22, 1, 0.36, 1)`,
+      `transform ${duration}ms cubic-bezier(0.22, 1, 0.36, 1)`
+    ].join(", ");
+
+    body.offsetHeight;
+    window.requestAnimationFrame(() => {
+      if (details.dataset.codexDockAnimating !== "true") {
+        return;
+      }
+      body.style.maxHeight = toHeight;
+      body.style.opacity = opening ? "1" : "0";
+      body.style.transform = opening ? "translateY(0)" : "translateY(-2px)";
+    });
+
+    window.setTimeout(() => {
+      if (details.dataset.codexDockAnimating !== "true") {
+        return;
+      }
+      if (!opening) {
+        details.open = false;
+      }
+      this.clearDetailsAnimation(details, body);
+    }, duration + 40);
+  }
+
+  animateDetailsAtPinnedBottom(details, body) {
+    const duration = 160;
+    this.notifyDetailsLayoutChanged();
+    body.style.opacity = "0";
+    body.style.transform = "translateY(-4px)";
+    body.style.transition = [
+      `opacity ${duration}ms cubic-bezier(0.22, 1, 0.36, 1)`,
+      `transform ${duration}ms cubic-bezier(0.22, 1, 0.36, 1)`
+    ].join(", ");
+
+    body.offsetHeight;
+    window.requestAnimationFrame(() => {
+      if (details.dataset.codexDockAnimating !== "true") {
+        return;
+      }
+      this.notifyDetailsLayoutChanged();
+      body.style.opacity = "1";
+      body.style.transform = "translateY(0)";
+    });
+
+    window.setTimeout(() => {
+      if (details.dataset.codexDockAnimating !== "true") {
+        return;
+      }
+      this.notifyDetailsLayoutChanged();
+      this.clearDetailsAnimation(details, body);
+    }, duration + 40);
+  }
+
+  clearDetailsAnimation(details, body) {
+    details.classList.remove("is-animating");
+    delete details.dataset.codexDockAnimating;
+    body.style.maxHeight = "";
+    body.style.overflow = "";
+    body.style.opacity = "";
+    body.style.transform = "";
+    body.style.transition = "";
+  }
+
+  shouldReduceMotion() {
+    return typeof this.prefersReducedMotion === "function" && this.prefersReducedMotion();
+  }
+
+  notifyDetailsToggleStart(opening) {
+    if (typeof this.onDetailsToggleStart === "function") {
+      return Boolean(this.onDetailsToggleStart(opening));
+    }
+    return false;
+  }
+
+  notifyDetailsLayoutChanged() {
+    if (typeof this.onDetailsLayoutChanged === "function") {
+      this.onDetailsLayoutChanged();
+    }
   }
 
   renderTimelineEntry(containerEl, entry) {

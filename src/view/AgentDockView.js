@@ -86,14 +86,13 @@ class AgentDockView extends ItemView {
       getDebugActivity: () => this.plugin.settings.debugActivity,
       translate: (key, params) => this.translate(key, params),
       renderMarkdownContent: (containerEl, text) => this.renderMarkdownContent(containerEl, text),
-      copyText: (text) => copyText(text)
+      copyText: (text) => copyText(text),
+      prefersReducedMotion: () => this.prefersReducedMotion(),
+      onDetailsToggleStart: (opening) => this.handleTimelineDetailsToggleStart(opening),
+      onDetailsLayoutChanged: () => this.scrollMessagesToBottom()
     });
     this.emotiveFeedback = new EmotiveFeedbackController({
-      prefersReducedMotion: () => (
-        typeof window !== "undefined"
-        && typeof window.matchMedia === "function"
-        && window.matchMedia("(prefers-reduced-motion: reduce)").matches
-      ),
+      prefersReducedMotion: () => this.prefersReducedMotion(),
       getLayerRoot: () => this.containerEl,
       onTransientStatusRemoved: (messageEl) => this.renderMessageAfterTransientStatus(messageEl)
     });
@@ -573,6 +572,14 @@ class AgentDockView extends ItemView {
       this.renderMarkdownContent(item, message.content);
     }
     this.renderMessageFooter(item, message);
+  }
+
+  prefersReducedMotion() {
+    return (
+      typeof window !== "undefined"
+      && typeof window.matchMedia === "function"
+      && window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    );
   }
 
   renderTurnStatus(item, message, providedStatus = null) {
@@ -1292,6 +1299,13 @@ class AgentDockView extends ItemView {
     this.timelineRenderer.renderTimeline(containerEl, message);
   }
 
+  handleTimelineDetailsToggleStart(opening) {
+    if (!opening || !this.isMessageListNearBottom()) {
+      return false;
+    }
+    return true;
+  }
+
   renderMarkdownContent(containerEl, text) {
     const contentEl = containerEl.createDiv({ cls: "codex-dock__content markdown-rendered" });
     const markdownEl = contentEl.createDiv({ cls: "codex-dock__content-body" });
@@ -1313,6 +1327,7 @@ class AgentDockView extends ItemView {
       markdownEl.setText(text || "");
       this.scrollMessagesToBottomIfPinned();
     });
+    return contentEl;
   }
 
   decorateImagePreviews(markdownEl) {
@@ -1369,10 +1384,18 @@ class AgentDockView extends ItemView {
 
   handleTurnFinished(session, result = {}) {
     if (session.id === this.activeSessionId) {
+      const message = findLastAssistantMessage(session);
       if (result.final) {
         this.prepareTurnFeedback(session, result.status || "success");
       }
-      this.renderSessionIfActive(session);
+      if (this.hasActiveTransientFeedback(session)) {
+        this.pendingRenderAfterTransient = true;
+        return;
+      }
+      this.cancelPendingMessageRender();
+      if (!this.renderMessageIfMounted(message)) {
+        this.renderSessionIfActive(session);
+      }
       return;
     }
 
