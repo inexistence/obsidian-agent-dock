@@ -188,7 +188,7 @@ module.exports = {
     "affect.label.close": "亲近 / 声音变柔",
     "affect.label.celebratory": "开心 / 小小庆祝",
     "affect.label.playful": "轻快 / 笑出声了",
-    "affect.label.confident": "笃定 / 挑眉笃定",
+    "affect.label.confident": "笃定 / 挑了下眉毛",
     "affect.label.composed": "冷静 / 皱眉梳理",
     "affect.label.absorbed": "投入 / 俯身投入",
     "affect.label.challenging": "挑战 / 挑眉挑刺",
