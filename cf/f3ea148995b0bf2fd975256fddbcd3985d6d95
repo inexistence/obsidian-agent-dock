@@ -1,0 +1,22 @@
+main.js
+  s_46afdf21e21b44::t_22a3f4657b5659 14428-14430
+src/view/AgentDockView.js
+  s_46afdf21e21b44::t_d7b2ddb1b56938 881-883
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "cff3ea148995b0bf2fd975256fddbcd3985d6d95",
+  "prompts": {},
+  "logical_commit_id": "cff3ea148995b0bf2fd975256fddbcd3985d6d95",
+  "sessions": {
+    "s_46afdf21e21b44": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4597-7304-7e43-9626-2be1f75b2271",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
