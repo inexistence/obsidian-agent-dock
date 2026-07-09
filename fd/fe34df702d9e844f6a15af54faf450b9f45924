@@ -1,0 +1,20 @@
+docs/architecture.md
+  s_044840f6f77b3c::t_40396ce1eb9a61 369-372
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "fdfe34df702d9e844f6a15af54faf450b9f45924",
+  "prompts": {},
+  "logical_commit_id": "fdfe34df702d9e844f6a15af54faf450b9f45924",
+  "sessions": {
+    "s_044840f6f77b3c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f458f-c70a-7713-bec8-d2a202be0c5b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
