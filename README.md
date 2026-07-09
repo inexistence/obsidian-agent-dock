@@ -157,6 +157,12 @@ node scripts/build-main.js
 
 Edit files under `src/`, then rebuild `main.js`.
 
+Run the full local verification suite with:
+
+```sh
+node scripts/test-all.js
+```
+
 For detailed development conventions, event protocol rules, and UI behavior
 expectations for future coding agents, see `AGENTS.md`.
 

@@ -465,17 +465,12 @@ boundaries.
 Run the documented verification suite before handing off source changes:
 
 ```sh
-node scripts/build-main.js
-node --check main.js
-node scripts/test-timeline.js
-node scripts/test-affect.js
-node scripts/test-prompt-signals.js
-node scripts/test-chat-turn-runner.js
-node scripts/test-interaction-memory.js
-find src scripts -name '*.js' -print -exec node --check {} \;
+node scripts/test-all.js
 ```
 
-Use narrower checks while iterating, then run the full suite before commit.
+This rebuilds `main.js`, checks syntax for `main.js` plus every JavaScript file
+under `src/` and `scripts/`, and runs every `scripts/test-*.js` file. Use
+narrower checks while iterating, then run the full suite before commit.
 
 Useful focused tests:
 

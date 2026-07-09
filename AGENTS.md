@@ -52,15 +52,11 @@ should stay ready for other agent CLIs such as Claude Code or Cursor.
 Run these before handing off changes:
 
 ```sh
-node scripts/build-main.js
-node --check main.js
-node scripts/test-timeline.js
-node scripts/test-affect.js
-node scripts/test-codex-events.js
-node scripts/test-chat-turn-runner.js
-node scripts/test-interaction-memory.js
-find src scripts -name '*.js' -print -exec node --check {} \;
+node scripts/test-all.js
 ```
+
+This rebuilds `main.js`, checks syntax for `main.js` plus every JavaScript file
+under `src/` and `scripts/`, and runs every `scripts/test-*.js` file.
 
 If behavior changes are UI-only, these syntax checks plus `scripts/test-timeline.js` are the current minimum.
 There is no formal automated UI test suite yet.
