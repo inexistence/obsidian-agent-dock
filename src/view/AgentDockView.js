@@ -878,6 +878,9 @@ class AgentDockView extends ItemView {
     if (!oldStatusEl) {
       return null;
     }
+    if (oldStatusEl.getAttr("data-feedback-kind") !== "thinking") {
+      return null;
+    }
     const nextStatus = this.getTurnStatus(message);
     const oldKey = oldStatusEl.getAttr("data-status-key") || oldStatusEl.textContent || "";
     const nextKey = this.getTurnStatusRenderKey(nextStatus);
