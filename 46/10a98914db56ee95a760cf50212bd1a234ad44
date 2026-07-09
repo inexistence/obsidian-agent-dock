@@ -1,0 +1,20 @@
+.gitignore
+  s_5a94f8b087d88c::t_944442a76ff637 4
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "4610a98914db56ee95a760cf50212bd1a234ad44",
+  "prompts": {},
+  "logical_commit_id": "4610a98914db56ee95a760cf50212bd1a234ad44",
+  "sessions": {
+    "s_5a94f8b087d88c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4719-bf8e-79d1-8252-e0cf539a07ce",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
