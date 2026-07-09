@@ -171,9 +171,15 @@ Inputs may include:
 - Provider and system metadata.
 
 `contextLimitChars` is a character budget, not a tokenizer-backed token budget.
-When history exceeds the remaining budget, older messages are compressed into a
-deterministic local transcript summary. The newest user message has highest
-priority and is preserved.
+Prompt sections are planned before the conversation transcript is formatted so
+soft signals cannot crowd out the current turn. The assistant style and explicit
+local memory search are protected first. User-referenced Obsidian paths are
+high-priority context. Working affect, interaction stance, and automatic memory
+are optional soft signals; under tight budgets, lower-priority optional sections
+are omitted before the conversation transcript is compressed. When history
+exceeds the remaining budget, older messages are compressed into a deterministic
+local transcript summary. The newest user message has highest priority and is
+preserved.
 
 Do not call an agent recursively just to summarize history unless the project
 adds an explicit summarization provider later.

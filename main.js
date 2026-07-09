@@ -2955,10 +2955,159 @@ module.exports = {
 };
 
 },
+"src/promptBudget.js": function(module, exports, __require) {
+const DEFAULT_MIN_CONVERSATION_CHARS = 1000;
+
+function planPromptSections(sections, contextLimit, options = {}) {
+  const limit = normalizeLimit(contextLimit);
+  const minConversationChars = normalizeMinChars(
+    options.minConversationChars,
+    DEFAULT_MIN_CONVERSATION_CHARS
+  );
+  const plannedSections = normalizeSections(sections);
+  const originalSectionsLength = getSectionsLength(plannedSections);
+  const droppedSections = [];
+  const truncatedSections = [];
+  let includedSections = plannedSections.slice();
+
+  while (
+    limit
+    && getSectionsLength(includedSections) + minConversationChars > limit
+  ) {
+    const truncateIndex = findTruncateCandidateIndex(includedSections);
+    if (truncateIndex === -1) {
+      break;
+    }
+
+    const section = includedSections[truncateIndex];
+    const overBy = getSectionsLength(includedSections) + minConversationChars - limit;
+    const removableChars = section.text.length - section.minChars;
+    const targetLength = section.text.length - Math.min(overBy, removableChars);
+
+    includedSections[truncateIndex] = Object.assign({}, section, {
+      text: truncateSectionText(section.text, targetLength)
+    });
+    truncatedSections.push(section.name);
+  }
+
+  while (
+    limit
+    && getSectionsLength(includedSections) + minConversationChars > limit
+  ) {
+    const dropIndex = findDropCandidateIndex(includedSections);
+    if (dropIndex === -1) {
+      break;
+    }
+    const [dropped] = includedSections.splice(dropIndex, 1);
+    droppedSections.push(dropped.name);
+  }
+
+  const usedChars = getSectionsLength(includedSections);
+  return {
+    sections: includedSections,
+    sectionText: includedSections.map((section) => section.text).filter(Boolean).join("\n"),
+    conversationBudget: limit
+      ? Math.max(minConversationChars, limit - usedChars)
+      : 0,
+    droppedSections,
+    truncatedSections,
+    removedChars: Math.max(0, originalSectionsLength - usedChars)
+  };
+}
+
+function normalizeLimit(contextLimit) {
+  return Number(contextLimit) || 0;
+}
+
+function normalizeMinChars(value, fallback) {
+  const number = Number(value);
+  return Number.isFinite(number) && number > 0 ? number : fallback;
+}
+
+function normalizeSections(sections) {
+  return (Array.isArray(sections) ? sections : [])
+    .filter((section) => section && section.text)
+    .map((section, index) => ({
+      name: String(section.name || `section-${index}`),
+      text: String(section.text || ""),
+      priority: Number.isFinite(Number(section.priority)) ? Number(section.priority) : 0,
+      optional: section.optional === true,
+      protected: section.protected === true,
+      truncatable: section.truncatable === true,
+      minChars: normalizeMinChars(section.minChars, 400),
+      order: index
+    }));
+}
+
+function findTruncateCandidateIndex(sections) {
+  let candidateIndex = -1;
+  for (let index = 0; index < sections.length; index += 1) {
+    const section = sections[index];
+    if (!section.truncatable || section.text.length <= section.minChars) {
+      continue;
+    }
+    if (
+      candidateIndex === -1
+      || section.priority < sections[candidateIndex].priority
+      || (
+        section.priority === sections[candidateIndex].priority
+        && section.order > sections[candidateIndex].order
+      )
+    ) {
+      candidateIndex = index;
+    }
+  }
+  return candidateIndex;
+}
+
+function findDropCandidateIndex(sections) {
+  let candidateIndex = -1;
+  for (let index = 0; index < sections.length; index += 1) {
+    const section = sections[index];
+    if (!section.optional || section.protected) {
+      continue;
+    }
+    if (
+      candidateIndex === -1
+      || section.priority < sections[candidateIndex].priority
+      || (
+        section.priority === sections[candidateIndex].priority
+        && section.order > sections[candidateIndex].order
+      )
+    ) {
+      candidateIndex = index;
+    }
+  }
+  return candidateIndex;
+}
+
+function getSectionsLength(sections) {
+  return sections.reduce((sum, section, index) => (
+    sum + section.text.length + (index > 0 ? 1 : 0)
+  ), 0);
+}
+
+function truncateSectionText(text, maxChars) {
+  if (text.length <= maxChars) {
+    return text;
+  }
+  const marker = "\n[Section truncated to fit the configured context character limit.]";
+  if (maxChars <= marker.length + 3) {
+    return text.slice(0, maxChars);
+  }
+  return `${text.slice(0, maxChars - marker.length)}${marker}`;
+}
+
+module.exports = {
+  planPromptSections
+};
+
+},
 "src/prompt.js": function(module, exports, __require) {
 const { formatMemoryLine } = __require("src/storage/MemoryStore.js");
 const { formatWorkingAffectPrompt } = __require("src/affect/WorkingAffectStore.js");
 const { formatInteractionStancePrompt } = __require("src/interaction/InteractionPromptFormatter.js");
+const { planPromptSections } = __require("src/promptBudget.js");
 
 async function buildPrompt(app, settings, prompt, conversation) {
   const result = await buildPromptWithMetadata(app, settings, prompt, conversation);
@@ -2966,7 +3115,6 @@ async function buildPrompt(app, settings, prompt, conversation) {
 }
 
 async function buildPromptWithMetadata(app, settings, prompt, conversation, options = {}) {
-  const promptParts = [];
   const contextLimit = Number(settings.contextLimitChars) || 258000;
   const stylePrompt = formatAssistantStylePrompt(settings);
   const affectPrompt = formatWorkingAffectPrompt(options.workingAffect);
@@ -2977,29 +3125,37 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
     options.memorySearchResults || [],
     options.memorySearchPerformed
   );
-  const conversationBudget = Math.max(
-    1000,
+  const sectionPlan = planPromptSections(
+    [
+      createPromptSection("assistant_style", stylePrompt, { protected: true }),
+      createPromptSection("memory_search", memorySearchPrompt, { optional: true, priority: 80, protected: true }),
+      createPromptSection("referenced_paths", referencedPrompt, { optional: true, priority: 70, truncatable: true, minChars: 400 }),
+      createPromptSection("affect", affectPrompt, { optional: true, priority: 10 }),
+      createPromptSection("interaction_stance", interactionStancePrompt, { optional: true, priority: 20 }),
+      createPromptSection("memory", memoryPrompt, { optional: true, priority: 30, truncatable: true, minChars: 700 })
+    ],
     contextLimit
-      - stylePrompt.length
-      - affectPrompt.length
-      - interactionStancePrompt.length
-      - referencedPrompt.length
-      - memoryPrompt.length
-      - memorySearchPrompt.length
   );
-
-  promptParts.push(
-    stylePrompt,
-    affectPrompt,
-    interactionStancePrompt,
-    memorySearchPrompt,
-    memoryPrompt,
-    referencedPrompt,
-    formatConversationPrompt(prompt, conversation, conversationBudget)
+  const conversationPrompt = formatConversationPrompt(prompt, conversation, sectionPlan.conversationBudget);
+  const promptParts = [
+    sectionPlan.sectionText,
+    conversationPrompt
+  ].filter(Boolean);
+  const protectedPrefix = sectionPlan.sections
+    .filter((section) => section.protected)
+    .map((section) => section.text)
+    .join("\n");
+  return buildPromptResult(
+    promptParts.join("\n"),
+    contextLimit,
+    options.memories || [],
+    protectedPrefix,
+    sectionPlan
   );
+}
 
-  const protectedPrefix = [stylePrompt, affectPrompt, interactionStancePrompt, memorySearchPrompt].filter(Boolean).join("\n");
-  return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || [], protectedPrefix);
+function createPromptSection(name, text, options = {}) {
+  return Object.assign({ name, text }, options);
 }
 
 function formatAssistantStylePrompt(settings) {
@@ -3426,16 +3582,26 @@ function limitPrompt(prompt, maxChars, protectedPrefix = "") {
   return `${notice}${prompt.slice(prompt.length - available)}`;
 }
 
-function buildPromptResult(rawPrompt, contextLimit, memories = [], protectedPrefix = "") {
+function buildPromptResult(rawPrompt, contextLimit, memories = [], protectedPrefix = "", sectionPlan = null) {
   const prompt = limitPrompt(rawPrompt, contextLimit, protectedPrefix);
+  const omittedSections = sectionPlan?.droppedSections || [];
+  const truncatedSections = sectionPlan?.truncatedSections || [];
+  const originalChars = rawPrompt.length + (sectionPlan?.removedChars || 0);
   return {
     prompt,
     context: {
       limitChars: contextLimit,
-      originalChars: rawPrompt.length,
+      originalChars,
       promptChars: prompt.length,
       memoryCount: memories.length,
-      compressed: prompt.length < rawPrompt.length || rawPrompt.includes("[Earlier conversation compressed")
+      omittedSections,
+      truncatedSections,
+      compressed: (
+        prompt.length < originalChars
+        || rawPrompt.includes("[Earlier conversation compressed")
+        || omittedSections.length > 0
+        || truncatedSections.length > 0
+      )
     }
   };
 }
@@ -3451,13 +3617,19 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
     options.memorySearchResults || [],
     options.memorySearchPerformed
   );
+  const sectionPlan = planPromptSections(
+    [
+      createPromptSection("assistant_style", stylePrompt, { protected: true }),
+      createPromptSection("memory_search", memorySearchPrompt, { optional: true, priority: 80, protected: true }),
+      createPromptSection("referenced_paths", referencedPrompt, { optional: true, priority: 70, truncatable: true, minChars: 400 }),
+      createPromptSection("affect", affectPrompt, { optional: true, priority: 10 }),
+      createPromptSection("interaction_stance", interactionStancePrompt, { optional: true, priority: 20 }),
+      createPromptSection("memory", memoryPrompt, { optional: true, priority: 30, truncatable: true, minChars: 700 })
+    ],
+    contextLimit
+  );
   const promptParts = [
-    stylePrompt,
-    affectPrompt,
-    interactionStancePrompt,
-    memorySearchPrompt,
-    memoryPrompt,
-    referencedPrompt,
+    sectionPlan.sectionText,
     ["User request:", prompt].join("\n")
   ];
 
@@ -3465,7 +3637,11 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
     promptParts.filter(Boolean).join("\n"),
     contextLimit,
     options.memories || [],
-    [stylePrompt, affectPrompt, interactionStancePrompt, memorySearchPrompt].filter(Boolean).join("\n")
+    sectionPlan.sections
+      .filter((section) => section.protected)
+      .map((section) => section.text)
+      .join("\n"),
+    sectionPlan
   );
 }
 
