@@ -1,0 +1,28 @@
+docs/architecture.md
+  s_9d061c47aaab35::t_a283ed1c97b35f 468,471-473
+README.md
+  s_9d061c47aaab35::t_a283ed1c97b35f 160-165
+scripts/test-all.js
+  s_9d061c47aaab35::t_a283ed1c97b35f 1-59,61-86
+  s_9d061c47aaab35::t_77571147034ddf 60
+AGENTS.md
+  s_9d061c47aaab35::t_a283ed1c97b35f 55,57-59
+  s_9d061c47aaab35::t_4d87f69910569c 60
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "65bd02af54a2d2391a87d920b38671d3cd508fb6",
+  "prompts": {},
+  "logical_commit_id": "65bd02af54a2d2391a87d920b38671d3cd508fb6",
+  "sessions": {
+    "s_9d061c47aaab35": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f46c9-4ae2-7323-8a3f-b119616ea922",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
