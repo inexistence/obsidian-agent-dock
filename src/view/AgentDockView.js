@@ -33,6 +33,7 @@ const PROMPT_TONE_PREVIEW_KINDS = [
   "reassuring",
   "challenging",
   "laughing",
+  "starry-eyed",
   "excited-open",
   "surprised",
   "admiring",
@@ -57,6 +58,7 @@ const PROMPT_TONE_STATUS_META = {
   reassuring: { mode: "settle", color: "#4d7c5a" },
   challenging: { mode: "alert", color: "#7c5aa6" },
   laughing: { mode: "excited", color: "#d27a2f" },
+  "starry-eyed": { mode: "starry", color: "#c18b1f" },
   "excited-open": { mode: "excited", color: "#ea7a1a" },
   surprised: { mode: "glint", color: "#7a9f32" },
   admiring: { mode: "warm", color: "#8b6f3f" },
@@ -84,6 +86,7 @@ const TURN_VISUAL_LABEL_PRIORITY = {
   "tense-focused": 86,
   celebratory: 78,
   confident: 72,
+  "starry-eyed": 68,
   challenging: 64,
   laughing: 62,
   absorbed: 60,
@@ -447,6 +450,7 @@ class AgentDockView extends ItemView {
   clearDebugFeedbackPreview() {
     if (this.debugFeedbackPreviewEl) {
       this.emotiveFeedback.clearParticles(this.debugFeedbackPreviewEl, { scope: "dock" });
+      this.emotiveFeedback.cleanupStatusEffects(this.debugFeedbackPreviewEl);
     }
     if (this.debugFeedbackPreviewEl?.isConnected) {
       this.debugFeedbackPreviewEl.remove();
@@ -552,6 +556,7 @@ class AgentDockView extends ItemView {
   renderMessages(options = {}) {
     const shouldScrollToBottom = options.forceScrollToBottom || this.isMessageListNearBottom();
     const previousScrollTop = this.messageList.scrollTop;
+    this.emotiveFeedback.cleanupStatusEffects(this.messageList);
     this.messageList.empty();
     this.messageEls = new WeakMap();
     this.messagesByEl = new WeakMap();
@@ -584,6 +589,7 @@ class AgentDockView extends ItemView {
 
   renderMessageItem(item, message) {
     const outgoingStatus = this.captureOutgoingTurnStatus(item, message);
+    this.emotiveFeedback.cleanupStatusEffects(item);
     item.empty();
     this.messagesByEl?.set(item, message);
     item.className = `codex-dock__message codex-dock__message--${message.role}`;
@@ -647,14 +653,20 @@ class AgentDockView extends ItemView {
     const statusSlot = item.createDiv({ cls: "codex-dock__turn-status-slot" });
     const statusEl = statusSlot.createSpan({
       cls: statusClasses.join(" "),
-      text: status.label,
       attr: {
         "data-feedback-kind": status.kind,
         "data-status-key": this.getTurnStatusRenderKey(status)
       }
     });
+    statusEl.createSpan({
+      cls: "codex-dock__turn-status-label",
+      text: status.label
+    });
     if (toneMeta) {
       statusEl.style.setProperty("--codex-dock-turn-status-color", toneMeta.color);
+      if (toneMeta.mode === "starry") {
+        this.renderTurnStatusSparks(statusEl);
+      }
     }
     if (isSwitchingIn) {
       window.setTimeout(() => {
@@ -690,6 +702,33 @@ class AgentDockView extends ItemView {
     if (status.transient) {
       this.emotiveFeedback.settleTransientStatus(statusEl, status.kind);
     }
+  }
+
+  renderTurnStatusSparks(statusEl) {
+    const positions = [
+      { x: "-13px", y: "-9px", size: "5px" },
+      { x: "11px", y: "-12px", size: "7px" },
+      { x: "calc(100% - 2px)", y: "-5px", size: "5px" },
+      { x: "calc(100% + 8px)", y: "12px", size: "6px" },
+      { x: "23px", y: "calc(100% + 2px)", size: "4px" }
+    ];
+    positions.forEach((position, index) => {
+      const spark = statusEl.createSpan({
+        cls: `codex-dock__turn-status-spark codex-dock__turn-status-spark--${index + 1}`,
+        attr: {
+          "aria-hidden": "true"
+        }
+      });
+      spark.style.setProperty("--spark-x", position.x);
+      spark.style.setProperty("--spark-y", position.y);
+      spark.style.setProperty("--spark-size", position.size);
+    });
+    statusEl.createSpan({
+      cls: "codex-dock__turn-status-scan",
+      attr: {
+        "aria-hidden": "true"
+      }
+    });
   }
 
   getTurnStatus(message) {

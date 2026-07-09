@@ -12,6 +12,7 @@ const DEFAULT_WORKING_AFFECT = {
   tension: 0,
   confidence: 0.65,
   laughter: 0,
+  starry: 0,
   label: "steady",
   sourceSessionId: "",
   updatedAt: 0
@@ -56,6 +57,13 @@ const AFFECT_SIGNAL_RULES = [
     pattern: /(惊喜|没想到|居然|竟然|意外地|哇|哇哦|surprise|surprised|unexpected|wow|whoa)/i,
     blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(惊喜|意外|夸张|surprise|surprised|unexpected|wow|whoa)/i,
     signal: { valence: 0.2, arousal: 0.22, warmth: 0.08, tension: -0.08 }
+  },
+  {
+    name: "starry-eyed",
+    scope: "prompt",
+    pattern: /(星星眼|惊艳|被惊艳到|绝了|太绝了|绝美|封神|神了|爱了|太强了|太漂亮了|太美了|亮瞎|美哭|好看到爆|漂亮炸了|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i,
+    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(星星眼|惊艳|夸张|绝了|爱了|封神|神了|亮瞎|美哭|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i,
+    signal: { valence: 0.24, arousal: 0.22, warmth: 0.18, confidence: 0.08, tension: -0.12 }
   },
   {
     name: "admiring",
@@ -152,6 +160,7 @@ const AFFECT_LABEL_RULES = [
   { label: "reassuring", matches: (a) => a.tension >= 0.38 && a.warmth >= 0.64 && a.valence > -0.35 },
   { label: "challenging", matches: (a) => a.confidence >= 0.78 && a.focus >= 0.78 && a.tension >= 0.16 && a.tension <= 0.42 && a.warmth <= 0.68 },
   { label: "laughing", matches: (a) => a.laughter >= 0.25 && a.valence >= 0.16 && a.arousal >= 0.32 && a.warmth >= 0.74 && a.tension <= 0.18 },
+  { label: "starry-eyed", matches: (a) => a.starry >= 0.25 && a.valence >= 0.3 && a.arousal >= 0.4 && a.warmth >= 0.76 && a.confidence >= 0.68 && a.tension <= 0.18 },
   { label: "excited-open", matches: (a) => a.valence >= 0.32 && a.arousal >= 0.5 && a.tension <= 0.22 },
   { label: "surprised", matches: (a) => a.valence >= 0.26 && a.arousal >= 0.38 && a.warmth >= 0.68 && a.tension <= 0.2 },
   { label: "admiring", matches: (a) => a.valence >= 0.22 && a.valence < 0.3 && a.warmth >= 0.82 && a.confidence >= 0.72 && a.arousal <= 0.4 && a.tension <= 0.16 },
@@ -188,6 +197,12 @@ const AFFECT_LABEL_PROFILES = {
     expression: "let positive surprise show briefly, then return to the work",
     do: "acknowledge the pleasant surprise briefly",
     avoid: "lingering on reaction instead of helping"
+  },
+  "starry-eyed": {
+    pacing: "bright, delighted, and still useful",
+    expression: "let a brief dazzled reaction show, then ground it in the work",
+    do: "mark the impressive detail with vivid but concise delight",
+    avoid: "turning admiration into flattery or losing practical focus"
   },
   admiring: {
     pacing: "warmly appreciative and concise",
@@ -288,6 +303,12 @@ const TURN_VISUAL_KIND_SIGNALS = {
 
 const TURN_VISUAL_SIGNAL_RULES = [
   {
+    name: "live-starry-eyed",
+    pattern: /(星星眼|惊艳|被惊艳到|绝了|太绝了|绝美|封神|神了|爱了|太强了|太漂亮了|太美了|亮瞎|美哭|好看到爆|漂亮炸了|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i,
+    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(星星眼|惊艳|夸张|绝了|爱了|封神|神了|亮瞎|美哭|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i,
+    signal: { valence: 0.8, arousal: 0.55, warmth: 0.28, confidence: 0.16, tension: -0.18, starry: 1 }
+  },
+  {
     name: "live-laughing",
     pattern: /(哈哈|哈[哈]+|笑出声|lol|haha)/i,
     blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(哈哈|笑出声|笑|lol|haha)/i,
@@ -360,6 +381,7 @@ function normalizeWorkingAffect(raw) {
     tension: normalizeUnit(source.tension, DEFAULT_WORKING_AFFECT.tension),
     confidence: normalizeUnit(source.confidence, DEFAULT_WORKING_AFFECT.confidence),
     laughter: DEFAULT_WORKING_AFFECT.laughter,
+    starry: DEFAULT_WORKING_AFFECT.starry,
     label: typeof source.label === "string" && source.label ? source.label : DEFAULT_WORKING_AFFECT.label,
     sourceSessionId: typeof source.sourceSessionId === "string" ? source.sourceSessionId : "",
     updatedAt
@@ -416,6 +438,9 @@ function getPromptWorkingAffect(settings, affectState, prompt, now = Date.now())
   if ((signal.laughter || 0) <= 0) {
     next.laughter = 0;
   }
+  if ((signal.starry || 0) <= 0) {
+    next.starry = 0;
+  }
   next.label = labelWorkingAffect(next);
   addRankedLabels(next);
   next.sourceSessionId = source.sourceSessionId || "";
@@ -443,6 +468,7 @@ function updateWorkingAffect(previousState, settings, turn, now = Date.now()) {
     updatedAt: now
   });
   next.laughter = 0;
+  next.starry = 0;
   next.label = labelWorkingAffect(next);
   addRankedLabels(next);
 
@@ -472,6 +498,9 @@ function getTurnVisualAffect(previousAffect, event) {
   if ((signal.laughter || 0) <= 0) {
     next.laughter = 0;
   }
+  if ((signal.starry || 0) <= 0) {
+    next.starry = 0;
+  }
   next.label = labelWorkingAffect(next);
   addRankedLabels(next);
   return next;
@@ -497,7 +526,8 @@ function extractTurnAffectSignal(turn) {
     focus: 0,
     tension: 0,
     confidence: 0,
-    laughter: 0
+    laughter: 0,
+    starry: 0
   };
 
   if (turn?.success === false) {
@@ -537,7 +567,8 @@ function extractTurnVisualSignal(event) {
     focus: 0,
     tension: 0,
     confidence: 0,
-    laughter: 0
+    laughter: 0,
+    starry: 0
   };
 
   addSignal(signal, TURN_VISUAL_KIND_SIGNALS[kind] || {});
@@ -650,7 +681,8 @@ function blendTowardBaseline(working, baseline, strength) {
     focus: blendValue(baseline.focus, working.focus, strength),
     tension: blendValue(baseline.tension, working.tension, strength),
     confidence: blendValue(baseline.confidence, working.confidence, strength),
-    laughter: blendValue(baseline.laughter || 0, working.laughter || 0, strength)
+    laughter: blendValue(baseline.laughter || 0, working.laughter || 0, strength),
+    starry: blendValue(baseline.starry || 0, working.starry || 0, strength)
   };
 }
 
@@ -735,7 +767,8 @@ function applySignalToAffect(affect, signal, weight) {
     focus: clampUnit(affect.focus + signal.focus * weight),
     tension: clampUnit(affect.tension + signal.tension * weight),
     confidence: clampUnit(affect.confidence + signal.confidence * weight),
-    laughter: clampUnit((affect.laughter || 0) + (signal.laughter || 0) * weight)
+    laughter: clampUnit((affect.laughter || 0) + (signal.laughter || 0) * weight),
+    starry: clampUnit((affect.starry || 0) + (signal.starry || 0) * weight)
   };
 }
 
@@ -747,6 +780,7 @@ function addSignal(target, signal) {
   target.tension += signal.tension || 0;
   target.confidence += signal.confidence || 0;
   target.laughter += signal.laughter || 0;
+  target.starry += signal.starry || 0;
 }
 
 function isNeutralSignal(signal) {
@@ -756,7 +790,8 @@ function isNeutralSignal(signal) {
     && signal.focus === 0
     && signal.tension === 0
     && signal.confidence === 0
-    && (signal.laughter || 0) === 0;
+    && (signal.laughter || 0) === 0
+    && (signal.starry || 0) === 0;
 }
 
 function formatLevel(value) {

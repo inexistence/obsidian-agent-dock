@@ -123,6 +123,26 @@ const settings = {
 }
 
 {
+  const legacyState = {
+    working: {
+      valence: 0.34,
+      arousal: 0.44,
+      warmth: 0.82,
+      focus: 0.68,
+      tension: 0.06,
+      confidence: 0.74,
+      starry: 1,
+      label: "starry-eyed",
+      updatedAt: Date.now()
+    }
+  };
+  const normalized = normalizeAffectState(legacyState);
+  assert.equal(normalized.working.starry, 0, "legacy persisted starry evidence should be discarded on restore");
+  const effective = getEffectiveWorkingAffect(settings, legacyState);
+  assert.notEqual(effective?.label, "starry-eyed", "legacy persisted starry evidence should not restore a starry-eyed affect");
+}
+
+{
   const promptAffect = getPromptWorkingAffect(settings, resetAffectState(settings), "随意点，轻快点，不用太正式。");
   assert(promptAffect, "expanded casual phrasing should produce current prompt affect");
   assert.equal(promptAffect.label, "playful", "expanded casual phrasing should tune toward playful tone");
@@ -193,6 +213,28 @@ const settings = {
   });
   assert(signal.valence > 0.15, "surprised turns should increase positive affect");
   assert(signal.arousal > 0.15, "surprised turns should add bright energy");
+}
+
+{
+  const signal = affectTest.extractTurnAffectSignal({
+    prompt: "这个设计太惊艳了，星星眼。",
+    response: "确实有一个很亮的细节。",
+    success: true
+  });
+  assert(signal.valence > 0.2, "user starry-eyed phrasing should increase positive affect");
+  assert(signal.arousal > 0.2, "starry-eyed turns should add bright energy");
+  const promptAffect = getPromptWorkingAffect(settings, resetAffectState(settings), "这个设计太惊艳了，星星眼。");
+  assert.notEqual(promptAffect?.label, "starry-eyed", "user starry-eyed text should not make the assistant look starry-eyed");
+}
+
+{
+  const signal = affectTest.extractTurnAffectSignal({
+    prompt: "这个界面绝美，漂亮炸了，有点 chef's kiss。",
+    response: "这个视觉判断确实很亮。",
+    success: true
+  });
+  assert(signal.valence > 0.2, "expanded starry-eyed keywords should increase positive affect");
+  assert(signal.arousal > 0.2, "expanded starry-eyed keywords should add bright energy");
 }
 
 {
@@ -380,6 +422,30 @@ const settings = {
 }
 
 {
+  const visual = getTurnVisualAffect(null, {
+    kind: "content",
+    text: "这个设计太惊艳了，星星眼。"
+  });
+  assert.equal(visual.label, "starry-eyed", "visible dazzled text should show a starry-eyed live visual cue");
+}
+
+{
+  const visual = getTurnVisualAffect(null, {
+    kind: "content",
+    text: "这个交互绝美，漂亮炸了，chef's kiss。"
+  });
+  assert.equal(visual.label, "starry-eyed", "expanded dazzled text should show a starry-eyed live visual cue");
+}
+
+{
+  const visual = getTurnVisualAffect(null, {
+    kind: "content",
+    text: "不要太星星眼，不要夸张。"
+  });
+  assert.notEqual(visual.label, "starry-eyed", "negated starry-eyed text should not show a starry-eyed live visual cue");
+}
+
+{
   const laughingVisual = getTurnVisualAffect(null, {
     kind: "content",
     text: "哈哈哈，这个方向确实有趣。"
@@ -456,6 +522,15 @@ const settings = {
     tension: 0.08,
     confidence: 0.72
   }), "excited-open");
+  assert.equal(affectTest.labelWorkingAffect({
+    valence: 0.34,
+    arousal: 0.44,
+    warmth: 0.82,
+    focus: 0.68,
+    tension: 0.06,
+    confidence: 0.74,
+    starry: 1
+  }), "starry-eyed");
   assert.equal(affectTest.labelWorkingAffect({
     valence: 0.28,
     arousal: 0.42,

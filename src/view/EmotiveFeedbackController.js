@@ -14,6 +14,7 @@ class EmotiveFeedbackController {
     this.getLayerRoot = options.getLayerRoot || null;
     this.onTransientStatusRemoved = options.onTransientStatusRemoved || null;
     this.messageIds = new WeakMap();
+    this.starryFeedback = new WeakMap();
     this.nextMessageId = 1;
   }
 
@@ -34,6 +35,8 @@ class EmotiveFeedbackController {
       this.playSuccess(messageEl, statusEl);
     } else if (kind === "celebrate") {
       this.playCelebrate(messageEl, statusEl);
+    } else if (kind === "thinking") {
+      this.playThinking(messageEl, statusEl);
     }
 
   }
@@ -87,6 +90,7 @@ class EmotiveFeedbackController {
     const messageEl = footerEl.closest(".codex-dock__message");
 
     const complete = () => {
+      this.cleanupStatusEffects(statusEl);
       slotEl.remove();
       metaEl.classList.remove("codex-dock__message-footer-meta--pending");
       footerEl.classList.add("codex-dock__message-footer--settled");
@@ -127,6 +131,7 @@ class EmotiveFeedbackController {
   collapseStatusSlot(statusEl) {
     const slotEl = statusEl.closest(".codex-dock__turn-status-slot");
     if (!slotEl || !slotEl.isConnected) {
+      this.cleanupStatusEffects(statusEl);
       statusEl.remove();
       this.notifyTransientStatusRemoved(statusEl);
       return;
@@ -136,6 +141,7 @@ class EmotiveFeedbackController {
     const rect = slotEl.getBoundingClientRect();
     slotEl.style.height = `${rect.height}px`;
     slotEl.style.minHeight = `${rect.height}px`;
+    this.cleanupStatusEffects(statusEl);
     statusEl.remove();
 
     const anime = this.getAnime();
@@ -163,6 +169,7 @@ class EmotiveFeedbackController {
   removeStatusSlot(statusEl) {
     const messageEl = statusEl.closest(".codex-dock__message");
     const slotEl = statusEl.closest(".codex-dock__turn-status-slot");
+    this.cleanupStatusEffects(statusEl);
     if (slotEl) {
       slotEl.remove();
     } else {
@@ -213,6 +220,95 @@ class EmotiveFeedbackController {
       ease: "out(3)",
       onComplete: () => this.clearParticles(messageEl)
     });
+  }
+
+  playThinking(messageEl, statusEl) {
+    if (!statusEl?.classList?.contains("codex-dock__turn-status--tone-starry")) {
+      return;
+    }
+    this.playStarryStatus(statusEl);
+  }
+
+  playStarryStatus(statusEl) {
+    const anime = this.getAnime();
+    if (!statusEl || typeof anime?.animate !== "function" || statusEl.dataset.starryFeedbackPlaying === "true") {
+      return;
+    }
+    const sparks = Array.from(statusEl.querySelectorAll(".codex-dock__turn-status-spark"));
+    if (sparks.length === 0) {
+      return;
+    }
+    statusEl.dataset.starryFeedbackPlaying = "true";
+    const record = {
+      animations: [],
+      timers: []
+    };
+    this.starryFeedback.set(statusEl, record);
+    const sparkMotion = [
+      { phase: 0, duration: 1180, x: -3, y: -7, scale: 1.28, rotate: 18 },
+      { phase: 260, duration: 1460, x: 2, y: -8, scale: 1.42, rotate: -16 },
+      { phase: 520, duration: 1040, x: 4, y: -4, scale: 1.18, rotate: 20 },
+      { phase: 140, duration: 1340, x: 3, y: 6, scale: 1.3, rotate: -18 },
+      { phase: 680, duration: 1540, x: -2, y: 5, scale: 1.2, rotate: 14 }
+    ];
+
+    sparks.forEach((spark, index) => {
+      const motion = sparkMotion[index % sparkMotion.length];
+      const timer = window.setTimeout(() => {
+        const timerIndex = record.timers.indexOf(timer);
+        if (timerIndex >= 0) {
+          record.timers.splice(timerIndex, 1);
+        }
+        if (!spark.isConnected) {
+          return;
+        }
+        const animation = anime.animate(spark, {
+          opacity: [0, index % 2 ? 0.96 : 0.82, 0.22, index % 3 === 0 ? 0.72 : 0.38, 0],
+          scale: [0.28, motion.scale, 0.72, index % 3 === 0 ? 1.04 : 0.84, 0.34],
+          translateX: [0, motion.x * 0.36, motion.x, motion.x * 0.42, 0],
+          translateY: [0, motion.y * 0.44, motion.y, motion.y * 0.48, 0],
+          rotate: ["0deg", `${motion.rotate}deg`, `${motion.rotate * 0.35}deg`, `${motion.rotate * -0.24}deg`, "0deg"],
+          duration: motion.duration,
+          loop: true,
+          ease: "inOut(2)"
+        });
+        record.animations.push(animation);
+      }, motion.phase);
+      record.timers.push(timer);
+    });
+  }
+
+  cleanupStatusEffects(rootEl) {
+    if (!rootEl) {
+      return;
+    }
+    const statusEls = rootEl.classList?.contains("codex-dock__turn-status")
+      ? [rootEl]
+      : Array.from(rootEl.querySelectorAll?.(".codex-dock__turn-status") || []);
+    statusEls.forEach((statusEl) => this.cleanupStarryStatus(statusEl));
+  }
+
+  cleanupStarryStatus(statusEl) {
+    const record = this.starryFeedback.get(statusEl);
+    if (!record) {
+      return;
+    }
+    record.timers.forEach((timer) => window.clearTimeout(timer));
+    record.timers.length = 0;
+    record.animations.forEach((animation) => {
+      if (typeof animation?.cancel === "function") {
+        animation.cancel();
+      } else if (typeof animation?.pause === "function") {
+        animation.pause();
+      }
+    });
+    record.animations.length = 0;
+    const anime = this.getAnime();
+    if (typeof anime?.remove === "function") {
+      anime.remove(Array.from(statusEl.querySelectorAll(".codex-dock__turn-status-spark")));
+    }
+    this.starryFeedback.delete(statusEl);
+    delete statusEl.dataset.starryFeedbackPlaying;
   }
 
   pulseStatus(statusEl, options = {}) {

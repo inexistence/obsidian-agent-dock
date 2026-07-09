@@ -193,6 +193,7 @@ module.exports = {
     "affect.label.serious": "严肃 / 皱眉认真",
     "affect.label.reassuring": "安抚 / 语气放稳",
     "affect.label.laughing": "轻快 / 笑出声了",
+    "affect.label.starry-eyed": "惊艳 / 星星眼",
     "affect.label.excited-open": "兴奋 / 来劲了",
     "affect.label.surprised": "惊喜 / 眼神一亮",
     "affect.label.admiring": "赞赏 / 点头认可",

@@ -193,6 +193,7 @@ module.exports = {
     "affect.label.serious": "Serious / Brow furrowed",
     "affect.label.reassuring": "Reassuring / Voice steady",
     "affect.label.laughing": "Light / Laughing now",
+    "affect.label.starry-eyed": "Dazzled / Starry-eyed",
     "affect.label.excited-open": "Excited / Fired up",
     "affect.label.surprised": "Surprised / Eyes lit",
     "affect.label.admiring": "Admiring / Nodding along",

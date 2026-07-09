@@ -316,6 +316,7 @@ module.exports = {
     "affect.label.serious": "Serious / Brow furrowed",
     "affect.label.reassuring": "Reassuring / Voice steady",
     "affect.label.laughing": "Light / Laughing now",
+    "affect.label.starry-eyed": "Dazzled / Starry-eyed",
     "affect.label.excited-open": "Excited / Fired up",
     "affect.label.surprised": "Surprised / Eyes lit",
     "affect.label.admiring": "Admiring / Nodding along",
@@ -656,6 +657,7 @@ module.exports = {
     "affect.label.serious": "严肃 / 皱眉认真",
     "affect.label.reassuring": "安抚 / 语气放稳",
     "affect.label.laughing": "轻快 / 笑出声了",
+    "affect.label.starry-eyed": "惊艳 / 星星眼",
     "affect.label.excited-open": "兴奋 / 来劲了",
     "affect.label.surprised": "惊喜 / 眼神一亮",
     "affect.label.admiring": "赞赏 / 点头认可",
@@ -1721,6 +1723,7 @@ const DEFAULT_WORKING_AFFECT = {
   tension: 0,
   confidence: 0.65,
   laughter: 0,
+  starry: 0,
   label: "steady",
   sourceSessionId: "",
   updatedAt: 0
@@ -1765,6 +1768,13 @@ const AFFECT_SIGNAL_RULES = [
     pattern: /(惊喜|没想到|居然|竟然|意外地|哇|哇哦|surprise|surprised|unexpected|wow|whoa)/i,
     blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(惊喜|意外|夸张|surprise|surprised|unexpected|wow|whoa)/i,
     signal: { valence: 0.2, arousal: 0.22, warmth: 0.08, tension: -0.08 }
+  },
+  {
+    name: "starry-eyed",
+    scope: "prompt",
+    pattern: /(星星眼|惊艳|被惊艳到|绝了|太绝了|绝美|封神|神了|爱了|太强了|太漂亮了|太美了|亮瞎|美哭|好看到爆|漂亮炸了|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i,
+    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(星星眼|惊艳|夸张|绝了|爱了|封神|神了|亮瞎|美哭|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i,
+    signal: { valence: 0.24, arousal: 0.22, warmth: 0.18, confidence: 0.08, tension: -0.12 }
   },
   {
     name: "admiring",
@@ -1861,6 +1871,7 @@ const AFFECT_LABEL_RULES = [
   { label: "reassuring", matches: (a) => a.tension >= 0.38 && a.warmth >= 0.64 && a.valence > -0.35 },
   { label: "challenging", matches: (a) => a.confidence >= 0.78 && a.focus >= 0.78 && a.tension >= 0.16 && a.tension <= 0.42 && a.warmth <= 0.68 },
   { label: "laughing", matches: (a) => a.laughter >= 0.25 && a.valence >= 0.16 && a.arousal >= 0.32 && a.warmth >= 0.74 && a.tension <= 0.18 },
+  { label: "starry-eyed", matches: (a) => a.starry >= 0.25 && a.valence >= 0.3 && a.arousal >= 0.4 && a.warmth >= 0.76 && a.confidence >= 0.68 && a.tension <= 0.18 },
   { label: "excited-open", matches: (a) => a.valence >= 0.32 && a.arousal >= 0.5 && a.tension <= 0.22 },
   { label: "surprised", matches: (a) => a.valence >= 0.26 && a.arousal >= 0.38 && a.warmth >= 0.68 && a.tension <= 0.2 },
   { label: "admiring", matches: (a) => a.valence >= 0.22 && a.valence < 0.3 && a.warmth >= 0.82 && a.confidence >= 0.72 && a.arousal <= 0.4 && a.tension <= 0.16 },
@@ -1897,6 +1908,12 @@ const AFFECT_LABEL_PROFILES = {
     expression: "let positive surprise show briefly, then return to the work",
     do: "acknowledge the pleasant surprise briefly",
     avoid: "lingering on reaction instead of helping"
+  },
+  "starry-eyed": {
+    pacing: "bright, delighted, and still useful",
+    expression: "let a brief dazzled reaction show, then ground it in the work",
+    do: "mark the impressive detail with vivid but concise delight",
+    avoid: "turning admiration into flattery or losing practical focus"
   },
   admiring: {
     pacing: "warmly appreciative and concise",
@@ -1997,6 +2014,12 @@ const TURN_VISUAL_KIND_SIGNALS = {
 
 const TURN_VISUAL_SIGNAL_RULES = [
   {
+    name: "live-starry-eyed",
+    pattern: /(星星眼|惊艳|被惊艳到|绝了|太绝了|绝美|封神|神了|爱了|太强了|太漂亮了|太美了|亮瞎|美哭|好看到爆|漂亮炸了|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i,
+    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(星星眼|惊艳|夸张|绝了|爱了|封神|神了|亮瞎|美哭|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i,
+    signal: { valence: 0.8, arousal: 0.55, warmth: 0.28, confidence: 0.16, tension: -0.18, starry: 1 }
+  },
+  {
     name: "live-laughing",
     pattern: /(哈哈|哈[哈]+|笑出声|lol|haha)/i,
     blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(哈哈|笑出声|笑|lol|haha)/i,
@@ -2069,6 +2092,7 @@ function normalizeWorkingAffect(raw) {
     tension: normalizeUnit(source.tension, DEFAULT_WORKING_AFFECT.tension),
     confidence: normalizeUnit(source.confidence, DEFAULT_WORKING_AFFECT.confidence),
     laughter: DEFAULT_WORKING_AFFECT.laughter,
+    starry: DEFAULT_WORKING_AFFECT.starry,
     label: typeof source.label === "string" && source.label ? source.label : DEFAULT_WORKING_AFFECT.label,
     sourceSessionId: typeof source.sourceSessionId === "string" ? source.sourceSessionId : "",
     updatedAt
@@ -2125,6 +2149,9 @@ function getPromptWorkingAffect(settings, affectState, prompt, now = Date.now())
   if ((signal.laughter || 0) <= 0) {
     next.laughter = 0;
   }
+  if ((signal.starry || 0) <= 0) {
+    next.starry = 0;
+  }
   next.label = labelWorkingAffect(next);
   addRankedLabels(next);
   next.sourceSessionId = source.sourceSessionId || "";
@@ -2152,6 +2179,7 @@ function updateWorkingAffect(previousState, settings, turn, now = Date.now()) {
     updatedAt: now
   });
   next.laughter = 0;
+  next.starry = 0;
   next.label = labelWorkingAffect(next);
   addRankedLabels(next);
 
@@ -2181,6 +2209,9 @@ function getTurnVisualAffect(previousAffect, event) {
   if ((signal.laughter || 0) <= 0) {
     next.laughter = 0;
   }
+  if ((signal.starry || 0) <= 0) {
+    next.starry = 0;
+  }
   next.label = labelWorkingAffect(next);
   addRankedLabels(next);
   return next;
@@ -2206,7 +2237,8 @@ function extractTurnAffectSignal(turn) {
     focus: 0,
     tension: 0,
     confidence: 0,
-    laughter: 0
+    laughter: 0,
+    starry: 0
   };
 
   if (turn?.success === false) {
@@ -2246,7 +2278,8 @@ function extractTurnVisualSignal(event) {
     focus: 0,
     tension: 0,
     confidence: 0,
-    laughter: 0
+    laughter: 0,
+    starry: 0
   };
 
   addSignal(signal, TURN_VISUAL_KIND_SIGNALS[kind] || {});
@@ -2359,7 +2392,8 @@ function blendTowardBaseline(working, baseline, strength) {
     focus: blendValue(baseline.focus, working.focus, strength),
     tension: blendValue(baseline.tension, working.tension, strength),
     confidence: blendValue(baseline.confidence, working.confidence, strength),
-    laughter: blendValue(baseline.laughter || 0, working.laughter || 0, strength)
+    laughter: blendValue(baseline.laughter || 0, working.laughter || 0, strength),
+    starry: blendValue(baseline.starry || 0, working.starry || 0, strength)
   };
 }
 
@@ -2444,7 +2478,8 @@ function applySignalToAffect(affect, signal, weight) {
     focus: clampUnit(affect.focus + signal.focus * weight),
     tension: clampUnit(affect.tension + signal.tension * weight),
     confidence: clampUnit(affect.confidence + signal.confidence * weight),
-    laughter: clampUnit((affect.laughter || 0) + (signal.laughter || 0) * weight)
+    laughter: clampUnit((affect.laughter || 0) + (signal.laughter || 0) * weight),
+    starry: clampUnit((affect.starry || 0) + (signal.starry || 0) * weight)
   };
 }
 
@@ -2456,6 +2491,7 @@ function addSignal(target, signal) {
   target.tension += signal.tension || 0;
   target.confidence += signal.confidence || 0;
   target.laughter += signal.laughter || 0;
+  target.starry += signal.starry || 0;
 }
 
 function isNeutralSignal(signal) {
@@ -2465,7 +2501,8 @@ function isNeutralSignal(signal) {
     && signal.focus === 0
     && signal.tension === 0
     && signal.confidence === 0
-    && (signal.laughter || 0) === 0;
+    && (signal.laughter || 0) === 0
+    && (signal.starry || 0) === 0;
 }
 
 function formatLevel(value) {
@@ -7394,6 +7431,7 @@ class EmotiveFeedbackController {
     this.getLayerRoot = options.getLayerRoot || null;
     this.onTransientStatusRemoved = options.onTransientStatusRemoved || null;
     this.messageIds = new WeakMap();
+    this.starryFeedback = new WeakMap();
     this.nextMessageId = 1;
   }
 
@@ -7414,6 +7452,8 @@ class EmotiveFeedbackController {
       this.playSuccess(messageEl, statusEl);
     } else if (kind === "celebrate") {
       this.playCelebrate(messageEl, statusEl);
+    } else if (kind === "thinking") {
+      this.playThinking(messageEl, statusEl);
     }
 
   }
@@ -7467,6 +7507,7 @@ class EmotiveFeedbackController {
     const messageEl = footerEl.closest(".codex-dock__message");
 
     const complete = () => {
+      this.cleanupStatusEffects(statusEl);
       slotEl.remove();
       metaEl.classList.remove("codex-dock__message-footer-meta--pending");
       footerEl.classList.add("codex-dock__message-footer--settled");
@@ -7507,6 +7548,7 @@ class EmotiveFeedbackController {
   collapseStatusSlot(statusEl) {
     const slotEl = statusEl.closest(".codex-dock__turn-status-slot");
     if (!slotEl || !slotEl.isConnected) {
+      this.cleanupStatusEffects(statusEl);
       statusEl.remove();
       this.notifyTransientStatusRemoved(statusEl);
       return;
@@ -7516,6 +7558,7 @@ class EmotiveFeedbackController {
     const rect = slotEl.getBoundingClientRect();
     slotEl.style.height = `${rect.height}px`;
     slotEl.style.minHeight = `${rect.height}px`;
+    this.cleanupStatusEffects(statusEl);
     statusEl.remove();
 
     const anime = this.getAnime();
@@ -7543,6 +7586,7 @@ class EmotiveFeedbackController {
   removeStatusSlot(statusEl) {
     const messageEl = statusEl.closest(".codex-dock__message");
     const slotEl = statusEl.closest(".codex-dock__turn-status-slot");
+    this.cleanupStatusEffects(statusEl);
     if (slotEl) {
       slotEl.remove();
     } else {
@@ -7593,6 +7637,95 @@ class EmotiveFeedbackController {
       ease: "out(3)",
       onComplete: () => this.clearParticles(messageEl)
     });
+  }
+
+  playThinking(messageEl, statusEl) {
+    if (!statusEl?.classList?.contains("codex-dock__turn-status--tone-starry")) {
+      return;
+    }
+    this.playStarryStatus(statusEl);
+  }
+
+  playStarryStatus(statusEl) {
+    const anime = this.getAnime();
+    if (!statusEl || typeof anime?.animate !== "function" || statusEl.dataset.starryFeedbackPlaying === "true") {
+      return;
+    }
+    const sparks = Array.from(statusEl.querySelectorAll(".codex-dock__turn-status-spark"));
+    if (sparks.length === 0) {
+      return;
+    }
+    statusEl.dataset.starryFeedbackPlaying = "true";
+    const record = {
+      animations: [],
+      timers: []
+    };
+    this.starryFeedback.set(statusEl, record);
+    const sparkMotion = [
+      { phase: 0, duration: 1180, x: -3, y: -7, scale: 1.28, rotate: 18 },
+      { phase: 260, duration: 1460, x: 2, y: -8, scale: 1.42, rotate: -16 },
+      { phase: 520, duration: 1040, x: 4, y: -4, scale: 1.18, rotate: 20 },
+      { phase: 140, duration: 1340, x: 3, y: 6, scale: 1.3, rotate: -18 },
+      { phase: 680, duration: 1540, x: -2, y: 5, scale: 1.2, rotate: 14 }
+    ];
+
+    sparks.forEach((spark, index) => {
+      const motion = sparkMotion[index % sparkMotion.length];
+      const timer = window.setTimeout(() => {
+        const timerIndex = record.timers.indexOf(timer);
+        if (timerIndex >= 0) {
+          record.timers.splice(timerIndex, 1);
+        }
+        if (!spark.isConnected) {
+          return;
+        }
+        const animation = anime.animate(spark, {
+          opacity: [0, index % 2 ? 0.96 : 0.82, 0.22, index % 3 === 0 ? 0.72 : 0.38, 0],
+          scale: [0.28, motion.scale, 0.72, index % 3 === 0 ? 1.04 : 0.84, 0.34],
+          translateX: [0, motion.x * 0.36, motion.x, motion.x * 0.42, 0],
+          translateY: [0, motion.y * 0.44, motion.y, motion.y * 0.48, 0],
+          rotate: ["0deg", `${motion.rotate}deg`, `${motion.rotate * 0.35}deg`, `${motion.rotate * -0.24}deg`, "0deg"],
+          duration: motion.duration,
+          loop: true,
+          ease: "inOut(2)"
+        });
+        record.animations.push(animation);
+      }, motion.phase);
+      record.timers.push(timer);
+    });
+  }
+
+  cleanupStatusEffects(rootEl) {
+    if (!rootEl) {
+      return;
+    }
+    const statusEls = rootEl.classList?.contains("codex-dock__turn-status")
+      ? [rootEl]
+      : Array.from(rootEl.querySelectorAll?.(".codex-dock__turn-status") || []);
+    statusEls.forEach((statusEl) => this.cleanupStarryStatus(statusEl));
+  }
+
+  cleanupStarryStatus(statusEl) {
+    const record = this.starryFeedback.get(statusEl);
+    if (!record) {
+      return;
+    }
+    record.timers.forEach((timer) => window.clearTimeout(timer));
+    record.timers.length = 0;
+    record.animations.forEach((animation) => {
+      if (typeof animation?.cancel === "function") {
+        animation.cancel();
+      } else if (typeof animation?.pause === "function") {
+        animation.pause();
+      }
+    });
+    record.animations.length = 0;
+    const anime = this.getAnime();
+    if (typeof anime?.remove === "function") {
+      anime.remove(Array.from(statusEl.querySelectorAll(".codex-dock__turn-status-spark")));
+    }
+    this.starryFeedback.delete(statusEl);
+    delete statusEl.dataset.starryFeedbackPlaying;
   }
 
   pulseStatus(statusEl, options = {}) {
@@ -12875,6 +13008,7 @@ const PROMPT_TONE_PREVIEW_KINDS = [
   "reassuring",
   "challenging",
   "laughing",
+  "starry-eyed",
   "excited-open",
   "surprised",
   "admiring",
@@ -12899,6 +13033,7 @@ const PROMPT_TONE_STATUS_META = {
   reassuring: { mode: "settle", color: "#4d7c5a" },
   challenging: { mode: "alert", color: "#7c5aa6" },
   laughing: { mode: "excited", color: "#d27a2f" },
+  "starry-eyed": { mode: "starry", color: "#c18b1f" },
   "excited-open": { mode: "excited", color: "#ea7a1a" },
   surprised: { mode: "glint", color: "#7a9f32" },
   admiring: { mode: "warm", color: "#8b6f3f" },
@@ -12926,6 +13061,7 @@ const TURN_VISUAL_LABEL_PRIORITY = {
   "tense-focused": 86,
   celebratory: 78,
   confident: 72,
+  "starry-eyed": 68,
   challenging: 64,
   laughing: 62,
   absorbed: 60,
@@ -13289,6 +13425,7 @@ class AgentDockView extends ItemView {
   clearDebugFeedbackPreview() {
     if (this.debugFeedbackPreviewEl) {
       this.emotiveFeedback.clearParticles(this.debugFeedbackPreviewEl, { scope: "dock" });
+      this.emotiveFeedback.cleanupStatusEffects(this.debugFeedbackPreviewEl);
     }
     if (this.debugFeedbackPreviewEl?.isConnected) {
       this.debugFeedbackPreviewEl.remove();
@@ -13394,6 +13531,7 @@ class AgentDockView extends ItemView {
   renderMessages(options = {}) {
     const shouldScrollToBottom = options.forceScrollToBottom || this.isMessageListNearBottom();
     const previousScrollTop = this.messageList.scrollTop;
+    this.emotiveFeedback.cleanupStatusEffects(this.messageList);
     this.messageList.empty();
     this.messageEls = new WeakMap();
     this.messagesByEl = new WeakMap();
@@ -13426,6 +13564,7 @@ class AgentDockView extends ItemView {
 
   renderMessageItem(item, message) {
     const outgoingStatus = this.captureOutgoingTurnStatus(item, message);
+    this.emotiveFeedback.cleanupStatusEffects(item);
     item.empty();
     this.messagesByEl?.set(item, message);
     item.className = `codex-dock__message codex-dock__message--${message.role}`;
@@ -13489,14 +13628,20 @@ class AgentDockView extends ItemView {
     const statusSlot = item.createDiv({ cls: "codex-dock__turn-status-slot" });
     const statusEl = statusSlot.createSpan({
       cls: statusClasses.join(" "),
-      text: status.label,
       attr: {
         "data-feedback-kind": status.kind,
         "data-status-key": this.getTurnStatusRenderKey(status)
       }
     });
+    statusEl.createSpan({
+      cls: "codex-dock__turn-status-label",
+      text: status.label
+    });
     if (toneMeta) {
       statusEl.style.setProperty("--codex-dock-turn-status-color", toneMeta.color);
+      if (toneMeta.mode === "starry") {
+        this.renderTurnStatusSparks(statusEl);
+      }
     }
     if (isSwitchingIn) {
       window.setTimeout(() => {
@@ -13532,6 +13677,33 @@ class AgentDockView extends ItemView {
     if (status.transient) {
       this.emotiveFeedback.settleTransientStatus(statusEl, status.kind);
     }
+  }
+
+  renderTurnStatusSparks(statusEl) {
+    const positions = [
+      { x: "-13px", y: "-9px", size: "5px" },
+      { x: "11px", y: "-12px", size: "7px" },
+      { x: "calc(100% - 2px)", y: "-5px", size: "5px" },
+      { x: "calc(100% + 8px)", y: "12px", size: "6px" },
+      { x: "23px", y: "calc(100% + 2px)", size: "4px" }
+    ];
+    positions.forEach((position, index) => {
+      const spark = statusEl.createSpan({
+        cls: `codex-dock__turn-status-spark codex-dock__turn-status-spark--${index + 1}`,
+        attr: {
+          "aria-hidden": "true"
+        }
+      });
+      spark.style.setProperty("--spark-x", position.x);
+      spark.style.setProperty("--spark-y", position.y);
+      spark.style.setProperty("--spark-size", position.size);
+    });
+    statusEl.createSpan({
+      cls: "codex-dock__turn-status-scan",
+      attr: {
+        "aria-hidden": "true"
+      }
+    });
   }
 
   getTurnStatus(message) {

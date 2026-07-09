@@ -1041,6 +1041,11 @@
   transform: translateX(-125%);
 }
 
+.codex-dock__turn-status-label {
+  position: relative;
+  z-index: 1;
+}
+
 .codex-dock__turn-status.is-glinting::after {
   animation: codex-dock-turn-status-glint 760ms cubic-bezier(0.16, 1, 0.3, 1) 1;
 }
@@ -1144,6 +1149,101 @@
 
 .codex-dock__turn-status--tone-glint::after {
   animation: codex-dock-turn-status-glint 1.25s cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.codex-dock__turn-status.codex-dock__turn-status--tone-starry {
+  overflow: visible;
+  animation: codex-dock-turn-status-tone-starry 1600ms cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.codex-dock__turn-status--tone-starry::before {
+  width: 8px;
+  height: 8px;
+  border-radius: 0;
+  background: var(--codex-dock-turn-status-color, var(--color-yellow));
+  clip-path: polygon(
+    50% 0%,
+    61% 34%,
+    98% 35%,
+    68% 56%,
+    79% 91%,
+    50% 70%,
+    21% 91%,
+    32% 56%,
+    2% 35%,
+    39% 34%
+  );
+  box-shadow: 0 0 12px color-mix(in srgb, var(--codex-dock-turn-status-color, var(--color-yellow)) 72%, transparent);
+  animation: codex-dock-turn-status-tone-starry-mark 1600ms cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.codex-dock__turn-status-scan {
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  overflow: hidden;
+  border-radius: inherit;
+  pointer-events: none;
+}
+
+.codex-dock__turn-status-scan::after {
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: linear-gradient(
+    105deg,
+    transparent 0%,
+    transparent 28%,
+    color-mix(in srgb, var(--codex-dock-turn-status-color, var(--color-yellow)) 18%, transparent) 44%,
+    color-mix(in srgb, var(--codex-dock-turn-status-color, var(--color-yellow)) 52%, transparent) 50%,
+    color-mix(in srgb, var(--codex-dock-turn-status-color, var(--color-yellow)) 18%, transparent) 56%,
+    transparent 72%,
+    transparent 100%
+  );
+  content: "";
+  filter: blur(0.2px);
+  opacity: 0;
+  transform: translateX(-135%);
+  animation: codex-dock-turn-status-starry-scan 1800ms cubic-bezier(0.16, 1, 0.3, 1) infinite;
+}
+
+.codex-dock__turn-status-spark {
+  position: absolute;
+  left: var(--spark-x);
+  top: var(--spark-y);
+  z-index: 1;
+  width: var(--spark-size, 5px);
+  height: var(--spark-size, 5px);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate3d(0, 0, 0) scale(0.3);
+  transform-origin: center;
+  color: var(--codex-dock-turn-status-color, var(--color-yellow));
+  filter: drop-shadow(0 0 7px color-mix(in srgb, currentColor 72%, transparent));
+  will-change: transform, opacity;
+}
+
+.codex-dock__turn-status-spark::before,
+.codex-dock__turn-status-spark::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  background: currentColor;
+}
+
+.codex-dock__turn-status-spark::before {
+  transform: scaleX(0.34);
+}
+
+.codex-dock__turn-status-spark::after {
+  transform: scaleY(0.34);
+}
+
+.codex-dock__turn-status-spark--3,
+.codex-dock__turn-status-spark--5 {
+  width: calc(var(--spark-size, 5px) * 0.86);
+  height: calc(var(--spark-size, 5px) * 0.86);
 }
 
 .codex-dock__turn-status.codex-dock__turn-status--tone-celebrate {
@@ -1289,6 +1389,48 @@
   100% {
     opacity: 0;
     transform: translateX(125%);
+  }
+}
+
+@keyframes codex-dock-turn-status-tone-starry {
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+
+  42% {
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--codex-dock-turn-status-color, var(--color-yellow)) 12%, transparent);
+  }
+}
+
+@keyframes codex-dock-turn-status-tone-starry-mark {
+  0%,
+  100% {
+    opacity: 0.78;
+    transform: rotate(0deg) scale(0.9);
+  }
+
+  42% {
+    opacity: 1;
+    transform: rotate(18deg) scale(1.18);
+  }
+}
+
+@keyframes codex-dock-turn-status-starry-scan {
+  0%,
+  18% {
+    opacity: 0;
+    transform: translateX(-135%);
+  }
+
+  34% {
+    opacity: 0.9;
+  }
+
+  64%,
+  100% {
+    opacity: 0;
+    transform: translateX(135%);
   }
 }
 
@@ -1742,6 +1884,10 @@
   .codex-dock__turn-status--tone-warm-focus,
   .codex-dock__turn-status--tone-quiet,
   .codex-dock__turn-status--tone-glint::after,
+  .codex-dock__turn-status--tone-starry,
+  .codex-dock__turn-status--tone-starry::before,
+  .codex-dock__turn-status-scan::after,
+  .codex-dock__turn-status-spark,
   .codex-dock__turn-status--tone-celebrate,
   .codex-dock__turn-status--tone-celebrate::after,
   .codex-dock__turn-status--tone-warm,
