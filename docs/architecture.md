@@ -366,6 +366,10 @@ Important files:
   composer input with lightweight Markdown live preview.
 - `src/view/timeline/MessageTimelineRenderer.js`: timeline rendering.
 - `src/view/timeline/timeline.js`: timeline grouping helpers.
+- `src/view/turn/TurnStatusController.js`: live turn status labels, visual
+  affect handoff, and completion feedback.
+- `src/view/affect/AffectIndicatorController.js`: working affect indicator,
+  reset control, and panel animation.
 - `src/view/session/SessionSwitcherRenderer.js`: chat session controls.
 - `src/view/session/ChatTurnRunner.js`: turn lifecycle orchestration.
 - `src/view/reference/*`: note/file mention and drop handling.
