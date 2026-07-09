@@ -2000,8 +2000,10 @@
 }
 
 .codex-dock__event-title-text {
+  position: relative;
   min-width: 0;
   overflow: hidden;
+  border-radius: 4px;
   color: var(--text-normal);
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2094,6 +2096,27 @@
   opacity: 0.72;
 }
 
+.codex-dock__process-title-shimmer {
+  background: linear-gradient(
+    95deg,
+    currentColor 0%,
+    currentColor 30%,
+    color-mix(in srgb, currentColor 86%, var(--text-normal) 14%) 42%,
+    color-mix(in srgb, currentColor 72%, var(--background-primary) 28%) 50%,
+    color-mix(in srgb, currentColor 86%, var(--text-normal) 14%) 58%,
+    currentColor 70%,
+    currentColor 100%
+  );
+  background-color: currentColor;
+  background-clip: text;
+  background-position: 100% 0;
+  background-repeat: repeat-x;
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  will-change: background-position;
+}
+
 .codex-dock__process-icon {
   display: inline-flex;
   align-items: center;
@@ -2121,14 +2144,13 @@
 }
 
 .codex-dock__processed-item-title {
+  position: relative;
   min-width: 0;
   overflow: hidden;
+  border-radius: 4px;
+  color: var(--text-normal);
   text-overflow: ellipsis;
   white-space: nowrap;
-}
-
-.codex-dock__processed-item-title {
-  color: var(--text-normal);
 }
 
 .codex-dock__processed-item-count {

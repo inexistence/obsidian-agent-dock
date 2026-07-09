@@ -3,6 +3,9 @@ const {
   shouldShowEvent
 } = require("./timeline");
 
+const TITLE_SHIMMER_DURATION_MS = 1250;
+const TITLE_SHIMMER_PAUSE_MS = 520;
+
 class MessageTimelineRenderer {
   constructor(options) {
     this.getDebugActivity = options.getDebugActivity;
@@ -14,6 +17,7 @@ class MessageTimelineRenderer {
     this.onDetailsToggleStart = options.onDetailsToggleStart;
     this.onDetailsLayoutChanged = options.onDetailsLayoutChanged;
     this.groupOpenStates = new WeakMap();
+    this.titleShimmerStates = new WeakMap();
   }
 
   renderTimeline(containerEl, message) {
@@ -65,7 +69,10 @@ class MessageTimelineRenderer {
   }
 
   renderLiveTimeline(containerEl, message) {
-    for (const segment of buildLiveTimelineSegments(message.timeline, this.getDebugActivity())) {
+    const segments = buildLiveTimelineSegments(message.timeline, this.getDebugActivity());
+    const latestSegment = segments[segments.length - 1];
+    const currentItemFirstIndex = getCurrentLiveProcessItemFirstIndex(segments);
+    for (const segment of segments) {
       if (segment.type === "content") {
         this.renderTimelineEntry(containerEl, segment.entry);
       } else {
@@ -76,7 +83,8 @@ class MessageTimelineRenderer {
           entries: segment.entries,
           mode: "live",
           defaultOpen: true,
-          showDetails: true
+          showDetails: true,
+          currentItemFirstIndex: segment === latestSegment ? currentItemFirstIndex : -1
         });
       }
     }
@@ -110,8 +118,11 @@ class MessageTimelineRenderer {
 
     const body = details.createDiv({ cls: "codex-dock__event-group-body" });
     for (const item of buildProcessedIndex(entries)) {
+      const currentItem = item.firstIndex === options.currentItemFirstIndex;
       this.renderProcessItem(body, message, item, {
-        showDetails: options.showDetails !== false
+        showDetails: options.showDetails !== false,
+        currentItem,
+        shimmerState: currentItem ? this.getTitleShimmerState(message, `${key}:${item.firstIndex}`) : null
       });
     }
     this.prepareAnimatedDetails(details, summary, body, message, key);
@@ -139,7 +150,7 @@ class MessageTimelineRenderer {
 
     if (item.type === "reasoning") {
       if (options.showDetails === false) {
-        this.renderProcessTitleRow(containerEl, item.entry);
+        this.renderProcessTitleRow(containerEl, item.entry, options);
       } else {
         this.renderReasoningProcessItem(containerEl, message, item, options);
       }
@@ -147,7 +158,7 @@ class MessageTimelineRenderer {
     }
 
     if (options.showDetails === false) {
-      this.renderProcessTitleRow(containerEl, item.entries[item.entries.length - 1]);
+      this.renderProcessTitleRow(containerEl, item.entries[item.entries.length - 1], options);
       return;
     }
 
@@ -175,11 +186,15 @@ class MessageTimelineRenderer {
       cls: "codex-dock__processed-item codex-dock__processed-item--reasoning",
       defaultOpen: Boolean(options.defaultItemOpen)
     });
-    const summary = details.createEl("summary", { cls: "codex-dock__processed-item-summary" });
+    const summary = details.createEl("summary", {
+      cls: "codex-dock__processed-item-summary"
+    });
     this.renderProcessIcon(summary, entry);
-    summary.createSpan({
+    this.renderProcessTitleText(summary, {
       cls: "codex-dock__processed-item-title",
-      text: this.getProcessedEntryTitle(entry)
+      text: this.getProcessedEntryTitle(entry),
+      currentItem: options.currentItem,
+      shimmerState: options.shimmerState
     });
     this.renderChevron(summary);
 
@@ -200,11 +215,15 @@ class MessageTimelineRenderer {
       cls: `codex-dock__processed-item codex-dock__processed-item--${item.kind}`,
       defaultOpen: Boolean(options.defaultItemOpen)
     });
-    const summary = details.createEl("summary", { cls: "codex-dock__processed-item-summary" });
+    const summary = details.createEl("summary", {
+      cls: "codex-dock__processed-item-summary"
+    });
     this.renderProcessIcon(summary, entry);
-    summary.createSpan({
+    this.renderProcessTitleText(summary, {
       cls: "codex-dock__processed-item-title",
-      text: this.getProcessedEntryTitle(entry)
+      text: this.getProcessedEntryTitle(entry),
+      currentItem: options.currentItem,
+      shimmerState: options.shimmerState
     });
     if (item.entries.length > 1) {
       summary.createSpan({
@@ -313,19 +332,106 @@ class MessageTimelineRenderer {
     });
   }
 
-  renderProcessTitleRow(containerEl, entry) {
+  renderProcessTitleRow(containerEl, entry, options = {}) {
     if (!this.shouldShowEvent(entry)) {
       return;
     }
 
     const row = containerEl.createDiv({
-      cls: `codex-dock__event-title-row codex-dock__event-title-row--${entry.kind || "activity"}`
+      cls: [
+        "codex-dock__event-title-row",
+        `codex-dock__event-title-row--${entry.kind || "activity"}`,
+        options.currentItem ? "is-current" : ""
+      ].filter(Boolean).join(" ")
     });
     this.renderProcessIcon(row, entry);
-    row.createSpan({
+    this.renderProcessTitleText(row, {
       cls: "codex-dock__event-title-text",
-      text: this.getProcessedEntryTitle(entry)
+      text: this.getProcessedEntryTitle(entry),
+      currentItem: options.currentItem,
+      shimmerState: options.shimmerState
     });
+  }
+
+  renderProcessTitleText(containerEl, options = {}) {
+    const titleEl = containerEl.createSpan({
+      cls: [
+        options.cls || "codex-dock__processed-item-title",
+        options.currentItem ? "is-current" : ""
+      ].filter(Boolean).join(" "),
+      text: options.text || ""
+    });
+    if (options.currentItem) {
+      this.playCurrentTitleShimmer(titleEl, options.shimmerState);
+    }
+    return titleEl;
+  }
+
+  playCurrentTitleShimmer(titleEl, state) {
+    if (!titleEl || this.shouldReduceMotion() || typeof titleEl.animate !== "function" || !supportsTextShimmer()) {
+      return;
+    }
+
+    titleEl.classList.add("codex-dock__process-title-shimmer");
+    const shimmerState = state || {};
+    const play = () => {
+      if (!titleEl.isConnected || !titleEl.classList.contains("is-current")) {
+        return;
+      }
+      const now = getNow();
+      const nextAllowedAt = shimmerState.nextAllowedAt || 0;
+      if (nextAllowedAt > now) {
+        this.scheduleTitleShimmer(shimmerState, play, nextAllowedAt - now);
+        return;
+      }
+      shimmerState.nextAllowedAt = now + TITLE_SHIMMER_DURATION_MS + TITLE_SHIMMER_PAUSE_MS;
+      const animation = titleEl.animate({
+        backgroundPosition: ["100% 0", "0% 0"]
+      }, {
+        duration: TITLE_SHIMMER_DURATION_MS,
+        easing: "cubic-bezier(0.16, 1, 0.3, 1)",
+        fill: "none"
+      });
+      animation.onfinish = () => {
+        if (titleEl.isConnected && titleEl.classList.contains("is-current")) {
+          this.scheduleTitleShimmer(shimmerState, play, TITLE_SHIMMER_PAUSE_MS);
+        }
+      };
+    };
+    play();
+  }
+
+  scheduleTitleShimmer(state, callback, delayMs) {
+    if (!state || typeof callback !== "function") {
+      return;
+    }
+    if (state.delayTimerId) {
+      window.clearTimeout(state.delayTimerId);
+    }
+    state.delayTimerId = window.setTimeout(() => {
+      state.delayTimerId = null;
+      callback();
+    }, Math.max(0, delayMs));
+  }
+
+  getTitleShimmerState(message, key) {
+    if (!message || !key) {
+      return {};
+    }
+    let states = this.titleShimmerStates.get(message);
+    if (!states) {
+      states = new Map();
+      this.titleShimmerStates.set(message, states);
+    }
+    let state = states.get(key);
+    if (!state) {
+      state = {
+        delayTimerId: null,
+        nextAllowedAt: 0
+      };
+      states.set(key, state);
+    }
+    return state;
   }
 
   renderChevron(containerEl) {
@@ -656,12 +762,28 @@ function entryToClipboardText(entry, debugActivity) {
     .join("\n");
 }
 
+function supportsTextShimmer() {
+  if (typeof CSS === "undefined" || typeof CSS.supports !== "function") {
+    return false;
+  }
+  return CSS.supports("-webkit-background-clip", "text") || CSS.supports("background-clip", "text");
+}
+
+function getNow() {
+  if (typeof performance !== "undefined" && typeof performance.now === "function") {
+    return performance.now();
+  }
+  return Date.now();
+}
+
 module.exports = {
   MessageTimelineRenderer,
   _test: {
     buildLiveTimelineSegments,
     buildProcessedIndex,
-    getProcessedAggregationKey
+    getProcessedAggregationKey,
+    getCurrentLiveProcessItemFirstIndex,
+    getLastProcessItemFirstIndex
   }
 };
 
@@ -698,6 +820,20 @@ function buildLiveTimelineSegments(timeline, debugActivity) {
 
   flushProcessEntries();
   return segments;
+}
+
+function getLastProcessItemFirstIndex(entries) {
+  const items = buildProcessedIndex(entries);
+  const lastItem = items[items.length - 1];
+  return lastItem ? lastItem.firstIndex : -1;
+}
+
+function getCurrentLiveProcessItemFirstIndex(segments) {
+  const latestSegment = segments[segments.length - 1];
+  if (!latestSegment || latestSegment.type !== "process") {
+    return -1;
+  }
+  return getLastProcessItemFirstIndex(latestSegment.entries);
 }
 
 function buildProcessedIndex(entries) {

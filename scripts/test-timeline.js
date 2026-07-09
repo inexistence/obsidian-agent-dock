@@ -172,6 +172,31 @@ function reasoningEntries(message) {
 }
 
 {
+  const segments = timelineRendererTest.buildLiveTimelineSegments([
+    { kind: "notice", title: "已引用本地记忆", summary: "2 条" },
+    { kind: "content", text: "正在回答" }
+  ], false);
+  assert.strictEqual(
+    timelineRendererTest.getCurrentLiveProcessItemFirstIndex(segments),
+    -1,
+    "live process animation should stop when content is the latest segment"
+  );
+}
+
+{
+  const segments = timelineRendererTest.buildLiveTimelineSegments([
+    { kind: "content", text: "正在回答" },
+    { kind: "notice", title: "已引用本地记忆", summary: "2 条" },
+    { kind: "notice", title: "记忆已更新", summary: "1 条" }
+  ], false);
+  assert.strictEqual(
+    timelineRendererTest.getCurrentLiveProcessItemFirstIndex(segments),
+    0,
+    "live process animation should target the latest item only while processing is latest"
+  );
+}
+
+{
   const processed = timelineRendererTest.buildProcessedIndex([
     {
       kind: "tool",
