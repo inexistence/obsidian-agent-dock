@@ -1,0 +1,28 @@
+main.js
+  s_044840f6f77b3c::t_de6cef71b4af84 7529-7802,14234,14279-14284,14362,14380,14952,14979,15132,15143,15603
+  s_044840f6f77b3c::t_02752c77dda251 7528,14285
+src/view/affect/AffectIndicatorController.js
+  s_044840f6f77b3c::t_ffd887f48d41b2 1-271
+src/view/AgentDockView.js
+  s_044840f6f77b3c::t_83fa6409befd45 1376
+  s_044840f6f77b3c::t_c733dc1559ccd1 905,916
+  s_044840f6f77b3c::t_9e79a62a8e6dd0 7,53-58
+  s_044840f6f77b3c::t_042e366c02b921 135,153,725,752
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "6c79dc211f7f1eca77351a410eb5a22d87dcb24d",
+  "prompts": {},
+  "logical_commit_id": "6c79dc211f7f1eca77351a410eb5a22d87dcb24d",
+  "sessions": {
+    "s_044840f6f77b3c": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f458f-c70a-7713-bec8-d2a202be0c5b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
