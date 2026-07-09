@@ -1,0 +1,71 @@
+src/view/AgentDockView.js
+  s_995dc0d47ccffa::t_1f24db83c005ec 35,59,88
+  s_995dc0d47ccffa::t_5987e1e9015c1d 64
+scripts/test-affect.js
+  s_995dc0d47ccffa::t_ef066ee739c19b 94-101,103-105,383-390
+  s_995dc0d47ccffa::t_1f24db83c005ec 88,91-93,369,372-379,423
+  s_4a4ed7634ce1a9::t_93d06b8e0c3c7b 392,394,409,411-422
+  s_995dc0d47ccffa::t_9de791b064cef3 391
+  s_995dc0d47ccffa::t_baa252b5df019c 106-125
+  s_4a4ed7634ce1a9::t_66ee99c0ac8244 424-429
+  s_995dc0d47ccffa::t_cc75392a225e57 89-90,102
+  s_995dc0d47ccffa::t_52712342e40567 87
+  s_995dc0d47ccffa::t_aec52414541f33 380-382
+  s_4a4ed7634ce1a9::t_a81adb1dbf7918 393
+  s_4a4ed7634ce1a9::t_c3e5fcd8773d3f 430-431
+main.js
+  s_4a4ed7634ce1a9::t_81a7c6814b8117 2176-2179,2255-2265,2299-2310
+  s_995dc0d47ccffa::t_859e1937d598ac 318,658,1723,1863,1919-1924,1999-2004,2007-2008,2208-2209,2248-2249,2361-2362,2446-2447,2458,2467-2468,12877,12901,12930
+  s_995dc0d47ccffa::t_c656139bc04818 12906
+  s_4a4ed7634ce1a9::t_0581e2c3d2da31 2127,2183,2254,2266-2268,2284-2289
+  s_995dc0d47ccffa::t_f5672400249b18 1751-1752
+  s_995dc0d47ccffa::t_e57274e2e9afa1 2071
+  s_995dc0d47ccffa::t_6beefb677f2c54 324,664
+  s_995dc0d47ccffa::t_0418e0c434e5bb 2125-2126,2154,2181-2182,2290,2311-2312
+src/i18n/zh.js
+  s_995dc0d47ccffa::t_d270cd353a89b1 201
+  s_995dc0d47ccffa::t_1f24db83c005ec 195
+src/i18n/en.js
+  s_995dc0d47ccffa::t_d270cd353a89b1 201
+  s_995dc0d47ccffa::t_1f24db83c005ec 195
+src/affect/WorkingAffectStore.js
+  s_995dc0d47ccffa::t_6ef31d9d3bff1a 362
+  s_4a4ed7634ce1a9::t_19defe12470dc5 467-470
+  s_995dc0d47ccffa::t_c183458b20ee72 42-43
+  s_995dc0d47ccffa::t_2658837fb29bc7 14,154,294,652-653,737-738,749,758-759
+  s_995dc0d47ccffa::t_61a530debfab9a 416-418,445,472-474
+  s_4a4ed7634ce1a9::t_69b9f5970d71d2 547
+  s_995dc0d47ccffa::t_a4aaeb9cc5765f 499-500,539-540
+  s_995dc0d47ccffa::t_b69b0a81319bf3 210-215,290-293,295,298-299
+  s_4a4ed7634ce1a9::t_d936848e842f1f 576-580
+  s_4a4ed7634ce1a9::t_6aa1d3f2b39f60 546,548-556,590-601
+  s_4a4ed7634ce1a9::t_e808ae5d708a8c 545,557-558,575
+  s_4a4ed7634ce1a9::t_1d04d63ef2cb24 559
+  s_4a4ed7634ce1a9::t_c935764e1f8e2a 581
+  s_4a4ed7634ce1a9::t_088dc6eee25591 602-603
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "091ac469089da68dd9c7f93b6624476b61393e17",
+  "prompts": {},
+  "logical_commit_id": "091ac469089da68dd9c7f93b6624476b61393e17",
+  "sessions": {
+    "s_4a4ed7634ce1a9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4496-36ed-7320-b81c-a90f2a4b195a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    },
+    "s_995dc0d47ccffa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f44a8-4a46-7a62-b1ae-128115a06136",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
