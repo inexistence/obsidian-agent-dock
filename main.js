@@ -7526,6 +7526,280 @@ module.exports = {
 };
 
 },
+"src/view/affect/AffectIndicatorController.js": function(module, exports, __require) {
+const { Notice } = require("obsidian");
+
+const { DEFAULT_WORKING_AFFECT } = __require("src/affect/WorkingAffectStore.js");
+
+class AffectIndicatorController {
+  constructor(options) {
+    this.plugin = options.plugin;
+    this.translate = options.translate;
+    this.addGlobalPointerListener = options.addGlobalPointerListener;
+    this.removeGlobalPointerListener = options.removeGlobalPointerListener;
+    this.indicatorEl = null;
+    this.panelCloseListener = null;
+    this.changeAnimationTimer = null;
+    this.changeAnimationFrame = null;
+  }
+
+  setElement(indicatorEl) {
+    this.indicatorEl = indicatorEl;
+  }
+
+  render(options = {}) {
+    if (!this.indicatorEl) {
+      return;
+    }
+
+    this.clearPanelCloseListener();
+    this.indicatorEl.empty();
+    if (
+      !this.plugin.settings.affectShowIndicator
+      || !this.plugin.settings.affectEnabled
+      || !this.plugin.settings.affectCrossSessionEnabled
+    ) {
+      this.indicatorEl.addClass("is-empty");
+      return;
+    }
+    const affect = this.plugin.getWorkingAffect() || this.getDefaultState();
+    this.indicatorEl.removeClass("is-empty");
+
+    const label = this.getStateLabel(affect.label);
+    const strength = affect.isDefault
+      ? this.translate("affect.strength.default")
+      : this.getStrengthLabel(affect.strength);
+    const age = affect.isDefault
+      ? this.translate("affect.age.notUpdated")
+      : this.formatAge(affect.ageMinutes);
+    const title = this.translate("affect.tooltip", { label, strength, age });
+    const details = this.indicatorEl.createEl("details", { cls: "codex-dock__affect" });
+    const summary = details.createEl("summary", {
+      cls: "codex-dock__affect-summary",
+      attr: {
+        "aria-label": this.translate("affect.open"),
+        title
+      }
+    });
+    summary.createSpan({ cls: "codex-dock__affect-pulse", attr: { "aria-hidden": "true" } });
+    summary.createSpan({ cls: "codex-dock__affect-label", text: label });
+
+    const panel = details.createDiv({ cls: "codex-dock__affect-panel" });
+    panel.createDiv({
+      cls: "codex-dock__affect-panel-title",
+      text: this.translate("affect.panelTitle")
+    });
+    this.renderRow(panel, "affect.row.tone", label);
+    this.renderRow(panel, "affect.row.warmth", this.getLevelLabel(affect.warmth));
+    this.renderRow(panel, "affect.row.focus", this.getLevelLabel(affect.focus));
+    this.renderRow(panel, "affect.row.tension", this.getLevelLabel(affect.tension));
+    this.renderRow(panel, "affect.row.continuity", strength);
+    this.renderRow(panel, "affect.row.updated", age);
+    panel.createDiv({
+      cls: "codex-dock__affect-note",
+      text: this.translate("affect.boundary")
+    });
+
+    const resetButton = panel.createEl("button", {
+      cls: "codex-dock__affect-reset",
+      text: this.translate("affect.reset"),
+      attr: { type: "button" }
+    });
+    resetButton.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      try {
+        await this.plugin.resetWorkingAffect();
+        new Notice(this.translate("settings.resetAffect.done"));
+        this.render();
+      } catch (error) {
+        console.warn("Agent Dock could not reset affect continuity:", error);
+        new Notice(this.translate("notice.resetAffectFailed"));
+      }
+    });
+
+    const closeAffectPanel = (event) => {
+      if (!details.contains(event.target)) {
+        details.removeAttribute("open");
+        this.clearPanelCloseListener();
+      }
+    };
+    details.addEventListener("toggle", () => {
+      if (details.open) {
+        window.setTimeout(() => {
+          if (details.isConnected && details.open) {
+            this.clearPanelCloseListener();
+            this.panelCloseListener = closeAffectPanel;
+            this.addGlobalPointerListener(closeAffectPanel);
+          }
+        }, 0);
+      } else {
+        this.clearPanelCloseListener();
+      }
+    });
+
+    if (options.changed) {
+      this.playChangeAnimation();
+    }
+  }
+
+  playChangeAnimation() {
+    if (!this.indicatorEl) {
+      return;
+    }
+    this.clearChangeAnimation();
+    this.changeAnimationFrame = window.requestAnimationFrame(() => {
+      // Wait two frames so the rebuilt indicator has a stable pre-animation state.
+      this.changeAnimationFrame = window.requestAnimationFrame(() => {
+        this.changeAnimationFrame = null;
+        this.indicatorEl?.addClass("is-changing");
+        this.changeAnimationTimer = window.setTimeout(() => {
+          this.indicatorEl?.removeClass("is-changing");
+          this.changeAnimationTimer = null;
+        }, 1800);
+      });
+    });
+  }
+
+  clearChangeAnimation() {
+    if (this.changeAnimationFrame) {
+      window.cancelAnimationFrame(this.changeAnimationFrame);
+      this.changeAnimationFrame = null;
+    }
+    if (this.changeAnimationTimer) {
+      window.clearTimeout(this.changeAnimationTimer);
+      this.changeAnimationTimer = null;
+    }
+    this.indicatorEl?.removeClass("is-changing");
+  }
+
+  hasVisibleShift(previousAffect, nextAffect) {
+    if (!this.plugin.settings.affectEnabled || !this.plugin.settings.affectCrossSessionEnabled || !nextAffect) {
+      return false;
+    }
+
+    const previousLabel = previousAffect?.label || "";
+    const nextLabel = nextAffect.label || "";
+    const labelChanged = nextLabel && previousLabel && nextLabel !== previousLabel;
+    const movedNoticeably = previousAffect && (
+      Math.abs((nextAffect.warmth || 0) - (previousAffect.warmth || 0)) >= 0.22 ||
+      Math.abs((nextAffect.focus || 0) - (previousAffect.focus || 0)) >= 0.22 ||
+      Math.abs((nextAffect.tension || 0) - (previousAffect.tension || 0)) >= 0.18 ||
+      Math.abs((nextAffect.valence || 0) - (previousAffect.valence || 0)) >= 0.24
+    );
+
+    if (!labelChanged && !movedNoticeably) {
+      return false;
+    }
+
+    return true;
+  }
+
+  describePromptNotice(prompt) {
+    const promptAffect = this.plugin.getPromptWorkingAffect(prompt);
+    if (!promptAffect?.transient) {
+      return null;
+    }
+
+    const label = promptAffect.label || "";
+    if (!label) {
+      return null;
+    }
+
+    return {
+      rawLabel: label,
+      noticeKey: "affect.promptNotice",
+      kind: "affect_prompt",
+      label: this.getToneLabel(label),
+      strength: this.getStrengthLabel(promptAffect.strength),
+      affect: promptAffect
+    };
+  }
+
+  clearPanelCloseListener(options = {}) {
+    if (!this.panelCloseListener) {
+      return;
+    }
+    if (options.detach !== false) {
+      this.removeGlobalPointerListener(this.panelCloseListener);
+    }
+    this.panelCloseListener = null;
+  }
+
+  renderRow(containerEl, labelKey, value) {
+    const row = containerEl.createDiv({ cls: "codex-dock__affect-row" });
+    row.createSpan({ cls: "codex-dock__affect-row-label", text: this.translate(labelKey) });
+    row.createSpan({ cls: "codex-dock__affect-row-value", text: value });
+  }
+
+  getDefaultState() {
+    return Object.assign({}, DEFAULT_WORKING_AFFECT, {
+      strength: 0,
+      ageMinutes: 0,
+      isDefault: true
+    });
+  }
+
+  getLabel(label) {
+    const key = `affect.label.${label || "steady"}`;
+    const translated = this.translate(key);
+    return translated === key ? this.translate("affect.label.steady") : translated;
+  }
+
+  getStateLabel(label) {
+    return this.getLabelPart(label, "state");
+  }
+
+  getToneLabel(label) {
+    return this.getLabelPart(label, "tone");
+  }
+
+  getLabelPart(label, part) {
+    const value = this.getLabel(label);
+    const pieces = value.split("/").map((piece) => piece.trim()).filter(Boolean);
+    if (pieces.length < 2) {
+      return value;
+    }
+    return part === "tone" ? pieces[1] : pieces[0];
+  }
+
+  getLevelLabel(value) {
+    if (value >= 0.75) {
+      return this.translate("affect.level.high");
+    }
+    if (value >= 0.4) {
+      return this.translate("affect.level.medium");
+    }
+    return this.translate("affect.level.low");
+  }
+
+  getStrengthLabel(value) {
+    if (value >= 0.66) {
+      return this.translate("affect.strength.high");
+    }
+    if (value >= 0.28) {
+      return this.translate("affect.strength.medium");
+    }
+    return this.translate("affect.strength.low");
+  }
+
+  formatAge(ageMinutes) {
+    const minutes = Math.max(0, Math.round(ageMinutes || 0));
+    if (minutes < 1) {
+      return this.translate("affect.age.justNow");
+    }
+    if (minutes < 60) {
+      return this.translate("affect.age.minutes", { count: minutes });
+    }
+    return this.translate("affect.age.hours", { count: Math.round(minutes / 60) });
+  }
+}
+
+module.exports = {
+  AffectIndicatorController
+};
+
+},
 "src/vendor/anime.umd.min.js": function(module, exports, __require) {
 /**
  * Anime.js - UMD minified bundle
@@ -13957,6 +14231,7 @@ const { VIEW_TYPE_AGENT_DOCK } = __require("src/constants.js");
 const { t } = __require("src/i18n/index.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
 const { AGENT_OPTIONS } = __require("src/agents/AgentRegistry.js");
+const { AffectIndicatorController } = __require("src/view/affect/AffectIndicatorController.js");
 const { EmotiveFeedbackController } = __require("src/view/EmotiveFeedbackController.js");
 const { ImagePreviewController } = __require("src/view/ImagePreviewController.js");
 const { renderComposerContent } = __require("src/view/composer/ComposerRenderer.js");
@@ -13978,7 +14253,6 @@ const { copyText } = __require("src/view/utils/clipboard.js");
 const { estimateContextChars, formatCompactNumber } = __require("src/view/utils/contextEstimate.js");
 const { decorateLocalFileLinks, normalizeLocalFileMarkdownLinks } = __require("src/view/utils/fileLinks.js");
 const { formatMessageTime, formatMessageTimeIso, formatMessageTimeTitle } = __require("src/view/utils/messageTime.js");
-const { DEFAULT_WORKING_AFFECT } = __require("src/affect/WorkingAffectStore.js");
 
 class AgentDockView extends ItemView {
   constructor(leaf, plugin) {
@@ -14003,6 +14277,12 @@ class AgentDockView extends ItemView {
       getLayerRoot: () => this.containerEl,
       onTransientStatusRemoved: (messageEl) => this.renderMessageAfterTransientStatus(messageEl)
     });
+    this.affectIndicator = new AffectIndicatorController({
+      plugin: this.plugin,
+      translate: (key, params) => this.translate(key, params),
+      addGlobalPointerListener: (listener) => this.addGlobalPointerListener(listener),
+      removeGlobalPointerListener: (listener) => this.removeGlobalPointerListener(listener)
+    });
     this.turnStatus = new TurnStatusController({
       translate: (key, params) => this.translate(key, params),
       getAffectToneLabel: (label) => this.getAffectToneLabel(label),
@@ -14026,9 +14306,6 @@ class AgentDockView extends ItemView {
     this.pendingMessageRenderSessionId = "";
     this.pendingMessageRenderTarget = null;
     this.pendingRenderAfterTransient = false;
-    this.affectPanelCloseListener = null;
-    this.affectChangeAnimationTimer = null;
-    this.affectChangeAnimationFrame = null;
     this.globalPointerListeners = new Set();
     this.hasLoadedPersistedSessions = false;
     this.autoScrollThresholdPx = 48;
@@ -14082,7 +14359,7 @@ class AgentDockView extends ItemView {
     this.clearTurnVisualFinalDelayTimers();
     this.clearGlobalPointerListeners();
     this.closeImagePreview();
-    this.clearAffectChangeAnimation();
+    this.affectIndicator.clearChangeAnimation();
     this.cancelRunningSessions();
     await this.plugin.flushChatSessions();
   }
@@ -14100,6 +14377,7 @@ class AgentDockView extends ItemView {
     const identity = header.createDiv({ cls: "codex-dock__identity" });
     identity.createDiv({ cls: "codex-dock__title", text: this.getAssistantDisplayName() });
     this.affectIndicatorEl = identity.createDiv({ cls: "codex-dock__affect-slot" });
+    this.affectIndicator.setElement(this.affectIndicatorEl);
     this.renderAffectIndicator();
 
     const actions = header.createDiv({ cls: "codex-dock__actions" });
@@ -14671,7 +14949,7 @@ class AgentDockView extends ItemView {
       translate: (key, params) => this.translate(key, params),
       touchSession: (targetSession) => this.sessionStore.touchSession(targetSession),
       onBeforeAgentRun: (targetSession, assistantMessage) => {
-        const promptAffectNotice = this.describePromptAffectNotice(prompt);
+        const promptAffectNotice = this.affectIndicator.describePromptNotice(prompt);
         if (promptAffectNotice) {
           assistantMessage.loadingToneLabel = promptAffectNotice.label || "";
           assistantMessage.loadingToneKind = promptAffectNotice.rawLabel || "";
@@ -14698,7 +14976,7 @@ class AgentDockView extends ItemView {
         const previousAffect = this.plugin.getWorkingAffect();
         await this.plugin.updateWorkingAffect(turn);
         const nextAffect = this.plugin.getWorkingAffect();
-        const affectChanged = this.hasVisibleAffectShift(previousAffect, nextAffect);
+        const affectChanged = this.affectIndicator.hasVisibleShift(previousAffect, nextAffect);
         const isActiveSession = context.session?.id === this.activeSessionId;
         if (isActiveSession) {
           this.renderAffectIndicator({ changed: affectChanged });
@@ -14851,151 +15129,7 @@ class AgentDockView extends ItemView {
   }
 
   renderAffectIndicator(options = {}) {
-    if (!this.affectIndicatorEl) {
-      return;
-    }
-
-    this.clearAffectPanelCloseListener();
-    this.affectIndicatorEl.empty();
-    if (
-      !this.plugin.settings.affectShowIndicator
-      || !this.plugin.settings.affectEnabled
-      || !this.plugin.settings.affectCrossSessionEnabled
-    ) {
-      this.affectIndicatorEl.addClass("is-empty");
-      return;
-    }
-    const affect = this.plugin.getWorkingAffect() || this.getDefaultAffectIndicatorState();
-    this.affectIndicatorEl.removeClass("is-empty");
-
-    const label = this.getAffectStateLabel(affect.label);
-    const strength = affect.isDefault
-      ? this.translate("affect.strength.default")
-      : this.getAffectStrengthLabel(affect.strength);
-    const age = affect.isDefault
-      ? this.translate("affect.age.notUpdated")
-      : this.formatAffectAge(affect.ageMinutes);
-    const title = this.translate("affect.tooltip", { label, strength, age });
-    const details = this.affectIndicatorEl.createEl("details", { cls: "codex-dock__affect" });
-    const summary = details.createEl("summary", {
-      cls: "codex-dock__affect-summary",
-      attr: {
-        "aria-label": this.translate("affect.open"),
-        title
-      }
-    });
-    summary.createSpan({ cls: "codex-dock__affect-pulse", attr: { "aria-hidden": "true" } });
-    summary.createSpan({ cls: "codex-dock__affect-label", text: label });
-
-    const panel = details.createDiv({ cls: "codex-dock__affect-panel" });
-    panel.createDiv({
-      cls: "codex-dock__affect-panel-title",
-      text: this.translate("affect.panelTitle")
-    });
-    this.renderAffectRow(panel, "affect.row.tone", label);
-    this.renderAffectRow(panel, "affect.row.warmth", this.getAffectLevelLabel(affect.warmth));
-    this.renderAffectRow(panel, "affect.row.focus", this.getAffectLevelLabel(affect.focus));
-    this.renderAffectRow(panel, "affect.row.tension", this.getAffectLevelLabel(affect.tension));
-    this.renderAffectRow(panel, "affect.row.continuity", strength);
-    this.renderAffectRow(panel, "affect.row.updated", age);
-    panel.createDiv({
-      cls: "codex-dock__affect-note",
-      text: this.translate("affect.boundary")
-    });
-
-    const resetButton = panel.createEl("button", {
-      cls: "codex-dock__affect-reset",
-      text: this.translate("affect.reset"),
-      attr: { type: "button" }
-    });
-    resetButton.addEventListener("click", async (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      try {
-        await this.plugin.resetWorkingAffect();
-        new Notice(this.translate("settings.resetAffect.done"));
-        this.renderAffectIndicator();
-      } catch (error) {
-        console.warn("Agent Dock could not reset affect continuity:", error);
-        new Notice(this.translate("notice.resetAffectFailed"));
-      }
-    });
-
-    const closeAffectPanel = (event) => {
-      if (!details.contains(event.target)) {
-        details.removeAttribute("open");
-        this.clearAffectPanelCloseListener();
-      }
-    };
-    details.addEventListener("toggle", () => {
-      if (details.open) {
-        window.setTimeout(() => {
-          if (details.isConnected && details.open) {
-            this.clearAffectPanelCloseListener();
-            this.affectPanelCloseListener = closeAffectPanel;
-            this.addGlobalPointerListener(closeAffectPanel);
-          }
-        }, 0);
-      } else {
-        this.clearAffectPanelCloseListener();
-      }
-    });
-
-    if (options.changed) {
-      this.playAffectChangeAnimation();
-    }
-  }
-
-  playAffectChangeAnimation() {
-    if (!this.affectIndicatorEl) {
-      return;
-    }
-    this.clearAffectChangeAnimation();
-    this.affectChangeAnimationFrame = window.requestAnimationFrame(() => {
-      // Wait two frames so the rebuilt indicator has a stable pre-animation state.
-      this.affectChangeAnimationFrame = window.requestAnimationFrame(() => {
-        this.affectChangeAnimationFrame = null;
-        this.affectIndicatorEl?.addClass("is-changing");
-        this.affectChangeAnimationTimer = window.setTimeout(() => {
-          this.affectIndicatorEl?.removeClass("is-changing");
-          this.affectChangeAnimationTimer = null;
-        }, 1800);
-      });
-    });
-  }
-
-  clearAffectChangeAnimation() {
-    if (this.affectChangeAnimationFrame) {
-      window.cancelAnimationFrame(this.affectChangeAnimationFrame);
-      this.affectChangeAnimationFrame = null;
-    }
-    if (this.affectChangeAnimationTimer) {
-      window.clearTimeout(this.affectChangeAnimationTimer);
-      this.affectChangeAnimationTimer = null;
-    }
-    this.affectIndicatorEl?.removeClass("is-changing");
-  }
-
-  hasVisibleAffectShift(previousAffect, nextAffect) {
-    if (!this.plugin.settings.affectEnabled || !this.plugin.settings.affectCrossSessionEnabled || !nextAffect) {
-      return false;
-    }
-
-    const previousLabel = previousAffect?.label || "";
-    const nextLabel = nextAffect.label || "";
-    const labelChanged = nextLabel && previousLabel && nextLabel !== previousLabel;
-    const movedNoticeably = previousAffect && (
-      Math.abs((nextAffect.warmth || 0) - (previousAffect.warmth || 0)) >= 0.22 ||
-      Math.abs((nextAffect.focus || 0) - (previousAffect.focus || 0)) >= 0.22 ||
-      Math.abs((nextAffect.tension || 0) - (previousAffect.tension || 0)) >= 0.18 ||
-      Math.abs((nextAffect.valence || 0) - (previousAffect.valence || 0)) >= 0.24
-    );
-
-    if (!labelChanged && !movedNoticeably) {
-      return false;
-    }
-
-    return true;
+    this.affectIndicator.render(options);
   }
 
   renderAffectIndicatorIfActive(session, options = {}) {
@@ -15005,101 +15139,8 @@ class AgentDockView extends ItemView {
     }
   }
 
-  describePromptAffectNotice(prompt) {
-    const promptAffect = this.plugin.getPromptWorkingAffect(prompt);
-    if (!promptAffect?.transient) {
-      return null;
-    }
-
-    const label = promptAffect.label || "";
-    if (!label) {
-      return null;
-    }
-
-    return {
-      rawLabel: label,
-      noticeKey: "affect.promptNotice",
-      kind: "affect_prompt",
-      label: this.getAffectToneLabel(label),
-      strength: this.getAffectStrengthLabel(promptAffect.strength),
-      affect: promptAffect
-    };
-  }
-
-  clearAffectPanelCloseListener() {
-    if (!this.affectPanelCloseListener) {
-      return;
-    }
-    this.removeGlobalPointerListener(this.affectPanelCloseListener);
-    this.affectPanelCloseListener = null;
-  }
-
-  renderAffectRow(containerEl, labelKey, value) {
-    const row = containerEl.createDiv({ cls: "codex-dock__affect-row" });
-    row.createSpan({ cls: "codex-dock__affect-row-label", text: this.translate(labelKey) });
-    row.createSpan({ cls: "codex-dock__affect-row-value", text: value });
-  }
-
-  getDefaultAffectIndicatorState() {
-    return Object.assign({}, DEFAULT_WORKING_AFFECT, {
-      strength: 0,
-      ageMinutes: 0,
-      isDefault: true
-    });
-  }
-
-  getAffectLabel(label) {
-    const key = `affect.label.${label || "steady"}`;
-    const translated = this.translate(key);
-    return translated === key ? this.translate("affect.label.steady") : translated;
-  }
-
-  getAffectStateLabel(label) {
-    return this.getAffectLabelPart(label, "state");
-  }
-
   getAffectToneLabel(label) {
-    return this.getAffectLabelPart(label, "tone");
-  }
-
-  getAffectLabelPart(label, part) {
-    const value = this.getAffectLabel(label);
-    const pieces = value.split("/").map((piece) => piece.trim()).filter(Boolean);
-    if (pieces.length < 2) {
-      return value;
-    }
-    return part === "tone" ? pieces[1] : pieces[0];
-  }
-
-  getAffectLevelLabel(value) {
-    if (value >= 0.75) {
-      return this.translate("affect.level.high");
-    }
-    if (value >= 0.4) {
-      return this.translate("affect.level.medium");
-    }
-    return this.translate("affect.level.low");
-  }
-
-  getAffectStrengthLabel(value) {
-    if (value >= 0.66) {
-      return this.translate("affect.strength.high");
-    }
-    if (value >= 0.28) {
-      return this.translate("affect.strength.medium");
-    }
-    return this.translate("affect.strength.low");
-  }
-
-  formatAffectAge(ageMinutes) {
-    const minutes = Math.max(0, Math.round(ageMinutes || 0));
-    if (minutes < 1) {
-      return this.translate("affect.age.justNow");
-    }
-    if (minutes < 60) {
-      return this.translate("affect.age.minutes", { count: minutes });
-    }
-    return this.translate("affect.age.hours", { count: Math.round(minutes / 60) });
+    return this.affectIndicator.getToneLabel(label);
   }
 
   renderTimeline(containerEl, message) {
@@ -15559,7 +15600,7 @@ class AgentDockView extends ItemView {
       document.removeEventListener("pointerdown", listener);
     }
     this.globalPointerListeners.clear();
-    this.affectPanelCloseListener = null;
+    this.affectIndicator.clearPanelCloseListener({ detach: false });
   }
 }
 
