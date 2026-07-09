@@ -194,6 +194,9 @@ function mergeToolTimelineUpdate(assistantMessage, update) {
   }
 
   existing.title = update.title || existing.title;
+  if (update.toolType) {
+    existing.toolType = update.toolType;
+  }
   if (update.summary) {
     existing.summary = update.summary;
   }

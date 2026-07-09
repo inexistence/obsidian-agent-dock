@@ -237,6 +237,7 @@ module.exports = {
     "session.completedConversationTitle": "{title} 有已完成的任务",
     "session.failedConversationTitle": "{title} 有失败的任务",
     "session.stoppedConversationTitle": "{title} 有已停止的任务",
+    "timeline.processing": "处理中 {count} 项",
     "timeline.processed": "已处理 {count} 项",
     "timeline.needsAttention": "需要关注 {count} 项",
     "timeline.toolCalls": "工具调用",

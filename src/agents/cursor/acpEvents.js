@@ -27,6 +27,7 @@ function acpUpdateToEvents(update, translate = defaultTranslate) {
     return [{
       kind: "tool",
       toolCallId: update.toolCallId || "",
+      toolType: getCursorToolType(update),
       title: update.title || update.kind || translate("cursor.toolCall"),
       summary: formatToolCallSummary(update, translate),
       detail: formatToolCallDetail(update)
@@ -37,6 +38,7 @@ function acpUpdateToEvents(update, translate = defaultTranslate) {
     return [{
       kind: "tool",
       toolCallId: update.toolCallId || "",
+      toolType: getCursorToolType(update),
       title: update.title || translate("cursor.toolCall"),
       summary: formatToolCallUpdateSummary(update, translate),
       detail: formatToolCallUpdateDetail(update)
@@ -110,6 +112,24 @@ function formatToolCallSummary(update, translate) {
     parts.push(compactOneLine(input));
   }
   return compactOneLine(parts.join(" | ") || update.title || translate("cursor.toolCall"));
+}
+
+function getCursorToolType(update) {
+  const rawInput = update?.rawInput;
+  const haystack = [
+    update?.kind,
+    update?.title,
+    rawInput && typeof rawInput === "object" ? rawInput.command : "",
+    rawInput && typeof rawInput === "object" ? rawInput.query : ""
+  ].map((part) => String(part || "").toLowerCase()).join("\n");
+
+  if (/web[_ -]?search|search_web|browser_search/.test(haystack)) {
+    return "web_search";
+  }
+  if (/terminal|shell|command|exec/.test(haystack) || Boolean(rawInput && typeof rawInput === "object" && rawInput.command)) {
+    return "command";
+  }
+  return "generic";
 }
 
 function formatToolCallDetail(update) {

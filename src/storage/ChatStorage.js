@@ -5,12 +5,14 @@ const { redactSensitiveText } = require("./sensitiveText");
 const CHAT_STATE_VERSION = 1;
 const SESSION_DIR_NAME = "sessions";
 const PERSISTED_TIMELINE_KINDS = new Set(["message", "content", "reasoning", "tool", "error", "notice", "activity"]);
-const PERSISTED_TIMELINE_STRING_FIELDS = ["text", "title", "summary", "detail", "toolCallId"];
+const PERSISTED_TIMELINE_STRING_FIELDS = ["text", "title", "summary", "detail", "toolCallId", "toolType", "noticeType"];
 const PERSISTED_TIMELINE_TEXT_LIMITS = {
   title: 300,
   summary: 1000,
   detail: 12000,
-  toolCallId: 200
+  toolCallId: 200,
+  toolType: 80,
+  noticeType: 80
 };
 const TRUNCATED_TEXT_MARKER = "\n\n[Persisted timeline detail truncated]";
 

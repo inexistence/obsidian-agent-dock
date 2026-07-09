@@ -30,6 +30,7 @@ async function getExplicitMemorySearch(memoryStore, prompt, settings, onUpdate, 
 
   onUpdate({
     kind: "notice",
+    noticeType: "memory_search",
     title: translate(`${keyPrefix}.memorySearch.title`),
     summary: translate(`${keyPrefix}.memorySearch.summary`, {
       count: results.length

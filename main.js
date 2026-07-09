@@ -360,6 +360,7 @@ module.exports = {
     "session.completedConversationTitle": "{title} has a finished task",
     "session.failedConversationTitle": "{title} has a failed task",
     "session.stoppedConversationTitle": "{title} has a stopped task",
+    "timeline.processing": "Processing {count} items",
     "timeline.processed": "Processed {count} items",
     "timeline.needsAttention": "Needs attention {count} items",
     "timeline.toolCalls": "Tool calls",
@@ -701,6 +702,7 @@ module.exports = {
     "session.completedConversationTitle": "{title} 有已完成的任务",
     "session.failedConversationTitle": "{title} 有失败的任务",
     "session.stoppedConversationTitle": "{title} 有已停止的任务",
+    "timeline.processing": "处理中 {count} 项",
     "timeline.processed": "已处理 {count} 项",
     "timeline.needsAttention": "需要关注 {count} 项",
     "timeline.toolCalls": "工具调用",
@@ -3729,6 +3731,7 @@ function emitMemoryNotice(onUpdate, memories, translate, keyPrefix = "cursor") {
 
   onUpdate({
     kind: "notice",
+    noticeType: "memory_referenced",
     title: translate(`${keyPrefix}.memoryReferenced.title`),
     summary: formatMemoryNoticeSummary(memories, translate, keyPrefix),
     detail: memories.map(formatMemoryLine).join("\n")
@@ -3813,6 +3816,7 @@ async function getExplicitMemorySearch(memoryStore, prompt, settings, onUpdate, 
 
   onUpdate({
     kind: "notice",
+    noticeType: "memory_search",
     title: translate(`${keyPrefix}.memorySearch.title`),
     summary: translate(`${keyPrefix}.memorySearch.summary`, {
       count: results.length
@@ -3922,6 +3926,7 @@ function codexJsonEventToUpdates(event, translate = defaultTranslate) {
   if (item.type === "command_execution") {
     return [{
       kind: "tool",
+      toolType: "command",
       title: formatCommandTitle(type, item, translate),
       summary: formatCommandSummary(item, translate),
       detail: formatCommandExecution(item, translate)
@@ -3932,6 +3937,7 @@ function codexJsonEventToUpdates(event, translate = defaultTranslate) {
     const summary = extractText(item) || summarizeItem(item);
     return [{
       kind: "tool",
+      toolType: "generic",
       title: formatEventTitle(type, formatToolTitle(item), translate),
       summary: compactOneLine(summary),
       detail: summary
@@ -3942,6 +3948,7 @@ function codexJsonEventToUpdates(event, translate = defaultTranslate) {
     const summary = extractText(item) || summarizeItem(item);
     return [{
       kind: "tool",
+      toolType: "web_search",
       title: formatEventTitle(type, translate("codex.webSearch"), translate),
       summary: compactOneLine(summary),
       detail: summary
@@ -4393,6 +4400,7 @@ class CodexAgent {
       if (saved.length > 0) {
         onUpdate({
           kind: "notice",
+          noticeType: "memory_updated",
           title: t(settings, "codex.memoryUpdated.title"),
           summary: t(settings, "codex.memoryUpdated.summary", {
             count: saved.length,
@@ -4402,10 +4410,11 @@ class CodexAgent {
       }
     } catch (error) {
       console.warn("Agent Dock could not update memory:", error);
-      onUpdate({
-        kind: "notice",
-        title: t(settings, "codex.memorySkipped.title"),
-        summary: t(settings, "codex.memorySkipped.summary")
+        onUpdate({
+          kind: "notice",
+          noticeType: "memory_skipped",
+          title: t(settings, "codex.memorySkipped.title"),
+          summary: t(settings, "codex.memorySkipped.summary")
       });
     }
   }
@@ -4416,6 +4425,7 @@ class CodexAgent {
       if (result.observations.length > 0 || result.traits.length > 0) {
         onUpdate({
           kind: "notice",
+          noticeType: "profile_updated",
           title: t(settings, "codex.agentProfileUpdated.title"),
           summary: t(settings, "codex.agentProfileUpdated.summary", {
             count: result.observations.length
@@ -4426,6 +4436,7 @@ class CodexAgent {
       console.warn("Agent Dock could not update agent profile:", error);
       onUpdate({
         kind: "notice",
+        noticeType: "profile_skipped",
         title: t(settings, "codex.agentProfileSkipped.title"),
         summary: t(settings, "codex.agentProfileSkipped.summary")
       });
@@ -4914,6 +4925,7 @@ function acpUpdateToEvents(update, translate = defaultTranslate) {
     return [{
       kind: "tool",
       toolCallId: update.toolCallId || "",
+      toolType: getCursorToolType(update),
       title: update.title || update.kind || translate("cursor.toolCall"),
       summary: formatToolCallSummary(update, translate),
       detail: formatToolCallDetail(update)
@@ -4924,6 +4936,7 @@ function acpUpdateToEvents(update, translate = defaultTranslate) {
     return [{
       kind: "tool",
       toolCallId: update.toolCallId || "",
+      toolType: getCursorToolType(update),
       title: update.title || translate("cursor.toolCall"),
       summary: formatToolCallUpdateSummary(update, translate),
       detail: formatToolCallUpdateDetail(update)
@@ -4997,6 +5010,24 @@ function formatToolCallSummary(update, translate) {
     parts.push(compactOneLine(input));
   }
   return compactOneLine(parts.join(" | ") || update.title || translate("cursor.toolCall"));
+}
+
+function getCursorToolType(update) {
+  const rawInput = update?.rawInput;
+  const haystack = [
+    update?.kind,
+    update?.title,
+    rawInput && typeof rawInput === "object" ? rawInput.command : "",
+    rawInput && typeof rawInput === "object" ? rawInput.query : ""
+  ].map((part) => String(part || "").toLowerCase()).join("\n");
+
+  if (/web[_ -]?search|search_web|browser_search/.test(haystack)) {
+    return "web_search";
+  }
+  if (/terminal|shell|command|exec/.test(haystack) || Boolean(rawInput && typeof rawInput === "object" && rawInput.command)) {
+    return "command";
+  }
+  return "generic";
 }
 
 function formatToolCallDetail(update) {
@@ -5660,6 +5691,7 @@ class CursorAgent {
       if (saved.length > 0) {
         onUpdate({
           kind: "notice",
+          noticeType: "memory_updated",
           title: t(settings, "cursor.memoryUpdated.title"),
           summary: t(settings, "cursor.memoryUpdated.summary", {
             count: saved.length,
@@ -5671,6 +5703,7 @@ class CursorAgent {
       console.warn("Agent Dock could not update memory:", error);
       onUpdate({
         kind: "notice",
+        noticeType: "memory_skipped",
         title: t(settings, "cursor.memorySkipped.title"),
         summary: t(settings, "cursor.memorySkipped.summary")
       });
@@ -5683,6 +5716,7 @@ class CursorAgent {
       if (result.observations.length > 0 || result.traits.length > 0) {
         onUpdate({
           kind: "notice",
+          noticeType: "profile_updated",
           title: t(settings, "cursor.agentProfileUpdated.title"),
           summary: t(settings, "cursor.agentProfileUpdated.summary", {
             count: result.observations.length
@@ -5693,6 +5727,7 @@ class CursorAgent {
       console.warn("Agent Dock could not update agent profile:", error);
       onUpdate({
         kind: "notice",
+        noticeType: "profile_skipped",
         title: t(settings, "cursor.agentProfileSkipped.title"),
         summary: t(settings, "cursor.agentProfileSkipped.summary")
       });
@@ -7063,12 +7098,14 @@ const { redactSensitiveText } = __require("src/storage/sensitiveText.js");
 const CHAT_STATE_VERSION = 1;
 const SESSION_DIR_NAME = "sessions";
 const PERSISTED_TIMELINE_KINDS = new Set(["message", "content", "reasoning", "tool", "error", "notice", "activity"]);
-const PERSISTED_TIMELINE_STRING_FIELDS = ["text", "title", "summary", "detail", "toolCallId"];
+const PERSISTED_TIMELINE_STRING_FIELDS = ["text", "title", "summary", "detail", "toolCallId", "toolType", "noticeType"];
 const PERSISTED_TIMELINE_TEXT_LIMITS = {
   title: 300,
   summary: 1000,
   detail: 12000,
-  toolCallId: 200
+  toolCallId: 200,
+  toolType: 80,
+  noticeType: 80
 };
 const TRUNCATED_TEXT_MARKER = "\n\n[Persisted timeline detail truncated]";
 
@@ -11095,119 +11132,12 @@ function findLastContentIndex(timeline) {
   return -1;
 }
 
-function groupLiveTimeline(timeline, debugActivity, translate) {
-  const groups = [];
-  let pendingEvents = [];
-
-  const flushPendingEvents = () => {
-    if (pendingEvents.length === 0) {
-      return;
-    }
-
-    groups.push({
-      type: "eventGroup",
-      label: getEventGroupLabel(pendingEvents, translate),
-      entries: pendingEvents
-    });
-    pendingEvents = [];
-  };
-
-  for (const entry of timeline) {
-    if (entry.kind === "content") {
-      flushPendingEvents();
-      groups.push({ type: "entry", entry });
-      continue;
-    }
-
-    if (debugActivity || ["reasoning", "tool", "error", "notice"].includes(entry.kind)) {
-      const previous = pendingEvents[pendingEvents.length - 1];
-      if (previous && previous.kind !== entry.kind) {
-        flushPendingEvents();
-      }
-      pendingEvents.push(entry);
-    }
-  }
-
-  flushPendingEvents();
-  return groups;
-}
-
-function groupProcessedEntries(entries) {
-  const groups = [];
-  let pending = [];
-
-  const flush = () => {
-    if (pending.length === 0) {
-      return;
-    }
-
-    groups.push({ type: "eventGroup", entries: pending });
-    pending = [];
-  };
-
-  for (const entry of entries) {
-    if (entry.kind === "content") {
-      flush();
-      groups.push({ type: "entry", entry });
-      continue;
-    }
-
-    const previous = pending[pending.length - 1];
-    if (previous && previous.kind !== entry.kind) {
-      flush();
-    }
-    pending.push(entry);
-  }
-
-  flush();
-  return groups;
-}
-
-function getEventGroupLabel(entries, translate = defaultTranslate) {
-  const hasError = entries.some((entry) => entry.kind === "error");
-  if (hasError) {
-    return translate("timeline.needsAttention", { count: entries.length });
-  }
-
-  const hasTool = entries.some((entry) => entry.kind === "tool");
-  const hasReasoning = entries.some((entry) => entry.kind === "reasoning");
-  const hasNotice = entries.some((entry) => entry.kind === "notice");
-  const labelKey = hasTool
-    ? "timeline.toolCalls"
-    : hasReasoning
-      ? "timeline.reasoning"
-      : hasNotice
-        ? "timeline.notice"
-        : "timeline.activity";
-  return translate("timeline.groupLabel", {
-    label: translate(labelKey),
-    count: entries.length
-  });
-}
-
-function defaultTranslate(key, params = {}) {
-  const defaults = {
-    "timeline.needsAttention": "Needs attention {count} items",
-    "timeline.toolCalls": "Tool calls",
-    "timeline.reasoning": "Thinking",
-    "timeline.notice": "Notice",
-    "timeline.activity": "Activity",
-    "timeline.groupLabel": "{label} {count} items"
-  };
-  return String(defaults[key] || key).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => (
-    params[name] === undefined ? match : String(params[name])
-  ));
-}
-
 module.exports = {
   appendTimelineContent,
   appendTimelineReasoning,
   consolidateTimelineContent,
   replaceTimelineFinalContent,
   getCompletedTimelineSections,
-  getEventGroupLabel,
-  groupLiveTimeline,
-  groupProcessedEntries,
   shouldShowEvent,
   _test: {
     appendTimelineContent,
@@ -11417,6 +11347,9 @@ function mergeToolTimelineUpdate(assistantMessage, update) {
   }
 
   existing.title = update.title || existing.title;
+  if (update.toolType) {
+    existing.toolType = update.toolType;
+  }
   if (update.summary) {
     existing.summary = update.summary;
   }
@@ -11931,9 +11864,6 @@ module.exports = {
 "src/view/timeline/MessageTimelineRenderer.js": function(module, exports, __require) {
 const {
   getCompletedTimelineSections,
-  getEventGroupLabel,
-  groupLiveTimeline,
-  groupProcessedEntries,
   shouldShowEvent
 } = __require("src/view/timeline/timeline.js");
 
@@ -11943,6 +11873,7 @@ class MessageTimelineRenderer {
     this.translate = options.translate;
     this.renderMarkdownContent = options.renderMarkdownContent;
     this.copyText = options.copyText;
+    this.setIcon = options.setIcon;
     this.prefersReducedMotion = options.prefersReducedMotion;
     this.onDetailsToggleStart = options.onDetailsToggleStart;
     this.onDetailsLayoutChanged = options.onDetailsLayoutChanged;
@@ -11962,17 +11893,7 @@ class MessageTimelineRenderer {
       return;
     }
 
-    for (const group of groupLiveTimeline(message.timeline, this.getDebugActivity(), this.translate)) {
-      if (group.type === "eventGroup") {
-        const key = this.getTimelineGroupKey("live", message.timeline, group.entries);
-        const openLiveGroup = group.entries.some((entry) => (
-          entry.kind === "reasoning" && Boolean(entry.detail || entry.summary)
-        ));
-        this.renderEventGroup(containerEl, message, key, group.entries, group.label, openLiveGroup);
-      } else {
-        this.renderTimelineEntry(containerEl, group.entry);
-      }
-    }
+    this.renderLiveTimeline(containerEl, message);
   }
 
   renderCompletedTimeline(containerEl, message) {
@@ -11981,9 +11902,25 @@ class MessageTimelineRenderer {
       timeline,
       this.getDebugActivity()
     );
+    const animateProcessedCollapse = Boolean(
+      message._codexDockTimelineWasLive
+      && !message._codexDockProcessedCollapseAnimated
+      && !this.shouldReduceMotion()
+    );
+    if (animateProcessedCollapse) {
+      message._codexDockProcessedCollapseAnimated = true;
+    }
 
     if (processedEntries.length > 0) {
-      this.renderProcessedGroup(containerEl, message, processedEntries);
+      this.renderProcessGroup(containerEl, message, {
+        key: "process",
+        label: this.translate("timeline.processed", { count: processedEntries.length }),
+        entries: processedEntries,
+        mode: "processed",
+        defaultOpen: Boolean(animateProcessedCollapse),
+        animateCollapse: animateProcessedCollapse,
+        showDetails: true
+      });
     }
 
     if (finalEntry) {
@@ -11991,30 +11928,187 @@ class MessageTimelineRenderer {
     }
   }
 
-  renderProcessedGroup(containerEl, message, entries) {
+  renderLiveTimeline(containerEl, message) {
+    for (const segment of buildLiveTimelineSegments(message.timeline, this.getDebugActivity())) {
+      if (segment.type === "content") {
+        this.renderTimelineEntry(containerEl, segment.entry);
+      } else {
+        message._codexDockTimelineWasLive = true;
+        this.renderProcessGroup(containerEl, message, {
+          key: `live-process:${segment.firstIndex}`,
+          label: this.translate("timeline.processing", { count: segment.entries.length }),
+          entries: segment.entries,
+          mode: "live",
+          defaultOpen: true,
+          showDetails: true
+        });
+      }
+    }
+  }
+
+  renderProcessGroup(containerEl, message, options) {
+    const entries = options.entries || [];
     if (entries.length === 0) {
       return;
     }
 
-    const details = this.renderDetails(containerEl, message, "processed", {
-      cls: "codex-dock__event-group codex-dock__event-group--processed",
-      defaultOpen: false
+    const mode = options.mode || "processed";
+    const key = options.key || mode;
+    const details = this.renderDetails(containerEl, message, key, {
+      cls: [
+        "codex-dock__event-group",
+        "codex-dock__process-group",
+        `codex-dock__process-group--${mode}`,
+        options.animateCollapse ? "is-auto-collapsing" : ""
+      ].filter(Boolean).join(" "),
+      defaultOpen: Boolean(options.defaultOpen)
     });
     const summary = details.createEl("summary", {
-      cls: "codex-dock__event-group-summary",
-      text: this.translate("timeline.processed", { count: entries.length })
+      cls: "codex-dock__event-group-summary codex-dock__process-summary"
     });
+    summary.createSpan({
+      cls: "codex-dock__process-summary-label",
+      text: options.label || this.translate("timeline.processed", { count: entries.length })
+    });
+    this.renderChevron(summary);
 
     const body = details.createDiv({ cls: "codex-dock__event-group-body" });
-    for (const group of groupProcessedEntries(entries)) {
-      if (group.type === "eventGroup") {
-        const key = this.getTimelineGroupKey("processed", message.timeline, group.entries);
-        this.renderEventGroup(body, message, key, group.entries, getEventGroupLabel(group.entries, this.translate), false);
+    for (const item of buildProcessedIndex(entries)) {
+      this.renderProcessItem(body, message, item, {
+        showDetails: options.showDetails !== false
+      });
+    }
+    this.prepareAnimatedDetails(details, summary, body, message, key);
+    if (options.animateCollapse) {
+      this.scheduleProcessedCollapse(details, body, message);
+    }
+  }
+
+  scheduleProcessedCollapse(details, body, message) {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        if (!details.isConnected || !details.open) {
+          return;
+        }
+        this.toggleDetailsAnimated(details, body, message, "process");
+      });
+    });
+  }
+
+  renderProcessItem(containerEl, message, item, options = {}) {
+    if (item.type === "content") {
+      this.renderProcessedContent(containerEl, item.entry);
+      return;
+    }
+
+    if (item.type === "reasoning") {
+      if (options.showDetails === false) {
+        this.renderProcessTitleRow(containerEl, item.entry);
       } else {
-        this.renderTimelineEntry(body, group.entry);
+        this.renderReasoningProcessItem(containerEl, message, item, options);
+      }
+      return;
+    }
+
+    if (options.showDetails === false) {
+      this.renderProcessTitleRow(containerEl, item.entries[item.entries.length - 1]);
+      return;
+    }
+
+    this.renderProcessedEventItem(containerEl, message, item, options);
+  }
+
+  renderProcessedContent(containerEl, entry) {
+    const text = String(entry?.text || "").trim();
+    if (!text) {
+      return;
+    }
+    this.renderMarkdownContent(containerEl, text, { compact: true });
+  }
+
+  renderReasoningProcessItem(containerEl, message, item, options = {}) {
+    const entry = item.entry;
+    const text = String(entry?.detail || entry?.summary || "").trim();
+    if (!text) {
+      this.renderProcessTitleRow(containerEl, entry);
+      return;
+    }
+
+    const key = `processed-item:${item.firstIndex}:reasoning`;
+    const details = this.renderDetails(containerEl, message, key, {
+      cls: "codex-dock__processed-item codex-dock__processed-item--reasoning",
+      defaultOpen: Boolean(options.defaultItemOpen)
+    });
+    const summary = details.createEl("summary", { cls: "codex-dock__processed-item-summary" });
+    this.renderProcessIcon(summary, entry);
+    summary.createSpan({
+      cls: "codex-dock__processed-item-title",
+      text: this.getProcessedEntryTitle(entry)
+    });
+    this.renderChevron(summary);
+
+    const body = details.createDiv({ cls: "codex-dock__processed-item-body" });
+    body.createEl("pre", { cls: "codex-dock__processed-item-detail", text });
+    this.renderCopyButton(body, text, this.translate("view.copyEventText"));
+    this.prepareAnimatedDetails(details, summary, body, message, key);
+  }
+
+  renderProcessedEventItem(containerEl, message, item, options = {}) {
+    const entry = item.entries[item.entries.length - 1];
+    if (!entry || !this.shouldShowEvent(entry)) {
+      return;
+    }
+
+    const key = `processed-item:${item.firstIndex}:${item.kind}:${item.key}`;
+    const details = this.renderDetails(containerEl, message, key, {
+      cls: `codex-dock__processed-item codex-dock__processed-item--${item.kind}`,
+      defaultOpen: Boolean(options.defaultItemOpen)
+    });
+    const summary = details.createEl("summary", { cls: "codex-dock__processed-item-summary" });
+    this.renderProcessIcon(summary, entry);
+    summary.createSpan({
+      cls: "codex-dock__processed-item-title",
+      text: this.getProcessedEntryTitle(entry)
+    });
+    this.renderChevron(summary);
+
+    const body = details.createDiv({ cls: "codex-dock__processed-item-body" });
+    const detail = this.getProcessedItemDetail(item.entries);
+    if (detail) {
+      body.createEl("pre", { cls: "codex-dock__processed-item-detail", text: detail });
+      this.renderCopyButton(body, detail, this.translate("view.copyEventText"));
+    }
+    this.prepareAnimatedDetails(details, summary, body, message, key);
+  }
+
+  getProcessedEntryDetail(entry) {
+    if (!entry) {
+      return "";
+    }
+    if (entry.kind === "reasoning") {
+      return String(entry.detail || entry.summary || "").trim();
+    }
+    const body = this.getDebugActivity()
+      ? entry.detail || entry.summary || ""
+      : entry.summary || entry.detail || "";
+    return String(body || "").trim();
+  }
+
+  getProcessedItemDetail(entries) {
+    const parts = [];
+    for (const entry of entries) {
+      const detail = this.getProcessedEntryDetail(entry);
+      if (detail) {
+        parts.push(detail);
       }
     }
-    this.prepareAnimatedDetails(details, summary, body, message, "processed");
+    return parts.join("\n\n");
+  }
+
+  getProcessedEntryTitle(entry) {
+    const title = String(entry?.title || "").trim();
+    const summary = String(entry?.summary || "").trim();
+    return compactProcessedText(title || summary || this.translate("timeline.event"));
   }
 
   renderCopyButton(containerEl, text, label) {
@@ -12040,21 +12134,103 @@ class MessageTimelineRenderer {
     });
   }
 
-  renderEventGroup(containerEl, message, key, entries, label, open) {
-    const details = this.renderDetails(containerEl, message, key, {
-      cls: "codex-dock__event-group",
-      defaultOpen: open
-    });
-    const summary = details.createEl("summary", {
-      cls: "codex-dock__event-group-summary",
-      text: label
-    });
-
-    const body = details.createDiv({ cls: "codex-dock__event-group-body" });
-    for (const entry of entries) {
-      this.renderTimelineEntry(body, entry);
+  renderProcessTitleRow(containerEl, entry) {
+    if (!this.shouldShowEvent(entry)) {
+      return;
     }
-    this.prepareAnimatedDetails(details, summary, body, message, key);
+
+    const row = containerEl.createDiv({
+      cls: `codex-dock__event-title-row codex-dock__event-title-row--${entry.kind || "activity"}`
+    });
+    this.renderProcessIcon(row, entry);
+    row.createSpan({
+      cls: "codex-dock__event-title-text",
+      text: this.getProcessedEntryTitle(entry)
+    });
+  }
+
+  renderChevron(containerEl) {
+    const chevron = containerEl.createSpan({
+      cls: "codex-dock__event-chevron",
+      attr: { "aria-hidden": "true" }
+    });
+    if (typeof this.setIcon === "function") {
+      this.setIcon(chevron, "chevron-right");
+    } else {
+      chevron.setText(">");
+    }
+    return chevron;
+  }
+
+  renderProcessIcon(containerEl, entry) {
+    const iconName = this.getProcessEntryIcon(entry);
+    if (!iconName) {
+      return null;
+    }
+    const icon = containerEl.createSpan({
+      cls: "codex-dock__process-icon",
+      attr: { "aria-hidden": "true" }
+    });
+    if (typeof this.setIcon === "function") {
+      this.setIcon(icon, iconName);
+    } else {
+      icon.setText("•");
+    }
+    return icon;
+  }
+
+  getProcessEntryIcon(entry) {
+    if (!entry) {
+      return "";
+    }
+
+    const haystack = [
+      entry.kind,
+      entry.title,
+      entry.summary,
+      entry.detail
+    ].map((part) => String(part || "").toLowerCase()).join("\n");
+
+    if (entry.noticeType === "memory_referenced") {
+      return "book-open";
+    }
+    if (entry.noticeType === "memory_updated" || entry.noticeType === "profile_updated") {
+      return "square-pen";
+    }
+    if (entry.noticeType === "memory_search") {
+      return "search";
+    }
+    if (entry.toolType === "web_search") {
+      return "search";
+    }
+    if (entry.toolType === "command") {
+      return "terminal";
+    }
+    if (/local memory referenced|已引用本地记忆|referenced .*local historical|提示词中引用/.test(haystack)) {
+      return "book-open";
+    }
+    if (/memory updated|记忆已更新|profile updated|档案已更新|updated .*local historical|已为之后的聊天更新/.test(haystack)) {
+      return "square-pen";
+    }
+    if (/web search|网页搜索/.test(haystack)) {
+      return "search";
+    }
+    if (entry.kind === "tool" && (/^\s*(?:started |completed |failed )?\$/.test(String(entry.title || "").toLowerCase()) || /command_execution|命令/.test(haystack))) {
+      return "terminal";
+    }
+    if (entry.kind === "tool") {
+      return "wrench";
+    }
+    if (entry.kind === "notice") {
+      return "info";
+    }
+    if (entry.kind === "error") {
+      return "circle-alert";
+    }
+    if (entry.kind === "reasoning") {
+      return "brain";
+    }
+    return "wrench";
   }
 
   renderDetails(containerEl, message, key, options) {
@@ -12066,13 +12242,6 @@ class MessageTimelineRenderer {
       this.setStoredOpenState(message, key, details.open);
     });
     return details;
-  }
-
-  getTimelineGroupKey(prefix, timeline, entries) {
-    const firstEntry = entries[0];
-    const firstIndex = firstEntry ? timeline.indexOf(firstEntry) : -1;
-    const kind = firstEntry?.kind || "activity";
-    return `${prefix}:${firstIndex}:${kind}`;
   }
 
   getStoredOpenState(message, key, defaultOpen) {
@@ -12213,6 +12382,7 @@ class MessageTimelineRenderer {
 
   clearDetailsAnimation(details, body) {
     details.classList.remove("is-animating");
+    details.classList.remove("is-auto-collapsing");
     delete details.dataset.codexDockAnimating;
     body.style.maxHeight = "";
     body.style.overflow = "";
@@ -12308,8 +12478,140 @@ function entryToClipboardText(entry, debugActivity) {
 }
 
 module.exports = {
-  MessageTimelineRenderer
+  MessageTimelineRenderer,
+  _test: {
+    buildLiveTimelineSegments,
+    buildProcessedIndex,
+    getProcessedAggregationKey
+  }
 };
+
+function buildLiveTimelineSegments(timeline, debugActivity) {
+  const segments = [];
+  let processEntries = [];
+  let firstProcessIndex = -1;
+
+  const flushProcessEntries = () => {
+    if (processEntries.length === 0) {
+      return;
+    }
+    segments.push({
+      type: "process",
+      entries: processEntries,
+      firstIndex: firstProcessIndex
+    });
+    processEntries = [];
+    firstProcessIndex = -1;
+  };
+
+  for (let index = 0; index < timeline.length; index += 1) {
+    const entry = timeline[index];
+    if (entry.kind === "content") {
+      flushProcessEntries();
+      segments.push({ type: "content", entry, firstIndex: index });
+    } else if (shouldShowEvent(entry, debugActivity)) {
+      if (processEntries.length === 0) {
+        firstProcessIndex = index;
+      }
+      processEntries.push(entry);
+    }
+  }
+
+  flushProcessEntries();
+  return segments;
+}
+
+function buildProcessedIndex(entries) {
+  const items = [];
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    const kind = entry?.kind || "activity";
+    if (kind === "content") {
+      items.push({ type: "content", kind, entry, firstIndex: index });
+      continue;
+    }
+    if (kind === "reasoning") {
+      items.push({ type: "reasoning", kind, entry, firstIndex: index });
+      continue;
+    }
+
+    const key = getProcessedAggregationKey(entry);
+    const previous = items[items.length - 1];
+    if (
+      previous
+      && previous.type === "event"
+      && previous.kind === kind
+      && previous.key === key
+      && shouldAggregateProcessedEntries(previous.entries[previous.entries.length - 1], entry, key)
+    ) {
+      previous.entries.push(entry);
+      continue;
+    }
+
+    items.push({
+      type: "event",
+      kind,
+      key,
+      entries: [entry],
+      firstIndex: index
+    });
+  }
+
+  return items;
+}
+
+function getProcessedAggregationKey(entry) {
+  if (entry?.toolCallId) {
+    return `tool:${entry.toolCallId}`;
+  }
+
+  const title = stripToolState(String(entry?.title || ""));
+  const summaryHead = String(entry?.summary || "").split("|")[0] || "";
+  const detailHead = String(entry?.detail || "").split("\n")[0] || "";
+  const command = normalizeCommandLabel(summaryHead || detailHead || title);
+  return compactProcessedText(`${entry?.kind || "activity"}:${command || title}`);
+}
+
+function shouldAggregateProcessedEntries(previous, entry, key) {
+  if (!previous || !entry || !key) {
+    return false;
+  }
+  if (previous.toolCallId && entry.toolCallId && previous.toolCallId === entry.toolCallId) {
+    return true;
+  }
+  if (entry.kind !== "tool" || previous.kind !== "tool") {
+    return false;
+  }
+  if (!hasToolState(previous) || !hasToolState(entry)) {
+    return false;
+  }
+  return Boolean(normalizeCommandLabel(String(entry.summary || entry.detail || entry.title || "")));
+}
+
+function hasToolState(entry) {
+  return /\b(started|completed|failed)\b/i.test(String(entry?.title || ""))
+    || /(已开始|已完成|已失败)/u.test(String(entry?.title || ""));
+}
+
+function stripToolState(value) {
+  return value
+    .replace(/\s+(已开始|已完成|已失败)$/u, "")
+    .replace(/\s+(started|completed|failed)$/iu, "")
+    .trim();
+}
+
+function normalizeCommandLabel(value) {
+  return stripToolState(String(value || ""))
+    .replace(/^\$\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function compactProcessedText(value) {
+  const compact = String(value || "").replace(/\s+/g, " ").trim();
+  return compact.length > 180 ? `${compact.slice(0, 177)}...` : compact;
+}
 
 },
 "src/view/utils/clipboard.js": function(module, exports, __require) {
@@ -13174,8 +13476,9 @@ class AgentDockView extends ItemView {
     this.timelineRenderer = new MessageTimelineRenderer({
       getDebugActivity: () => this.plugin.settings.debugActivity,
       translate: (key, params) => this.translate(key, params),
-      renderMarkdownContent: (containerEl, text) => this.renderMarkdownContent(containerEl, text),
+      renderMarkdownContent: (containerEl, text, options) => this.renderMarkdownContent(containerEl, text, options),
       copyText: (text) => copyText(text),
+      setIcon: (containerEl, iconName) => setIcon(containerEl, iconName),
       prefersReducedMotion: () => this.prefersReducedMotion(),
       onDetailsToggleStart: (opening) => this.handleTimelineDetailsToggleStart(opening),
       onDetailsLayoutChanged: () => this.scrollMessagesToBottom()
@@ -14575,8 +14878,11 @@ class AgentDockView extends ItemView {
     return true;
   }
 
-  renderMarkdownContent(containerEl, text) {
-    const contentEl = containerEl.createDiv({ cls: "codex-dock__content markdown-rendered" });
+  renderMarkdownContent(containerEl, text, options = {}) {
+    const contentClass = options.compact
+      ? "codex-dock__processed-content markdown-rendered"
+      : "codex-dock__content markdown-rendered";
+    const contentEl = containerEl.createDiv({ cls: contentClass });
     const markdownEl = contentEl.createDiv({ cls: "codex-dock__content-body" });
     const sourcePath = this.app.workspace.getActiveFile()?.path || "";
     const renderText = normalizeLocalFileMarkdownLinks(text || "");

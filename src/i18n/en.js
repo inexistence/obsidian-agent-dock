@@ -237,6 +237,7 @@ module.exports = {
     "session.completedConversationTitle": "{title} has a finished task",
     "session.failedConversationTitle": "{title} has a failed task",
     "session.stoppedConversationTitle": "{title} has a stopped task",
+    "timeline.processing": "Processing {count} items",
     "timeline.processed": "Processed {count} items",
     "timeline.needsAttention": "Needs attention {count} items",
     "timeline.toolCalls": "Tool calls",

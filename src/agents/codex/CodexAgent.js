@@ -261,6 +261,7 @@ class CodexAgent {
       if (saved.length > 0) {
         onUpdate({
           kind: "notice",
+          noticeType: "memory_updated",
           title: t(settings, "codex.memoryUpdated.title"),
           summary: t(settings, "codex.memoryUpdated.summary", {
             count: saved.length,
@@ -270,10 +271,11 @@ class CodexAgent {
       }
     } catch (error) {
       console.warn("Agent Dock could not update memory:", error);
-      onUpdate({
-        kind: "notice",
-        title: t(settings, "codex.memorySkipped.title"),
-        summary: t(settings, "codex.memorySkipped.summary")
+        onUpdate({
+          kind: "notice",
+          noticeType: "memory_skipped",
+          title: t(settings, "codex.memorySkipped.title"),
+          summary: t(settings, "codex.memorySkipped.summary")
       });
     }
   }
@@ -284,6 +286,7 @@ class CodexAgent {
       if (result.observations.length > 0 || result.traits.length > 0) {
         onUpdate({
           kind: "notice",
+          noticeType: "profile_updated",
           title: t(settings, "codex.agentProfileUpdated.title"),
           summary: t(settings, "codex.agentProfileUpdated.summary", {
             count: result.observations.length
@@ -294,6 +297,7 @@ class CodexAgent {
       console.warn("Agent Dock could not update agent profile:", error);
       onUpdate({
         kind: "notice",
+        noticeType: "profile_skipped",
         title: t(settings, "codex.agentProfileSkipped.title"),
         summary: t(settings, "codex.agentProfileSkipped.summary")
       });

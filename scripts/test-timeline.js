@@ -3,6 +3,9 @@ const assert = require("assert");
 const {
   _test: timelineTest
 } = require("../src/view/timeline/timeline");
+const {
+  _test: timelineRendererTest
+} = require("../src/view/timeline/MessageTimelineRenderer");
 
 function createMessage(timeline = [], content = "") {
   return { timeline, content };
@@ -148,6 +151,55 @@ function reasoningEntries(message) {
   const sections = timelineTest.getCompletedTimelineSections(message.timeline, false);
   assert.strictEqual(sections.finalEntry.text, " world");
   assert.ok(sections.processedEntries.some((entry) => entry.kind === "content" && entry.text === "Hello"));
+}
+
+{
+  const segments = timelineRendererTest.buildLiveTimelineSegments([
+    { kind: "reasoning", title: "Thinking", detail: "plan" },
+    { kind: "content", text: "First" },
+    { kind: "tool", title: "$ node test 已开始", summary: "node test" },
+    { kind: "content", text: "Second" },
+    { kind: "notice", title: "Notice", summary: "saved" }
+  ], false);
+  assert.deepStrictEqual(
+    segments.map((segment) => segment.type),
+    ["process", "content", "process", "content", "process"],
+    "live rendering should preserve stream order around content entries"
+  );
+  assert.strictEqual(segments[0].firstIndex, 0);
+  assert.strictEqual(segments[2].firstIndex, 2);
+  assert.strictEqual(segments[4].firstIndex, 4);
+}
+
+{
+  const processed = timelineRendererTest.buildProcessedIndex([
+    {
+      kind: "tool",
+      title: "$ node scripts/test-timeline.js 已开始",
+      summary: "node scripts/test-timeline.js"
+    },
+    {
+      kind: "tool",
+      title: "$ node scripts/test-timeline.js 已完成",
+      summary: "node scripts/test-timeline.js | 退出码：0"
+    },
+    { kind: "notice", title: "提示", summary: "已包含相关记忆" },
+    { kind: "content", text: "Earlier answer" }
+  ]);
+  assert.strictEqual(processed.length, 3);
+  assert.strictEqual(processed[0].type, "event");
+  assert.strictEqual(processed[0].kind, "tool");
+  assert.strictEqual(processed[0].entries.length, 2);
+  assert.strictEqual(processed[1].kind, "notice");
+  assert.strictEqual(processed[2].type, "content");
+}
+
+{
+  const processed = timelineRendererTest.buildProcessedIndex([
+    { kind: "notice", title: "Notice", summary: "same" },
+    { kind: "notice", title: "Notice", summary: "same" }
+  ]);
+  assert.strictEqual(processed.length, 2, "similar notices should not be merged as a tool lifecycle");
 }
 
 console.log("timeline tests passed");

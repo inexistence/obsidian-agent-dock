@@ -116,8 +116,9 @@ class AgentDockView extends ItemView {
     this.timelineRenderer = new MessageTimelineRenderer({
       getDebugActivity: () => this.plugin.settings.debugActivity,
       translate: (key, params) => this.translate(key, params),
-      renderMarkdownContent: (containerEl, text) => this.renderMarkdownContent(containerEl, text),
+      renderMarkdownContent: (containerEl, text, options) => this.renderMarkdownContent(containerEl, text, options),
       copyText: (text) => copyText(text),
+      setIcon: (containerEl, iconName) => setIcon(containerEl, iconName),
       prefersReducedMotion: () => this.prefersReducedMotion(),
       onDetailsToggleStart: (opening) => this.handleTimelineDetailsToggleStart(opening),
       onDetailsLayoutChanged: () => this.scrollMessagesToBottom()
@@ -1517,8 +1518,11 @@ class AgentDockView extends ItemView {
     return true;
   }
 
-  renderMarkdownContent(containerEl, text) {
-    const contentEl = containerEl.createDiv({ cls: "codex-dock__content markdown-rendered" });
+  renderMarkdownContent(containerEl, text, options = {}) {
+    const contentClass = options.compact
+      ? "codex-dock__processed-content markdown-rendered"
+      : "codex-dock__content markdown-rendered";
+    const contentEl = containerEl.createDiv({ cls: contentClass });
     const markdownEl = contentEl.createDiv({ cls: "codex-dock__content-body" });
     const sourcePath = this.app.workspace.getActiveFile()?.path || "";
     const renderText = normalizeLocalFileMarkdownLinks(text || "");

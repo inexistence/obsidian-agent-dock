@@ -46,6 +46,7 @@ function codexJsonEventToUpdates(event, translate = defaultTranslate) {
   if (item.type === "command_execution") {
     return [{
       kind: "tool",
+      toolType: "command",
       title: formatCommandTitle(type, item, translate),
       summary: formatCommandSummary(item, translate),
       detail: formatCommandExecution(item, translate)
@@ -56,6 +57,7 @@ function codexJsonEventToUpdates(event, translate = defaultTranslate) {
     const summary = extractText(item) || summarizeItem(item);
     return [{
       kind: "tool",
+      toolType: "generic",
       title: formatEventTitle(type, formatToolTitle(item), translate),
       summary: compactOneLine(summary),
       detail: summary
@@ -66,6 +68,7 @@ function codexJsonEventToUpdates(event, translate = defaultTranslate) {
     const summary = extractText(item) || summarizeItem(item);
     return [{
       kind: "tool",
+      toolType: "web_search",
       title: formatEventTitle(type, translate("codex.webSearch"), translate),
       summary: compactOneLine(summary),
       detail: summary

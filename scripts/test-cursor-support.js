@@ -78,6 +78,7 @@ const {
     rawOutput: "done"
   });
   assert.strictEqual(started[0].toolCallId, "tc-1");
+  assert.strictEqual(started[0].toolType, "command");
   assert.strictEqual(updated[0].toolCallId, "tc-1");
   assert.strictEqual(updated[0].kind, "tool");
 }

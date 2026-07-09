@@ -7,6 +7,7 @@ function emitMemoryNotice(onUpdate, memories, translate, keyPrefix = "cursor") {
 
   onUpdate({
     kind: "notice",
+    noticeType: "memory_referenced",
     title: translate(`${keyPrefix}.memoryReferenced.title`),
     summary: formatMemoryNoticeSummary(memories, translate, keyPrefix),
     detail: memories.map(formatMemoryLine).join("\n")

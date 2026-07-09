@@ -1,8 +1,5 @@
 const {
   getCompletedTimelineSections,
-  getEventGroupLabel,
-  groupLiveTimeline,
-  groupProcessedEntries,
   shouldShowEvent
 } = require("./timeline");
 
@@ -12,6 +9,7 @@ class MessageTimelineRenderer {
     this.translate = options.translate;
     this.renderMarkdownContent = options.renderMarkdownContent;
     this.copyText = options.copyText;
+    this.setIcon = options.setIcon;
     this.prefersReducedMotion = options.prefersReducedMotion;
     this.onDetailsToggleStart = options.onDetailsToggleStart;
     this.onDetailsLayoutChanged = options.onDetailsLayoutChanged;
@@ -31,17 +29,7 @@ class MessageTimelineRenderer {
       return;
     }
 
-    for (const group of groupLiveTimeline(message.timeline, this.getDebugActivity(), this.translate)) {
-      if (group.type === "eventGroup") {
-        const key = this.getTimelineGroupKey("live", message.timeline, group.entries);
-        const openLiveGroup = group.entries.some((entry) => (
-          entry.kind === "reasoning" && Boolean(entry.detail || entry.summary)
-        ));
-        this.renderEventGroup(containerEl, message, key, group.entries, group.label, openLiveGroup);
-      } else {
-        this.renderTimelineEntry(containerEl, group.entry);
-      }
-    }
+    this.renderLiveTimeline(containerEl, message);
   }
 
   renderCompletedTimeline(containerEl, message) {
@@ -50,9 +38,25 @@ class MessageTimelineRenderer {
       timeline,
       this.getDebugActivity()
     );
+    const animateProcessedCollapse = Boolean(
+      message._codexDockTimelineWasLive
+      && !message._codexDockProcessedCollapseAnimated
+      && !this.shouldReduceMotion()
+    );
+    if (animateProcessedCollapse) {
+      message._codexDockProcessedCollapseAnimated = true;
+    }
 
     if (processedEntries.length > 0) {
-      this.renderProcessedGroup(containerEl, message, processedEntries);
+      this.renderProcessGroup(containerEl, message, {
+        key: "process",
+        label: this.translate("timeline.processed", { count: processedEntries.length }),
+        entries: processedEntries,
+        mode: "processed",
+        defaultOpen: Boolean(animateProcessedCollapse),
+        animateCollapse: animateProcessedCollapse,
+        showDetails: true
+      });
     }
 
     if (finalEntry) {
@@ -60,30 +64,187 @@ class MessageTimelineRenderer {
     }
   }
 
-  renderProcessedGroup(containerEl, message, entries) {
+  renderLiveTimeline(containerEl, message) {
+    for (const segment of buildLiveTimelineSegments(message.timeline, this.getDebugActivity())) {
+      if (segment.type === "content") {
+        this.renderTimelineEntry(containerEl, segment.entry);
+      } else {
+        message._codexDockTimelineWasLive = true;
+        this.renderProcessGroup(containerEl, message, {
+          key: `live-process:${segment.firstIndex}`,
+          label: this.translate("timeline.processing", { count: segment.entries.length }),
+          entries: segment.entries,
+          mode: "live",
+          defaultOpen: true,
+          showDetails: true
+        });
+      }
+    }
+  }
+
+  renderProcessGroup(containerEl, message, options) {
+    const entries = options.entries || [];
     if (entries.length === 0) {
       return;
     }
 
-    const details = this.renderDetails(containerEl, message, "processed", {
-      cls: "codex-dock__event-group codex-dock__event-group--processed",
-      defaultOpen: false
+    const mode = options.mode || "processed";
+    const key = options.key || mode;
+    const details = this.renderDetails(containerEl, message, key, {
+      cls: [
+        "codex-dock__event-group",
+        "codex-dock__process-group",
+        `codex-dock__process-group--${mode}`,
+        options.animateCollapse ? "is-auto-collapsing" : ""
+      ].filter(Boolean).join(" "),
+      defaultOpen: Boolean(options.defaultOpen)
     });
     const summary = details.createEl("summary", {
-      cls: "codex-dock__event-group-summary",
-      text: this.translate("timeline.processed", { count: entries.length })
+      cls: "codex-dock__event-group-summary codex-dock__process-summary"
     });
+    summary.createSpan({
+      cls: "codex-dock__process-summary-label",
+      text: options.label || this.translate("timeline.processed", { count: entries.length })
+    });
+    this.renderChevron(summary);
 
     const body = details.createDiv({ cls: "codex-dock__event-group-body" });
-    for (const group of groupProcessedEntries(entries)) {
-      if (group.type === "eventGroup") {
-        const key = this.getTimelineGroupKey("processed", message.timeline, group.entries);
-        this.renderEventGroup(body, message, key, group.entries, getEventGroupLabel(group.entries, this.translate), false);
+    for (const item of buildProcessedIndex(entries)) {
+      this.renderProcessItem(body, message, item, {
+        showDetails: options.showDetails !== false
+      });
+    }
+    this.prepareAnimatedDetails(details, summary, body, message, key);
+    if (options.animateCollapse) {
+      this.scheduleProcessedCollapse(details, body, message);
+    }
+  }
+
+  scheduleProcessedCollapse(details, body, message) {
+    window.requestAnimationFrame(() => {
+      window.requestAnimationFrame(() => {
+        if (!details.isConnected || !details.open) {
+          return;
+        }
+        this.toggleDetailsAnimated(details, body, message, "process");
+      });
+    });
+  }
+
+  renderProcessItem(containerEl, message, item, options = {}) {
+    if (item.type === "content") {
+      this.renderProcessedContent(containerEl, item.entry);
+      return;
+    }
+
+    if (item.type === "reasoning") {
+      if (options.showDetails === false) {
+        this.renderProcessTitleRow(containerEl, item.entry);
       } else {
-        this.renderTimelineEntry(body, group.entry);
+        this.renderReasoningProcessItem(containerEl, message, item, options);
+      }
+      return;
+    }
+
+    if (options.showDetails === false) {
+      this.renderProcessTitleRow(containerEl, item.entries[item.entries.length - 1]);
+      return;
+    }
+
+    this.renderProcessedEventItem(containerEl, message, item, options);
+  }
+
+  renderProcessedContent(containerEl, entry) {
+    const text = String(entry?.text || "").trim();
+    if (!text) {
+      return;
+    }
+    this.renderMarkdownContent(containerEl, text, { compact: true });
+  }
+
+  renderReasoningProcessItem(containerEl, message, item, options = {}) {
+    const entry = item.entry;
+    const text = String(entry?.detail || entry?.summary || "").trim();
+    if (!text) {
+      this.renderProcessTitleRow(containerEl, entry);
+      return;
+    }
+
+    const key = `processed-item:${item.firstIndex}:reasoning`;
+    const details = this.renderDetails(containerEl, message, key, {
+      cls: "codex-dock__processed-item codex-dock__processed-item--reasoning",
+      defaultOpen: Boolean(options.defaultItemOpen)
+    });
+    const summary = details.createEl("summary", { cls: "codex-dock__processed-item-summary" });
+    this.renderProcessIcon(summary, entry);
+    summary.createSpan({
+      cls: "codex-dock__processed-item-title",
+      text: this.getProcessedEntryTitle(entry)
+    });
+    this.renderChevron(summary);
+
+    const body = details.createDiv({ cls: "codex-dock__processed-item-body" });
+    body.createEl("pre", { cls: "codex-dock__processed-item-detail", text });
+    this.renderCopyButton(body, text, this.translate("view.copyEventText"));
+    this.prepareAnimatedDetails(details, summary, body, message, key);
+  }
+
+  renderProcessedEventItem(containerEl, message, item, options = {}) {
+    const entry = item.entries[item.entries.length - 1];
+    if (!entry || !this.shouldShowEvent(entry)) {
+      return;
+    }
+
+    const key = `processed-item:${item.firstIndex}:${item.kind}:${item.key}`;
+    const details = this.renderDetails(containerEl, message, key, {
+      cls: `codex-dock__processed-item codex-dock__processed-item--${item.kind}`,
+      defaultOpen: Boolean(options.defaultItemOpen)
+    });
+    const summary = details.createEl("summary", { cls: "codex-dock__processed-item-summary" });
+    this.renderProcessIcon(summary, entry);
+    summary.createSpan({
+      cls: "codex-dock__processed-item-title",
+      text: this.getProcessedEntryTitle(entry)
+    });
+    this.renderChevron(summary);
+
+    const body = details.createDiv({ cls: "codex-dock__processed-item-body" });
+    const detail = this.getProcessedItemDetail(item.entries);
+    if (detail) {
+      body.createEl("pre", { cls: "codex-dock__processed-item-detail", text: detail });
+      this.renderCopyButton(body, detail, this.translate("view.copyEventText"));
+    }
+    this.prepareAnimatedDetails(details, summary, body, message, key);
+  }
+
+  getProcessedEntryDetail(entry) {
+    if (!entry) {
+      return "";
+    }
+    if (entry.kind === "reasoning") {
+      return String(entry.detail || entry.summary || "").trim();
+    }
+    const body = this.getDebugActivity()
+      ? entry.detail || entry.summary || ""
+      : entry.summary || entry.detail || "";
+    return String(body || "").trim();
+  }
+
+  getProcessedItemDetail(entries) {
+    const parts = [];
+    for (const entry of entries) {
+      const detail = this.getProcessedEntryDetail(entry);
+      if (detail) {
+        parts.push(detail);
       }
     }
-    this.prepareAnimatedDetails(details, summary, body, message, "processed");
+    return parts.join("\n\n");
+  }
+
+  getProcessedEntryTitle(entry) {
+    const title = String(entry?.title || "").trim();
+    const summary = String(entry?.summary || "").trim();
+    return compactProcessedText(title || summary || this.translate("timeline.event"));
   }
 
   renderCopyButton(containerEl, text, label) {
@@ -109,21 +270,103 @@ class MessageTimelineRenderer {
     });
   }
 
-  renderEventGroup(containerEl, message, key, entries, label, open) {
-    const details = this.renderDetails(containerEl, message, key, {
-      cls: "codex-dock__event-group",
-      defaultOpen: open
-    });
-    const summary = details.createEl("summary", {
-      cls: "codex-dock__event-group-summary",
-      text: label
-    });
-
-    const body = details.createDiv({ cls: "codex-dock__event-group-body" });
-    for (const entry of entries) {
-      this.renderTimelineEntry(body, entry);
+  renderProcessTitleRow(containerEl, entry) {
+    if (!this.shouldShowEvent(entry)) {
+      return;
     }
-    this.prepareAnimatedDetails(details, summary, body, message, key);
+
+    const row = containerEl.createDiv({
+      cls: `codex-dock__event-title-row codex-dock__event-title-row--${entry.kind || "activity"}`
+    });
+    this.renderProcessIcon(row, entry);
+    row.createSpan({
+      cls: "codex-dock__event-title-text",
+      text: this.getProcessedEntryTitle(entry)
+    });
+  }
+
+  renderChevron(containerEl) {
+    const chevron = containerEl.createSpan({
+      cls: "codex-dock__event-chevron",
+      attr: { "aria-hidden": "true" }
+    });
+    if (typeof this.setIcon === "function") {
+      this.setIcon(chevron, "chevron-right");
+    } else {
+      chevron.setText(">");
+    }
+    return chevron;
+  }
+
+  renderProcessIcon(containerEl, entry) {
+    const iconName = this.getProcessEntryIcon(entry);
+    if (!iconName) {
+      return null;
+    }
+    const icon = containerEl.createSpan({
+      cls: "codex-dock__process-icon",
+      attr: { "aria-hidden": "true" }
+    });
+    if (typeof this.setIcon === "function") {
+      this.setIcon(icon, iconName);
+    } else {
+      icon.setText("•");
+    }
+    return icon;
+  }
+
+  getProcessEntryIcon(entry) {
+    if (!entry) {
+      return "";
+    }
+
+    const haystack = [
+      entry.kind,
+      entry.title,
+      entry.summary,
+      entry.detail
+    ].map((part) => String(part || "").toLowerCase()).join("\n");
+
+    if (entry.noticeType === "memory_referenced") {
+      return "book-open";
+    }
+    if (entry.noticeType === "memory_updated" || entry.noticeType === "profile_updated") {
+      return "square-pen";
+    }
+    if (entry.noticeType === "memory_search") {
+      return "search";
+    }
+    if (entry.toolType === "web_search") {
+      return "search";
+    }
+    if (entry.toolType === "command") {
+      return "terminal";
+    }
+    if (/local memory referenced|已引用本地记忆|referenced .*local historical|提示词中引用/.test(haystack)) {
+      return "book-open";
+    }
+    if (/memory updated|记忆已更新|profile updated|档案已更新|updated .*local historical|已为之后的聊天更新/.test(haystack)) {
+      return "square-pen";
+    }
+    if (/web search|网页搜索/.test(haystack)) {
+      return "search";
+    }
+    if (entry.kind === "tool" && (/^\s*(?:started |completed |failed )?\$/.test(String(entry.title || "").toLowerCase()) || /command_execution|命令/.test(haystack))) {
+      return "terminal";
+    }
+    if (entry.kind === "tool") {
+      return "wrench";
+    }
+    if (entry.kind === "notice") {
+      return "info";
+    }
+    if (entry.kind === "error") {
+      return "circle-alert";
+    }
+    if (entry.kind === "reasoning") {
+      return "brain";
+    }
+    return "wrench";
   }
 
   renderDetails(containerEl, message, key, options) {
@@ -135,13 +378,6 @@ class MessageTimelineRenderer {
       this.setStoredOpenState(message, key, details.open);
     });
     return details;
-  }
-
-  getTimelineGroupKey(prefix, timeline, entries) {
-    const firstEntry = entries[0];
-    const firstIndex = firstEntry ? timeline.indexOf(firstEntry) : -1;
-    const kind = firstEntry?.kind || "activity";
-    return `${prefix}:${firstIndex}:${kind}`;
   }
 
   getStoredOpenState(message, key, defaultOpen) {
@@ -282,6 +518,7 @@ class MessageTimelineRenderer {
 
   clearDetailsAnimation(details, body) {
     details.classList.remove("is-animating");
+    details.classList.remove("is-auto-collapsing");
     delete details.dataset.codexDockAnimating;
     body.style.maxHeight = "";
     body.style.overflow = "";
@@ -377,5 +614,137 @@ function entryToClipboardText(entry, debugActivity) {
 }
 
 module.exports = {
-  MessageTimelineRenderer
+  MessageTimelineRenderer,
+  _test: {
+    buildLiveTimelineSegments,
+    buildProcessedIndex,
+    getProcessedAggregationKey
+  }
 };
+
+function buildLiveTimelineSegments(timeline, debugActivity) {
+  const segments = [];
+  let processEntries = [];
+  let firstProcessIndex = -1;
+
+  const flushProcessEntries = () => {
+    if (processEntries.length === 0) {
+      return;
+    }
+    segments.push({
+      type: "process",
+      entries: processEntries,
+      firstIndex: firstProcessIndex
+    });
+    processEntries = [];
+    firstProcessIndex = -1;
+  };
+
+  for (let index = 0; index < timeline.length; index += 1) {
+    const entry = timeline[index];
+    if (entry.kind === "content") {
+      flushProcessEntries();
+      segments.push({ type: "content", entry, firstIndex: index });
+    } else if (shouldShowEvent(entry, debugActivity)) {
+      if (processEntries.length === 0) {
+        firstProcessIndex = index;
+      }
+      processEntries.push(entry);
+    }
+  }
+
+  flushProcessEntries();
+  return segments;
+}
+
+function buildProcessedIndex(entries) {
+  const items = [];
+
+  for (let index = 0; index < entries.length; index += 1) {
+    const entry = entries[index];
+    const kind = entry?.kind || "activity";
+    if (kind === "content") {
+      items.push({ type: "content", kind, entry, firstIndex: index });
+      continue;
+    }
+    if (kind === "reasoning") {
+      items.push({ type: "reasoning", kind, entry, firstIndex: index });
+      continue;
+    }
+
+    const key = getProcessedAggregationKey(entry);
+    const previous = items[items.length - 1];
+    if (
+      previous
+      && previous.type === "event"
+      && previous.kind === kind
+      && previous.key === key
+      && shouldAggregateProcessedEntries(previous.entries[previous.entries.length - 1], entry, key)
+    ) {
+      previous.entries.push(entry);
+      continue;
+    }
+
+    items.push({
+      type: "event",
+      kind,
+      key,
+      entries: [entry],
+      firstIndex: index
+    });
+  }
+
+  return items;
+}
+
+function getProcessedAggregationKey(entry) {
+  if (entry?.toolCallId) {
+    return `tool:${entry.toolCallId}`;
+  }
+
+  const title = stripToolState(String(entry?.title || ""));
+  const summaryHead = String(entry?.summary || "").split("|")[0] || "";
+  const detailHead = String(entry?.detail || "").split("\n")[0] || "";
+  const command = normalizeCommandLabel(summaryHead || detailHead || title);
+  return compactProcessedText(`${entry?.kind || "activity"}:${command || title}`);
+}
+
+function shouldAggregateProcessedEntries(previous, entry, key) {
+  if (!previous || !entry || !key) {
+    return false;
+  }
+  if (previous.toolCallId && entry.toolCallId && previous.toolCallId === entry.toolCallId) {
+    return true;
+  }
+  if (entry.kind !== "tool" || previous.kind !== "tool") {
+    return false;
+  }
+  if (!hasToolState(previous) || !hasToolState(entry)) {
+    return false;
+  }
+  return Boolean(normalizeCommandLabel(String(entry.summary || entry.detail || entry.title || "")));
+}
+
+function hasToolState(entry) {
+  return /\b(started|completed|failed)\b/i.test(String(entry?.title || ""))
+    || /(已开始|已完成|已失败)/u.test(String(entry?.title || ""));
+}
+
+function stripToolState(value) {
+  return value
+    .replace(/\s+(已开始|已完成|已失败)$/u, "")
+    .replace(/\s+(started|completed|failed)$/iu, "")
+    .trim();
+}
+
+function normalizeCommandLabel(value) {
+  return stripToolState(String(value || ""))
+    .replace(/^\$\s*/, "")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function compactProcessedText(value) {
+  const compact = String(value || "").replace(/\s+/g, " ").trim();
+  return compact.length > 180 ? `${compact.slice(0, 177)}...` : compact;
+}

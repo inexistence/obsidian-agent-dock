@@ -133,9 +133,9 @@ async function testAssistantTimelinePersistsAcrossSaveLoad() {
         createdAt: 1500,
         timeline: [
           { kind: "reasoning", title: "Thinking", detail: "plan", transient: true },
-          { kind: "tool", title: "Command", summary: "node test | exit 0", detail: "full output", toolCallId: "tool-1" },
+          { kind: "tool", title: "Command", summary: "node test | exit 0", detail: "full output", toolCallId: "tool-1", toolType: "command" },
           { kind: "content", text: "intermediate" },
-          { kind: "notice", title: "Notice", summary: "context compressed" },
+          { kind: "notice", title: "Notice", summary: "context compressed", noticeType: "memory_referenced" },
           { kind: "activity", title: "Raw", detail: "debug-only provider output" },
           { kind: "content", text: "final answer" }
         ]
@@ -159,6 +159,8 @@ async function testAssistantTimelinePersistsAcrossSaveLoad() {
     ["reasoning", "tool", "content", "notice", "activity", "content"]
   );
   assert.strictEqual(restoredMessage.timeline[1].detail, "full output");
+  assert.strictEqual(restoredMessage.timeline[1].toolType, "command");
+  assert.strictEqual(restoredMessage.timeline[3].noticeType, "memory_referenced");
   assert.strictEqual(restoredMessage.timeline[4].detail, "debug-only provider output");
   assert.strictEqual(restoredMessage.timeline[5].text, "final answer");
 }

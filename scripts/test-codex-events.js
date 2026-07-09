@@ -25,6 +25,7 @@ const translate = (key, params = {}) => {
   }, translate);
 
   assert.equal(update.kind, "tool");
+  assert.equal(update.toolType, "command");
   assert(update.title.includes("已开始"), "started command should keep started title");
   assert(!update.summary.includes("{code}"), "null exit code should not leak a placeholder");
   assert(!update.summary.includes("退出码"), "started command should omit missing exit code");
@@ -41,6 +42,20 @@ const translate = (key, params = {}) => {
   }, translate);
 
   assert.equal(update.kind, "tool");
+  assert.equal(update.toolType, "command");
   assert(update.title.includes("已完成"), "completed command should keep completed title");
   assert(update.summary.includes("退出码：0"), "completed command should show exit code");
+}
+
+{
+  const [update] = codexJsonEventToUpdates({
+    type: "item.completed",
+    item: {
+      type: "web_search",
+      query: "Obsidian plugin"
+    }
+  }, translate);
+
+  assert.equal(update.kind, "tool");
+  assert.equal(update.toolType, "web_search");
 }

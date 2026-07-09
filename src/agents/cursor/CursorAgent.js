@@ -499,6 +499,7 @@ class CursorAgent {
       if (saved.length > 0) {
         onUpdate({
           kind: "notice",
+          noticeType: "memory_updated",
           title: t(settings, "cursor.memoryUpdated.title"),
           summary: t(settings, "cursor.memoryUpdated.summary", {
             count: saved.length,
@@ -510,6 +511,7 @@ class CursorAgent {
       console.warn("Agent Dock could not update memory:", error);
       onUpdate({
         kind: "notice",
+        noticeType: "memory_skipped",
         title: t(settings, "cursor.memorySkipped.title"),
         summary: t(settings, "cursor.memorySkipped.summary")
       });
@@ -522,6 +524,7 @@ class CursorAgent {
       if (result.observations.length > 0 || result.traits.length > 0) {
         onUpdate({
           kind: "notice",
+          noticeType: "profile_updated",
           title: t(settings, "cursor.agentProfileUpdated.title"),
           summary: t(settings, "cursor.agentProfileUpdated.summary", {
             count: result.observations.length
@@ -532,6 +535,7 @@ class CursorAgent {
       console.warn("Agent Dock could not update agent profile:", error);
       onUpdate({
         kind: "notice",
+        noticeType: "profile_skipped",
         title: t(settings, "cursor.agentProfileSkipped.title"),
         summary: t(settings, "cursor.agentProfileSkipped.summary")
       });
