@@ -263,6 +263,11 @@ content F
   or queue stale states. Failure and stop states always own final completion
   feedback; successful turns may briefly hold a meaningful live status before
   showing `完成` / `值得庆祝`.
+- Use `src/vendor/anime.umd.min.js` through `EmotiveFeedbackController` when a
+  status effect needs independently timed particles, staggered child elements,
+  one-shot celebration/error feedback, or cleanup tied to rendered DOM nodes.
+  Keep simple steady tone loops in CSS when all animated parts can move together
+  declaratively.
 - Avoid noisy activity such as raw stderr in normal mode.
 - Use compact controls. This plugin is an operational sidebar, not a landing page.
 - Keep text from overlapping controls at narrow sidebar widths.
