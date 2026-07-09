@@ -1007,8 +1007,14 @@ class AgentDockView extends ItemView {
   }
 
   handleTurnFinished(session, result = {}) {
+    const message = findLastAssistantMessage(session);
+    if (result.final) {
+      this.clearTurnStatusFinalHold(message);
+    }
     if (session.id === this.activeSessionId) {
-      const message = findLastAssistantMessage(session);
+      if (!result.final && result.holdFinalStatus) {
+        this.holdTurnStatusUntilFinalFeedback(message);
+      }
       if (!result.final && message?.isComplete) {
         return;
       }
@@ -1045,6 +1051,28 @@ class AgentDockView extends ItemView {
     new Notice(this.translate(noticeKey, {
       title: session.title || this.translate("session.fallbackTitle")
     }));
+  }
+
+  holdTurnStatusUntilFinalFeedback(message) {
+    if (!message || message.turnVisualFinalDelayTimer || message.emotiveFeedback?.kind) {
+      return;
+    }
+
+    message.turnVisualAwaitingFinalFeedback = true;
+    message.turnVisualFinalHoldStatus = {
+      kind: "thinking",
+      label: message.loadingToneLabel || this.translate("turnStatus.thinking"),
+      toneKind: message.loadingToneKind || "",
+      play: false
+    };
+  }
+
+  clearTurnStatusFinalHold(message) {
+    if (!message) {
+      return;
+    }
+    message.turnVisualAwaitingFinalFeedback = false;
+    message.turnVisualFinalHoldStatus = null;
   }
 
   deferTurnFeedbackUntilLiveStatusSettles(session, message, status) {

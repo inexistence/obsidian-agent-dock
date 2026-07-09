@@ -94,6 +94,7 @@ async function runChatTurn({
       assistantMessage.content = translate("view.agentFinishedEmpty", { agent: agentLabel });
     }
     finalizeAssistantMessage(assistantMessage);
+    onTurnFinished(session, { final: false, status: turnStatus, holdFinalStatus: true });
     await tryUpdateWorkingAffect(updateWorkingAffect, {
       sessionId: session.id,
       prompt,
@@ -121,6 +122,7 @@ async function runChatTurn({
       content: errorText,
       replaceContent: true
     });
+    onTurnFinished(session, { final: false, status: turnStatus, holdFinalStatus: true });
     if (!wasStopped) {
       await tryUpdateWorkingAffect(updateWorkingAffect, {
         sessionId: session.id,

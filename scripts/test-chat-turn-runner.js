@@ -214,6 +214,44 @@ async function testWorkingAffectReceivesTurnContext() {
   assert.strictEqual(contexts[0].assistantMessage, assistantMessage);
 }
 
+async function testFinalStatusHoldIsEmittedBeforeAffectUpdate() {
+  const session = {
+    id: "session-hold",
+    messages: [],
+    currentRun: null
+  };
+  const calls = [];
+
+  await runChatTurn({
+    session,
+    prompt: "hello",
+    agentLabel: "Codex",
+    agentId: "codex",
+    runAgent: async (_prompt, onUpdate) => {
+      onUpdate({ kind: "content", text: "done" });
+    },
+    translate,
+    touchSession: () => {},
+    onTurnStarted: () => {},
+    onTurnUpdate: () => {},
+    onTurnFinished: (_session, result) => {
+      if (result.holdFinalStatus) {
+        calls.push("hold");
+      } else if (result.final) {
+        calls.push("final");
+      }
+    },
+    onComposerChanged: () => {},
+    updateWorkingAffect: async () => {
+      calls.push("affect");
+    },
+    persistChatSessions: async () => {},
+    notify: () => {}
+  });
+
+  assert.deepStrictEqual(calls, ["hold", "affect", "final"]);
+}
+
 async function testStoppedTurnSettlesAffectDisplayWithoutUpdatingWorkingAffect() {
   const session = {
     id: "session-f",
@@ -277,6 +315,7 @@ testAffectFailureDoesNotFailSuccessfulTurn()
   .then(() => testBeforeAgentRunCanInsertMessageBeforeAssistant())
   .then(() => testBeforeAgentRunFailureClearsCurrentRun())
   .then(() => testWorkingAffectReceivesTurnContext())
+  .then(() => testFinalStatusHoldIsEmittedBeforeAffectUpdate())
   .then(() => testStoppedTurnSettlesAffectDisplayWithoutUpdatingWorkingAffect())
   .then(() => {
     console.log("ChatTurnRunner tests passed.");
