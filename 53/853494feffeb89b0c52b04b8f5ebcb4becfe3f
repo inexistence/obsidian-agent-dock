@@ -1,0 +1,47 @@
+main.js
+  s_3f41a896bc4907::t_26c82758ce8ab8 2977-2978,2981-2990,2993,2997-3002,3040-3060
+  s_468ab4f1e0c2ad::t_41fc19727af0f8 2958-2967,2969-2976,2979-2980,2991-2992,2994-2996,3003-3012,3015-3039,3061-3105,3110,3128-3136,3139-3153,3155,3157-3158,3585,3587-3588,3597-3599,3601-3604,3619-3629,3632,3640-3644
+  s_468ab4f1e0c2ad::t_3c5508b378aaa8 2968,3013-3014,3589,3594,3600
+  s_3f41a896bc4907::t_8c97fbc5666311 2957,3630
+src/promptBudget.js
+  s_468ab4f1e0c2ad::t_1573e3580d54af 10,55-56
+  s_468ab4f1e0c2ad::t_d7bd7a7fbcebea 1-9,11-18,21-22,33-34,36-38,45-54,57-83,105-145
+  s_3f41a896bc4907::t_abf627b0ab36a0 84-104
+  s_3f41a896bc4907::t_61b61c62b60f21 19-20,23-32,35,39-44
+scripts/test-prompt-budget.js
+  s_468ab4f1e0c2ad::t_3e0816a3f06401 2-12
+  s_468ab4f1e0c2ad::t_1a64b199f44c70 1,13-17,19-44,75-167,169-178
+  s_3f41a896bc4907::t_7bb6ec50f811bf 18,45-74,168
+src/prompt.js
+  s_468ab4f1e0c2ad::t_036dbdf9fd8fc8 4,22-24,27-28,30,33-47,49,51-52,479,481-482,491-493,495-498,513-516,519-520,522-523,526,534-538
+  s_468ab4f1e0c2ad::t_03f4207367291c 25-26,29,517-518,521
+  s_468ab4f1e0c2ad::t_432f3e637b560c 483,488,494
+  s_468ab4f1e0c2ad::t_91c23be628bede 524
+docs/architecture.md
+  s_468ab4f1e0c2ad::t_2b56d11fd27b6a 174-182
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "53853494feffeb89b0c52b04b8f5ebcb4becfe3f",
+  "prompts": {},
+  "logical_commit_id": "53853494feffeb89b0c52b04b8f5ebcb4becfe3f",
+  "sessions": {
+    "s_3f41a896bc4907": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f46bb-be29-7610-b704-c53e6a6477da",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    },
+    "s_468ab4f1e0c2ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f46af-4ed4-7e23-a9f4-81809e3dfd32",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
