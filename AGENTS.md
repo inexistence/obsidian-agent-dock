@@ -228,7 +228,11 @@ When a turn completes:
   - `tool`,
   - `error`,
   - debug-visible `activity`.
-- Inside `已处理`, keep original order. Consecutive non-content entries of the same kind may be grouped.
+- Inside `已处理`, keep original order. Consecutive `notice` entries or
+  consecutive `tool` entries may be folded into one child process item. The
+  folded item uses the latest child event title/icon plus a muted count.
+  Expanding it shows the child event titles; each child with detail can be
+  expanded again. Do not fold `content` or `error` into these child groups.
 
 Example final rendering:
 
