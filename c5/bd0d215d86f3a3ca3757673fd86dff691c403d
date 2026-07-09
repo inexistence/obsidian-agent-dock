@@ -1,0 +1,24 @@
+src/affect/WorkingAffectStore.js
+  s_995dc0d47ccffa::t_03900db503a53b 21-23,67-68,310-311
+src/view/AgentDockView.js
+  s_995dc0d47ccffa::t_77fa7a2df7ad5c 668,707
+main.js
+  s_995dc0d47ccffa::t_f9f8a1527ae2c1 1732-1734,1778-1779,2021-2022,13646,13685
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "c5bd0d215d86f3a3ca3757673fd86dff691c403d",
+  "prompts": {},
+  "logical_commit_id": "c5bd0d215d86f3a3ca3757673fd86dff691c403d",
+  "sessions": {
+    "s_995dc0d47ccffa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f44a8-4a46-7a62-b1ae-128115a06136",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
