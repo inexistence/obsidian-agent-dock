@@ -1,0 +1,35 @@
+src/agents/codex/jsonEvents.js
+  s_4a4ed7634ce1a9::t_cea430d319ebe8 150,166,184-187
+  s_4a4ed7634ce1a9::t_43e72f3635783f 188-189
+AGENTS.md
+  s_4a4ed7634ce1a9::t_4e6ce8e3a40b97 57
+scripts/test-codex-events.js
+  s_4a4ed7634ce1a9::t_2706d122adfaf2 1-46
+main.js
+  s_995dc0d47ccffa::t_711f15ca82a6b8 3920,3936,3956-3959
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "f46b3bbcf8f742a70e567ac12acf8a2309eef6ae",
+  "prompts": {},
+  "logical_commit_id": "f46b3bbcf8f742a70e567ac12acf8a2309eef6ae",
+  "sessions": {
+    "s_4a4ed7634ce1a9": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4496-36ed-7320-b81c-a90f2a4b195a",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    },
+    "s_995dc0d47ccffa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f44a8-4a46-7a62-b1ae-128115a06136",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
