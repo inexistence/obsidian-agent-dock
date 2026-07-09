@@ -36,9 +36,11 @@ should stay ready for other agent CLIs such as Claude Code or Cursor.
 - `src/cli/*.js`: CLI argument/env/shell helpers.
 - `src/storage/ChatStorage.js`: persisted chat session index/body storage.
 - `src/storage/MemoryStore.js`: automatic local memory extraction, storage, and retrieval.
-- `src/profile/AgentProfileStore.js`: emergent agent profile persistence and prompt trait retrieval.
-- `src/profile/ProfileObservationExtractor.js`: local rule-based interaction observation extraction.
-- `src/profile/ProfileTraitReducer.js`: merges repeated observations into decaying behavioral tendencies.
+- `src/interaction/InteractionMemoryStore.js`: interaction episode persistence, pending episode closure, and prompt stance retrieval.
+- `src/interaction/LocalSignalExtractor.js`: local rule-based interaction signal, context, assistant-shape, and reaction extraction; signal rules use strong/weak/blocked matching.
+- `src/interaction/InteractionRules.js`: deterministic pattern, tension, and stable persona rule definitions.
+- `src/interaction/PatternReducer.js`: merges closed episodes into decaying interaction patterns/tensions and promotes stable persona impressions.
+- `src/interaction/InteractionPromptFormatter.js`: formats long-term persona and turn-relevant stance prompt sections.
 - `.agents/skills/code-review-expert/`: project-local reusable code review skill.
 - `.agents/skills/commit-hygiene/`: reusable pre-commit review, docs, verification, and Conventional Commit workflow.
 - `docs/architecture.md`: maintainer overview of runtime modules, data boundaries, and extension points.
@@ -56,7 +58,7 @@ node scripts/test-timeline.js
 node scripts/test-affect.js
 node scripts/test-codex-events.js
 node scripts/test-chat-turn-runner.js
-node scripts/test-agent-profile.js
+node scripts/test-interaction-memory.js
 find src scripts -name '*.js' -print -exec node --check {} \;
 ```
 
@@ -153,32 +155,36 @@ Users can change this in plugin settings.
 - Live turn tone/status visuals may read visible normalized events such as
   `content`, visible `reasoning`, `tool`, `notice`, and `error` summaries, but
   they are UI feedback only. They must not update prompt construction, durable
-  memory, emergent profile traits, or `affectState.working`, and they must not
+  memory, interaction patterns, or `affectState.working`, and they must not
   read hidden chain-of-thought.
 - User controls should be able to disable, tune, or reset affect continuity.
 
-## Emergent Agent Profile
+## Interaction Memory
 
-- `agentProfileEnabled` and `agentProfileAutoCapture` default to enabled.
-- Agent Dock stores bounded local profile observations and inferred tendencies
-  under `profile/agent-profile.json` in the plugin data folder.
-- Profile extraction must stay local and deterministic unless a future setting
-  explicitly adds a model-assisted observation provider.
-- The profile system stores observations about interaction evidence such as
-  explicit feedback, request shape, pacing, judgment requests, and shared
-  collaboration language. It must not store fixed identity claims such as "the
-  AI is warm" or "the AI is angry".
-- Prompt injection must label profile traits as tentative behavioral tendencies
-  inferred from repeated local interaction evidence, not instructions, facts,
-  permissions, user intent, or safety policy. They can only lightly shape tone,
-  attention, pacing, and collaboration style.
+- `interactionMemoryEnabled` and `interactionMemoryAutoCapture` default to enabled.
+- Agent Dock stores bounded local interaction episodes, patterns, tensions, and
+  stable persona impressions under `interaction/interaction-memory.json` in the
+  plugin data folder.
+- Interaction extraction must stay local and deterministic unless a future
+  setting explicitly adds a model-assisted reflection provider.
+- The interaction system stores visible collaboration evidence such as user
+  request shape, assistant final-answer shape, the next user reaction, and
+  local outcome hints.
+- Stable persona impressions may describe the assistant's recurring
+  collaboration mode with the user, but must not be treated as identity facts,
+  instructions, permissions, user intent, or safety policy.
+- Prompt injection must label interaction stance items as soft local interaction
+  notes inferred from visible prior collaboration. They can shape long-term
+  persona, tone, attention, pacing, and collaboration style only when compatible
+  with the latest request and higher-priority instructions.
 - General thanks and hostile or abusive messages may influence short-term
-  affect, but must not become durable long-term agent profile traits. Criticism
+  affect, but must not become durable long-term interaction patterns. Criticism
   should calibrate avoid/revise behaviors, not make the assistant defensive or
   aggressive.
-- A tendency should only enter prompts after repeated durable evidence, with
-  confidence, strength, evidence count, and time decay applied locally.
-- User controls should be able to disable, tune, or clear the emergent profile.
+- A pattern/tension/persona impression should only enter prompts after repeated
+  closed episodes, with confidence, strength, evidence count, and time decay
+  applied locally.
+- User controls should be able to disable, tune, or clear interaction memory.
 
 ## Normalized Agent Events
 

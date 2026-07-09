@@ -351,82 +351,110 @@ class AgentDockSettingTab extends PluginSettingTab {
           new Notice(translate("settings.resetAffect.done"));
         }));
 
-    containerEl.createEl("h3", { text: translate("settings.agentProfile.heading") });
+    containerEl.createEl("h3", { text: translate("settings.interactionMemory.heading") });
 
     new Setting(containerEl)
-      .setName(translate("settings.agentProfileEnabled.name"))
-      .setDesc(translate("settings.agentProfileEnabled.desc"))
+      .setName(translate("settings.interactionMemoryEnabled.name"))
+      .setDesc(translate("settings.interactionMemoryEnabled.desc"))
       .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.agentProfileEnabled)
+        .setValue(this.plugin.settings.interactionMemoryEnabled)
         .onChange(async (value) => {
-          this.plugin.settings.agentProfileEnabled = value;
+          this.plugin.settings.interactionMemoryEnabled = value;
           await this.plugin.saveSettings();
         }));
 
     new Setting(containerEl)
-      .setName(translate("settings.agentProfileAutoCapture.name"))
-      .setDesc(translate("settings.agentProfileAutoCapture.desc"))
+      .setName(translate("settings.interactionMemoryAutoCapture.name"))
+      .setDesc(translate("settings.interactionMemoryAutoCapture.desc"))
       .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.agentProfileAutoCapture)
+        .setValue(this.plugin.settings.interactionMemoryAutoCapture)
         .onChange(async (value) => {
-          this.plugin.settings.agentProfileAutoCapture = value;
+          this.plugin.settings.interactionMemoryAutoCapture = value;
           await this.plugin.saveSettings();
         }));
 
     new Setting(containerEl)
-      .setName(translate("settings.agentProfileMaxPromptTraits.name"))
-      .setDesc(translate("settings.agentProfileMaxPromptTraits.desc"))
+      .setName(translate("settings.interactionMemoryMaxPromptItems.name"))
+      .setDesc(translate("settings.interactionMemoryMaxPromptItems.desc"))
       .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.agentProfileMaxPromptTraits))
-        .setValue(String(this.plugin.settings.agentProfileMaxPromptTraits))
+        .setPlaceholder(String(DEFAULT_SETTINGS.interactionMemoryMaxPromptItems))
+        .setValue(String(this.plugin.settings.interactionMemoryMaxPromptItems))
         .onChange(async (value) => {
           const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.agentProfileMaxPromptTraits = Number.isFinite(parsed) && parsed > 0
+          this.plugin.settings.interactionMemoryMaxPromptItems = Number.isFinite(parsed) && parsed > 0
             ? parsed
-            : DEFAULT_SETTINGS.agentProfileMaxPromptTraits;
+            : DEFAULT_SETTINGS.interactionMemoryMaxPromptItems;
           await this.plugin.saveSettings();
         }));
 
     new Setting(containerEl)
-      .setName(translate("settings.agentProfileMinEvidence.name"))
-      .setDesc(translate("settings.agentProfileMinEvidence.desc"))
+      .setName(translate("settings.interactionMemoryMaxPersonaItems.name"))
+      .setDesc(translate("settings.interactionMemoryMaxPersonaItems.desc"))
       .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.agentProfileMinEvidence))
-        .setValue(String(this.plugin.settings.agentProfileMinEvidence))
+        .setPlaceholder(String(DEFAULT_SETTINGS.interactionMemoryMaxPersonaItems))
+        .setValue(String(this.plugin.settings.interactionMemoryMaxPersonaItems))
         .onChange(async (value) => {
           const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.agentProfileMinEvidence = Number.isFinite(parsed) && parsed > 0
+          this.plugin.settings.interactionMemoryMaxPersonaItems = Number.isFinite(parsed) && parsed >= 0
             ? parsed
-            : DEFAULT_SETTINGS.agentProfileMinEvidence;
+            : DEFAULT_SETTINGS.interactionMemoryMaxPersonaItems;
           await this.plugin.saveSettings();
         }));
 
     new Setting(containerEl)
-      .setName(translate("settings.agentProfileHalfLifeDays.name"))
-      .setDesc(translate("settings.agentProfileHalfLifeDays.desc"))
+      .setName(translate("settings.interactionMemoryMaxStanceItems.name"))
+      .setDesc(translate("settings.interactionMemoryMaxStanceItems.desc"))
       .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.agentProfileHalfLifeDays))
-        .setValue(String(this.plugin.settings.agentProfileHalfLifeDays))
+        .setPlaceholder(String(DEFAULT_SETTINGS.interactionMemoryMaxStanceItems))
+        .setValue(String(this.plugin.settings.interactionMemoryMaxStanceItems))
         .onChange(async (value) => {
           const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.agentProfileHalfLifeDays = Number.isFinite(parsed) && parsed > 0
+          this.plugin.settings.interactionMemoryMaxStanceItems = Number.isFinite(parsed) && parsed >= 0
             ? parsed
-            : DEFAULT_SETTINGS.agentProfileHalfLifeDays;
+            : DEFAULT_SETTINGS.interactionMemoryMaxStanceItems;
           await this.plugin.saveSettings();
         }));
 
     new Setting(containerEl)
-      .setName(translate("settings.clearAgentProfile.name"))
-      .setDesc(translate("settings.clearAgentProfile.desc"))
+      .setName(translate("settings.interactionMemoryMinEvidence.name"))
+      .setDesc(translate("settings.interactionMemoryMinEvidence.desc"))
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.interactionMemoryMinEvidence))
+        .setValue(String(this.plugin.settings.interactionMemoryMinEvidence))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.interactionMemoryMinEvidence = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.interactionMemoryMinEvidence;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.interactionMemoryHalfLifeDays.name"))
+      .setDesc(translate("settings.interactionMemoryHalfLifeDays.desc"))
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.interactionMemoryHalfLifeDays))
+        .setValue(String(this.plugin.settings.interactionMemoryHalfLifeDays))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.interactionMemoryHalfLifeDays = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.interactionMemoryHalfLifeDays;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.clearInteractionMemory.name"))
+      .setDesc(translate("settings.clearInteractionMemory.desc"))
       .addButton((button) => button
-        .setButtonText(translate("settings.clearAgentProfile.button"))
+        .setButtonText(translate("settings.clearInteractionMemory.button"))
         .setWarning()
         .onClick(async () => {
-          if (!window.confirm(translate("settings.clearAgentProfile.confirm"))) {
+          if (!window.confirm(translate("settings.clearInteractionMemory.confirm"))) {
             return;
           }
-          await this.plugin.clearAgentProfile();
-          new Notice(translate("settings.clearAgentProfile.done"));
+          await this.plugin.clearInteractionMemory();
+          new Notice(translate("settings.clearInteractionMemory.done"));
         }));
 
     containerEl.createEl("h3", { text: translate("settings.memory.heading") });

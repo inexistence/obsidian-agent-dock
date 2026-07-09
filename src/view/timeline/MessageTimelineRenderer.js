@@ -479,7 +479,7 @@ class MessageTimelineRenderer {
     if (entry.noticeType === "memory_referenced") {
       return "book-open";
     }
-    if (entry.noticeType === "memory_updated" || entry.noticeType === "profile_updated") {
+    if (entry.noticeType === "memory_updated" || entry.noticeType === "interaction_memory_updated") {
       return "square-pen";
     }
     if (entry.noticeType === "memory_search") {

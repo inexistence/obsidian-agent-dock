@@ -8,6 +8,7 @@ const { parseArgsTemplate, withJsonOutput, withOutputLastMessage } = require("..
 const { buildCliPath } = require("../../cli/env");
 const { escapeAppleScriptString, shellQuote } = require("../../cli/shell");
 const { t } = require("../../i18n");
+const { buildPromptInteractionContext } = require("../../interaction/LocalSignalExtractor");
 const { applyModeArgs } = require("../../modes");
 const { buildPromptWithMetadata } = require("../../prompt");
 const { DEFAULT_SETTINGS } = require("../../settings");
@@ -47,10 +48,13 @@ class CodexAgent {
       "codex"
     );
     const promptMemories = removeMemorySearchDuplicates(memories, memorySearch.results);
-    const agentProfileTraits = await this.plugin.agentProfileStore.getPromptTraits(settings);
+    const interactionStance = await this.plugin.interactionMemoryStore.getPromptStance(
+      settings,
+      buildPromptInteractionContext(prompt, conversation)
+    );
     const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, {
       workingAffect: this.plugin.getPromptWorkingAffect(prompt),
-      agentProfileTraits,
+      interactionStance,
       memories: promptMemories,
       memorySearchResults: memorySearch.results,
       memorySearchPerformed: memorySearch.performed
@@ -182,7 +186,7 @@ class CodexAgent {
             activeFilePath,
             sessionId: options.sessionId || ""
           }, settings, onUpdate);
-          await this.captureAgentProfile({
+          await this.captureInteractionMemory({
             prompt,
             response: finalOutput.trim(),
             previousAssistantResponse: getPreviousAssistantResponse(conversation),
@@ -280,26 +284,26 @@ class CodexAgent {
     }
   }
 
-  async captureAgentProfile(turn, settings, onUpdate) {
+  async captureInteractionMemory(turn, settings, onUpdate) {
     try {
-      const result = await this.plugin.agentProfileStore.captureTurn(turn, settings);
-      if (result.observations.length > 0 || result.traits.length > 0) {
+      const result = await this.plugin.interactionMemoryStore.captureTurn(turn, settings);
+      if (result.closedEpisodes.length > 0) {
         onUpdate({
           kind: "notice",
-          noticeType: "profile_updated",
-          title: t(settings, "codex.agentProfileUpdated.title"),
-          summary: t(settings, "codex.agentProfileUpdated.summary", {
-            count: result.observations.length
+          noticeType: "interaction_memory_updated",
+          title: t(settings, "codex.interactionMemoryUpdated.title"),
+          summary: t(settings, "codex.interactionMemoryUpdated.summary", {
+            count: result.closedEpisodes.length
           })
         });
       }
     } catch (error) {
-      console.warn("Agent Dock could not update agent profile:", error);
+      console.warn("Agent Dock could not update interaction memory:", error);
       onUpdate({
         kind: "notice",
-        noticeType: "profile_skipped",
-        title: t(settings, "codex.agentProfileSkipped.title"),
-        summary: t(settings, "codex.agentProfileSkipped.summary")
+        noticeType: "interaction_memory_skipped",
+        title: t(settings, "codex.interactionMemorySkipped.title"),
+        summary: t(settings, "codex.interactionMemorySkipped.summary")
       });
     }
   }

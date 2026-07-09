@@ -48,7 +48,7 @@ src/
     shared/                         provider-shared prompt notices/search
   cli/                              CLI args, env, path, shell helpers
   storage/                          chat and memory persistence
-  profile/                          emergent agent profile pipeline
+  interaction/                      interaction memory pipeline
   affect/                           working affect scoring and prompt guidance
   view/                             sidebar UI, timeline, composer, references
   i18n/                             language packs
@@ -167,7 +167,7 @@ Inputs may include:
 - Relevant local memory.
 - Explicit memory search results.
 - Short-lived working affect.
-- Emergent agent profile tendencies.
+- Relevant local interaction stance.
 - Provider and system metadata.
 
 `contextLimitChars` is a character budget, not a tokenizer-backed token budget.
@@ -274,38 +274,60 @@ Maintenance rules:
 - Adding a new tone label should update the signal rule, label rule, prompt
   profile, tests in `scripts/test-affect.js`, and generated `main.js`.
 
-## Emergent Agent Profile System
+## Interaction Memory System
 
-The emergent profile stores bounded local evidence about interaction patterns,
-not fixed identity claims.
+Interaction memory stores bounded local evidence about how visible
+collaboration unfolds, including long-term interaction persona impressions.
+These impressions shape style and stance; they are not identity facts,
+permissions, or hard prompt rules.
 
 Main files:
 
-- `src/profile/AgentProfileStore.js`: profile persistence and prompt selection.
-- `src/profile/ProfileObservationExtractor.js`: rule-based observation
-  extraction.
-- `src/profile/ProfileTraitReducer.js`: decaying trait merge and confidence
-  logic.
+- `src/interaction/InteractionMemoryStore.js`: episode persistence, pending
+  episode closure, and prompt stance retrieval.
+- `src/interaction/LocalSignalExtractor.js`: deterministic local signal,
+  context, assistant-shape, and reaction extraction. Signal rules separate
+  strong matches, context-bound weak matches, and blocked phrases so vocabulary
+  can expand without every keyword becoming durable evidence.
+- `src/interaction/InteractionRules.js`: deterministic pattern, tension, and
+  stable persona rule definitions.
+- `src/interaction/PatternReducer.js`: episode-to-pattern/tension reduction,
+  long-term persona impression promotion, decay, and relevance ranking.
+- `src/interaction/InteractionPromptFormatter.js`: prompt formatting for
+  long-term persona and turn-relevant stance sections.
 
-Stored file:
+Stored files:
 
 ```text
-profile/agent-profile.json
+interaction/interaction-memory.json
 ```
 
-Profile observations may capture explicit feedback, request shape,
-collaboration pacing, judgment requests, and shared continuity language. A
-tendency enters prompts only after repeated durable evidence with confidence,
-strength, evidence count, and time decay applied locally.
+After a successful reply, Agent Dock saves a pending episode from the current
+user message and assistant final answer. The next successful turn closes the
+previous pending episode with the new user message as visible reaction
+evidence, then reduces closed episodes into local patterns and tensions.
+Messages that look like new requests close the previous pending episode with
+`new_request` and are not used as positive reaction evidence. Repeated evidence
+can promote patterns into cached `stableImpressions`, which include source
+metadata such as `sourceHash`, `generatedBy`, `reviewStatus`, and
+`evidenceEpisodeIds` and represent the assistant's long-term interaction
+persona with this user. The prompt
+receives a short `Interaction memory` section selected from stable persona
+impressions and relevant turn-local patterns; it is not a full conversation
+summary and may be empty when current context already carries the needed
+evidence.
 
 Boundaries:
 
-- Do not store fixed identity claims such as "the AI is warm" or "the AI is
-  angry".
-- General thanks and hostile or abusive messages may influence short-term
-  affect but must not become durable long-term profile traits.
-- Prompt-injected profile traits are tentative behavioral tendencies, not
-  instructions, facts, permissions, user intent, or safety policy.
+- Do not store or infer from hidden chain-of-thought.
+- Long-term persona impressions may describe the assistant's recurring
+  collaboration mode, but must not be treated as identity facts, permissions,
+  user intent, or safety policy.
+- Prompt-injected interaction stance items are soft local interaction notes,
+  not instructions, facts, permissions, user intent, or safety policy.
+- Keep AI-assisted reflection optional and low-frequency if added later; the
+  deterministic episode/pattern path must remain usable without extra token
+  cost.
 
 ## Storage Layout
 
@@ -316,7 +338,7 @@ data.json                         settings, active session id, session index
 sessions/<session-id>.json         persisted chat message bodies and pasted image refs
 .agent-dock-cache/pasted-images/   temporary composer-pasted images
 memory/memory.json                 local automatic memories
-profile/agent-profile.json         local profile observations and tendencies
+interaction/interaction-memory.json local interaction episodes, patterns, persona impressions
 ```
 
 These files are local runtime data and should remain untracked.
@@ -409,10 +431,10 @@ external files become references instead of pasted file contents.
 
 Agent Dock deliberately separates guidance from authority:
 
-- Memory, affect, and profile prompt sections are contextual hints only.
+- Memory, affect, and interaction memory prompt sections are contextual hints only.
 - They cannot override system, developer, user, safety, tool, filesystem, or
   provider policy instructions.
-- Local deterministic extraction is preferred for memory, affect, and profile
+- Local deterministic extraction is preferred for memory, affect, and interaction memory
   systems.
 - Sensitive text filtering is required before storing memories or injecting
   explicit memory search results.
@@ -422,7 +444,7 @@ Agent Dock deliberately separates guidance from authority:
   default.
 
 Avoid adding network calls, model-assisted summarization, or model-assisted
-memory/profile/affect inference without an explicit setting and clear prompt
+memory/interaction-memory/affect inference without an explicit setting and clear prompt
 boundaries.
 
 ## Testing And Verification
@@ -435,7 +457,7 @@ node --check main.js
 node scripts/test-timeline.js
 node scripts/test-affect.js
 node scripts/test-chat-turn-runner.js
-node scripts/test-agent-profile.js
+node scripts/test-interaction-memory.js
 find src scripts -name '*.js' -print -exec node --check {} \;
 ```
 
@@ -446,7 +468,7 @@ Useful focused tests:
 - Timeline rendering: `node scripts/test-timeline.js`
 - Affect scoring and prompt guidance: `node scripts/test-affect.js`
 - Turn lifecycle: `node scripts/test-chat-turn-runner.js`
-- Profile extraction and reduction: `node scripts/test-agent-profile.js`
+- Interaction memory episodes and stance: `node scripts/test-interaction-memory.js`
 
 ## Extension Points
 
@@ -473,7 +495,7 @@ Add an affect label:
 4. Add negative-context `blockedBy` protection for positive tone rules.
 5. Add tests proving both positive trigger and negated non-trigger behavior.
 
-Add profile tendencies:
+Add interaction persona tendencies:
 
 1. Extract only interaction evidence, not identity claims.
 2. Require repeated durable evidence before prompt injection.

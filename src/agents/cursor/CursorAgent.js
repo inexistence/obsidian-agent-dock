@@ -10,6 +10,7 @@ const { buildCliPath } = require("../../cli/env");
 const { expandHomePath } = require("../../cli/paths");
 const { escapeAppleScriptString, shellQuote } = require("../../cli/shell");
 const { t } = require("../../i18n");
+const { buildPromptInteractionContext } = require("../../interaction/LocalSignalExtractor");
 const { buildPromptWithMetadata, buildTurnContextPrompt } = require("../../prompt");
 const { DEFAULT_SETTINGS } = require("../../settings");
 const { AcpClient } = require("./AcpClient");
@@ -71,7 +72,10 @@ class CursorAgent {
       "cursor"
     );
     const promptMemories = removeMemorySearchDuplicates(memories, memorySearch.results);
-    const agentProfileTraits = await this.plugin.agentProfileStore.getPromptTraits(settings);
+    const interactionStance = await this.plugin.interactionMemoryStore.getPromptStance(
+      settings,
+      buildPromptInteractionContext(prompt, conversation)
+    );
 
     let useFullPrompt = !cursorState.acpSessionId;
     let finalOutput = "";
@@ -122,7 +126,7 @@ class CursorAgent {
         prompt,
         conversation,
         memories: promptMemories,
-        agentProfileTraits,
+        interactionStance,
         memorySearchResults: memorySearch.results,
         memorySearchPerformed: memorySearch.performed,
         workingAffect: this.plugin.getPromptWorkingAffect(prompt)
@@ -182,7 +186,7 @@ class CursorAgent {
             conversation,
             {
               workingAffect: this.plugin.getPromptWorkingAffect(prompt),
-              agentProfileTraits,
+              interactionStance,
               memories: promptMemories,
               memorySearchResults: memorySearch.results,
               memorySearchPerformed: memorySearch.performed
@@ -282,7 +286,7 @@ class CursorAgent {
     prompt,
     conversation,
     memories,
-    agentProfileTraits,
+    interactionStance,
     memorySearchResults,
     memorySearchPerformed,
     workingAffect
@@ -290,7 +294,7 @@ class CursorAgent {
     if (useFullPrompt) {
       return buildPromptWithMetadata(app, settings, prompt, conversation, {
         workingAffect,
-        agentProfileTraits,
+        interactionStance,
         memories,
         memorySearchResults,
         memorySearchPerformed
@@ -298,7 +302,7 @@ class CursorAgent {
     }
     return buildTurnContextPrompt(app, settings, prompt, {
       workingAffect,
-      agentProfileTraits,
+      interactionStance,
       memories,
       memorySearchResults,
       memorySearchPerformed
@@ -321,7 +325,7 @@ class CursorAgent {
       activeFilePath,
       sessionId: options.sessionId || ""
     }, settings, emitUpdate);
-    await this.captureAgentProfile({
+    await this.captureInteractionMemory({
       prompt,
       response: finalOutput.trim(),
       previousAssistantResponse: getPreviousAssistantResponse(conversation),
@@ -518,26 +522,26 @@ class CursorAgent {
     }
   }
 
-  async captureAgentProfile(turn, settings, onUpdate) {
+  async captureInteractionMemory(turn, settings, onUpdate) {
     try {
-      const result = await this.plugin.agentProfileStore.captureTurn(turn, settings);
-      if (result.observations.length > 0 || result.traits.length > 0) {
+      const result = await this.plugin.interactionMemoryStore.captureTurn(turn, settings);
+      if (result.closedEpisodes.length > 0) {
         onUpdate({
           kind: "notice",
-          noticeType: "profile_updated",
-          title: t(settings, "cursor.agentProfileUpdated.title"),
-          summary: t(settings, "cursor.agentProfileUpdated.summary", {
-            count: result.observations.length
+          noticeType: "interaction_memory_updated",
+          title: t(settings, "cursor.interactionMemoryUpdated.title"),
+          summary: t(settings, "cursor.interactionMemoryUpdated.summary", {
+            count: result.closedEpisodes.length
           })
         });
       }
     } catch (error) {
-      console.warn("Agent Dock could not update agent profile:", error);
+      console.warn("Agent Dock could not update interaction memory:", error);
       onUpdate({
         kind: "notice",
-        noticeType: "profile_skipped",
-        title: t(settings, "cursor.agentProfileSkipped.title"),
-        summary: t(settings, "cursor.agentProfileSkipped.summary")
+        noticeType: "interaction_memory_skipped",
+        title: t(settings, "cursor.interactionMemorySkipped.title"),
+        summary: t(settings, "cursor.interactionMemorySkipped.summary")
       });
     }
   }

@@ -57,11 +57,13 @@ const DEFAULT_SETTINGS = {
   memoryMaxItems: 200,
   memoryMaxPromptItems: 12,
   memoryMaxPromptChars: 8000,
-  agentProfileEnabled: true,
-  agentProfileAutoCapture: true,
-  agentProfileMaxPromptTraits: 6,
-  agentProfileMinEvidence: 2,
-  agentProfileHalfLifeDays: 30,
+  interactionMemoryEnabled: true,
+  interactionMemoryAutoCapture: true,
+  interactionMemoryMaxPromptItems: 6,
+  interactionMemoryMaxPersonaItems: 2,
+  interactionMemoryMaxStanceItems: 4,
+  interactionMemoryMinEvidence: 2,
+  interactionMemoryHalfLifeDays: 30,
   affectEnabled: true,
   affectCrossSessionEnabled: true,
   affectRestoreAfterRestart: true,
@@ -139,19 +141,27 @@ function normalizeSettings(savedSettings) {
     settings.memoryMaxPromptChars,
     DEFAULT_SETTINGS.memoryMaxPromptChars
   );
-  settings.agentProfileEnabled = settings.agentProfileEnabled !== false;
-  settings.agentProfileAutoCapture = settings.agentProfileAutoCapture !== false;
-  settings.agentProfileMaxPromptTraits = normalizePositiveInteger(
-    settings.agentProfileMaxPromptTraits,
-    DEFAULT_SETTINGS.agentProfileMaxPromptTraits
+  settings.interactionMemoryEnabled = settings.interactionMemoryEnabled !== false;
+  settings.interactionMemoryAutoCapture = settings.interactionMemoryAutoCapture !== false;
+  settings.interactionMemoryMaxPromptItems = normalizePositiveInteger(
+    settings.interactionMemoryMaxPromptItems,
+    DEFAULT_SETTINGS.interactionMemoryMaxPromptItems
   );
-  settings.agentProfileMinEvidence = normalizePositiveInteger(
-    settings.agentProfileMinEvidence,
-    DEFAULT_SETTINGS.agentProfileMinEvidence
+  settings.interactionMemoryMaxPersonaItems = normalizeNonNegativeInteger(
+    settings.interactionMemoryMaxPersonaItems,
+    DEFAULT_SETTINGS.interactionMemoryMaxPersonaItems
   );
-  settings.agentProfileHalfLifeDays = normalizePositiveInteger(
-    settings.agentProfileHalfLifeDays,
-    DEFAULT_SETTINGS.agentProfileHalfLifeDays
+  settings.interactionMemoryMaxStanceItems = normalizeNonNegativeInteger(
+    settings.interactionMemoryMaxStanceItems,
+    DEFAULT_SETTINGS.interactionMemoryMaxStanceItems
+  );
+  settings.interactionMemoryMinEvidence = normalizePositiveInteger(
+    settings.interactionMemoryMinEvidence,
+    DEFAULT_SETTINGS.interactionMemoryMinEvidence
+  );
+  settings.interactionMemoryHalfLifeDays = normalizePositiveInteger(
+    settings.interactionMemoryHalfLifeDays,
+    DEFAULT_SETTINGS.interactionMemoryHalfLifeDays
   );
   settings.affectEnabled = settings.affectEnabled !== false;
   settings.affectCrossSessionEnabled = settings.affectCrossSessionEnabled !== false;
@@ -174,6 +184,11 @@ function normalizeSettings(savedSettings) {
   delete settings.command;
   delete settings.includeActiveNote;
   delete settings.activeNoteMaxChars;
+  delete settings.agentProfileEnabled;
+  delete settings.agentProfileAutoCapture;
+  delete settings.agentProfileMaxPromptTraits;
+  delete settings.agentProfileMinEvidence;
+  delete settings.agentProfileHalfLifeDays;
   return settings;
 }
 
@@ -229,6 +244,11 @@ function normalizeTimestamp(value) {
 function normalizePositiveInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeNonNegativeInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function clampNumber(value, min, max) {

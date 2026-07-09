@@ -45,7 +45,7 @@ Chat history uses the plugin data folder:
 - `sessions/<session-id>.json` stores each conversation's user and assistant message bodies, assistant timeline details, plus local pasted-image cache references for cleanup.
 - `.agent-dock-cache/pasted-images/` stores temporary images pasted into the composer. Agent Dock prunes old files on startup and before new image pastes, and removes a session's tracked images when that session is deleted.
 - `memory/memory.json` stores automatically extracted local memories when memory is enabled.
-- `profile/agent-profile.json` stores bounded local observations and inferred agent profile tendencies when emergent profile is enabled.
+- `interaction/interaction-memory.json` stores bounded local interaction episodes, patterns, tensions, and long-term persona impressions when interaction memory is enabled.
 
 Assistant timeline details are persisted so restored conversations can show the
 processed reasoning/tool/error/notice history. Debug-only raw activity is also
@@ -90,18 +90,21 @@ answer text, tool notices, or errors. These live cues reuse the same tone labels
 for UI feedback only, are smoothed to avoid rapid flicker, and are not injected
 into prompts or saved as affect continuity.
 
-Emergent agent profile is enabled by default. After successful replies, Agent
-Dock records bounded local observations about explicit feedback, request shape,
-collaboration pacing, judgment requests, and shared continuity language. A local
-reducer merges repeated durable observations into tentative behavioral
-tendencies with strength, confidence, evidence count, and time decay. Future
-prompts may include a brief `Emergent agent profile` section only after a
-tendency meets the configured evidence threshold. These tendencies are framed as
-local interaction evidence, not identity claims, instructions, facts, user
-intent, permissions, or safety policy. General thanks and hostile or abusive
-messages may affect short-term affect, but are not persisted as long-term agent
-profile traits. Settings -> Agent Dock -> Emergent agent profile can disable
-profile use, disable automatic observations, tune limits, or clear the profile.
+Interaction memory is enabled by default. After successful replies, Agent Dock
+records a bounded local pending episode from the visible user message and final
+assistant answer. The next successful turn closes that episode with the next
+user message as reaction evidence, then a local reducer merges closed episodes
+into patterns and tensions with strength, confidence, evidence count, and time
+decay. New user requests close pending episodes without becoming positive
+reaction evidence. Repeated evidence can promote patterns into cached long-term
+persona impressions that describe the assistant's recurring collaboration mode
+with the user. Future prompts may include a brief `Interaction memory` section
+with `Long-term interaction persona` and `Relevant interaction stance for this
+turn` notes only after evidence thresholds are met. These stance items are
+framed as soft local interaction notes, not instructions, facts, user intent,
+permissions, or safety policy. Settings -> Agent Dock -> Interaction memory can
+disable prompt use, disable automatic episode capture, tune persona/turn
+budgets, or clear interaction memory.
 
 ## Architecture
 
@@ -129,10 +132,12 @@ src/
   storage/
     ChatStorage.js
     MemoryStore.js
-  profile/
-    AgentProfileStore.js
-    ProfileObservationExtractor.js
-    ProfileTraitReducer.js
+  interaction/
+    InteractionMemoryStore.js
+    LocalSignalExtractor.js
+    InteractionRules.js
+    PatternReducer.js
+    InteractionPromptFormatter.js
   view/
     AgentDockView.js
   constants.js

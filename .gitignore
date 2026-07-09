@@ -1,5 +1,6 @@
 data.json
-sessions/
-memory/
-profile/
+/sessions/
+/memory/
+/profile/
+/interaction/
 .idea/

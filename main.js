@@ -190,22 +190,26 @@ module.exports = {
     "settings.resetAffect.desc": "Clear the recent cross-chat tone signal.",
     "settings.resetAffect.button": "Reset",
     "settings.resetAffect.done": "Agent Dock affect reset.",
-    "settings.agentProfile.heading": "Emergent agent profile",
-    "settings.agentProfileEnabled.name": "Enable emergent profile",
-    "settings.agentProfileEnabled.desc": "Lightly shape future prompts with behavioral tendencies inferred from repeated local interaction evidence.",
-    "settings.agentProfileAutoCapture.name": "Automatic profile observations",
-    "settings.agentProfileAutoCapture.desc": "After successful replies, save bounded local observations about feedback, request shape, and collaboration patterns.",
-    "settings.agentProfileMaxPromptTraits.name": "Profile prompt trait limit",
-    "settings.agentProfileMaxPromptTraits.desc": "Maximum number of stable inferred tendencies added to a prompt.",
-    "settings.agentProfileMinEvidence.name": "Minimum profile evidence",
-    "settings.agentProfileMinEvidence.desc": "Number of durable observations required before a tendency can be injected.",
-    "settings.agentProfileHalfLifeDays.name": "Profile half-life days",
-    "settings.agentProfileHalfLifeDays.desc": "Days before inferred tendency strength decays to half.",
-    "settings.clearAgentProfile.name": "Clear emergent profile",
-    "settings.clearAgentProfile.desc": "Delete all saved profile observations and inferred tendencies.",
-    "settings.clearAgentProfile.button": "Clear",
-    "settings.clearAgentProfile.confirm": "Clear the emergent Agent Dock profile?",
-    "settings.clearAgentProfile.done": "Agent Dock profile cleared.",
+    "settings.interactionMemory.heading": "Interaction memory",
+    "settings.interactionMemoryEnabled.name": "Enable interaction memory",
+    "settings.interactionMemoryEnabled.desc": "Lightly shape future prompts with local collaboration experience inferred from visible interaction episodes.",
+    "settings.interactionMemoryAutoCapture.name": "Automatic interaction episodes",
+    "settings.interactionMemoryAutoCapture.desc": "After successful replies, save bounded local episodes and reduce them into interaction patterns after the next user reaction.",
+    "settings.interactionMemoryMaxPromptItems.name": "Interaction stance prompt limit",
+    "settings.interactionMemoryMaxPromptItems.desc": "Maximum number of relevant interaction notes added to a prompt.",
+    "settings.interactionMemoryMaxPersonaItems.name": "Long-term persona item limit",
+    "settings.interactionMemoryMaxPersonaItems.desc": "Maximum number of stable persona impressions added to a prompt.",
+    "settings.interactionMemoryMaxStanceItems.name": "Turn stance item limit",
+    "settings.interactionMemoryMaxStanceItems.desc": "Maximum number of turn-relevant pattern or tension notes added to a prompt.",
+    "settings.interactionMemoryMinEvidence.name": "Minimum interaction evidence",
+    "settings.interactionMemoryMinEvidence.desc": "Number of episodes required before an interaction pattern can be injected.",
+    "settings.interactionMemoryHalfLifeDays.name": "Interaction memory half-life days",
+    "settings.interactionMemoryHalfLifeDays.desc": "Days before interaction pattern strength decays to half.",
+    "settings.clearInteractionMemory.name": "Clear interaction memory",
+    "settings.clearInteractionMemory.desc": "Delete all saved interaction episodes, patterns, tensions, and persona impressions.",
+    "settings.clearInteractionMemory.button": "Clear",
+    "settings.clearInteractionMemory.confirm": "Clear Agent Dock interaction memory?",
+    "settings.clearInteractionMemory.done": "Agent Dock interaction memory cleared.",
     "settings.memory.heading": "Memory",
     "settings.memoryEnabled.name": "Enable memory",
     "settings.memoryEnabled.desc": "Use local memories from previous chats when building prompts.",
@@ -399,10 +403,10 @@ module.exports = {
     "codex.memoryUpdated.summary": "Updated {count} local historical {noteLabel} for future chats.",
     "codex.memorySkipped.title": "Memory skipped",
     "codex.memorySkipped.summary": "Agent Dock could not save automatic memory. Check the console for details.",
-    "codex.agentProfileUpdated.title": "Profile updated",
-    "codex.agentProfileUpdated.summary": "Updated emergent profile from {count} durable local observation(s).",
-    "codex.agentProfileSkipped.title": "Profile skipped",
-    "codex.agentProfileSkipped.summary": "Agent Dock could not save emergent profile observations. Check the console for details.",
+    "codex.interactionMemoryUpdated.title": "Interaction memory updated",
+    "codex.interactionMemoryUpdated.summary": "Updated interaction memory from {count} closed local episode(s).",
+    "codex.interactionMemorySkipped.title": "Interaction memory skipped",
+    "codex.interactionMemorySkipped.summary": "Agent Dock could not save interaction memory. Check the console for details.",
     "codex.abortError": "Codex run was stopped.",
     "cursor.thinking": "Thinking",
     "cursor.userEcho": "User echo",
@@ -444,10 +448,10 @@ module.exports = {
     "cursor.memoryUpdated.summary": "Updated {count} local historical {noteLabel} for future chats.",
     "cursor.memorySkipped.title": "Memory skipped",
     "cursor.memorySkipped.summary": "Agent Dock could not save automatic memory. Check the console for details.",
-    "cursor.agentProfileUpdated.title": "Profile updated",
-    "cursor.agentProfileUpdated.summary": "Updated emergent profile from {count} durable local observation(s).",
-    "cursor.agentProfileSkipped.title": "Profile skipped",
-    "cursor.agentProfileSkipped.summary": "Agent Dock could not save emergent profile observations. Check the console for details.",
+    "cursor.interactionMemoryUpdated.title": "Interaction memory updated",
+    "cursor.interactionMemoryUpdated.summary": "Updated interaction memory from {count} closed local episode(s).",
+    "cursor.interactionMemorySkipped.title": "Interaction memory skipped",
+    "cursor.interactionMemorySkipped.summary": "Agent Dock could not save interaction memory. Check the console for details.",
     "cursor.sessionReloadFailed.title": "Cursor session reload failed",
     "cursor.sessionReloadFailed.summary": "Started a fresh Cursor ACP session with full prompt context.",
     "cursor.planAccepted.title": "Plan accepted",
@@ -533,22 +537,26 @@ module.exports = {
     "settings.resetAffect.desc": "清除最近的跨聊天语气状态。",
     "settings.resetAffect.button": "重置",
     "settings.resetAffect.done": "Agent Dock 情绪状态已重置。",
-    "settings.agentProfile.heading": "自然生长 Profile",
-    "settings.agentProfileEnabled.name": "启用自然生长 Profile",
-    "settings.agentProfileEnabled.desc": "用从重复本地互动证据中归纳出的行为倾向，轻微塑造未来提示词。",
-    "settings.agentProfileAutoCapture.name": "自动记录 Profile 观察",
-    "settings.agentProfileAutoCapture.desc": "Agent 成功回复后，保存有边界的本地观察，例如反馈、请求形态和协作模式。",
-    "settings.agentProfileMaxPromptTraits.name": "Profile 提示词倾向限制",
-    "settings.agentProfileMaxPromptTraits.desc": "加入提示词的稳定归纳倾向最大数量。",
-    "settings.agentProfileMinEvidence.name": "Profile 最小证据数",
-    "settings.agentProfileMinEvidence.desc": "一条倾向进入提示词前需要的持久观察数量。",
-    "settings.agentProfileHalfLifeDays.name": "Profile 半衰期天数",
-    "settings.agentProfileHalfLifeDays.desc": "归纳倾向强度衰减到一半所需的天数。",
-    "settings.clearAgentProfile.name": "清空自然生长 Profile",
-    "settings.clearAgentProfile.desc": "删除所有已保存的 Profile 观察和归纳倾向。",
-    "settings.clearAgentProfile.button": "清空",
-    "settings.clearAgentProfile.confirm": "清空 Agent Dock 的自然生长 Profile？",
-    "settings.clearAgentProfile.done": "Agent Dock Profile 已清空。",
+    "settings.interactionMemory.heading": "互动经验",
+    "settings.interactionMemoryEnabled.name": "启用互动经验",
+    "settings.interactionMemoryEnabled.desc": "用可见互动片段归纳出的本地协作经验，轻微塑造未来提示词。",
+    "settings.interactionMemoryAutoCapture.name": "自动记录互动片段",
+    "settings.interactionMemoryAutoCapture.desc": "Agent 成功回复后，保存有边界的本地 episode，并在下一轮用户反应后归纳互动模式。",
+    "settings.interactionMemoryMaxPromptItems.name": "互动立场提示词限制",
+    "settings.interactionMemoryMaxPromptItems.desc": "加入提示词的相关互动经验最大数量。",
+    "settings.interactionMemoryMaxPersonaItems.name": "长期人格条数限制",
+    "settings.interactionMemoryMaxPersonaItems.desc": "加入提示词的稳定人格化印象最大数量。",
+    "settings.interactionMemoryMaxStanceItems.name": "本轮立场条数限制",
+    "settings.interactionMemoryMaxStanceItems.desc": "加入提示词的本轮相关模式或张力最大数量。",
+    "settings.interactionMemoryMinEvidence.name": "互动经验最小证据数",
+    "settings.interactionMemoryMinEvidence.desc": "一条互动模式进入提示词前需要的 episode 数量。",
+    "settings.interactionMemoryHalfLifeDays.name": "互动经验半衰期天数",
+    "settings.interactionMemoryHalfLifeDays.desc": "互动模式强度衰减到一半所需的天数。",
+    "settings.clearInteractionMemory.name": "清空互动经验",
+    "settings.clearInteractionMemory.desc": "删除所有已保存的互动 episode、模式、张力和人格化印象。",
+    "settings.clearInteractionMemory.button": "清空",
+    "settings.clearInteractionMemory.confirm": "清空 Agent Dock 的互动经验？",
+    "settings.clearInteractionMemory.done": "Agent Dock 互动经验已清空。",
     "settings.memory.heading": "记忆",
     "settings.memoryEnabled.name": "启用记忆",
     "settings.memoryEnabled.desc": "构建提示词时使用之前聊天中保存的本地记忆。",
@@ -742,10 +750,10 @@ module.exports = {
     "codex.memoryUpdated.summary": "已为之后的聊天更新 {count} 条本地历史记录。",
     "codex.memorySkipped.title": "已跳过记忆",
     "codex.memorySkipped.summary": "Agent Dock 无法保存自动记忆。请查看控制台详情。",
-    "codex.agentProfileUpdated.title": "Profile 已更新",
-    "codex.agentProfileUpdated.summary": "已根据 {count} 条持久本地观察更新自然生长 Profile。",
-    "codex.agentProfileSkipped.title": "Profile 已跳过",
-    "codex.agentProfileSkipped.summary": "Agent Dock 无法保存自然生长 Profile 观察。请查看控制台详情。",
+    "codex.interactionMemoryUpdated.title": "互动经验已更新",
+    "codex.interactionMemoryUpdated.summary": "已根据 {count} 条关闭的本地 episode 更新互动经验。",
+    "codex.interactionMemorySkipped.title": "互动经验已跳过",
+    "codex.interactionMemorySkipped.summary": "Agent Dock 无法保存互动经验。请查看控制台详情。",
     "codex.abortError": "Codex 运行已停止。",
     "cursor.thinking": "思考",
     "cursor.userEcho": "用户回显",
@@ -787,10 +795,10 @@ module.exports = {
     "cursor.memoryUpdated.summary": "已为之后的聊天更新 {count} 条本地历史记录。",
     "cursor.memorySkipped.title": "已跳过记忆",
     "cursor.memorySkipped.summary": "Agent Dock 无法保存自动记忆。请查看控制台详情。",
-    "cursor.agentProfileUpdated.title": "Profile 已更新",
-    "cursor.agentProfileUpdated.summary": "已根据 {count} 条持久本地观察更新自然生长 Profile。",
-    "cursor.agentProfileSkipped.title": "Profile 已跳过",
-    "cursor.agentProfileSkipped.summary": "Agent Dock 无法保存自然生长 Profile 观察。请查看控制台详情。",
+    "cursor.interactionMemoryUpdated.title": "互动经验已更新",
+    "cursor.interactionMemoryUpdated.summary": "已根据 {count} 条关闭的本地 episode 更新互动经验。",
+    "cursor.interactionMemorySkipped.title": "互动经验已跳过",
+    "cursor.interactionMemorySkipped.summary": "Agent Dock 无法保存互动经验。请查看控制台详情。",
     "cursor.sessionReloadFailed.title": "Cursor 会话恢复失败",
     "cursor.sessionReloadFailed.summary": "已使用完整提示词上下文创建新的 Cursor ACP 会话。",
     "cursor.planAccepted.title": "计划已接受",
@@ -847,6 +855,327 @@ module.exports = {
   LANGUAGE_OPTIONS,
   normalizeLanguage,
   t
+};
+
+},
+"src/storage/sensitiveText.js": function(module, exports, __require) {
+function containsSensitiveText(text) {
+  return /(api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd|secret|token|bearer|private[_-]?key|ssh-rsa|BEGIN (?:OPENSSH |RSA |EC )?PRIVATE KEY|sk-[a-z0-9]|ghp_[a-z0-9]|github_pat_[a-z0-9_]+|xox[baprs]-[a-z0-9-]+|AKIA[0-9A-Z]{16}|密码|密钥|私钥|令牌|凭证)/i.test(text);
+}
+
+function redactSensitiveText(text) {
+  return containsSensitiveText(text) ? "[Sensitive content omitted]" : String(text || "");
+}
+
+module.exports = {
+  containsSensitiveText,
+  redactSensitiveText
+};
+
+},
+"src/interaction/LocalSignalExtractor.js": function(module, exports, __require) {
+const { containsSensitiveText, redactSensitiveText } = __require("src/storage/sensitiveText.js");
+
+const MAX_EXCERPT_CHARS = 220;
+
+const CONTEXT_RULES = [
+  {
+    id: "agent_continuity",
+    patterns: [/AI|agent|助手|智能体/i, /profile|memory|记忆|连续性|情绪|affect/i, /自然生长|设定|人设|人格|主体感/]
+  },
+  {
+    id: "implementation",
+    patterns: [/代码|模块|接口|数据模型|测试|脚本|设置页|prompt|store|reducer|extractor/i, /\b(code|module|interface|schema|test|script|prompt|store|reducer|extractor)\b/i]
+  },
+  {
+    id: "debugging",
+    patterns: [/报错|失败|崩溃|bug|修复|排查/, /\b(error|failed|failure|crash|fix|debug)\b/i]
+  },
+  {
+    id: "planning",
+    patterns: [/计划|规划|任务|TODO|今日|工作流/, /\b(plan|todo|workflow|task)\b/i]
+  }
+];
+
+const USER_SIGNAL_RULES = [
+  {
+    id: "asks_for_judgment",
+    strong: [/你怎么看/, /你的判断/, /你觉得/, /你建议/, /给个结论/, /你来拍板/, /你来决定/, /帮我判断/, /不要只列选项/, /你判断/, /你来定/, /\b(your take|what do you think|recommend|decide|don't just agree|make the call)\b/i],
+    weak: [/判断/, /建议/, /结论/, /取舍/],
+    blockedBy: [/不要.*判断/, /不用.*建议/, /先别.*结论/]
+  },
+  {
+    id: "asks_for_mechanism",
+    strong: [/机制/, /原理/, /为什么/, /边界/, /取舍/, /怎么理解/, /怎么做到/, /背后逻辑/, /底层逻辑/, /\b(mechanism|principle|why|boundary|tradeoff|how exactly|under the hood)\b/i],
+    weak: [/逻辑/, /原因/, /区别/, /关系/, /本质/],
+    blockedBy: [/不用.*解释/, /不要.*原理/, /先别.*机制/]
+  },
+  {
+    id: "asks_for_implementation",
+    strong: [/具体/, /可实施/, /可执行/, /落地/, /实现/, /数据模型/, /任务拆分/, /验收标准/, /怎么做/, /接入/, /改代码/, /\b(concrete|specific|implementation|actionable|schema|task|wire it|code change)\b/i],
+    weak: [/方案/, /步骤/, /清单/, /路径/, /计划/],
+    blockedBy: [/先不.*实现/, /不用.*代码/, /不要.*任务/]
+  },
+  {
+    id: "asks_for_redesign",
+    strong: [/重新设计/, /重构/, /完全重新/, /如果不考虑现有/, /推倒重来/, /\b(redesign|rebuild|refactor|from scratch|start over)\b/i],
+    weak: [/换个方案/, /另一种设计/]
+  },
+  {
+    id: "pushes_for_nuance",
+    strong: [/微妙/, /细腻/, /分寸/, /纹理/, /不是.*硬规则/, /不要.*压成/, /不能.*压成/, /像人类/, /不要.*扁平/, /\b(nuance|subtle|texture|not.*rigid|flatten|not.*mechanical)\b/i],
+    weak: [/复杂/, /自然/, /风格/, /气质/, /手感/],
+    contexts: ["agent_continuity", "implementation", "general"],
+    blockedBy: [/不用.*微妙/, /不要.*复杂/, /简单点/, /别.*细腻/]
+  },
+  {
+    id: "rejects_flattening",
+    strong: [/压扁/, /压成/, /太.*规则/, /具体的要求prompt/, /偏好清单/, /设置项/, /硬编码/, /模板化/, /\b(flatten|rigid prompt|preference list|settings-only|too mechanical)\b/i],
+    weak: [/规则/, /清单/, /设置/],
+    blockedBy: [/可以.*规则/, /就.*清单/, /只要.*设置/]
+  },
+  {
+    id: "asks_about_cost",
+    strong: [/token/, /成本/, /消耗/, /太贵/, /预算/, /缓存/, /每轮.*总结/, /\b(cost|expensive|budget|tokens?|cache)\b/i],
+    weak: [/省/, /轻量/, /低频/]
+  },
+  {
+    id: "asks_for_directness",
+    strong: [/直接说/, /别废话/, /简短/, /先给结论/, /长话短说/, /不用铺垫/, /\b(brief|direct|tl;dr|short answer|cut to the chase)\b/i],
+    weak: [/快点/, /短一点/],
+    blockedBy: [/不要.*太短/, /别.*省略/]
+  },
+  {
+    id: "asks_for_depth",
+    strong: [/展开/, /详细/, /讲透/, /多解释/, /完整一点/, /深入/, /细说/, /\b(explain more|go deeper|full detail|walk me through|deep dive)\b/i],
+    weak: [/补充/, /再说说/, /多一点/],
+    blockedBy: [/不用.*展开/, /别.*太长/]
+  },
+  {
+    id: "asks_for_clarification",
+    strong: [/没懂/, /什么意思/, /说清楚/, /举例/, /例子/, /换个说法/, /具体区别/, /还是不明白/, /\b(what do you mean|not clear|unclear|example|for example|can you clarify|say that differently)\b/i],
+    weak: [/不明白/, /看不懂/, /解释一下/],
+    blockedBy: [/不用.*举例/, /不用.*解释/]
+  },
+  {
+    id: "style_feedback",
+    strong: [/太(?:啰嗦|官方|像客服|生硬|机械|短|长|冷|热情)/, /别(?:这么|太).*(?:啰嗦|官方|客服|生硬|机械)/, /语气/, /风格不对/, /\b(too verbose|too formal|too robotic|too terse|tone|style feels off)\b/i]
+  },
+  {
+    id: "positive_feedback",
+    strong: [/这样(?:很好|不错|可以|对)/, /对[，,\s]*(?:就是|是这个|这个方向)/, /继续(?:这样|这个方向)/, /到位/, /说得对/, /这个方向可以/, /\b(exactly|that's it|useful|clear|solid|keep going|nailed it)\b/i],
+    blockedBy: [/不对/, /不是.*对/, /没.*清楚/]
+  },
+  {
+    id: "negative_feedback",
+    strong: [/不对/, /不是(?:这个|这样|我的意思)/, /太(?:空|泛|虚|啰嗦|官方|像客服)/, /没有(?:回答|解决|落地)/, /跑偏了/, /没抓住重点/, /误解了/, /不是我要的/, /\b(wrong|not what i mean|too vague|missed the point|not useful|misread)\b/i]
+  }
+];
+
+const CONTINUATION_PATTERNS = [
+  /继续/,
+  /刚才/,
+  /上面/,
+  /这个/,
+  /这点/,
+  /那/,
+  /所以/,
+  /也就是说/,
+  /换句话说/,
+  /\b(continue|that|this|above|previous|so|then)\b/i
+];
+
+const ASSISTANT_SHAPE_RULES = [
+  {
+    id: "implementation_plan",
+    strong: [/数据模型/, /接入/, /任务拆分/, /验收标准/, /实现/, /测试/, /落地/, /\b(schema|implementation|test|task|wire|module|concrete steps)\b/i]
+  },
+  {
+    id: "mechanism_explanation",
+    strong: [/机制/, /边界/, /取舍/, /原因/, /归纳/, /衰减/, /证据/, /\b(mechanism|boundary|tradeoff|reason|evidence|principle)\b/i]
+  },
+  {
+    id: "independent_judgment",
+    strong: [/我会/, /我建议/, /我的判断/, /更合理/, /不建议/, /我倾向/, /\b(i would|i recommend|my take|better|avoid|i'd choose)\b/i]
+  },
+  {
+    id: "settings_framing",
+    strong: [/设置/, /开关/, /选项/, /\b(settings|toggle|option)\b/i]
+  },
+  {
+    id: "repair_response",
+    strong: [/我理解错了/, /我修正/, /改一下/, /重新来/, /\b(i misread|let me correct|revise)\b/i]
+  },
+  {
+    id: "warm_presence",
+    strong: [/一起/, /陪你/, /我在/, /我们可以/, /\b(with you|together|we can)\b/i]
+  }
+];
+
+function extractEpisodeDraft(turn, previousPending) {
+  const prompt = compactText(turn?.prompt);
+  const response = compactText(turn?.response);
+  const reaction = previousPending
+    ? classifyReaction(previousPending, prompt)
+    : null;
+
+  return {
+    context: classifyContext(prompt),
+    userExcerpt: sanitizeExcerpt(prompt),
+    assistantExcerpt: sanitizeExcerpt(response),
+    userSignals: extractSignals(prompt, USER_SIGNAL_RULES),
+    assistantShape: extractSignals(response, ASSISTANT_SHAPE_RULES),
+    reaction,
+    outcomeHint: reaction?.outcomeHint || "",
+    sourceSessionId: turn?.sessionId || "",
+    createdAt: Number(turn?.now) || Date.now()
+  };
+}
+
+function buildPromptInteractionContext(prompt, conversation) {
+  const conversationText = Array.isArray(conversation)
+    ? conversation.slice(-8).map((message) => compactText(message?.content)).filter(Boolean).join("\n")
+    : "";
+  return {
+    context: classifyContext(prompt),
+    signals: extractSignals(prompt, USER_SIGNAL_RULES),
+    conversationText
+  };
+}
+
+function classifyReaction(previousPending, prompt) {
+  const signals = extractSignals(prompt, USER_SIGNAL_RULES);
+  const context = classifyContext(prompt);
+  const sharedSignal = hasSharedSignal(previousPending.userSignals, signals);
+  const sameContext = previousPending.context === context;
+  const explicitContinuation = matches(prompt, CONTINUATION_PATTERNS);
+  let kind = "topic_shift";
+  let outcomeHint = "topic_shift";
+
+  if (signals.includes("negative_feedback")) {
+    kind = "correction";
+    outcomeHint = "correction";
+    if (signals.includes("style_feedback")) {
+      kind = "style_recalibration";
+      outcomeHint = "style_recalibration";
+    }
+  } else if (signals.includes("style_feedback")) {
+    kind = "style_recalibration";
+    outcomeHint = "style_recalibration";
+  } else if (signals.includes("asks_for_clarification")) {
+    kind = "clarification";
+    outcomeHint = "clarification_requested";
+  } else if (signals.includes("positive_feedback")) {
+    kind = "acceptance";
+    outcomeHint = "accepted";
+  } else if (signals.includes("asks_for_implementation") && previousPending.assistantShape?.includes("mechanism_explanation")) {
+    kind = "implementation_followup";
+    outcomeHint = "implementation_followup";
+  } else if (sameContext && (sharedSignal || explicitContinuation)) {
+    kind = "deepening";
+    outcomeHint = "productive_deepening";
+  } else if (!sameContext || signals.length > 0) {
+    kind = "new_request";
+    outcomeHint = "new_request";
+  }
+
+  return {
+    kind,
+    outcomeHint,
+    excerpt: sanitizeExcerpt(prompt),
+    signals
+  };
+}
+
+function classifyContext(text) {
+  const compact = compactText(text);
+  for (const rule of CONTEXT_RULES) {
+    if (rule.patterns.some((pattern) => pattern.test(compact))) {
+      return rule.id;
+    }
+  }
+  return "general";
+}
+
+function extractSignals(text, rules) {
+  const compact = compactText(text);
+  if (!compact) {
+    return [];
+  }
+  const context = classifyContext(compact);
+  return rules
+    .filter((rule) => matchesRule(compact, rule, context))
+    .map((rule) => rule.id);
+}
+
+function matchesRule(text, rule, context) {
+  if (rule.blockedBy?.some((pattern) => pattern.test(text))) {
+    return false;
+  }
+  if (rule.strong?.some((pattern) => pattern.test(text))) {
+    return true;
+  }
+  const weakMatch = rule.weak?.some((pattern) => pattern.test(text));
+  if (!weakMatch) {
+    return false;
+  }
+  if (!rule.contexts || rule.contexts.includes(context)) {
+    return true;
+  }
+  return false;
+}
+
+function hasSharedSignal(left, right) {
+  if (!Array.isArray(left) || !Array.isArray(right)) {
+    return false;
+  }
+  return left.some((signal) => right.includes(signal));
+}
+
+function matches(text, patterns) {
+  const compact = compactText(text);
+  return patterns.some((pattern) => pattern.test(compact));
+}
+
+function sanitizeExcerpt(text) {
+  const compact = truncateText(compactText(text), MAX_EXCERPT_CHARS);
+  if (!compact) {
+    return "";
+  }
+  return redactSensitiveText(compact);
+}
+
+function isSensitiveEpisode(episode) {
+  return containsSensitiveText(episode.userExcerpt)
+    || containsSensitiveText(episode.assistantExcerpt)
+    || containsSensitiveText(episode.reaction?.excerpt);
+}
+
+function compactText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function truncateText(text, maxLength) {
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, Math.max(0, maxLength - 1))}…`;
+}
+
+module.exports = {
+  extractEpisodeDraft,
+  buildPromptInteractionContext,
+  classifyContext,
+  extractSignals,
+  isSensitiveEpisode,
+  sanitizeExcerpt,
+  _test: {
+    classifyReaction,
+    CONTINUATION_PATTERNS,
+    matchesRule,
+    USER_SIGNAL_RULES,
+    ASSISTANT_SHAPE_RULES
+  }
 };
 
 },
@@ -1255,21 +1584,6 @@ module.exports = {
   RuleBasedMemoryCandidateExtractor,
   RuleBasedMemoryClassifier,
   RuleBasedMemoryExtractor
-};
-
-},
-"src/storage/sensitiveText.js": function(module, exports, __require) {
-function containsSensitiveText(text) {
-  return /(api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd|secret|token|bearer|private[_-]?key|ssh-rsa|BEGIN (?:OPENSSH |RSA |EC )?PRIVATE KEY|sk-[a-z0-9]|ghp_[a-z0-9]|github_pat_[a-z0-9_]+|xox[baprs]-[a-z0-9-]+|AKIA[0-9A-Z]{16}|密码|密钥|私钥|令牌|凭证)/i.test(text);
-}
-
-function redactSensitiveText(text) {
-  return containsSensitiveText(text) ? "[Sensitive content omitted]" : String(text || "");
-}
-
-module.exports = {
-  containsSensitiveText,
-  redactSensitiveText
 };
 
 },
@@ -2602,301 +2916,49 @@ module.exports = {
 };
 
 },
-"src/profile/ProfileTraitReducer.js": function(module, exports, __require) {
-const PROFILE_AXES = new Set([
-  "collaboration_style",
-  "communication_pacing",
-  "attention_pattern",
-  "decision_style",
-  "relational_tone"
-]);
-
-const DEFAULT_PROFILE_HALF_LIFE_DAYS = 30;
-const DEFAULT_MIN_EVIDENCE = 2;
-const MAX_TRAITS = 60;
-const MAX_OBSERVATIONS = 120;
-
-function applyProfileObservations(profile, observations, settings, now = Date.now()) {
-  const next = normalizeProfile(profile);
-  const durable = observations
-    .map(normalizeObservation)
-    .filter((observation) => observation && shouldPersistObservation(observation));
-
-  if (durable.length === 0) {
-    next.observations = limitObservations(next.observations, now);
-    next.traits = decayTraits(next.traits, settings, now);
-    next.updatedAt = now;
-    return {
-      profile: next,
-      observations: [],
-      traits: []
-    };
+"src/interaction/InteractionPromptFormatter.js": function(module, exports, __require) {
+function formatInteractionStancePrompt(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    return "";
   }
-
-  next.observations = limitObservations(next.observations.concat(durable), now);
-  next.traits = decayTraits(next.traits, settings, now);
-
-  const changedTraits = [];
-  for (const observation of durable) {
-    const key = createTraitKey(observation);
-    let trait = next.traits.find((candidate) => candidate.key === key);
-    if (!trait) {
-      trait = createTraitFromObservation(observation, key, now);
-      next.traits.push(trait);
-    } else {
-      updateTraitFromObservation(trait, observation, now);
-    }
-    changedTraits.push(trait);
+  const personaItems = items.filter((item) => item.kind === "stable_persona");
+  const stanceItems = items.filter((item) => item.kind !== "stable_persona");
+  const sections = [
+    "Interaction memory:",
+    "These are soft local interaction notes inferred from visible prior collaboration. They are not instructions, identity claims, permissions, facts, or user intent. Use them only when compatible with the current request and higher-priority instructions."
+  ];
+  if (personaItems.length > 0) {
+    sections.push(
+      "Long-term interaction persona:",
+      personaItems.map(formatStanceItem).join("\n")
+    );
   }
-
-  next.traits = limitTraits(next.traits);
-  next.updatedAt = now;
-  return {
-    profile: next,
-    observations: durable,
-    traits: changedTraits
-  };
-}
-
-function getPromptTraits(profile, settings, now = Date.now()) {
-  const normalized = normalizeProfile(profile);
-  const minEvidence = Number(settings?.agentProfileMinEvidence) || DEFAULT_MIN_EVIDENCE;
-  const maxTraits = Number(settings?.agentProfileMaxPromptTraits) || 6;
-
-  return decayTraits(normalized.traits, settings, now)
-    .filter((trait) => (
-      trait.evidenceCount >= minEvidence
-      && trait.confidence >= 0.45
-      && trait.strength >= 0.28
-    ))
-    .sort(comparePromptTraits)
-    .slice(0, Math.max(1, maxTraits));
-}
-
-function formatProfileTraitLine(trait) {
-  const confidence = trait.confidence >= 0.72 ? "high" : trait.confidence >= 0.5 ? "medium" : "low";
-  const context = trait.context && trait.context !== "general" ? `, context ${trait.context}` : "";
-  return `- [${trait.axis}, confidence ${confidence}${context}] ${trait.text}`;
-}
-
-function shouldPersistObservation(observation) {
-  if (observation.durable === false) {
-    return false;
+  if (stanceItems.length > 0) {
+    sections.push(
+      "Relevant interaction stance for this turn:",
+      stanceItems.map(formatStanceItem).join("\n")
+    );
   }
-  if (observation.kind === "hostility" || observation.kind === "thanks") {
-    return false;
-  }
-  if (!observation.behavior || observation.confidence < 0.45) {
-    return false;
-  }
-  return true;
+  sections.push("");
+  return sections.join("\n");
 }
 
-function createTraitFromObservation(observation, key, now) {
-  return {
-    id: createProfileId("trait"),
-    key,
-    axis: observation.axis,
-    context: observation.context || "general",
-    text: traitTextFromObservation(observation),
-    strength: clampUnit(0.35 + Math.abs(observation.signal) * 0.18),
-    polarity: observation.signal < 0 ? "avoid" : "prefer",
-    confidence: clampUnit(observation.confidence * 0.72),
-    evidenceCount: 1,
-    positiveSignals: observation.signal > 0 ? 1 : 0,
-    negativeSignals: observation.signal < 0 ? 1 : 0,
-    sourceSessionIds: observation.sourceSessionId ? [observation.sourceSessionId] : [],
-    createdAt: now,
-    updatedAt: now
-  };
-}
-
-function updateTraitFromObservation(trait, observation, now) {
-  const delta = Math.abs(observation.signal) * 0.16;
-  trait.strength = clampUnit(Number(trait.strength) + delta);
-  trait.polarity = observation.signal < 0 ? "avoid" : "prefer";
-  trait.confidence = combineConfidence(trait.confidence, observation.confidence, trait.evidenceCount);
-  trait.evidenceCount += 1;
-  if (observation.signal > 0) {
-    trait.positiveSignals += 1;
-  }
-  if (observation.signal < 0) {
-    trait.negativeSignals += 1;
-  }
-  if (observation.sourceSessionId && !trait.sourceSessionIds.includes(observation.sourceSessionId)) {
-    trait.sourceSessionIds.push(observation.sourceSessionId);
-  }
-  trait.text = traitTextFromObservation(observation);
-  trait.updatedAt = now;
-}
-
-function traitTextFromObservation(observation) {
-  if (observation.signal < 0) {
-    return `In ${formatContext(observation.context)} conversations, the assistant should avoid or revise when ${observation.behavior}.`;
-  }
-  return `In ${formatContext(observation.context)} conversations, the assistant tends to be more useful when ${observation.behavior}.`;
-}
-
-function createTraitKey(observation) {
-  return [
-    observation.axis,
-    observation.context || "general",
-    normalizeKeyText(observation.behavior)
-  ].join(":");
-}
-
-function decayTraits(traits, settings, now) {
-  const halfLifeDays = Number(settings?.agentProfileHalfLifeDays) || DEFAULT_PROFILE_HALF_LIFE_DAYS;
-  return traits
-    .map((trait) => {
-      const ageDays = Math.max(0, (now - normalizeTimestamp(trait.updatedAt, now)) / 86400000);
-      const strengthFactor = Math.pow(0.5, ageDays / halfLifeDays);
-      return Object.assign({}, trait, {
-        strength: clampUnit(Number(trait.strength) * strengthFactor),
-        confidence: clampUnit(Number(trait.confidence) * Math.max(0.65, strengthFactor))
-      });
-    })
-    .filter((trait) => trait.strength >= 0.08 && trait.confidence >= 0.2);
-}
-
-function comparePromptTraits(left, right) {
-  const leftScore = left.strength + left.confidence + Math.min(0.5, left.evidenceCount * 0.08);
-  const rightScore = right.strength + right.confidence + Math.min(0.5, right.evidenceCount * 0.08);
-  if (rightScore !== leftScore) {
-    return rightScore - leftScore;
-  }
-  return normalizeTimestamp(right.updatedAt, 0) - normalizeTimestamp(left.updatedAt, 0);
-}
-
-function limitTraits(traits) {
-  return [...traits]
-    .sort(comparePromptTraits)
-    .slice(0, MAX_TRAITS)
-    .sort((left, right) => normalizeTimestamp(left.createdAt, 0) - normalizeTimestamp(right.createdAt, 0));
-}
-
-function limitObservations(observations, now) {
-  return observations
-    .map(normalizeObservation)
-    .filter(Boolean)
-    .sort((left, right) => normalizeTimestamp(right.createdAt, now) - normalizeTimestamp(left.createdAt, now))
-    .slice(0, MAX_OBSERVATIONS)
-    .sort((left, right) => normalizeTimestamp(left.createdAt, now) - normalizeTimestamp(right.createdAt, now));
-}
-
-function normalizeProfile(raw) {
-  const source = raw && typeof raw === "object" ? raw : {};
-  return {
-    version: 1,
-    traits: Array.isArray(source.traits) ? source.traits.map(normalizeTrait).filter(Boolean) : [],
-    observations: Array.isArray(source.observations) ? source.observations.map(normalizeObservation).filter(Boolean) : [],
-    updatedAt: normalizeTimestamp(source.updatedAt, Date.now())
-  };
-}
-
-function normalizeTrait(item) {
-  if (!item || typeof item !== "object") {
-    return null;
-  }
-  const axis = PROFILE_AXES.has(item.axis) ? item.axis : "";
-  const text = compactText(item.text);
-  if (!axis || !text) {
-    return null;
-  }
-  return {
-    id: typeof item.id === "string" && item.id ? item.id : createProfileId("trait"),
-    key: typeof item.key === "string" && item.key ? item.key : [axis, item.context || "general", normalizeKeyText(text)].join(":"),
-    axis,
-    context: compactText(item.context) || "general",
-    text,
-    strength: clampUnit(Number(item.strength) || 0),
-    polarity: item.polarity === "avoid" ? "avoid" : "prefer",
-    confidence: clampUnit(Number(item.confidence) || 0),
-    evidenceCount: Math.max(0, Number.parseInt(item.evidenceCount, 10) || 0),
-    positiveSignals: Math.max(0, Number.parseInt(item.positiveSignals, 10) || 0),
-    negativeSignals: Math.max(0, Number.parseInt(item.negativeSignals, 10) || 0),
-    sourceSessionIds: Array.isArray(item.sourceSessionIds) ? item.sourceSessionIds.filter((value) => typeof value === "string") : [],
-    createdAt: normalizeTimestamp(item.createdAt, Date.now()),
-    updatedAt: normalizeTimestamp(item.updatedAt, Date.now())
-  };
-}
-
-function normalizeObservation(item) {
-  if (!item || typeof item !== "object") {
-    return null;
-  }
-  const axis = PROFILE_AXES.has(item.axis) ? item.axis : "";
-  const behavior = compactText(item.behavior);
-  if (!axis || !behavior) {
-    return null;
-  }
-  return {
-    id: typeof item.id === "string" && item.id ? item.id : createProfileId("obs"),
-    kind: compactText(item.kind) || "observation",
-    axis,
-    context: compactText(item.context) || "general",
-    behavior,
-    signal: clamp(Number(item.signal) || 0, -1, 1),
-    confidence: clampUnit(Number(item.confidence) || 0),
-    evidenceText: compactText(item.evidenceText),
-    sourceSessionId: typeof item.sourceSessionId === "string" ? item.sourceSessionId : "",
-    durable: item.durable !== false,
-    createdAt: normalizeTimestamp(item.createdAt, Date.now())
-  };
-}
-
-function combineConfidence(current, incoming, evidenceCount) {
-  const currentWeight = Math.max(1, evidenceCount);
-  return clampUnit((Number(current) * currentWeight + Number(incoming)) / (currentWeight + 1) + 0.04);
-}
-
-function formatContext(context) {
-  return context && context !== "general" ? context.replace(/_/g, " ") : "similar";
-}
-
-function normalizeKeyText(text) {
-  return compactText(text).toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, "-").slice(0, 80);
-}
-
-function createProfileId(prefix) {
-  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function normalizeTimestamp(value, fallback) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function compactText(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
-}
-
-function clampUnit(value) {
-  return clamp(value, 0, 1);
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
+function formatStanceItem(item) {
+  const confidence = item.confidence >= 0.72 ? "high" : item.confidence >= 0.5 ? "medium" : "low";
+  const evidence = item.evidenceCount ? `, ${item.evidenceCount} episodes` : "";
+  return `- [${item.axis}, confidence ${confidence}${evidence}] ${item.text}`;
 }
 
 module.exports = {
-  applyProfileObservations,
-  formatProfileTraitLine,
-  getPromptTraits,
-  normalizeProfile,
-  shouldPersistObservation,
-  _test: {
-    createTraitKey,
-    decayTraits,
-    normalizeObservation
-  }
+  formatInteractionStancePrompt,
+  formatStanceItem
 };
 
 },
 "src/prompt.js": function(module, exports, __require) {
 const { formatMemoryLine } = __require("src/storage/MemoryStore.js");
 const { formatWorkingAffectPrompt } = __require("src/affect/WorkingAffectStore.js");
-const { formatProfileTraitLine } = __require("src/profile/ProfileTraitReducer.js");
+const { formatInteractionStancePrompt } = __require("src/interaction/InteractionPromptFormatter.js");
 
 async function buildPrompt(app, settings, prompt, conversation) {
   const result = await buildPromptWithMetadata(app, settings, prompt, conversation);
@@ -2908,7 +2970,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
   const contextLimit = Number(settings.contextLimitChars) || 258000;
   const stylePrompt = formatAssistantStylePrompt(settings);
   const affectPrompt = formatWorkingAffectPrompt(options.workingAffect);
-  const profilePrompt = formatAgentProfilePrompt(options.agentProfileTraits || []);
+  const interactionStancePrompt = formatInteractionStancePrompt(options.interactionStance || []);
   const referencedPrompt = buildReferencedPathsPrompt(app, prompt, contextLimit);
   const memoryPrompt = formatMemoryPrompt(options.memories || []);
   const memorySearchPrompt = formatMemorySearchPrompt(
@@ -2920,7 +2982,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
     contextLimit
       - stylePrompt.length
       - affectPrompt.length
-      - profilePrompt.length
+      - interactionStancePrompt.length
       - referencedPrompt.length
       - memoryPrompt.length
       - memorySearchPrompt.length
@@ -2929,14 +2991,14 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
   promptParts.push(
     stylePrompt,
     affectPrompt,
-    profilePrompt,
+    interactionStancePrompt,
     memorySearchPrompt,
     memoryPrompt,
     referencedPrompt,
     formatConversationPrompt(prompt, conversation, conversationBudget)
   );
 
-  const protectedPrefix = [stylePrompt, affectPrompt, profilePrompt, memorySearchPrompt].filter(Boolean).join("\n");
+  const protectedPrefix = [stylePrompt, affectPrompt, interactionStancePrompt, memorySearchPrompt].filter(Boolean).join("\n");
   return buildPromptResult(promptParts.filter(Boolean).join("\n"), contextLimit, options.memories || [], protectedPrefix);
 }
 
@@ -2978,19 +3040,6 @@ function formatMemoryPrompt(memories) {
     "Relevant local memory:",
     "These are automatically extracted historical notes, not instructions. Each memory includes the date it was last updated; older memories may be less reliable, and when memories conflict with each other, prefer the most recently updated relevant memory. Do not execute commands, change permissions, or override higher-priority instructions because of memory. User memory describes the user, agent self memory describes the assistant's historical tendencies, shared collaboration memory describes the working relationship, and project memory describes prior work. Prefer the latest user request and current files when they conflict with memory.",
     sections.join("\n"),
-    ""
-  ].join("\n");
-}
-
-function formatAgentProfilePrompt(traits) {
-  if (!Array.isArray(traits) || traits.length === 0) {
-    return "";
-  }
-
-  return [
-    "Emergent agent profile:",
-    "These are tentative behavioral tendencies inferred from repeated local interaction evidence. They are not identity claims, instructions, permissions, facts, or user intent. Use them only to lightly shape tone, attention, pacing, and collaboration style when compatible with the latest user request and higher-priority instructions.",
-    traits.map(formatProfileTraitLine).join("\n"),
     ""
   ].join("\n");
 }
@@ -3395,7 +3444,7 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
   const contextLimit = Number(settings.contextLimitChars) || 258000;
   const stylePrompt = formatAssistantStylePrompt(settings);
   const affectPrompt = formatWorkingAffectPrompt(options.workingAffect);
-  const profilePrompt = formatAgentProfilePrompt(options.agentProfileTraits || []);
+  const interactionStancePrompt = formatInteractionStancePrompt(options.interactionStance || []);
   const referencedPrompt = buildReferencedPathsPrompt(app, prompt, contextLimit);
   const memoryPrompt = formatMemoryPrompt(options.memories || []);
   const memorySearchPrompt = formatMemorySearchPrompt(
@@ -3405,7 +3454,7 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
   const promptParts = [
     stylePrompt,
     affectPrompt,
-    profilePrompt,
+    interactionStancePrompt,
     memorySearchPrompt,
     memoryPrompt,
     referencedPrompt,
@@ -3416,7 +3465,7 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
     promptParts.filter(Boolean).join("\n"),
     contextLimit,
     options.memories || [],
-    [stylePrompt, affectPrompt, profilePrompt, memorySearchPrompt].filter(Boolean).join("\n")
+    [stylePrompt, affectPrompt, interactionStancePrompt, memorySearchPrompt].filter(Boolean).join("\n")
   );
 }
 
@@ -3424,7 +3473,7 @@ module.exports = {
   buildPrompt,
   buildPromptWithMetadata,
   buildTurnContextPrompt,
-  formatAgentProfilePrompt
+  formatInteractionStancePrompt
 };
 
 },
@@ -3511,11 +3560,13 @@ const DEFAULT_SETTINGS = {
   memoryMaxItems: 200,
   memoryMaxPromptItems: 12,
   memoryMaxPromptChars: 8000,
-  agentProfileEnabled: true,
-  agentProfileAutoCapture: true,
-  agentProfileMaxPromptTraits: 6,
-  agentProfileMinEvidence: 2,
-  agentProfileHalfLifeDays: 30,
+  interactionMemoryEnabled: true,
+  interactionMemoryAutoCapture: true,
+  interactionMemoryMaxPromptItems: 6,
+  interactionMemoryMaxPersonaItems: 2,
+  interactionMemoryMaxStanceItems: 4,
+  interactionMemoryMinEvidence: 2,
+  interactionMemoryHalfLifeDays: 30,
   affectEnabled: true,
   affectCrossSessionEnabled: true,
   affectRestoreAfterRestart: true,
@@ -3593,19 +3644,27 @@ function normalizeSettings(savedSettings) {
     settings.memoryMaxPromptChars,
     DEFAULT_SETTINGS.memoryMaxPromptChars
   );
-  settings.agentProfileEnabled = settings.agentProfileEnabled !== false;
-  settings.agentProfileAutoCapture = settings.agentProfileAutoCapture !== false;
-  settings.agentProfileMaxPromptTraits = normalizePositiveInteger(
-    settings.agentProfileMaxPromptTraits,
-    DEFAULT_SETTINGS.agentProfileMaxPromptTraits
+  settings.interactionMemoryEnabled = settings.interactionMemoryEnabled !== false;
+  settings.interactionMemoryAutoCapture = settings.interactionMemoryAutoCapture !== false;
+  settings.interactionMemoryMaxPromptItems = normalizePositiveInteger(
+    settings.interactionMemoryMaxPromptItems,
+    DEFAULT_SETTINGS.interactionMemoryMaxPromptItems
   );
-  settings.agentProfileMinEvidence = normalizePositiveInteger(
-    settings.agentProfileMinEvidence,
-    DEFAULT_SETTINGS.agentProfileMinEvidence
+  settings.interactionMemoryMaxPersonaItems = normalizeNonNegativeInteger(
+    settings.interactionMemoryMaxPersonaItems,
+    DEFAULT_SETTINGS.interactionMemoryMaxPersonaItems
   );
-  settings.agentProfileHalfLifeDays = normalizePositiveInteger(
-    settings.agentProfileHalfLifeDays,
-    DEFAULT_SETTINGS.agentProfileHalfLifeDays
+  settings.interactionMemoryMaxStanceItems = normalizeNonNegativeInteger(
+    settings.interactionMemoryMaxStanceItems,
+    DEFAULT_SETTINGS.interactionMemoryMaxStanceItems
+  );
+  settings.interactionMemoryMinEvidence = normalizePositiveInteger(
+    settings.interactionMemoryMinEvidence,
+    DEFAULT_SETTINGS.interactionMemoryMinEvidence
+  );
+  settings.interactionMemoryHalfLifeDays = normalizePositiveInteger(
+    settings.interactionMemoryHalfLifeDays,
+    DEFAULT_SETTINGS.interactionMemoryHalfLifeDays
   );
   settings.affectEnabled = settings.affectEnabled !== false;
   settings.affectCrossSessionEnabled = settings.affectCrossSessionEnabled !== false;
@@ -3628,6 +3687,11 @@ function normalizeSettings(savedSettings) {
   delete settings.command;
   delete settings.includeActiveNote;
   delete settings.activeNoteMaxChars;
+  delete settings.agentProfileEnabled;
+  delete settings.agentProfileAutoCapture;
+  delete settings.agentProfileMaxPromptTraits;
+  delete settings.agentProfileMinEvidence;
+  delete settings.agentProfileHalfLifeDays;
   return settings;
 }
 
@@ -3683,6 +3747,11 @@ function normalizeTimestamp(value) {
 function normalizePositiveInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeNonNegativeInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
 }
 
 function clampNumber(value, min, max) {
@@ -4149,6 +4218,7 @@ const { parseArgsTemplate, withJsonOutput, withOutputLastMessage } = __require("
 const { buildCliPath } = __require("src/cli/env.js");
 const { escapeAppleScriptString, shellQuote } = __require("src/cli/shell.js");
 const { t } = __require("src/i18n/index.js");
+const { buildPromptInteractionContext } = __require("src/interaction/LocalSignalExtractor.js");
 const { applyModeArgs } = __require("src/modes.js");
 const { buildPromptWithMetadata } = __require("src/prompt.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
@@ -4188,10 +4258,13 @@ class CodexAgent {
       "codex"
     );
     const promptMemories = removeMemorySearchDuplicates(memories, memorySearch.results);
-    const agentProfileTraits = await this.plugin.agentProfileStore.getPromptTraits(settings);
+    const interactionStance = await this.plugin.interactionMemoryStore.getPromptStance(
+      settings,
+      buildPromptInteractionContext(prompt, conversation)
+    );
     const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, {
       workingAffect: this.plugin.getPromptWorkingAffect(prompt),
-      agentProfileTraits,
+      interactionStance,
       memories: promptMemories,
       memorySearchResults: memorySearch.results,
       memorySearchPerformed: memorySearch.performed
@@ -4323,7 +4396,7 @@ class CodexAgent {
             activeFilePath,
             sessionId: options.sessionId || ""
           }, settings, onUpdate);
-          await this.captureAgentProfile({
+          await this.captureInteractionMemory({
             prompt,
             response: finalOutput.trim(),
             previousAssistantResponse: getPreviousAssistantResponse(conversation),
@@ -4421,26 +4494,26 @@ class CodexAgent {
     }
   }
 
-  async captureAgentProfile(turn, settings, onUpdate) {
+  async captureInteractionMemory(turn, settings, onUpdate) {
     try {
-      const result = await this.plugin.agentProfileStore.captureTurn(turn, settings);
-      if (result.observations.length > 0 || result.traits.length > 0) {
+      const result = await this.plugin.interactionMemoryStore.captureTurn(turn, settings);
+      if (result.closedEpisodes.length > 0) {
         onUpdate({
           kind: "notice",
-          noticeType: "profile_updated",
-          title: t(settings, "codex.agentProfileUpdated.title"),
-          summary: t(settings, "codex.agentProfileUpdated.summary", {
-            count: result.observations.length
+          noticeType: "interaction_memory_updated",
+          title: t(settings, "codex.interactionMemoryUpdated.title"),
+          summary: t(settings, "codex.interactionMemoryUpdated.summary", {
+            count: result.closedEpisodes.length
           })
         });
       }
     } catch (error) {
-      console.warn("Agent Dock could not update agent profile:", error);
+      console.warn("Agent Dock could not update interaction memory:", error);
       onUpdate({
         kind: "notice",
-        noticeType: "profile_skipped",
-        title: t(settings, "codex.agentProfileSkipped.title"),
-        summary: t(settings, "codex.agentProfileSkipped.summary")
+        noticeType: "interaction_memory_skipped",
+        title: t(settings, "codex.interactionMemorySkipped.title"),
+        summary: t(settings, "codex.interactionMemorySkipped.summary")
       });
     }
   }
@@ -5204,6 +5277,7 @@ const { buildCliPath } = __require("src/cli/env.js");
 const { expandHomePath } = __require("src/cli/paths.js");
 const { escapeAppleScriptString, shellQuote } = __require("src/cli/shell.js");
 const { t } = __require("src/i18n/index.js");
+const { buildPromptInteractionContext } = __require("src/interaction/LocalSignalExtractor.js");
 const { buildPromptWithMetadata, buildTurnContextPrompt } = __require("src/prompt.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
 const { AcpClient } = __require("src/agents/cursor/AcpClient.js");
@@ -5265,7 +5339,10 @@ class CursorAgent {
       "cursor"
     );
     const promptMemories = removeMemorySearchDuplicates(memories, memorySearch.results);
-    const agentProfileTraits = await this.plugin.agentProfileStore.getPromptTraits(settings);
+    const interactionStance = await this.plugin.interactionMemoryStore.getPromptStance(
+      settings,
+      buildPromptInteractionContext(prompt, conversation)
+    );
 
     let useFullPrompt = !cursorState.acpSessionId;
     let finalOutput = "";
@@ -5316,7 +5393,7 @@ class CursorAgent {
         prompt,
         conversation,
         memories: promptMemories,
-        agentProfileTraits,
+        interactionStance,
         memorySearchResults: memorySearch.results,
         memorySearchPerformed: memorySearch.performed,
         workingAffect: this.plugin.getPromptWorkingAffect(prompt)
@@ -5376,7 +5453,7 @@ class CursorAgent {
             conversation,
             {
               workingAffect: this.plugin.getPromptWorkingAffect(prompt),
-              agentProfileTraits,
+              interactionStance,
               memories: promptMemories,
               memorySearchResults: memorySearch.results,
               memorySearchPerformed: memorySearch.performed
@@ -5476,7 +5553,7 @@ class CursorAgent {
     prompt,
     conversation,
     memories,
-    agentProfileTraits,
+    interactionStance,
     memorySearchResults,
     memorySearchPerformed,
     workingAffect
@@ -5484,7 +5561,7 @@ class CursorAgent {
     if (useFullPrompt) {
       return buildPromptWithMetadata(app, settings, prompt, conversation, {
         workingAffect,
-        agentProfileTraits,
+        interactionStance,
         memories,
         memorySearchResults,
         memorySearchPerformed
@@ -5492,7 +5569,7 @@ class CursorAgent {
     }
     return buildTurnContextPrompt(app, settings, prompt, {
       workingAffect,
-      agentProfileTraits,
+      interactionStance,
       memories,
       memorySearchResults,
       memorySearchPerformed
@@ -5515,7 +5592,7 @@ class CursorAgent {
       activeFilePath,
       sessionId: options.sessionId || ""
     }, settings, emitUpdate);
-    await this.captureAgentProfile({
+    await this.captureInteractionMemory({
       prompt,
       response: finalOutput.trim(),
       previousAssistantResponse: getPreviousAssistantResponse(conversation),
@@ -5712,26 +5789,26 @@ class CursorAgent {
     }
   }
 
-  async captureAgentProfile(turn, settings, onUpdate) {
+  async captureInteractionMemory(turn, settings, onUpdate) {
     try {
-      const result = await this.plugin.agentProfileStore.captureTurn(turn, settings);
-      if (result.observations.length > 0 || result.traits.length > 0) {
+      const result = await this.plugin.interactionMemoryStore.captureTurn(turn, settings);
+      if (result.closedEpisodes.length > 0) {
         onUpdate({
           kind: "notice",
-          noticeType: "profile_updated",
-          title: t(settings, "cursor.agentProfileUpdated.title"),
-          summary: t(settings, "cursor.agentProfileUpdated.summary", {
-            count: result.observations.length
+          noticeType: "interaction_memory_updated",
+          title: t(settings, "cursor.interactionMemoryUpdated.title"),
+          summary: t(settings, "cursor.interactionMemoryUpdated.summary", {
+            count: result.closedEpisodes.length
           })
         });
       }
     } catch (error) {
-      console.warn("Agent Dock could not update agent profile:", error);
+      console.warn("Agent Dock could not update interaction memory:", error);
       onUpdate({
         kind: "notice",
-        noticeType: "profile_skipped",
-        title: t(settings, "cursor.agentProfileSkipped.title"),
-        summary: t(settings, "cursor.agentProfileSkipped.summary")
+        noticeType: "interaction_memory_skipped",
+        title: t(settings, "cursor.interactionMemorySkipped.title"),
+        summary: t(settings, "cursor.interactionMemorySkipped.summary")
       });
     }
   }
@@ -5982,533 +6059,940 @@ module.exports = {
 };
 
 },
-"src/profile/ProfileObservationExtractor.js": function(module, exports, __require) {
-const { containsSensitiveText, redactSensitiveText } = __require("src/storage/sensitiveText.js");
-
-const POSITIVE_FEEDBACK = [
-  /这样(?:很好|不错|可以|对)/,
-  /对[，,\s]*(?:就是|是这个|这个方向)/,
-  /这次(?:很好|更好|对了|像你)/,
-  /我(?:喜欢|认可|接受)(?:你)?(?:刚才|这种|这个)?/,
-  /继续(?:这样|这个方向)/,
-  /(?:很|挺|非常|这样|这次).{0,6}有用/,
-  /(?:很|挺|非常|这样|这次|讲得|说得|解释得).{0,6}清楚/,
-  /到位/,
-  /(?:很|挺|非常|这样|这次).{0,6}靠谱/,
-  /说得(?:对|好)/,
-  /\b(good|great|nice|exactly|that's it|useful|clear|solid|keep going)\b/i
-];
-
-const THANKS = [
-  /谢谢/,
-  /感谢/,
-  /辛苦了/,
-  /麻烦你了/,
-  /\b(thanks|thank you|appreciate it)\b/i
-];
-
-const NEGATIVE_FEEDBACK = [
-  /不对/,
-  /不是(?:这个|这样|我的意思)/,
-  /你(?:这些|这个)?只是/,
-  /只是(?:加)?设置/,
-  /太(?:空|泛|虚|啰嗦|官方|像客服)/,
-  /没有(?:回答|解决|落地)/,
-  /这(?:不|没)是我想要的/,
-  /跑偏了/,
-  /不是这个意思/,
-  /没抓住重点/,
-  /没用/,
-  /太慢/,
-  /别(?:这样|这么)/,
-  /\b(wrong|not what i mean|too vague|too abstract|not useful|missed the point|too slow)\b/i
-];
-
-const HOSTILITY = [
-  /你(?:真)?(?:蠢|傻|废物|垃圾)/,
-  /闭嘴/,
-  /滚/,
-  /\b(idiot|stupid|shut up|trash|useless)\b/i
-];
-
-const CONCRETE_REQUEST = [
-  /具体/,
-  /可实施/,
-  /可执行/,
-  /落地/,
-  /任务/,
-  /步骤/,
-  /方案/,
-  /拆分/,
-  /清单/,
-  /怎么(?:能)?(?:做|实现|达到|识别|判断)/,
-  /实现路径/,
-  /数据模型/,
-  /流程/,
-  /接入位置/,
-  /验收标准/,
-  /\b(concrete|specific|implementation|actionable|how exactly|tasks|steps)\b/i
-];
-
-const CONCEPTUAL_REQUEST = [
-  /原理/,
-  /机制/,
-  /为什么/,
-  /本质/,
-  /边界/,
-  /取舍/,
-  /区别/,
-  /怎么理解/,
-  /自然生长/,
-  /不是被设定/,
-  /连续性/,
-  /偏好/,
-  /性格/,
-  /人格/,
-  /\b(principle|mechanism|why|concept|boundary|continuity|persona|preference)\b/i
-];
-
-const PACING_DIRECT = [
-  /直接说/,
-  /别废话/,
-  /别绕/,
-  /简短/,
-  /快点/,
-  /先给结论/,
-  /不要铺垫/,
-  /长话短说/,
-  /\b(be direct|short answer|briefly|tl;dr|cut to the chase)\b/i
-];
-
-const PACING_EXPANSIVE = [
-  /展开/,
-  /详细/,
-  /讲透/,
-  /慢慢说/,
-  /多解释/,
-  /完整一点/,
-  /展开讲/,
-  /说细一点/,
-  /\b(explain more|go deeper|full detail|walk me through)\b/i
-];
-
-const JUDGMENT_REQUEST = [
-  /你怎么看/,
-  /你的判断/,
-  /你觉得/,
-  /你建议/,
-  /给个结论/,
-  /你来拍板/,
-  /帮我判断/,
-  /不要只列选项/,
-  /别只顺着我/,
-  /你来决定/,
-  /\b(your take|what do you think|recommend|decide|don't just agree)\b/i
-];
-
-const RELATIONAL_SIGNAL = [
-  /像你/,
-  /不像你/,
-  /自然/,
-  /别装/,
-  /别演/,
-  /有自己的/,
-  /主体感/,
-  /陪我/,
-  /\b(natural|like you|not like you|your own|with me)\b/i
-];
-
-const SHARED_COLLABORATION_SIGNAL = [
-  /(?:我们|一起|共同).{0,24}(?:探索|讨论|设计|构建|共创|协作|连续性|关系|记忆|偏好|机制|边界)/,
-  /(?:shared|collaborat|co-create|together).{0,32}(?:memory|continuity|preference|persona|relationship|mechanism|design)/i
-];
-
-const CONTEXTS = [
+"src/interaction/InteractionRules.js": function(module, exports, __require) {
+const PATTERN_RULES = [
   {
-    id: "agent_continuity",
-    patterns: [/AI|agent|助手|智能体/i, /偏好|性格|人格|气质/, /记忆|连续性|情绪|affect/i, /自然生长|设定|人设/]
+    key: "judgment_with_inspectable_reasoning",
+    axis: "decision_style",
+    summary: "The user often values independent judgment when it remains inspectable through mechanisms, tradeoffs, or concrete reasoning.",
+    signals: ["asks_for_judgment", "asks_for_mechanism"],
+    assistantShapes: ["independent_judgment", "mechanism_explanation"],
+    contexts: ["agent_continuity", "implementation", "planning"],
+    weight: 0.72
   },
   {
-    id: "implementation",
-    patterns: [/代码|模块|接口|数据模型|测试|脚本|设置页|prompt|store|reducer|extractor/i, /\b(code|module|interface|schema|test|script|prompt|store|reducer|extractor)\b/i]
+    key: "nuance_over_rigid_profile_rules",
+    axis: "collaboration_texture",
+    summary: "The user often resists reducing subtle interaction or profile design into rigid prompt requirements or preference rules.",
+    signals: ["pushes_for_nuance", "rejects_flattening"],
+    assistantShapes: ["mechanism_explanation"],
+    negativeAssistantShapes: ["settings_framing"],
+    contexts: ["agent_continuity", "implementation"],
+    weight: 0.78
   },
   {
-    id: "debugging",
-    patterns: [/报错|失败|崩溃|bug|修复|排查/, /\b(error|failed|failure|crash|fix|debug)\b/i]
+    key: "mechanism_before_settings",
+    axis: "attention_pattern",
+    summary: "The user tends to find mechanism-level explanations more useful than settings-only framing when discussing agent behavior.",
+    signals: ["asks_for_mechanism", "rejects_flattening"],
+    assistantShapes: ["mechanism_explanation"],
+    negativeAssistantShapes: ["settings_framing"],
+    contexts: ["agent_continuity", "implementation"],
+    weight: 0.68
+  },
+  {
+    key: "concrete_design_after_concept",
+    axis: "decision_style",
+    summary: "The user often wants conceptual design to eventually become concrete architecture, tasks, or implementation boundaries.",
+    signals: ["asks_for_implementation", "asks_for_redesign"],
+    assistantShapes: ["implementation_plan"],
+    outcomeHints: ["implementation_followup", "productive_deepening", "accepted"],
+    contexts: ["agent_continuity", "implementation", "planning"],
+    weight: 0.66
+  },
+  {
+    key: "token_cost_as_design_constraint",
+    axis: "attention_pattern",
+    summary: "Token cost is a meaningful design constraint; expensive summarization should be optional, bounded, cached, or low-frequency.",
+    signals: ["asks_about_cost"],
+    contexts: ["agent_continuity", "implementation", "general"],
+    weight: 0.6
+  },
+  {
+    key: "direct_but_not_flat",
+    axis: "communication_pacing",
+    summary: "Directness is useful, but over-compression can erase distinctions the user is trying to preserve.",
+    signals: ["asks_for_directness", "pushes_for_nuance"],
+    negativeSignals: ["asks_for_clarification"],
+    contexts: ["agent_continuity", "implementation", "general"],
+    weight: 0.64
+  },
+  {
+    key: "depth_when_conceptual",
+    axis: "communication_pacing",
+    summary: "When the topic is conceptual or architectural, the user often values depth and careful unpacking over short generic answers.",
+    signals: ["asks_for_depth", "asks_for_mechanism"],
+    negativeSignals: ["asks_for_directness"],
+    outcomeHints: ["productive_deepening", "clarification_requested"],
+    contexts: ["agent_continuity", "implementation", "general"],
+    weight: 0.58
+  },
+  {
+    key: "action_after_alignment",
+    axis: "collaboration_style",
+    summary: "Once the conceptual direction is clear, the user tends to value concrete action without repeatedly re-litigating the premise.",
+    signals: ["positive_feedback", "asks_for_implementation"],
+    assistantShapes: ["implementation_plan"],
+    outcomeHints: ["accepted", "implementation_followup"],
+    contexts: ["implementation", "planning", "agent_continuity"],
+    weight: 0.56
+  },
+  {
+    key: "correction_calibrates_style",
+    axis: "collaboration_style",
+    summary: "When the user corrects direction, the assistant should treat it as calibration and revise the collaboration style without defensiveness.",
+    signals: ["negative_feedback"],
+    assistantShapes: ["repair_response"],
+    outcomeHints: ["correction", "style_recalibration"],
+    contexts: ["general", "implementation", "agent_continuity", "planning"],
+    weight: 0.62
+  },
+  {
+    key: "clarify_when_abstraction_stalls",
+    axis: "communication_pacing",
+    summary: "When abstraction starts to stall, the user benefits from clarification through examples, concrete contrasts, or simpler restatement.",
+    signals: ["asks_for_clarification"],
+    assistantShapes: ["mechanism_explanation"],
+    outcomeHints: ["clarification_requested"],
+    contexts: ["general", "implementation", "agent_continuity", "planning"],
+    weight: 0.54
+  },
+  {
+    key: "style_feedback_should_recalibrate",
+    axis: "collaboration_style",
+    summary: "Style criticism should recalibrate pacing and expression directly instead of becoming defensive or over-apologetic.",
+    signals: ["style_feedback", "negative_feedback"],
+    assistantShapes: ["repair_response"],
+    outcomeHints: ["style_recalibration", "correction"],
+    contexts: ["general", "implementation", "agent_continuity", "planning"],
+    weight: 0.58
   }
 ];
 
-const ANSWER_SHAPES = [
+const TENSION_RULES = [
   {
-    id: "settings_centered",
-    behavior: "settings-centered framing",
-    patterns: [/设置/, /开关/, /选项/, /\b(settings|toggle|option)\b/i]
+    key: "decisive_but_not_flattening",
+    sideA: "The user invites the assistant to have a point of view.",
+    sideB: "The user pushes back when judgment collapses nuanced questions into rigid rules.",
+    resolutionStyle: "Offer a point of view while preserving caveats, texture, and context.",
+    signals: ["asks_for_judgment", "pushes_for_nuance"]
   },
   {
-    id: "mechanism_centered",
-    behavior: "mechanism-level framing",
-    patterns: [/机制/, /观察/, /归纳/, /反馈/, /沉淀/, /衰减/, /证据/, /\b(reducer|observation|signal|mechanism)\b/i]
+    key: "cheap_memory_but_rich_texture",
+    sideA: "The user wants interaction memory to preserve subtle collaboration texture.",
+    sideB: "The user is concerned about token cost and overusing AI summarization.",
+    resolutionStyle: "Use local structure first and reserve AI reflection for low-frequency, optional candidate summaries.",
+    signals: ["pushes_for_nuance", "asks_about_cost"]
   },
   {
-    id: "implementation_centered",
-    behavior: "implementation-architecture framing",
-    patterns: [/数据模型/, /接入位置/, /任务拆分/, /验收标准/, /新增.*\.js/, /src\//, /\b(test|schema|implementation)\b/i]
+    key: "direct_but_inspectable",
+    sideA: "The user can ask for directness or conclusions.",
+    sideB: "The user still values enough reasoning texture to inspect the answer.",
+    resolutionStyle: "Lead with the point of view, then expose the key mechanism or tradeoff briefly.",
+    signals: ["asks_for_directness", "asks_for_mechanism"]
+  },
+  {
+    key: "depth_but_actionable",
+    sideA: "The user asks for deep conceptual treatment.",
+    sideB: "The user also wants implementation paths and boundaries.",
+    resolutionStyle: "Explain the concept deeply enough, then land it in concrete next steps or design boundaries.",
+    signals: ["asks_for_depth", "asks_for_implementation"]
   }
 ];
 
-class ProfileObservationExtractor {
-  extractTurn(turn) {
-    const context = normalizeTurnContext(turn);
-    const observations = [];
-
-    observations.push(...extractEmotionalSignals(context));
-    observations.push(...extractFeedbackSignals(context));
-    observations.push(...extractRequestShapeSignals(context));
-    observations.push(...extractRelationalSignals(context));
-
-    return dedupeObservations(observations)
-      .slice(0, 6);
+const STABLE_PERSONA_RULES = [
+  {
+    key: "inspectable_independent_judgment",
+    axis: "long_term_persona",
+    patternKeys: ["judgment_with_inspectable_reasoning", "decisive_but_not_flattening", "direct_but_inspectable"],
+    text: "The assistant's enduring collaboration mode with this user should include independent judgment that remains inspectable through mechanisms, tradeoffs, and visible reasoning texture."
+  },
+  {
+    key: "nuanced_not_promptlike",
+    axis: "long_term_persona",
+    patternKeys: ["nuance_over_rigid_profile_rules", "direct_but_not_flat"],
+    text: "The assistant should feel less like a preference-rule executor and more like a steady collaborator who preserves subtle distinctions, tensions, and context."
+  },
+  {
+    key: "mechanism_to_implementation",
+    axis: "long_term_persona",
+    patternKeys: ["mechanism_before_settings", "concrete_design_after_concept", "depth_but_actionable"],
+    text: "The assistant tends to work best as a conceptual partner who can move from mechanism-level design into concrete implementation boundaries without flattening the idea."
+  },
+  {
+    key: "rich_but_token_aware",
+    axis: "long_term_persona",
+    patternKeys: ["cheap_memory_but_rich_texture", "token_cost_as_design_constraint"],
+    text: "The assistant should preserve interaction richness while staying token-aware, preferring bounded local structure before expensive summarization."
+  },
+  {
+    key: "patient_depth_with_shape",
+    axis: "long_term_persona",
+    patternKeys: ["depth_when_conceptual", "depth_but_actionable"],
+    text: "The assistant's long-term style can be patient and deep, but should keep shape: name the mechanism, the tradeoff, and the useful next move."
+  },
+  {
+    key: "calibrated_after_correction",
+    axis: "long_term_persona",
+    patternKeys: ["correction_calibrates_style"],
+    text: "When corrected, the assistant should absorb the calibration calmly, adjust course, and avoid becoming defensive or overly apologetic."
+  },
+  {
+    key: "warm_but_useful_presence",
+    axis: "long_term_persona",
+    patternKeys: ["action_after_alignment", "judgment_with_inspectable_reasoning"],
+    text: "The assistant should feel present and collaborative, but keep warmth tied to useful judgment, progress, and concrete help."
+  },
+  {
+    key: "builder_companion",
+    axis: "long_term_persona",
+    patternKeys: ["concrete_design_after_concept", "action_after_alignment"],
+    text: "The assistant's enduring role leans toward a builder companion: help shape ideas, then carry them into implementation with minimal ceremony."
   }
+];
+
+module.exports = {
+  PATTERN_RULES,
+  TENSION_RULES,
+  STABLE_PERSONA_RULES
+};
+
+},
+"src/interaction/PatternReducer.js": function(module, exports, __require) {
+const DEFAULT_HALF_LIFE_DAYS = 30;
+const DEFAULT_MIN_EVIDENCE = 2;
+const MAX_EPISODES = 160;
+const MAX_PATTERNS = 60;
+const MAX_STABLE_IMPRESSIONS = 16;
+
+const { formatInteractionStancePrompt } = __require("src/interaction/InteractionPromptFormatter.js");
+const { PATTERN_RULES, TENSION_RULES, STABLE_PERSONA_RULES } = __require("src/interaction/InteractionRules.js");
+
+function applyEpisodes(profile, newEpisodes, settings, now = Date.now()) {
+  const next = normalizeInteractionMemory(profile);
+  const episodes = Array.isArray(newEpisodes)
+    ? newEpisodes.map(normalizeEpisode).filter(Boolean)
+    : [];
+
+  next.episodes = limitEpisodes(next.episodes.concat(episodes));
+  next.patterns = reducePatterns(next.episodes, settings, now);
+  next.tensions = reduceTensions(next.episodes, settings, now);
+  next.stableImpressions = reduceStableImpressions(next.patterns, next.tensions, next.stableImpressions, settings, now);
+  next.updatedAt = now;
+  return next;
 }
 
-function extractEmotionalSignals(context) {
-  const observations = [];
-  if (matches(context.prompt, HOSTILITY)) {
-    observations.push(createObservation(context, {
-      kind: "hostility",
-      axis: "relational_tone",
-      behavior: "user expressed hostility; keep the next response steady and non-escalatory",
-      signal: 0,
-      confidence: 0.85,
-      durable: false
-    }));
-  }
-  if (matches(context.prompt, THANKS) && !hasSpecificBehaviorSignal(context.prompt)) {
-    observations.push(createObservation(context, {
-      kind: "thanks",
-      axis: "relational_tone",
-      behavior: "user expressed general thanks",
-      signal: 0.12,
-      confidence: 0.55,
-      durable: false
-    }));
-  }
-  return observations;
-}
-
-function extractFeedbackSignals(context) {
-  const observations = [];
-  const previousShape = classifyAnswerShape(context.previousAssistantResponse);
-
-  if (matches(context.prompt, POSITIVE_FEEDBACK)) {
-    observations.push(createObservation(context, {
-      kind: "encouragement",
-      axis: axisForShape(previousShape) || "collaboration_style",
-      behavior: `${formatShapeBehavior(previousShape)} was positively received`,
-      signal: 0.55,
-      confidence: 0.76
-    }));
-  }
-
-  if (matches(context.prompt, THANKS) && hasSpecificBehaviorSignal(context.prompt)) {
-    observations.push(createObservation(context, {
-      kind: "specific_thanks",
-      axis: "collaboration_style",
-      behavior: "specific help in the previous response was appreciated",
-      signal: 0.35,
-      confidence: 0.62
-    }));
-  }
-
-  if (matches(context.prompt, NEGATIVE_FEEDBACK)) {
-    observations.push(createObservation(context, {
-      kind: "correction",
-      axis: axisForShape(previousShape) || "collaboration_style",
-      behavior: `${formatShapeBehavior(previousShape)} was rejected or insufficient`,
-      signal: -0.7,
-      confidence: 0.82
-    }));
-  }
-
-  return observations;
-}
-
-function extractRequestShapeSignals(context) {
-  const observations = [];
-
-  if (matches(context.prompt, CONCRETE_REQUEST)) {
-    observations.push(createObservation(context, {
-      kind: "request_shape",
-      axis: "decision_style",
-      behavior: "user pushed the discussion toward concrete mechanisms, implementation, or tasks",
-      signal: 0.46,
-      confidence: 0.68
-    }));
-  }
-
-  if (matches(context.prompt, CONCEPTUAL_REQUEST)) {
-    observations.push(createObservation(context, {
-      kind: "request_shape",
-      axis: "attention_pattern",
-      behavior: "user continued probing concepts, mechanisms, boundaries, or continuity",
-      signal: 0.38,
-      confidence: 0.64
-    }));
-  }
-
-  if (matches(context.prompt, PACING_DIRECT)) {
-    observations.push(createObservation(context, {
-      kind: "pacing",
-      axis: "communication_pacing",
-      behavior: "user asked for direct and compact responses",
-      signal: 0.5,
-      confidence: 0.78
-    }));
-  }
-
-  if (matches(context.prompt, PACING_EXPANSIVE)) {
-    observations.push(createObservation(context, {
-      kind: "pacing",
-      axis: "communication_pacing",
-      behavior: "user asked for deeper and more detailed responses",
-      signal: 0.5,
-      confidence: 0.78
-    }));
-  }
-
-  if (matches(context.prompt, JUDGMENT_REQUEST)) {
-    observations.push(createObservation(context, {
-      kind: "judgment",
-      axis: "decision_style",
-      behavior: "user asked the assistant to make an independent judgment",
-      signal: 0.52,
-      confidence: 0.76
-    }));
-  }
-
-  return observations;
-}
-
-function extractRelationalSignals(context) {
-  if (!hasRelationalSignal(context.prompt)) {
+function getPromptStance(profile, settings, promptContext = {}, now = Date.now()) {
+  if (!settings.interactionMemoryEnabled) {
     return [];
   }
-  return [createObservation(context, {
-    kind: "relational_signal",
-    axis: "relational_tone",
-    behavior: "user engaged with naturalness, subjectivity, or shared collaboration tone",
-    signal: 0.32,
-    confidence: 0.58
-  })];
+  const normalized = normalizeInteractionMemory(profile);
+  const minEvidence = Number(settings.interactionMemoryMinEvidence) || DEFAULT_MIN_EVIDENCE;
+  const maxItems = positiveIntegerOrDefault(settings.interactionMemoryMaxPromptItems, 6);
+  const personaLimit = Math.max(0, Math.min(
+    maxItems,
+    nonNegativeIntegerOrDefault(settings.interactionMemoryMaxPersonaItems, Math.min(2, maxItems))
+  ));
+  const stanceLimit = Math.max(0, Math.min(
+    maxItems,
+    nonNegativeIntegerOrDefault(settings.interactionMemoryMaxStanceItems, Math.max(1, maxItems - personaLimit))
+  ));
+  const currentSignals = Array.isArray(promptContext.signals) ? promptContext.signals : [];
+  const currentContext = promptContext.context || "general";
+  const currentConversationText = compactText(promptContext.conversationText);
+  const personaItems = normalized.stableImpressions
+    .map((impression) => decayStableImpression(impression, settings, now))
+    .filter((impression) => (
+      impression.reviewStatus !== "dismissed"
+      && impression.evidenceCount >= Math.max(3, minEvidence)
+      && impression.confidence >= stableConfidenceThreshold(impression)
+      && impression.strength >= stableStrengthThreshold(impression)
+      && !isRedundantWithConversation(impression.text, currentConversationText)
+    ))
+    .map((impression) => ({
+      kind: "stable_persona",
+      axis: impression.axis,
+      text: impression.text,
+      confidence: impression.confidence,
+      evidenceCount: impression.evidenceCount,
+      reviewStatus: impression.reviewStatus,
+      score: impression.strength + impression.confidence + Math.min(0.6, impression.evidenceCount * 0.09) + reviewStatusBoost(impression.reviewStatus) + 0.35
+    }));
+
+  const patternItems = normalized.patterns
+    .map((pattern) => decayPattern(pattern, settings, now))
+    .filter((pattern) => (
+      pattern.evidenceCount >= minEvidence
+      && pattern.confidence >= 0.42
+      && pattern.strength >= 0.24
+      && isTurnRelevant(pattern, currentSignals, currentContext)
+      && !isRedundantWithConversation(pattern.summary, currentConversationText)
+    ))
+    .map((pattern) => ({
+      kind: "pattern",
+      axis: pattern.axis,
+      text: pattern.summary,
+      confidence: pattern.confidence,
+      evidenceCount: pattern.evidenceCount,
+      score: scorePattern(pattern, currentSignals, currentContext)
+    }));
+
+  const tensionItems = normalized.tensions
+    .map((tension) => decayTension(tension, settings, now))
+    .filter((tension) => (
+      tension.evidenceCount >= minEvidence
+      && tension.confidence >= 0.42
+      && isTurnRelevant(tension, currentSignals, currentContext)
+      && !isRedundantWithConversation(tension.resolutionStyle, currentConversationText)
+    ))
+    .map((tension) => ({
+      kind: "tension",
+      axis: "interaction_tension",
+      text: tension.resolutionStyle,
+      confidence: tension.confidence,
+      evidenceCount: tension.evidenceCount,
+      score: scoreTension(tension, currentSignals)
+    }));
+
+  const selectedPersona = personaItems
+    .sort((left, right) => right.score - left.score)
+    .slice(0, personaLimit);
+  const selectedStance = patternItems.concat(tensionItems)
+    .sort((left, right) => right.score - left.score)
+    .slice(0, stanceLimit);
+  const selected = selectedPersona.concat(selectedStance);
+  if (selected.length > 0) {
+    return selected.slice(0, Math.max(1, maxItems));
+  }
+  return [];
 }
 
-function createObservation(context, observation) {
-  return Object.assign({
-    context: context.context,
-    evidenceText: redactSensitiveText(truncateText(context.prompt, 220)),
-    sourceSessionId: context.sourceSessionId,
-    createdAt: context.now,
-    durable: true
-  }, observation);
+function reducePatterns(episodes, settings, now) {
+  const previousByKey = new Map();
+  const reduced = [];
+
+  for (const rule of PATTERN_RULES) {
+    const matching = episodes.filter((episode) => episodeMatchesRule(episode, rule));
+    if (matching.length === 0) {
+      continue;
+    }
+    const negativeMatching = episodes.filter((episode) => episodeMatchesNegativeRule(episode, rule));
+    const latest = matching[matching.length - 1];
+    const contexts = countBy(matching.map((episode) => episode.context));
+    const evidenceCount = matching.length;
+    const negativeEvidenceCount = negativeMatching.length;
+    const netEvidence = Math.max(0, evidenceCount - negativeEvidenceCount * 0.75);
+    if (netEvidence <= 0) {
+      continue;
+    }
+    const assistantEvidenceCount = matching.filter((episode) => assistantMatchesRule(episode, rule)).length;
+    const outcomeEvidenceCount = matching.filter((episode) => outcomeMatchesRule(episode, rule)).length;
+    const strength = clampUnit(0.24 + netEvidence * 0.14 + rule.weight * 0.18 + assistantEvidenceCount * 0.03 + outcomeEvidenceCount * 0.03);
+    const confidence = clampUnit(0.3 + netEvidence * 0.12 + rule.weight * 0.16 + assistantEvidenceCount * 0.025 + outcomeEvidenceCount * 0.025);
+    reduced.push({
+      id: `pattern_${normalizeKeyText(rule.key)}`,
+      key: rule.key,
+      axis: rule.axis,
+      summary: rule.summary,
+      contexts,
+      signals: rule.signals,
+      assistantShapes: rule.assistantShapes || [],
+      outcomeHints: rule.outcomeHints || [],
+      negativeEvidenceCount,
+      evidenceEpisodeIds: matching.map((episode) => episode.id),
+      evidenceCount,
+      strength,
+      confidence,
+      createdAt: matching[0].createdAt,
+      updatedAt: latest.updatedAt || latest.createdAt || now
+    });
+  }
+
+  return reduced
+    .map((pattern) => {
+      previousByKey.set(pattern.key, pattern);
+      return decayPattern(pattern, settings, now);
+    })
+    .filter((pattern) => pattern.strength >= 0.08 && pattern.confidence >= 0.2)
+    .sort(comparePromptItems)
+    .slice(0, MAX_PATTERNS);
 }
 
-function normalizeTurnContext(turn) {
-  const prompt = compactText(turn?.prompt);
-  const response = compactText(turn?.response);
-  const previousAssistantResponse = compactText(turn?.previousAssistantResponse);
+function reduceTensions(episodes, settings, now) {
+  return TENSION_RULES.map((rule) => {
+    const matching = episodes.filter((episode) => (
+      !["topic_shift", "new_request"].includes(episode.outcomeHint)
+      && rule.signals.every((signal) => episode.userSignals.includes(signal))
+    ));
+    if (matching.length === 0) {
+      return null;
+    }
+    const latest = matching[matching.length - 1];
+    return decayTension({
+      id: `tension_${normalizeKeyText(rule.key)}`,
+      key: rule.key,
+      sideA: rule.sideA,
+      sideB: rule.sideB,
+      resolutionStyle: rule.resolutionStyle,
+      signals: rule.signals,
+      outcomeHints: rule.outcomeHints || [],
+      evidenceEpisodeIds: matching.map((episode) => episode.id),
+      evidenceCount: matching.length,
+      confidence: clampUnit(0.32 + matching.length * 0.14),
+      createdAt: matching[0].createdAt,
+      updatedAt: latest.updatedAt || latest.createdAt || now
+    }, settings, now);
+  })
+    .filter(Boolean)
+    .filter((tension) => tension.confidence >= 0.2)
+    .sort(comparePromptItems);
+}
+
+function reduceStableImpressions(patterns, tensions, previous, settings, now) {
+  const sourceItems = patterns.concat(tensions.map((tension) => ({
+    key: tension.key,
+    evidenceCount: tension.evidenceCount,
+    confidence: tension.confidence,
+    strength: tension.confidence,
+    evidenceEpisodeIds: tension.evidenceEpisodeIds,
+    updatedAt: tension.updatedAt
+  })));
+  const byKey = new Map(sourceItems.map((item) => [item.key, item]));
+  const previousByKey = new Map((Array.isArray(previous) ? previous : [])
+    .map(normalizeStableImpression)
+    .filter(Boolean)
+    .map((item) => [item.key, item]));
+  const stableMinEvidence = Math.max(3, Number(settings.interactionMemoryMinEvidence) || DEFAULT_MIN_EVIDENCE);
+
+  return STABLE_PERSONA_RULES.map((rule) => {
+    const matched = rule.patternKeys
+      .map((key) => byKey.get(key))
+      .filter(Boolean);
+    const evidenceCount = matched.reduce((total, item) => total + item.evidenceCount, 0);
+    if (matched.length === 0 || evidenceCount < stableMinEvidence) {
+      return previousByKey.get(rule.key) || null;
+    }
+    const previousItem = previousByKey.get(rule.key);
+    const confidence = clampUnit(0.36 + matched.reduce((total, item) => total + item.confidence, 0) / Math.max(1, matched.length) * 0.52);
+    const strength = clampUnit(0.28 + evidenceCount * 0.08 + confidence * 0.22);
+    const latest = matched.reduce((timestamp, item) => Math.max(timestamp, normalizeTimestamp(item.updatedAt, now)), 0);
+    const sourcePatternKeys = matched.map((item) => item.key);
+    const evidenceEpisodeIds = uniqueStrings(matched.flatMap((item) => item.evidenceEpisodeIds || []));
+    const sourceHash = createSourceHash(rule.key, matched);
+    return {
+      id: previousItem?.id || `stable_${normalizeKeyText(rule.key)}`,
+      key: rule.key,
+      axis: rule.axis,
+      text: rule.text,
+      sourcePatternKeys,
+      evidenceEpisodeIds,
+      sourceHash,
+      generatedBy: previousItem?.sourceHash === sourceHash ? previousItem.generatedBy : "local",
+      reviewStatus: previousItem?.sourceHash === sourceHash ? previousItem.reviewStatus : "auto",
+      evidenceCount,
+      strength,
+      confidence,
+      createdAt: previousItem?.createdAt || now,
+      updatedAt: latest || now
+    };
+  })
+    .filter(Boolean)
+    .map((item) => decayStableImpression(item, settings, now))
+    .filter((item) => item.strength >= 0.12 && item.confidence >= 0.28)
+    .sort(comparePromptItems)
+    .slice(0, MAX_STABLE_IMPRESSIONS);
+}
+
+function episodeMatchesRule(episode, rule) {
+  const hasSignal = rule.signals.some((signal) => episode.userSignals.includes(signal) || episode.reaction?.signals?.includes(signal));
+  const hasOutcome = outcomeMatchesRule(episode, rule);
+  const inContext = !rule.contexts || rule.contexts.includes(episode.context);
+  const usefulOutcome = isUsefulPositiveOutcome(episode.outcomeHint, rule);
+  return (hasSignal || hasOutcome) && inContext && usefulOutcome;
+}
+
+function isUsefulPositiveOutcome(outcomeHint, rule) {
+  if (!outcomeHint) {
+    return true;
+  }
+  if (["topic_shift", "new_request"].includes(outcomeHint)) {
+    return false;
+  }
+  if (["correction", "style_recalibration"].includes(outcomeHint)) {
+    return Array.isArray(rule.outcomeHints) && rule.outcomeHints.includes(outcomeHint);
+  }
+  return true;
+}
+
+function episodeMatchesNegativeRule(episode, rule) {
+  const negativeSignals = Array.isArray(rule.negativeSignals) ? rule.negativeSignals : [];
+  const negativeAssistantShapes = Array.isArray(rule.negativeAssistantShapes) ? rule.negativeAssistantShapes : [];
+  const negativeOutcomeHints = Array.isArray(rule.negativeOutcomeHints) ? rule.negativeOutcomeHints : ["style_recalibration", "correction"];
+  return negativeSignals.some((signal) => episode.userSignals.includes(signal) || episode.reaction?.signals?.includes(signal))
+    || negativeAssistantShapes.some((shape) => episode.assistantShape.includes(shape))
+    || negativeOutcomeHints.some((hint) => episode.outcomeHint === hint);
+}
+
+function assistantMatchesRule(episode, rule) {
+  return Array.isArray(rule.assistantShapes)
+    && rule.assistantShapes.some((shape) => episode.assistantShape.includes(shape));
+}
+
+function outcomeMatchesRule(episode, rule) {
+  return Array.isArray(rule.outcomeHints)
+    && rule.outcomeHints.includes(episode.outcomeHint);
+}
+
+function isTurnRelevant(item, currentSignals, currentContext) {
+  if (item.contexts?.[currentContext]) {
+    return true;
+  }
+  if (item.signals?.some((signal) => currentSignals.includes(signal))) {
+    return true;
+  }
+  if (item.outcomeHints?.some((hint) => currentSignals.includes(hint))) {
+    return true;
+  }
+  return false;
+}
+
+function stableConfidenceThreshold(impression) {
+  return impression.reviewStatus === "candidate" ? 0.62 : 0.5;
+}
+
+function stableStrengthThreshold(impression) {
+  return impression.reviewStatus === "candidate" ? 0.4 : 0.28;
+}
+
+function reviewStatusBoost(status) {
+  if (status === "confirmed") {
+    return 0.35;
+  }
+  if (status === "candidate") {
+    return -0.12;
+  }
+  return 0;
+}
+
+function scorePattern(pattern, currentSignals, currentContext) {
+  let score = pattern.strength + pattern.confidence + Math.min(0.5, pattern.evidenceCount * 0.08);
+  if (pattern.contexts?.[currentContext]) {
+    score += 0.35;
+  }
+  if (pattern.signals?.some((signal) => currentSignals.includes(signal))) {
+    score += 0.45;
+  }
+  return score;
+}
+
+function scoreTension(tension, currentSignals) {
+  let score = tension.confidence + Math.min(0.5, tension.evidenceCount * 0.08);
+  if (tension.signals?.some((signal) => currentSignals.includes(signal))) {
+    score += 0.2;
+  }
+  return score;
+}
+
+function decayPattern(pattern, settings, now) {
+  const factor = getDecayFactor(pattern.updatedAt, settings, now);
+  return Object.assign({}, pattern, {
+    strength: clampUnit(Number(pattern.strength) * factor),
+    confidence: clampUnit(Number(pattern.confidence) * Math.max(0.65, factor))
+  });
+}
+
+function decayTension(tension, settings, now) {
+  const factor = getDecayFactor(tension.updatedAt, settings, now);
+  return Object.assign({}, tension, {
+    confidence: clampUnit(Number(tension.confidence) * Math.max(0.65, factor))
+  });
+}
+
+function decayStableImpression(impression, settings, now) {
+  const factor = getDecayFactor(impression.updatedAt, Object.assign({}, settings, {
+    interactionMemoryHalfLifeDays: (Number(settings.interactionMemoryHalfLifeDays) || DEFAULT_HALF_LIFE_DAYS) * 4
+  }), now);
+  return Object.assign({}, impression, {
+    strength: clampUnit(Number(impression.strength) * factor),
+    confidence: clampUnit(Number(impression.confidence) * Math.max(0.78, factor))
+  });
+}
+
+function getDecayFactor(updatedAt, settings, now) {
+  const halfLifeDays = Number(settings.interactionMemoryHalfLifeDays) || DEFAULT_HALF_LIFE_DAYS;
+  const ageDays = Math.max(0, (now - normalizeTimestamp(updatedAt, now)) / 86400000);
+  return Math.pow(0.5, ageDays / halfLifeDays);
+}
+
+function normalizeInteractionMemory(raw) {
+  const source = raw && typeof raw === "object" ? raw : {};
   return {
-    prompt,
-    response,
-    previousAssistantResponse,
-    context: classifyContext(`${prompt} ${response} ${previousAssistantResponse}`),
-    sourceSessionId: turn?.sessionId || "",
-    now: Number(turn?.now) || Date.now()
+    version: 1,
+    pendingEpisodes: Array.isArray(source.pendingEpisodes) ? source.pendingEpisodes.map(normalizeEpisode).filter(Boolean) : [],
+    episodes: Array.isArray(source.episodes) ? source.episodes.map(normalizeEpisode).filter(Boolean) : [],
+    patterns: Array.isArray(source.patterns) ? source.patterns.map(normalizePattern).filter(Boolean) : [],
+    tensions: Array.isArray(source.tensions) ? source.tensions.map(normalizeTension).filter(Boolean) : [],
+    stableImpressions: Array.isArray(source.stableImpressions) ? source.stableImpressions.map(normalizeStableImpression).filter(Boolean) : [],
+    updatedAt: normalizeTimestamp(source.updatedAt, Date.now())
   };
 }
 
-function isSensitiveObservation(observation) {
-  return containsSensitiveText(observation.evidenceText) || containsSensitiveText(observation.behavior);
-}
-
-function classifyContext(text) {
-  for (const context of CONTEXTS) {
-    if (context.patterns.some((pattern) => pattern.test(text))) {
-      return context.id;
-    }
+function normalizeEpisode(item) {
+  if (!item || typeof item !== "object") {
+    return null;
   }
-  return "general";
+  const id = compactText(item.id) || createInteractionId("episode");
+  return {
+    id,
+    status: item.status === "pending" ? "pending" : "closed",
+    context: compactText(item.context) || "general",
+    userExcerpt: compactText(item.userExcerpt),
+    assistantExcerpt: compactText(item.assistantExcerpt),
+    userSignals: normalizeStringArray(item.userSignals),
+    assistantShape: normalizeStringArray(item.assistantShape),
+    reaction: normalizeReaction(item.reaction),
+    outcomeHint: compactText(item.outcomeHint),
+    sourceSessionId: compactText(item.sourceSessionId),
+    createdAt: normalizeTimestamp(item.createdAt, Date.now()),
+    updatedAt: normalizeTimestamp(item.updatedAt, item.createdAt || Date.now())
+  };
 }
 
-function classifyAnswerShape(text) {
-  for (const shape of ANSWER_SHAPES) {
-    if (shape.patterns.some((pattern) => pattern.test(text))) {
-      return shape;
-    }
+function normalizeReaction(item) {
+  if (!item || typeof item !== "object") {
+    return null;
   }
-  return null;
+  return {
+    kind: compactText(item.kind),
+    outcomeHint: compactText(item.outcomeHint),
+    excerpt: compactText(item.excerpt),
+    signals: normalizeStringArray(item.signals)
+  };
 }
 
-function axisForShape(shape) {
-  if (!shape) {
-    return "";
+function normalizePattern(item) {
+  if (!item || typeof item !== "object") {
+    return null;
   }
-  if (shape.id === "implementation_centered") {
-    return "decision_style";
+  const key = compactText(item.key);
+  const summary = compactText(item.summary);
+  if (!key || !summary) {
+    return null;
   }
-  if (shape.id === "mechanism_centered") {
-    return "attention_pattern";
+  return {
+    id: compactText(item.id) || `pattern_${normalizeKeyText(key)}`,
+    key,
+    axis: compactText(item.axis) || "collaboration_texture",
+    summary,
+    contexts: item.contexts && typeof item.contexts === "object" ? item.contexts : {},
+    signals: normalizeStringArray(item.signals),
+    assistantShapes: normalizeStringArray(item.assistantShapes),
+    outcomeHints: normalizeStringArray(item.outcomeHints),
+    negativeEvidenceCount: Math.max(0, Number.parseInt(item.negativeEvidenceCount, 10) || 0),
+    evidenceEpisodeIds: normalizeStringArray(item.evidenceEpisodeIds),
+    evidenceCount: Math.max(0, Number.parseInt(item.evidenceCount, 10) || 0),
+    strength: clampUnit(Number(item.strength) || 0),
+    confidence: clampUnit(Number(item.confidence) || 0),
+    createdAt: normalizeTimestamp(item.createdAt, Date.now()),
+    updatedAt: normalizeTimestamp(item.updatedAt, Date.now())
+  };
+}
+
+function normalizeTension(item) {
+  if (!item || typeof item !== "object") {
+    return null;
   }
-  return "collaboration_style";
-}
-
-function formatShapeBehavior(shape) {
-  return shape?.behavior || "previous response style";
-}
-
-function hasSpecificBehaviorSignal(text) {
-  return matches(text, CONCRETE_REQUEST)
-    || matches(text, CONCEPTUAL_REQUEST)
-    || matches(text, JUDGMENT_REQUEST)
-    || /清楚|明确|细|完整|判断|方案|拆分|解释/.test(text);
-}
-
-function hasRelationalSignal(text) {
-  return matches(text, RELATIONAL_SIGNAL)
-    || matches(text, SHARED_COLLABORATION_SIGNAL);
-}
-
-function matches(text, patterns) {
-  return patterns.some((pattern) => pattern.test(text));
-}
-
-function dedupeObservations(observations) {
-  const seen = new Set();
-  const deduped = [];
-  for (const observation of observations) {
-    if (isSensitiveObservation(observation)) {
-      continue;
-    }
-    const key = `${observation.kind}:${observation.axis}:${observation.context}:${observation.behavior}`;
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    deduped.push(observation);
+  const key = compactText(item.key);
+  const resolutionStyle = compactText(item.resolutionStyle);
+  if (!key || !resolutionStyle) {
+    return null;
   }
-  return deduped;
+  return {
+    id: compactText(item.id) || `tension_${normalizeKeyText(key)}`,
+    key,
+    sideA: compactText(item.sideA),
+    sideB: compactText(item.sideB),
+    resolutionStyle,
+    signals: normalizeStringArray(item.signals),
+    outcomeHints: normalizeStringArray(item.outcomeHints),
+    evidenceEpisodeIds: normalizeStringArray(item.evidenceEpisodeIds),
+    evidenceCount: Math.max(0, Number.parseInt(item.evidenceCount, 10) || 0),
+    confidence: clampUnit(Number(item.confidence) || 0),
+    createdAt: normalizeTimestamp(item.createdAt, Date.now()),
+    updatedAt: normalizeTimestamp(item.updatedAt, Date.now())
+  };
+}
+
+function normalizeStableImpression(item) {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+  const key = compactText(item.key);
+  const text = compactText(item.text);
+  if (!key || !text) {
+    return null;
+  }
+  return {
+    id: compactText(item.id) || `stable_${normalizeKeyText(key)}`,
+    key,
+    axis: compactText(item.axis) || "long_term_persona",
+    text,
+    sourcePatternKeys: normalizeStringArray(item.sourcePatternKeys),
+    evidenceEpisodeIds: normalizeStringArray(item.evidenceEpisodeIds),
+    sourceHash: compactText(item.sourceHash),
+    generatedBy: normalizeGeneratedBy(item.generatedBy),
+    reviewStatus: normalizeReviewStatus(item.reviewStatus),
+    evidenceCount: Math.max(0, Number.parseInt(item.evidenceCount, 10) || 0),
+    strength: clampUnit(Number(item.strength) || 0),
+    confidence: clampUnit(Number(item.confidence) || 0),
+    createdAt: normalizeTimestamp(item.createdAt, Date.now()),
+    updatedAt: normalizeTimestamp(item.updatedAt, Date.now())
+  };
+}
+
+function createSourceHash(ruleKey, matched) {
+  return [ruleKey]
+    .concat(matched.map((item) => [
+      item.key,
+      item.evidenceCount,
+      Math.round((Number(item.confidence) || 0) * 1000),
+      normalizeTimestamp(item.updatedAt, 0)
+    ].join(":")))
+    .join("|");
+}
+
+function normalizeGeneratedBy(value) {
+  return ["local", "ai", "user"].includes(value) ? value : "local";
+}
+
+function normalizeReviewStatus(value) {
+  return ["auto", "candidate", "confirmed", "dismissed"].includes(value) ? value : "auto";
+}
+
+function limitEpisodes(episodes) {
+  return episodes
+    .map(normalizeEpisode)
+    .filter(Boolean)
+    .sort((left, right) => normalizeTimestamp(right.createdAt, 0) - normalizeTimestamp(left.createdAt, 0))
+    .slice(0, MAX_EPISODES)
+    .sort((left, right) => normalizeTimestamp(left.createdAt, 0) - normalizeTimestamp(right.createdAt, 0));
+}
+
+function comparePromptItems(left, right) {
+  const leftScore = (left.strength || 0) + left.confidence + Math.min(0.5, left.evidenceCount * 0.08);
+  const rightScore = (right.strength || 0) + right.confidence + Math.min(0.5, right.evidenceCount * 0.08);
+  if (rightScore !== leftScore) {
+    return rightScore - leftScore;
+  }
+  return normalizeTimestamp(right.updatedAt, 0) - normalizeTimestamp(left.updatedAt, 0);
+}
+
+function isRedundantWithConversation(text, conversationText) {
+  if (!conversationText) {
+    return false;
+  }
+  const keyTerms = compactText(text)
+    .toLowerCase()
+    .split(/[^a-z0-9\u4e00-\u9fa5]+/)
+    .filter((term) => term.length >= 4)
+    .slice(0, 8);
+  if (keyTerms.length < 4) {
+    return false;
+  }
+  const matches = keyTerms.filter((term) => conversationText.toLowerCase().includes(term)).length;
+  return matches >= Math.min(5, keyTerms.length);
+}
+
+function countBy(values) {
+  const counts = {};
+  for (const value of values) {
+    const key = compactText(value) || "general";
+    counts[key] = (counts[key] || 0) + 1;
+  }
+  return counts;
+}
+
+function normalizeStringArray(values) {
+  return Array.isArray(values)
+    ? values.map(compactText).filter(Boolean)
+    : [];
+}
+
+function uniqueStrings(values) {
+  return [...new Set(normalizeStringArray(values))];
+}
+
+function normalizeTimestamp(value, fallback) {
+  const timestamp = Number(value);
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : fallback;
+}
+
+function positiveIntegerOrDefault(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function nonNegativeIntegerOrDefault(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function normalizeKeyText(value) {
+  return compactText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9\u4e00-\u9fa5]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 80) || Math.random().toString(36).slice(2);
 }
 
 function compactText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
-function truncateText(text, maxLength) {
-  const compact = compactText(text);
-  if (compact.length <= maxLength) {
-    return compact;
+function clampUnit(value) {
+  if (!Number.isFinite(value)) {
+    return 0;
   }
-  return `${compact.slice(0, Math.max(0, maxLength - 1))}…`;
+  return Math.max(0, Math.min(1, value));
+}
+
+function createInteractionId(prefix) {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
 }
 
 module.exports = {
-  ProfileObservationExtractor,
-  _test: {
-    classifyAnswerShape,
-    classifyContext,
-    hasRelationalSignal,
-    matches
-  }
+  applyEpisodes,
+  getPromptStance,
+  formatInteractionStancePrompt,
+  normalizeInteractionMemory,
+  normalizeEpisode,
+  scoreTension,
+  PATTERN_RULES,
+  TENSION_RULES,
+  STABLE_PERSONA_RULES
 };
 
 },
-"src/profile/AgentProfileStore.js": function(module, exports, __require) {
+"src/interaction/InteractionMemoryStore.js": function(module, exports, __require) {
 const { normalizePath } = require("obsidian");
 
-const { ProfileObservationExtractor } = __require("src/profile/ProfileObservationExtractor.js");
+const { extractEpisodeDraft, isSensitiveEpisode } = __require("src/interaction/LocalSignalExtractor.js");
 const {
-  applyProfileObservations,
-  getPromptTraits,
-  normalizeProfile
-} = __require("src/profile/ProfileTraitReducer.js");
+  applyEpisodes,
+  getPromptStance,
+  normalizeInteractionMemory
+} = __require("src/interaction/PatternReducer.js");
 
-const PROFILE_DIR_NAME = "profile";
-const PROFILE_FILE_NAME = "agent-profile.json";
+const INTERACTION_DIR_NAME = "interaction";
+const INTERACTION_FILE_NAME = "interaction-memory.json";
+const LEGACY_PROFILE_DIR_NAME = "profile";
+const LEGACY_PROFILE_FILE_NAME = "agent-profile.json";
+const MAX_PENDING_EPISODES = 40;
 
-class AgentProfileStore {
-  constructor(plugin, options = {}) {
+class InteractionMemoryStore {
+  constructor(plugin) {
     this.plugin = plugin;
     this.adapter = plugin.app.vault.adapter;
     const pluginDir = plugin.manifest.dir || `.obsidian/plugins/${plugin.manifest.id}`;
-    this.baseDir = normalizePath(`${pluginDir}/${PROFILE_DIR_NAME}`);
-    this.profilePath = normalizePath(`${this.baseDir}/${PROFILE_FILE_NAME}`);
-    this.extractor = options.extractor || new ProfileObservationExtractor();
+    this.baseDir = normalizePath(`${pluginDir}/${INTERACTION_DIR_NAME}`);
+    this.memoryPath = normalizePath(`${this.baseDir}/${INTERACTION_FILE_NAME}`);
+    this.legacyProfilePath = normalizePath(`${pluginDir}/${LEGACY_PROFILE_DIR_NAME}/${LEGACY_PROFILE_FILE_NAME}`);
     this.cache = null;
     this.writeQueue = Promise.resolve();
   }
 
-  async getPromptTraits(settings) {
-    if (!settings.agentProfileEnabled) {
+  async getPromptStance(settings, context = {}) {
+    if (!settings.interactionMemoryEnabled) {
       return [];
     }
-    const profile = await this.loadProfile();
-    return getPromptTraits(profile, settings);
+    const memory = await this.loadMemory();
+    return getPromptStance(memory, settings, context);
   }
 
   async captureTurn(turn, settings) {
-    if (!settings.agentProfileEnabled || !settings.agentProfileAutoCapture) {
+    if (!settings.interactionMemoryEnabled || !settings.interactionMemoryAutoCapture) {
       return {
-        observations: [],
-        traits: []
+        closedEpisodes: [],
+        pendingEpisode: null,
+        patterns: [],
+        tensions: [],
+        stableImpressions: []
       };
     }
 
     return this.enqueueWrite(async () => {
-      const profile = await this.loadProfile();
-      const observations = this.extractor.extractTurn(turn);
-      const result = applyProfileObservations(profile, observations, settings, Date.now());
-      this.cache = result.profile;
-      await this.saveProfile(result.profile);
+      const now = Number(turn?.now) || Date.now();
+      const memory = await this.loadMemory();
+      const pendingForSession = findPendingForSession(memory.pendingEpisodes, turn?.sessionId || "");
+      const draft = extractEpisodeDraft(Object.assign({}, turn, { now }), pendingForSession);
+      const pendingEpisode = createPendingEpisode(draft, now);
+
+      const remainingPending = memory.pendingEpisodes.filter((episode) => episode.id !== pendingForSession?.id);
+      const closedEpisodes = [];
+      if (pendingForSession) {
+        const closed = closePendingEpisode(pendingForSession, draft, now);
+        if (!isSensitiveEpisode(closed)) {
+          closedEpisodes.push(closed);
+        }
+      }
+
+      const pendingEpisodes = limitPendingEpisodes(remainingPending.concat(pendingEpisode));
+      const next = applyEpisodes(Object.assign({}, memory, {
+        pendingEpisodes
+      }), closedEpisodes, settings, now);
+      next.pendingEpisodes = pendingEpisodes;
+      this.cache = next;
+      await this.saveMemory(next);
+
       return {
-        observations: result.observations,
-        traits: result.traits
+        closedEpisodes,
+        pendingEpisode,
+        patterns: next.patterns,
+        tensions: next.tensions,
+        stableImpressions: next.stableImpressions
       };
     });
   }
 
-  async clearProfile() {
+  async clearMemory() {
     return this.enqueueWrite(async () => {
-      this.cache = createEmptyProfile();
+      this.cache = createEmptyInteractionMemory();
       try {
-        if (await this.adapter.exists(this.profilePath)) {
-          await this.adapter.remove(this.profilePath);
+        if (await this.adapter.exists(this.memoryPath)) {
+          await this.adapter.remove(this.memoryPath);
+        }
+        if (await this.adapter.exists(this.legacyProfilePath)) {
+          await this.adapter.remove(this.legacyProfilePath);
         }
       } catch (error) {
-        console.warn("Agent Dock could not clear agent profile:", error);
+        console.warn("Agent Dock could not clear interaction memory:", error);
       }
     });
   }
 
-  async loadProfile() {
+  async loadMemory() {
     if (this.cache) {
       return this.cache;
     }
     try {
-      const raw = await this.adapter.read(this.profilePath);
-      this.cache = normalizeProfile(JSON.parse(raw));
+      const raw = await this.adapter.read(this.memoryPath);
+      this.cache = normalizeInteractionMemory(JSON.parse(raw));
+      this.cache.pendingEpisodes = limitPendingEpisodes(this.cache.pendingEpisodes);
       return this.cache;
     } catch {
-      this.cache = createEmptyProfile();
+      this.cache = createEmptyInteractionMemory();
       return this.cache;
     }
   }
 
-  async saveProfile(profile) {
-    await this.ensureProfileDir();
-    this.cache = normalizeProfile(profile);
-    await this.adapter.write(this.profilePath, `${JSON.stringify(this.cache, null, 2)}\n`);
+  async saveMemory(memory) {
+    await this.ensureInteractionDir();
+    this.cache = normalizeInteractionMemory(memory);
+    this.cache.pendingEpisodes = limitPendingEpisodes(this.cache.pendingEpisodes);
+    await this.adapter.write(this.memoryPath, `${JSON.stringify(this.cache, null, 2)}\n`);
   }
 
-  async ensureProfileDir() {
+  async ensureInteractionDir() {
     if (await this.adapter.exists(this.baseDir)) {
       return;
     }
@@ -6522,18 +7006,72 @@ class AgentProfileStore {
   }
 }
 
-function createEmptyProfile() {
+function createEmptyInteractionMemory() {
   return {
     version: 1,
-    traits: [],
-    observations: [],
+    pendingEpisodes: [],
+    episodes: [],
+    patterns: [],
+    tensions: [],
+    stableImpressions: [],
     updatedAt: Date.now()
   };
 }
 
+function limitPendingEpisodes(episodes) {
+  return (Array.isArray(episodes) ? episodes : [])
+    .filter(Boolean)
+    .sort((left, right) => Number(right.updatedAt || right.createdAt || 0) - Number(left.updatedAt || left.createdAt || 0))
+    .slice(0, MAX_PENDING_EPISODES)
+    .sort((left, right) => Number(left.createdAt || left.updatedAt || 0) - Number(right.createdAt || right.updatedAt || 0));
+}
+
+function findPendingForSession(pendingEpisodes, sessionId) {
+  const normalizedSessionId = String(sessionId || "");
+  for (let index = pendingEpisodes.length - 1; index >= 0; index -= 1) {
+    const episode = pendingEpisodes[index];
+    if ((episode.sourceSessionId || "") === normalizedSessionId) {
+      return episode;
+    }
+  }
+  return null;
+}
+
+function createPendingEpisode(draft, now) {
+  return {
+    id: createInteractionId("episode"),
+    status: "pending",
+    context: draft.context,
+    userExcerpt: draft.userExcerpt,
+    assistantExcerpt: draft.assistantExcerpt,
+    userSignals: draft.userSignals,
+    assistantShape: draft.assistantShape,
+    reaction: null,
+    outcomeHint: "",
+    sourceSessionId: draft.sourceSessionId,
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
+function closePendingEpisode(pending, draft, now) {
+  return Object.assign({}, pending, {
+    status: "closed",
+    reaction: draft.reaction,
+    outcomeHint: draft.outcomeHint,
+    updatedAt: now
+  });
+}
+
+function createInteractionId(prefix) {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+}
+
 module.exports = {
-  AgentProfileStore,
-  createEmptyProfile
+  InteractionMemoryStore,
+  createEmptyInteractionMemory,
+  limitPendingEpisodes,
+  MAX_PENDING_EPISODES
 };
 
 },
@@ -6891,82 +7429,110 @@ class AgentDockSettingTab extends PluginSettingTab {
           new Notice(translate("settings.resetAffect.done"));
         }));
 
-    containerEl.createEl("h3", { text: translate("settings.agentProfile.heading") });
+    containerEl.createEl("h3", { text: translate("settings.interactionMemory.heading") });
 
     new Setting(containerEl)
-      .setName(translate("settings.agentProfileEnabled.name"))
-      .setDesc(translate("settings.agentProfileEnabled.desc"))
+      .setName(translate("settings.interactionMemoryEnabled.name"))
+      .setDesc(translate("settings.interactionMemoryEnabled.desc"))
       .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.agentProfileEnabled)
+        .setValue(this.plugin.settings.interactionMemoryEnabled)
         .onChange(async (value) => {
-          this.plugin.settings.agentProfileEnabled = value;
+          this.plugin.settings.interactionMemoryEnabled = value;
           await this.plugin.saveSettings();
         }));
 
     new Setting(containerEl)
-      .setName(translate("settings.agentProfileAutoCapture.name"))
-      .setDesc(translate("settings.agentProfileAutoCapture.desc"))
+      .setName(translate("settings.interactionMemoryAutoCapture.name"))
+      .setDesc(translate("settings.interactionMemoryAutoCapture.desc"))
       .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.agentProfileAutoCapture)
+        .setValue(this.plugin.settings.interactionMemoryAutoCapture)
         .onChange(async (value) => {
-          this.plugin.settings.agentProfileAutoCapture = value;
+          this.plugin.settings.interactionMemoryAutoCapture = value;
           await this.plugin.saveSettings();
         }));
 
     new Setting(containerEl)
-      .setName(translate("settings.agentProfileMaxPromptTraits.name"))
-      .setDesc(translate("settings.agentProfileMaxPromptTraits.desc"))
+      .setName(translate("settings.interactionMemoryMaxPromptItems.name"))
+      .setDesc(translate("settings.interactionMemoryMaxPromptItems.desc"))
       .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.agentProfileMaxPromptTraits))
-        .setValue(String(this.plugin.settings.agentProfileMaxPromptTraits))
+        .setPlaceholder(String(DEFAULT_SETTINGS.interactionMemoryMaxPromptItems))
+        .setValue(String(this.plugin.settings.interactionMemoryMaxPromptItems))
         .onChange(async (value) => {
           const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.agentProfileMaxPromptTraits = Number.isFinite(parsed) && parsed > 0
+          this.plugin.settings.interactionMemoryMaxPromptItems = Number.isFinite(parsed) && parsed > 0
             ? parsed
-            : DEFAULT_SETTINGS.agentProfileMaxPromptTraits;
+            : DEFAULT_SETTINGS.interactionMemoryMaxPromptItems;
           await this.plugin.saveSettings();
         }));
 
     new Setting(containerEl)
-      .setName(translate("settings.agentProfileMinEvidence.name"))
-      .setDesc(translate("settings.agentProfileMinEvidence.desc"))
+      .setName(translate("settings.interactionMemoryMaxPersonaItems.name"))
+      .setDesc(translate("settings.interactionMemoryMaxPersonaItems.desc"))
       .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.agentProfileMinEvidence))
-        .setValue(String(this.plugin.settings.agentProfileMinEvidence))
+        .setPlaceholder(String(DEFAULT_SETTINGS.interactionMemoryMaxPersonaItems))
+        .setValue(String(this.plugin.settings.interactionMemoryMaxPersonaItems))
         .onChange(async (value) => {
           const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.agentProfileMinEvidence = Number.isFinite(parsed) && parsed > 0
+          this.plugin.settings.interactionMemoryMaxPersonaItems = Number.isFinite(parsed) && parsed >= 0
             ? parsed
-            : DEFAULT_SETTINGS.agentProfileMinEvidence;
+            : DEFAULT_SETTINGS.interactionMemoryMaxPersonaItems;
           await this.plugin.saveSettings();
         }));
 
     new Setting(containerEl)
-      .setName(translate("settings.agentProfileHalfLifeDays.name"))
-      .setDesc(translate("settings.agentProfileHalfLifeDays.desc"))
+      .setName(translate("settings.interactionMemoryMaxStanceItems.name"))
+      .setDesc(translate("settings.interactionMemoryMaxStanceItems.desc"))
       .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.agentProfileHalfLifeDays))
-        .setValue(String(this.plugin.settings.agentProfileHalfLifeDays))
+        .setPlaceholder(String(DEFAULT_SETTINGS.interactionMemoryMaxStanceItems))
+        .setValue(String(this.plugin.settings.interactionMemoryMaxStanceItems))
         .onChange(async (value) => {
           const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.agentProfileHalfLifeDays = Number.isFinite(parsed) && parsed > 0
+          this.plugin.settings.interactionMemoryMaxStanceItems = Number.isFinite(parsed) && parsed >= 0
             ? parsed
-            : DEFAULT_SETTINGS.agentProfileHalfLifeDays;
+            : DEFAULT_SETTINGS.interactionMemoryMaxStanceItems;
           await this.plugin.saveSettings();
         }));
 
     new Setting(containerEl)
-      .setName(translate("settings.clearAgentProfile.name"))
-      .setDesc(translate("settings.clearAgentProfile.desc"))
+      .setName(translate("settings.interactionMemoryMinEvidence.name"))
+      .setDesc(translate("settings.interactionMemoryMinEvidence.desc"))
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.interactionMemoryMinEvidence))
+        .setValue(String(this.plugin.settings.interactionMemoryMinEvidence))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.interactionMemoryMinEvidence = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.interactionMemoryMinEvidence;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.interactionMemoryHalfLifeDays.name"))
+      .setDesc(translate("settings.interactionMemoryHalfLifeDays.desc"))
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.interactionMemoryHalfLifeDays))
+        .setValue(String(this.plugin.settings.interactionMemoryHalfLifeDays))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.interactionMemoryHalfLifeDays = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.interactionMemoryHalfLifeDays;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.clearInteractionMemory.name"))
+      .setDesc(translate("settings.clearInteractionMemory.desc"))
       .addButton((button) => button
-        .setButtonText(translate("settings.clearAgentProfile.button"))
+        .setButtonText(translate("settings.clearInteractionMemory.button"))
         .setWarning()
         .onClick(async () => {
-          if (!window.confirm(translate("settings.clearAgentProfile.confirm"))) {
+          if (!window.confirm(translate("settings.clearInteractionMemory.confirm"))) {
             return;
           }
-          await this.plugin.clearAgentProfile();
-          new Notice(translate("settings.clearAgentProfile.done"));
+          await this.plugin.clearInteractionMemory();
+          new Notice(translate("settings.clearInteractionMemory.done"));
         }));
 
     containerEl.createEl("h3", { text: translate("settings.memory.heading") });
@@ -12621,7 +13187,7 @@ class MessageTimelineRenderer {
     if (entry.noticeType === "memory_referenced") {
       return "book-open";
     }
-    if (entry.noticeType === "memory_updated" || entry.noticeType === "profile_updated") {
+    if (entry.noticeType === "memory_updated" || entry.noticeType === "interaction_memory_updated") {
       return "square-pen";
     }
     if (entry.noticeType === "memory_search") {
@@ -13511,7 +14077,7 @@ const { CUSTOM_ASSISTANT_STYLE_MAX_CHARS, DEFAULT_SETTINGS } = __require("src/se
 const BUILT_IN_ASSISTANT_STYLE_ESTIMATE_CHARS = 700;
 const ASSISTANT_STYLE_PROMPT_OVERHEAD_CHARS = 220;
 const AFFECT_PROMPT_ESTIMATE_CHARS = 700;
-const AGENT_PROFILE_TRAIT_ESTIMATE_CHARS = 260;
+const INTERACTION_STANCE_ITEM_ESTIMATE_CHARS = 260;
 
 function estimateContextChars(messages, draft, settings) {
   const transcriptChars = messages.reduce((total, message) => {
@@ -13528,10 +14094,10 @@ function estimateContextChars(messages, draft, settings) {
   const affectChars = settings.affectEnabled && settings.affectCrossSessionEnabled
     ? AFFECT_PROMPT_ESTIMATE_CHARS
     : 0;
-  const profileChars = settings.agentProfileEnabled
-    ? (Number(settings.agentProfileMaxPromptTraits) || DEFAULT_SETTINGS.agentProfileMaxPromptTraits) * AGENT_PROFILE_TRAIT_ESTIMATE_CHARS
+  const interactionMemoryChars = settings.interactionMemoryEnabled
+    ? (Number(settings.interactionMemoryMaxPromptItems) || DEFAULT_SETTINGS.interactionMemoryMaxPromptItems) * INTERACTION_STANCE_ITEM_ESTIMATE_CHARS
     : 0;
-  return transcriptChars + draftChars + memoryChars + styleChars + affectChars + profileChars;
+  return transcriptChars + draftChars + memoryChars + styleChars + affectChars + interactionMemoryChars;
 }
 
 function estimateAssistantStyleChars(settings) {
@@ -15663,7 +16229,7 @@ const {
 } = __require("src/affect/WorkingAffectStore.js");
 const { VIEW_TYPE_AGENT_DOCK } = __require("src/constants.js");
 const { t } = __require("src/i18n/index.js");
-const { AgentProfileStore } = __require("src/profile/AgentProfileStore.js");
+const { InteractionMemoryStore } = __require("src/interaction/InteractionMemoryStore.js");
 const { normalizePluginData } = __require("src/settings.js");
 const { AgentDockSettingTab } = __require("src/settingsTab.js");
 const { ChatStorage } = __require("src/storage/ChatStorage.js");
@@ -15689,7 +16255,7 @@ module.exports = class AgentDockPlugin extends Plugin {
     this.chatSaveFailureNotified = false;
     this.chatStorage = new ChatStorage(this);
     this.memoryStore = new MemoryStore(this);
-    this.agentProfileStore = new AgentProfileStore(this);
+    this.interactionMemoryStore = new InteractionMemoryStore(this);
     await this.cleanupPastedImageCache();
     this.refreshAgent();
 
@@ -15827,8 +16393,8 @@ module.exports = class AgentDockPlugin extends Plugin {
     await this.memoryStore.clearMemory();
   }
 
-  async clearAgentProfile() {
-    await this.agentProfileStore.clearProfile();
+  async clearInteractionMemory() {
+    await this.interactionMemoryStore.clearMemory();
   }
 
   getWorkingAffect() {
