@@ -1,0 +1,53 @@
+scripts/test-prompt-signals.js
+  s_468ab4f1e0c2ad::t_c6ea9357237a50 1-86,102
+  s_b48dbb5975d9ce::t_102d57effa5884 87-101
+src/agents/cursor/CursorAgent.js
+  s_468ab4f1e0c2ad::t_0e806d2891bf92 15,80-86,136-140,144,196-200,203
+main.js
+  s_b48dbb5975d9ce::t_fc424d19fee9c7 3659,3766,3772-3778,3799
+  s_468ab4f1e0c2ad::t_689bc72e6ba0fb 3656-3658,3660-3765,3767-3771,3779-3798,3800-3806,4551,4593,4596-4605,4608-4609,5617,5682-5688,5738-5742,5746,5798-5802,5805
+  s_b48dbb5975d9ce::t_30ba34e082bcb1 3655
+src/promptSignals.js
+  s_468ab4f1e0c2ad::t_0860724f4cfc65 7-8,10,13-14,19-20,22-24
+  s_b48dbb5975d9ce::t_3992133059f032 3,110,116-122,143
+  s_468ab4f1e0c2ad::t_c7a34020ac7b25 1-2,4-6,9,11-12,15-18,21,25-104,107-109,111-115,123-142,144-148
+  s_468ab4f1e0c2ad::t_4d1288092d5de2 105-106
+src/agents/codex/CodexAgent.js
+  s_468ab4f1e0c2ad::t_b9653463101cbd 14,56,59-68,71-72
+docs/architecture.md
+  s_468ab4f1e0c2ad::t_b2609756cd3887 174-180
+  s_b025b3630bac2e::t_0cd942fe886978 472,484
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "dcb7564b95b24efe99a59415050b3f816b3e6fe8",
+  "prompts": {},
+  "logical_commit_id": "dcb7564b95b24efe99a59415050b3f816b3e6fe8",
+  "sessions": {
+    "s_468ab4f1e0c2ad": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f46af-4ed4-7e23-a9f4-81809e3dfd32",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    },
+    "s_b025b3630bac2e": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f46c7-4fa4-7a13-9967-bdc147f764d3",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    },
+    "s_b48dbb5975d9ce": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f46c8-4bd7-7dc0-a4ed-48bb67b99c44",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
