@@ -1,0 +1,47 @@
+AGENTS.md
+  s_18d103f782f1ee::t_9f1f80c5cd011f 209-210
+  s_18d103f782f1ee::t_891cf2d3593681 207-208
+src/i18n/en.js
+  s_18d103f782f1ee::t_3e99724d1dee19 45
+docs/architecture.md
+  s_18d103f782f1ee::t_83c5a46f7852b1 141-143
+  s_18d103f782f1ee::t_4819d20b0ac7e1 134-135,140
+README.md
+  s_18d103f782f1ee::t_1fdcd2458edab8 45,50
+  s_18d103f782f1ee::t_f3c1c921e2ee1e 51-53
+src/storage/ChatStorage.js
+  s_18d103f782f1ee::t_45c3071e46fe64 7
+  s_18d103f782f1ee::t_638bbbb1313ba5 3,9-15,343,355-372
+  s_18d103f782f1ee::t_5353676a1afb7f 8,208-214,277,308-329,331,333-342,344-354
+  s_18d103f782f1ee::t_eca3a1b9d43ef5 330
+  s_18d103f782f1ee::t_1729238a8c97be 332
+  s_18d103f782f1ee::t_2dc2137d17be0f 373-374
+src/i18n/zh.js
+  s_18d103f782f1ee::t_485cda2b4e44e7 45
+main.js
+  s_18d103f782f1ee::t_6fbe5488da5eba 168,509,7061,7067-7073,7401,7413-7430
+  s_18d103f782f1ee::t_57d8cca60e33d3 7065
+  s_18d103f782f1ee::t_98c07bb195c51a 7066,7266-7272,7335,7366-7387,7389,7391-7400,7402-7412
+  s_18d103f782f1ee::t_8c3ec526529bed 7388,7390,7431-7432
+scripts/test-chat-storage.js
+  s_18d103f782f1ee::t_575bdecd5b1c92 72-138,140-148,150-151,153-158,160-161,164-165,235-237
+  s_18d103f782f1ee::t_72696031e585c2 139,166-234,238
+  s_18d103f782f1ee::t_eab13e3457b09b 149,152,159,162-163
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "c97415cbf4e61a2f04ce90d355efcd8e3cb9b5ef",
+  "prompts": {},
+  "logical_commit_id": "c97415cbf4e61a2f04ce90d355efcd8e3cb9b5ef",
+  "sessions": {
+    "s_18d103f782f1ee": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f44f9-53b4-7302-a53d-f4abd1d98310",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
