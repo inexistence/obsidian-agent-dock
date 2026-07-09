@@ -21,6 +21,17 @@ function stance(text, confidence, extras = {}) {
   }, extras);
 }
 
+function deepMemory(id, summary, extras = {}) {
+  return Object.assign({
+    id,
+    key: id,
+    summary,
+    userExcerpt: "",
+    importance: 0.8,
+    confidence: 0.7
+  }, extras);
+}
+
 {
   const result = planPromptSignals({
     memories: [
@@ -58,6 +69,23 @@ function stance(text, confidence, extras = {}) {
     "interaction stance should filter low confidence and duplicate items"
   );
   assert.equal(result.metadata.removedInteractionStanceCount, 2);
+}
+
+{
+  const result = planPromptSignals({
+    deepMemories: [
+      deepMemory("deep-1", "User wants important moments remembered."),
+      deepMemory("deep-1", "User wants important moments remembered."),
+      deepMemory("deep-2", "Low confidence deep memory should stay out.", { confidence: 0.2 })
+    ]
+  });
+
+  assert.deepEqual(
+    result.deepMemories.map((item) => item.id),
+    ["deep-1"],
+    "deep memories should filter weak and duplicate items"
+  );
+  assert.equal(result.metadata.removedDeepMemoryCount, 2);
 }
 
 {

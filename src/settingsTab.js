@@ -2,6 +2,7 @@ const { Notice, PluginSettingTab, Setting } = require("obsidian");
 
 const { AGENT_OPTIONS } = require("./agents/AgentRegistry");
 const { LANGUAGE_OPTIONS, t } = require("./i18n");
+const { PERSONA_PRESET_OPTIONS } = require("./persona/PersonaProfile");
 const {
   AFFECT_HALF_LIFE_MINUTES_MAX,
   AFFECT_HALF_LIFE_MINUTES_MIN,
@@ -455,6 +456,99 @@ class AgentDockSettingTab extends PluginSettingTab {
           }
           await this.plugin.clearInteractionMemory();
           new Notice(translate("settings.clearInteractionMemory.done"));
+        }));
+
+    containerEl.createEl("h3", { text: translate("settings.deepMemory.heading") });
+
+    new Setting(containerEl)
+      .setName(translate("settings.personaPreset.name"))
+      .setDesc(translate("settings.personaPreset.desc"))
+      .addDropdown((dropdown) => {
+        for (const [id, option] of Object.entries(PERSONA_PRESET_OPTIONS)) {
+          dropdown.addOption(id, translate(`settings.personaPreset.${id}`) || option.label);
+        }
+        dropdown
+          .setValue(this.plugin.settings.personaPreset)
+          .onChange(async (value) => {
+            this.plugin.settings.personaPreset = value;
+            await this.plugin.saveSettings();
+          });
+      });
+
+    new Setting(containerEl)
+      .setName(translate("settings.deepMemoryEnabled.name"))
+      .setDesc(translate("settings.deepMemoryEnabled.desc"))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.deepMemoryEnabled)
+        .onChange(async (value) => {
+          this.plugin.settings.deepMemoryEnabled = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.deepMemoryAutoCapture.name"))
+      .setDesc(translate("settings.deepMemoryAutoCapture.desc"))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.deepMemoryAutoCapture)
+        .onChange(async (value) => {
+          this.plugin.settings.deepMemoryAutoCapture = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.deepMemoryMaxPromptItems.name"))
+      .setDesc(translate("settings.deepMemoryMaxPromptItems.desc"))
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.deepMemoryMaxPromptItems))
+        .setValue(String(this.plugin.settings.deepMemoryMaxPromptItems))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.deepMemoryMaxPromptItems = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.deepMemoryMaxPromptItems;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.deepMemoryImportanceThreshold.name"))
+      .setDesc(translate("settings.deepMemoryImportanceThreshold.desc"))
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.deepMemoryImportanceThreshold))
+        .setValue(String(this.plugin.settings.deepMemoryImportanceThreshold))
+        .onChange(async (value) => {
+          const parsed = Number(value);
+          this.plugin.settings.deepMemoryImportanceThreshold = Number.isFinite(parsed) && parsed > 0
+            ? Math.min(1, Math.max(0, parsed))
+            : DEFAULT_SETTINGS.deepMemoryImportanceThreshold;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.deepMemoryRecallCooldownDays.name"))
+      .setDesc(translate("settings.deepMemoryRecallCooldownDays.desc"))
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.deepMemoryRecallCooldownDays))
+        .setValue(String(this.plugin.settings.deepMemoryRecallCooldownDays))
+        .onChange(async (value) => {
+          const parsed = Number(value);
+          this.plugin.settings.deepMemoryRecallCooldownDays = Number.isFinite(parsed) && parsed >= 0
+            ? parsed
+            : DEFAULT_SETTINGS.deepMemoryRecallCooldownDays;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.clearDeepMemory.name"))
+      .setDesc(translate("settings.clearDeepMemory.desc"))
+      .addButton((button) => button
+        .setButtonText(translate("settings.clearDeepMemory.button"))
+        .setWarning()
+        .onClick(async () => {
+          if (!window.confirm(translate("settings.clearDeepMemory.confirm"))) {
+            return;
+          }
+          await this.plugin.clearDeepMemory();
+          new Notice(translate("settings.clearDeepMemory.done"));
         }));
 
     containerEl.createEl("h3", { text: translate("settings.memory.heading") });

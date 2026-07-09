@@ -1,6 +1,7 @@
 const { normalizePath } = require("obsidian");
 
 const { RuleBasedMemoryExtractor } = require("./memoryExtraction/RuleBasedMemoryExtractor");
+const { expandSearchText } = require("./searchQuery");
 const { containsSensitiveText } = require("./sensitiveText");
 
 const MEMORY_VERSION = 1;
@@ -293,7 +294,7 @@ function kindPriority(kind) {
 
 function tokenize(text) {
   const tokens = new Set();
-  const normalized = String(text || "").toLowerCase();
+  const normalized = expandSearchText(String(text || "")).toLowerCase();
   const matches = normalized.match(/[a-z0-9_./-]{3,}|[\u4e00-\u9fff]{2,}/g) || [];
   for (const match of matches) {
     if (!STOP_WORDS.has(match)) {

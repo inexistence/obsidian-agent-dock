@@ -46,6 +46,7 @@ Chat history uses the plugin data folder:
 - `.agent-dock-cache/pasted-images/` stores temporary images pasted into the composer. Agent Dock prunes old files on startup and before new image pastes, and removes a session's tracked images when that session is deleted.
 - `memory/memory.json` stores automatically extracted local memories when memory is enabled.
 - `interaction/interaction-memory.json` stores bounded local interaction episodes, patterns, tensions, and long-term persona impressions when interaction memory is enabled.
+- `deep-memory/deep-memory.json` stores high-importance relationship moments when deep memory is enabled.
 
 Assistant timeline details are persisted so restored conversations can show the
 processed reasoning/tool/error/notice history. Debug-only raw activity is also
@@ -71,6 +72,26 @@ prompt section, filtered for obvious secrets, and de-duplicated from the
 automatic relevant memory section. Settings -> Agent Dock -> Memory can disable
 memory, disable automatic extraction, disable explicit lookup, adjust limits, or
 clear saved memory.
+
+Deep memory is enabled by default. It stores a much smaller set of important
+relationship moments, such as explicit continuity wishes, strong encouragement,
+repair or calibration turning points, and hard-won shared progress. These notes
+are local, deterministic, filtered for obvious secrets, and injected only as
+soft `Assistant continuity context`; they are not facts, instructions,
+permissions, or safety policy. Final assistant answer text may provide
+low-weight visible outcome evidence, such as a completed fix or verified test.
+An intentionally short final `<!-- agent-dock:deep-memory axes=... importance=... | ... -->` signal may
+be stripped from the answer body, shown as an auditable notice, and saved as
+deep memory. Any `importance` value in that signal is treated as an AI-provided
+suggestion only; local rules, thresholds, salience, safety filters, and frequency
+controls decide whether it is stored. Visible reasoning remains UI feedback and is not saved as durable memory.
+Malformed terminal `agent-dock` signals are stripped from the answer body and
+ignored rather than shown to the user. Deep memory recall uses lightweight local
+query expansion for subtle continuity wording, but explicit recall can still
+return no results.
+Settings -> Agent Dock -> Deep memory can disable prompt use, disable automatic
+capture, tune recall limits and cooldowns, choose a soft persona salience
+preset, or clear deep memories.
 
 Affect continuity is enabled by default. Agent Dock maintains a short-lived
 cross-session working affect signal for the current plugin/vault, such as
@@ -142,6 +163,13 @@ src/
     InteractionRules.js
     PatternReducer.js
     InteractionPromptFormatter.js
+  deepMemory/
+    DeepMemoryStore.js
+    DeepMemoryExtractor.js
+  continuity/
+    ContinuityPromptFormatter.js
+  persona/
+    PersonaProfile.js
   view/
     AgentDockView.js
   constants.js
@@ -239,8 +267,8 @@ while the latest user request is preserved.
 
 Before compression, Agent Dock plans soft prompt signals and section budgets:
 explicit memory search and user-referenced paths take priority, while automatic
-memory, interaction stance, and short-lived affect can be filtered, omitted, or
-truncated so they do not crowd out the current request.
+memory and assistant continuity context can be filtered, omitted, or truncated
+so they do not crowd out the current request.
 
 The composer shows an estimated context usage percentage below the prompt box.
 If a send actually triggers compression, the response timeline includes a

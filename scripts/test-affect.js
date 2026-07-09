@@ -74,6 +74,71 @@ const settings = {
 }
 
 {
+  const baseSignal = affectTest.extractTurnAffectSignal({
+    prompt: "今天看到夕阳和晚霞，那个氛围很动人。",
+    response: "",
+    success: true
+  });
+  assert.equal(baseSignal.warmth, 0, "beauty phrasing should not affect base signal without persona");
+  const biased = affectTest.applyPersonaAffectBias(baseSignal, {
+    personaPreset: "INFP-ish"
+  }, "今天看到夕阳和晚霞，那个氛围很动人。");
+  assert(biased.warmth > 0, "beauty-sensitive persona should warm beauty moments");
+  assert(biased.starry > 0, "beauty-sensitive persona should add a small dazzled signal");
+}
+
+{
+  const baseSignal = affectTest.extractTurnAffectSignal({
+    prompt: "这个很难的实现终于跑通了。",
+    response: "",
+    success: true
+  });
+  const biased = affectTest.applyPersonaAffectBias(baseSignal, {
+    personaPreset: "INTJ-ish"
+  }, "这个很难的实现终于跑通了。");
+  assert(biased.focus > baseSignal.focus, "craft/achievement persona should focus hard-won progress");
+  assert(biased.confidence > baseSignal.confidence, "craft/achievement persona should feel earned confidence");
+}
+
+{
+  const neutralBaseline = affectTest.applyPersonaBaselineBias({
+    valence: 0,
+    arousal: 0.2,
+    warmth: 0.7,
+    focus: 0.65,
+    tension: 0,
+    confidence: 0.65,
+    laughter: 0,
+    starry: 0
+  }, { personaPreset: "none" });
+  const intjBaseline = affectTest.applyPersonaBaselineBias(neutralBaseline, { personaPreset: "INTJ-ish" });
+  assert(intjBaseline.focus > neutralBaseline.focus, "INTJ-ish baseline should lean a little more focused");
+  assert(intjBaseline.confidence > neutralBaseline.confidence, "INTJ-ish baseline should lean a little more confident");
+}
+
+{
+  const now = Date.UTC(2026, 6, 9);
+  const neutral = updateWorkingAffect(null, Object.assign({}, settings, {
+    personaPreset: "none"
+  }), {
+    prompt: "帮我实现这个功能。",
+    response: "已完成实现，测试通过，全部通过。",
+    success: true,
+    sessionId: "s1"
+  }, now);
+  const intj = updateWorkingAffect(null, Object.assign({}, settings, {
+    personaPreset: "INTJ-ish"
+  }), {
+    prompt: "帮我实现这个功能。",
+    response: "已完成实现，测试通过，全部通过。",
+    success: true,
+    sessionId: "s1"
+  }, now);
+  assert(intj.working.focus > neutral.working.focus, "visible assistant outcome should bias INTJ-ish durable affect toward focus");
+  assert(intj.working.confidence > neutral.working.confidence, "visible assistant outcome should bias INTJ-ish durable affect toward confidence");
+}
+
+{
   const signal = affectTest.extractTurnAffectSignal({
     prompt: "这个方向好玩，轻松一点，有点 playful 也可以哈哈。",
     response: "可以，我会保持清楚但轻快一点。",
@@ -743,7 +808,8 @@ async function testPromptInjection() {
       arousal: 0.3
     }
   });
-  assert(result.prompt.includes("Recent cross-session affect:"), "prompt should include working affect");
+  assert(result.prompt.includes("Assistant continuity context:"), "prompt should include assistant continuity");
+  assert(result.prompt.includes("Current tone: warm-focused"), "prompt should include working affect inside continuity");
   assert(result.prompt.includes("User request:"), "prompt should still include the user request");
 }
 

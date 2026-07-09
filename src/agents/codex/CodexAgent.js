@@ -10,6 +10,11 @@ const { escapeAppleScriptString, shellQuote } = require("../../cli/shell");
 const { t } = require("../../i18n");
 const { applyModeArgs } = require("../../modes");
 const { DEFAULT_SETTINGS } = require("../../settings");
+const {
+  extractAgentDockSignals,
+  formatInvalidAgentDockSignalActivity,
+  formatAgentDockSignalNotice
+} = require("../shared/agentSignals");
 const { buildAgentTurnContext } = require("../shared/TurnContextBuilder");
 const { codexJsonEventToUpdates } = require("./jsonEvents");
 
@@ -36,6 +41,7 @@ class CodexAgent {
       keyPrefix: "codex"
     });
     const finalPrompt = turnContext.promptResult.prompt;
+    const activeFilePath = turnContext.activeFilePath;
     const outputPath = path.join(
       os.tmpdir(),
       `obsidian-agent-dock-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`
@@ -149,21 +155,33 @@ class CodexAgent {
         }
 
         if (code === 0) {
+          const signalResult = extractAgentDockSignals(finalOutput.trim());
+          emitInvalidAgentDockSignalActivity(signalResult, onUpdate);
+          emitAgentDockSignalNotices(signalResult.signals, settings, "codex", translate, onUpdate);
+          const visibleOutput = signalResult.visibleText.trim();
           await this.captureMemory({
             prompt,
-            response: finalOutput.trim(),
+            response: visibleOutput,
             previousAssistantResponse: getPreviousAssistantResponse(conversation),
             activeFilePath,
             sessionId: options.sessionId || ""
           }, settings, onUpdate);
           await this.captureInteractionMemory({
             prompt,
-            response: finalOutput.trim(),
+            response: visibleOutput,
             previousAssistantResponse: getPreviousAssistantResponse(conversation),
             activeFilePath,
             sessionId: options.sessionId || ""
           }, settings, onUpdate);
-          settle(resolve, finalOutput.trim());
+          await this.captureDeepMemory({
+            prompt,
+            response: visibleOutput,
+            agentDockSignals: signalResult.signals,
+            previousAssistantResponse: getPreviousAssistantResponse(conversation),
+            activeFilePath,
+            sessionId: options.sessionId || ""
+          }, settings, onUpdate);
+          settle(resolve, visibleOutput);
           return;
         }
 
@@ -276,6 +294,46 @@ class CodexAgent {
         summary: t(settings, "codex.interactionMemorySkipped.summary")
       });
     }
+  }
+
+  async captureDeepMemory(turn, settings, onUpdate) {
+    try {
+      const saved = await this.plugin.deepMemoryStore.captureTurn(turn, settings);
+      if (saved.length > 0) {
+        onUpdate({
+          kind: "notice",
+          noticeType: "deep_memory_updated",
+          title: t(settings, "codex.deepMemoryUpdated.title"),
+          summary: t(settings, "codex.deepMemoryUpdated.summary", {
+            count: saved.length
+          })
+        });
+      }
+    } catch (error) {
+      console.warn("Agent Dock could not update deep memory:", error);
+      onUpdate({
+        kind: "notice",
+        noticeType: "deep_memory_skipped",
+        title: t(settings, "codex.deepMemorySkipped.title"),
+        summary: t(settings, "codex.deepMemorySkipped.summary")
+      });
+    }
+  }
+}
+
+function emitAgentDockSignalNotices(signals, settings, keyPrefix, translate, onUpdate) {
+  for (const signal of signals) {
+    const notice = formatAgentDockSignalNotice(signal, settings, keyPrefix, translate);
+    if (notice) {
+      onUpdate(notice);
+    }
+  }
+}
+
+function emitInvalidAgentDockSignalActivity(signalResult, onUpdate) {
+  const activity = formatInvalidAgentDockSignalActivity(signalResult);
+  if (activity) {
+    onUpdate(activity);
   }
 }
 

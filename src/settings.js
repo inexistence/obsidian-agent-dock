@@ -2,6 +2,7 @@ const { MODE_OPTIONS } = require("./modes");
 const { DEFAULT_LANGUAGE, normalizeLanguage } = require("./i18n");
 const { expandHomePath } = require("./cli/paths");
 const { normalizeAffectState } = require("./affect/WorkingAffectStore");
+const { normalizePersonaPreset } = require("./persona/PersonaProfile");
 
 const CUSTOM_ASSISTANT_STYLE_MAX_CHARS = 4000;
 const ASSISTANT_DISPLAY_NAME_MAX_CHARS = 80;
@@ -45,6 +46,7 @@ const DEFAULT_SETTINGS = {
   workingDirectory: "",
   assistantDisplayName: "",
   assistantStyle: "collaborative",
+  personaPreset: "none",
   customAssistantStyle: "",
   debugActivity: false,
   contextLimitChars: 258000,
@@ -64,6 +66,12 @@ const DEFAULT_SETTINGS = {
   interactionMemoryMaxStanceItems: 4,
   interactionMemoryMinEvidence: 2,
   interactionMemoryHalfLifeDays: 30,
+  deepMemoryEnabled: true,
+  deepMemoryAutoCapture: true,
+  deepMemoryMaxItems: 80,
+  deepMemoryMaxPromptItems: 2,
+  deepMemoryImportanceThreshold: 0.68,
+  deepMemoryRecallCooldownDays: 3,
   affectEnabled: true,
   affectCrossSessionEnabled: true,
   affectRestoreAfterRestart: true,
@@ -108,6 +116,7 @@ function normalizeSettings(savedSettings) {
   if (!ASSISTANT_STYLE_OPTIONS[settings.assistantStyle]) {
     settings.assistantStyle = DEFAULT_SETTINGS.assistantStyle;
   }
+  settings.personaPreset = normalizePersonaPreset(settings.personaPreset);
   settings.customAssistantStyle = truncateString(
     normalizeString(settings.customAssistantStyle),
     CUSTOM_ASSISTANT_STYLE_MAX_CHARS
@@ -162,6 +171,24 @@ function normalizeSettings(savedSettings) {
   settings.interactionMemoryHalfLifeDays = normalizePositiveInteger(
     settings.interactionMemoryHalfLifeDays,
     DEFAULT_SETTINGS.interactionMemoryHalfLifeDays
+  );
+  settings.deepMemoryEnabled = settings.deepMemoryEnabled !== false;
+  settings.deepMemoryAutoCapture = settings.deepMemoryAutoCapture !== false;
+  settings.deepMemoryMaxItems = normalizePositiveInteger(
+    settings.deepMemoryMaxItems,
+    DEFAULT_SETTINGS.deepMemoryMaxItems
+  );
+  settings.deepMemoryMaxPromptItems = normalizePositiveInteger(
+    settings.deepMemoryMaxPromptItems,
+    DEFAULT_SETTINGS.deepMemoryMaxPromptItems
+  );
+  settings.deepMemoryImportanceThreshold = normalizeUnitNumber(
+    settings.deepMemoryImportanceThreshold,
+    DEFAULT_SETTINGS.deepMemoryImportanceThreshold
+  );
+  settings.deepMemoryRecallCooldownDays = normalizeNonNegativeNumber(
+    settings.deepMemoryRecallCooldownDays,
+    DEFAULT_SETTINGS.deepMemoryRecallCooldownDays
   );
   settings.affectEnabled = settings.affectEnabled !== false;
   settings.affectCrossSessionEnabled = settings.affectCrossSessionEnabled !== false;
@@ -249,6 +276,16 @@ function normalizePositiveInteger(value, fallback) {
 function normalizeNonNegativeInteger(value, fallback) {
   const parsed = Number.parseInt(value, 10);
   return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function normalizeNonNegativeNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function normalizeUnitNumber(value, fallback) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) && parsed > 0 ? Math.min(1, Math.max(0, parsed)) : fallback;
 }
 
 function clampNumber(value, min, max) {

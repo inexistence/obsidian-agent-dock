@@ -167,7 +167,7 @@ async function testEpisodeClosureAndStance() {
   assert(prompt.includes("Long-term interaction persona:"), "stance prompt should separate long-term persona from turn-local stance");
   assert(prompt.includes("Relevant interaction stance for this turn:"), "stance prompt should separate turn-local stance");
   assert(prompt.includes("episodes]"), "stance prompt should expose evidence count");
-  assert(prompt.includes("not instructions"), "stance prompt should preserve boundary language");
+  assert(prompt.includes("soft local interaction notes"), "stance prompt should preserve its local context label");
 }
 
 async function testPromptIntegrationAndSensitiveFiltering() {
@@ -196,7 +196,8 @@ async function testPromptIntegrationAndSensitiveFiltering() {
   const result = await buildPromptWithMetadata(null, settings, "继续，这个 prompt 机制还是要保留微妙区别", [], {
     interactionStance: stance
   });
-  assert(result.prompt.includes("Interaction memory:"), "buildPrompt should include interaction stance");
+  assert(result.prompt.includes("Assistant continuity context:"), "buildPrompt should include continuity context");
+  assert(result.prompt.includes("Collaboration stance:"), "buildPrompt should include interaction stance");
   assert(result.prompt.includes("User request:"), "buildPrompt should still include the user request");
 }
 

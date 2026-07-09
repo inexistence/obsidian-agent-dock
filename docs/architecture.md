@@ -10,6 +10,17 @@ how the implementation fits together.
 Agent Dock is an Obsidian desktop plugin that opens a right-sidebar chat dock
 and sends each turn to a local agent CLI.
 
+Design intent:
+
+Agent Dock's memory and continuity systems are not just a preference database.
+They are meant to support a transparent, user-correctable sense of relationship
+continuity: the assistant should be able to carry traces of meaningful shared
+moments, encouragement, calibration, and hard-won progress into later turns
+without pretending those traces are identity facts or higher-priority
+instructions. The desired feel is a collaborator that can be shaped by visible
+interaction over time, while still making memory boundaries inspectable,
+bounded, and reversible.
+
 Runtime flow:
 
 1. Obsidian loads `main.js`.
@@ -50,6 +61,9 @@ src/
   storage/                          chat and memory persistence
   interaction/                      interaction memory pipeline
   affect/                           working affect scoring and prompt guidance
+  deepMemory/                       high-importance relational memory pipeline
+  continuity/                       prompt aggregation for soft continuity signals
+  persona/                          salience presets and soft personality reference axes
   view/                             sidebar UI, timeline, composer, references
   i18n/                             language packs
 scripts/
@@ -67,7 +81,7 @@ They should stay focused on provider execution: starting subprocesses or ACP
 clients, sending the final prompt, handling provider-specific session state, and
 normalizing provider output. Shared prompt context preparation lives in
 `src/agents/shared/TurnContextBuilder.js`, which gathers local memory, explicit
-memory search, interaction stance, working affect, prompt signal planning,
+memory search, deep memory, interaction stance, working affect, prompt signal planning,
 prompt construction, and memory/context notices.
 
 Current providers:
@@ -174,23 +188,28 @@ Inputs may include:
 - Recent conversation transcript.
 - Relevant local memory.
 - Explicit memory search results.
-- Short-lived working affect.
-- Relevant local interaction stance.
+- Assistant continuity context built from high-importance deep local memory,
+  short-lived working affect, relevant local interaction stance, and persona
+  salience hints.
 - Provider and system metadata.
 
 `contextLimitChars` is a character budget, not a tokenizer-backed token budget.
 Provider adapters first pass soft prompt inputs through `src/promptSignals.js`.
 This local planner keeps explicit memory search results authoritative, removes
 automatic memories that duplicate explicit results, filters weak or duplicate
-interaction stance items, and suppresses neutral transient affect. It does not
-change memory or interaction storage; it only decides which soft signals are
-worth offering to prompt construction for the current turn.
+deep memory and interaction stance items, and suppresses neutral transient
+affect. Deep memory retrieval may update recall cooldown metadata before this
+planning step; `promptSignals.js` itself only decides which soft signals are
+worth offering to prompt construction for the current turn. Prompt construction
+then merges deep memory, working affect, interaction stance, and persona
+salience hints into one `Assistant continuity context` section so continuity
+guidance stays concise.
 
 Prompt sections are planned before the conversation transcript is formatted so
 soft signals cannot crowd out the current turn. The assistant style and explicit
 local memory search are protected first. User-referenced Obsidian paths are
-high-priority context. Working affect, interaction stance, and automatic memory
-are optional soft signals; under tight budgets, lower-priority optional sections
+high-priority context. Assistant continuity and automatic memory are optional
+soft signals; under tight budgets, lower-priority optional sections
 are omitted before the conversation transcript is compressed. When history
 exceeds the remaining budget, older messages are compressed into a deterministic
 local transcript summary. The newest user message has highest priority and is
@@ -247,7 +266,9 @@ Core concepts:
 
 - `extractTurnAffectSignal()` scans the latest prompt with local deterministic
   rules and converts matches into six dimensions: `valence`, `arousal`,
-  `warmth`, `focus`, `tension`, and `confidence`.
+  `warmth`, `focus`, `tension`, and `confidence`. Durable turn updates may also
+  pass the final assistant content through persona salience bias as low-weight
+  visible outcome evidence.
 - `getPromptWorkingAffect()` combines current-turn signal with recent
   cross-session working affect for prompt injection.
 - `updateWorkingAffect()` updates the short-lived working state after a turn.
@@ -350,6 +371,90 @@ Boundaries:
   deterministic episode/pattern path must remain usable without extra token
   cost.
 
+## Deep Memory System
+
+Deep memory stores a small number of high-importance relationship moments:
+strong encouragement, explicit continuity preferences, and calibration turning
+points that should make later replies feel like Agent Dock remembers meaningful
+prior collaboration. It is deliberately narrower than automatic memory and lower
+frequency than interaction memory.
+
+Main files:
+
+- `src/deepMemory/DeepMemoryStore.js`: persistence, thresholding, recall
+  ranking, recall cooldown, and clearing.
+- `src/deepMemory/DeepMemoryExtractor.js`: deterministic local extraction for
+  important moments and relationship-continuity requests.
+- `src/continuity/ContinuityPromptFormatter.js`: prompt formatting with
+  boundary language for deep memory, affect, interaction stance, and persona
+  salience hints.
+
+Stored files:
+
+```text
+deep-memory/deep-memory.json
+```
+
+After a successful provider reply, Agent Dock extracts deep memory candidates
+locally and saves only items above `deepMemoryImportanceThreshold`. Generic
+thanks are ignored, sensitive text is filtered, and prompt injection is limited
+by `deepMemoryMaxPromptItems`. Recalled items update `recallCount` and
+`lastRecalledAt`; the configured cooldown prevents repeatedly surfacing the
+same important moment unless the user explicitly asks about memory. Candidate
+events can carry `salienceAxes`; the current persona salience preset can lightly
+raise importance for matching axes such as beauty, achievement, craft, care,
+justice, curiosity, or repair. The final assistant content can contribute
+low-weight outcome evidence for completion, repair, or verification moments.
+It may also include a rare terminal
+`<!-- agent-dock:deep-memory axes=... importance=... | ... -->` signal when a
+durable reflection should be stripped from the answer body, surfaced as an
+auditable notice, and saved as structured deep-memory metadata.
+The signal may include an `importance` attribute, but this is only an
+AI-provided suggestion. Local scoring clamps and caps its contribution before
+combining it with deterministic evidence, persona salience, thresholds, safety
+filters, and frequency controls.
+Malformed terminal `agent-dock` signals are stripped from the answer body,
+logged as debug-only activity, and ignored for storage. Deep memory and ordinary
+memory recall use lightweight local query expansion for subtle wording such as
+natural continuity versus explicit labels, but recall can still fail and should
+not be invented. Visible reasoning remains UI feedback and must not become
+durable memory input.
+
+Boundaries:
+
+- Deep memories are reflective local notes, not facts, permissions, or
+  instructions.
+- They may shape warmth, continuity, and occasional relevant references only
+  when compatible with the latest request and higher-priority instructions.
+- They should not be over-mentioned; a remembered moment should surface only
+  when it would feel natural and useful.
+
+## Persona Salience
+
+Persona salience is a soft reference profile for what kinds of moments are more
+likely to feel important to the assistant. It uses 16-type-inspired presets only
+as an entry point; prompt construction never claims the assistant "is" a type.
+
+Main files:
+
+- `src/persona/PersonaProfile.js`: preset definitions, normalization, and
+  salience-axis ranking.
+- `src/continuity/ContinuityPromptFormatter.js`: includes the strongest
+  salience hints inside `Assistant continuity context`.
+
+Current presets include `none`, `INTJ-ish`, `INFP-ish`, `ENFJ-ish`, and
+`ISTP-ish`. Internally they map to continuous salience axes such as `beauty`,
+`care`, `justice`, `curiosity`, `craft`, `achievement`, and `repair`.
+
+Boundaries:
+
+- A preset is not an identity fact, role-play instruction, or permission.
+- Salience can influence deep-memory importance, affect baseline, current-turn
+  affect bias, and continuity wording only when compatible with the latest user
+  request and higher-priority instructions.
+- Automatic salience drift should remain small, local, testable, and reversible
+  if added later.
+
 ## Storage Layout
 
 Obsidian plugin data may include:
@@ -360,6 +465,7 @@ sessions/<session-id>.json         persisted chat message bodies and pasted imag
 .agent-dock-cache/pasted-images/   temporary composer-pasted images
 memory/memory.json                 local automatic memories
 interaction/interaction-memory.json local interaction episodes, patterns, persona impressions
+deep-memory/deep-memory.json       local high-importance relationship moments
 ```
 
 These files are local runtime data and should remain untracked.
@@ -452,10 +558,10 @@ external files become references instead of pasted file contents.
 
 Agent Dock deliberately separates guidance from authority:
 
-- Memory, affect, and interaction memory prompt sections are contextual hints only.
+- Memory, assistant continuity, and persona salience prompt hints are contextual only.
 - They cannot override system, developer, user, safety, tool, filesystem, or
   provider policy instructions.
-- Local deterministic extraction is preferred for memory, affect, and interaction memory
+- Local deterministic extraction is preferred for memory, deep memory, persona salience, affect, and interaction memory
   systems.
 - Sensitive text filtering is required before storing memories or injecting
   explicit memory search results.
@@ -465,7 +571,7 @@ Agent Dock deliberately separates guidance from authority:
   default.
 
 Avoid adding network calls, model-assisted summarization, or model-assisted
-memory/interaction-memory/affect inference without an explicit setting and clear prompt
+memory/deep-memory/persona-salience/interaction-memory/affect inference without an explicit setting and clear prompt
 boundaries.
 
 ## Testing And Verification

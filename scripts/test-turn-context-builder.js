@@ -74,6 +74,22 @@ function createPlugin() {
         ];
       }
     },
+    deepMemoryStore: {
+      async getPromptMemories() {
+        return [{
+          id: "deep-1",
+          key: "deep-1",
+          kind: "relationship_insight",
+          summary: "User wants important moments to be remembered with natural continuity.",
+          whyItMatters: "This helps later replies feel continuous without over-referencing the past.",
+          feltSense: "warm and grounded",
+          importance: 0.86,
+          confidence: 0.78,
+          createdAt: now,
+          updatedAt: now
+        }];
+      }
+    },
     getPromptWorkingAffect() {
       return {
         transient: true,
@@ -99,7 +115,9 @@ async function testBuildAgentTurnContext() {
       contextLimitChars: 8000,
       memoryEnabled: true,
       memoryAgentSearchEnabled: true,
-      interactionMemoryEnabled: true
+      deepMemoryEnabled: true,
+      interactionMemoryEnabled: true,
+      personaPreset: "INFP-ish"
     },
     prompt: "之前说过偏好是什么？",
     conversation: [{ role: "user", content: "之前说过偏好是什么？" }],
@@ -113,9 +131,14 @@ async function testBuildAgentTurnContext() {
   assert(result.promptResult.prompt.includes("Explicit local memory search results"));
   assert(result.promptResult.prompt.includes("Use compact final answers"));
   assert(result.promptResult.prompt.includes("Keep architecture docs updated"));
+  assert(result.promptResult.prompt.includes("Assistant continuity context"));
+  assert(result.promptResult.prompt.includes("important moments"));
+  assert(result.promptResult.prompt.includes("Salience hints"));
+  assert(result.promptResult.prompt.includes("beauty and atmosphere"));
   assert(!result.promptResult.prompt.includes("Low confidence stance should be filtered"));
   assert(result.promptResult.prompt.includes("Prefer concise implementation notes"));
   assert(!result.promptResult.prompt.includes("Current turn tone signal"));
+  assert(result.promptResult.prompt.includes("Meaningful recalled moment"));
   assert.deepEqual(
     result.promptSignals.memories.map((memory) => memory.id),
     ["auto-project"],
@@ -130,7 +153,9 @@ async function testBuildPromptResultForTurnContextUsesSessionPrompt() {
     memories: [],
     memorySearchResults: [],
     memorySearchPerformed: false,
+    deepMemories: [],
     interactionStance: [],
+    personaProfile: null,
     workingAffect: null
   };
   const result = await buildPromptResultForTurnContext({

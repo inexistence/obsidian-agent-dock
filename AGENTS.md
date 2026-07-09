@@ -23,7 +23,7 @@ should stay ready for other agent CLIs such as Claude Code or Cursor.
 - `src/plugin.js`: Obsidian plugin lifecycle, commands, settings, and view registration.
 - `src/view/AgentDockView.js`: sidebar UI, message timeline rendering, copy buttons, Markdown rendering, loading indicator.
 - `src/agents/AgentRegistry.js`: provider registry. Add future providers here.
-- `src/agents/shared/TurnContextBuilder.js`: provider-shared turn prompt context builder; gathers local memory, explicit memory search, interaction stance, working affect, prompt signal planning, prompt construction, and memory/context notices before providers send prompts.
+- `src/agents/shared/TurnContextBuilder.js`: provider-shared turn prompt context builder; gathers local memory, explicit memory search, deep memory, interaction stance, working affect, prompt signal planning, prompt construction, and memory/context notices before providers send prompts.
 - `src/agents/codex/CodexAgent.js`: Codex CLI process runner.
 - `src/agents/codex/jsonEvents.js`: maps Codex JSONL events into the normalized UI event protocol.
 - `src/agents/cursor/CursorAgent.js`: Cursor CLI ACP adapter.
@@ -34,11 +34,15 @@ should stay ready for other agent CLIs such as Claude Code or Cursor.
 - `src/settings.js`: defaults and settings migration.
 - `src/settingsTab.js`: Obsidian settings UI.
 - `src/prompt.js`: prompt construction, active note inclusion, and conversation transcript.
-- `src/promptSignals.js`: soft prompt signal planner; de-duplicates automatic memory against explicit search, filters weak interaction stance, and suppresses neutral transient affect.
+- `src/promptSignals.js`: soft prompt signal planner; de-duplicates automatic memory against explicit search, filters weak deep memory and interaction stance, and suppresses neutral transient affect.
 - `src/promptBudget.js`: prompt section budget arbitration; protects high-priority sections and omits/truncates optional soft sections before conversation compression.
 - `src/cli/*.js`: CLI argument/env/shell helpers.
 - `src/storage/ChatStorage.js`: persisted chat session index/body storage.
 - `src/storage/MemoryStore.js`: automatic local memory extraction, storage, and retrieval.
+- `src/deepMemory/DeepMemoryStore.js`: high-importance relationship memory extraction, storage, recall cooldown, and retrieval.
+- `src/deepMemory/DeepMemoryExtractor.js`: deterministic deep-memory candidate extraction from user messages and low-weight visible final-answer outcome evidence.
+- `src/continuity/ContinuityPromptFormatter.js`: merges deep memory, working affect, interaction stance, and persona salience hints into one compact prompt section.
+- `src/persona/PersonaProfile.js`: soft salience presets inspired by personality references; not identity facts or role-play modes.
 - `src/interaction/InteractionMemoryStore.js`: interaction episode persistence, pending episode closure, and prompt stance retrieval.
 - `src/interaction/LocalSignalExtractor.js`: local rule-based interaction signal, context, assistant-shape, and reaction extraction; signal rules use strong/weak/blocked matching.
 - `src/interaction/InteractionRules.js`: deterministic pattern, tension, and stable persona rule definitions.
@@ -109,10 +113,12 @@ Users can change this in plugin settings.
 - This is a character budget, not a tokenizer-backed token budget.
 - `src/prompt.js` applies the limit while building the prompt.
 - Provider adapters should use `src/agents/shared/TurnContextBuilder.js` for
-  turn prompt context preparation instead of reimplementing memory, interaction,
-  affect, signal planning, prompt construction, or prompt notice logic.
+  turn prompt context preparation instead of reimplementing memory, deep memory,
+  interaction, affect, signal planning, prompt construction, or prompt notice
+  logic.
 - `src/promptSignals.js` filters soft prompt inputs before formatting. Keep this
-  local and deterministic; do not mutate memory or interaction storage there.
+  local and deterministic; do not mutate memory, deep memory, or interaction
+  storage there.
 - `src/promptBudget.js` arbitrates formatted prompt sections before transcript
   compression so soft signals cannot crowd out the current user request.
 - Active note content is clipped separately by `activeNoteMaxChars`.
@@ -130,6 +136,11 @@ Users can change this in plugin settings.
 
 ## Memory
 
+- Design goal: Agent Dock's continuity systems should make the assistant feel
+  shaped by meaningful visible collaboration over time, not merely backed by a
+  preference database. Preserve this as transparent, bounded, user-correctable
+  relationship continuity rather than hidden profiling, role-play identity, or
+  authority over current instructions.
 - `memoryEnabled` and `memoryAutoCapture` default to enabled.
 - Automatic memories are stored under `memory/memory.json` in the plugin data folder.
 - Memory extraction must stay local and deterministic unless a future setting
@@ -143,6 +154,57 @@ Users can change this in plugin settings.
   de-duplicate them from the automatic relevant memory section by key/id.
 - Emit concise `notice` events when relevant memory is included or automatic
   memory is searched, included, or updated.
+
+## Deep Memory
+
+- `deepMemoryEnabled` and `deepMemoryAutoCapture` default to enabled.
+- Agent Dock stores a bounded set of high-importance relationship moments under
+  `deep-memory/deep-memory.json` in the plugin data folder.
+- Deep memory extraction must stay local and deterministic unless a future
+  setting explicitly adds a model-assisted reflection provider.
+- Capture explicit continuity preferences, strong encouragement, meaningful
+  calibration/repair turning points, hard-won shared progress, and salience-
+  weighted beauty, achievement, craft, care, justice, curiosity, or repair
+  moments.
+- Generic thanks should not become deep memory. Sensitive text must be filtered.
+- User messages are primary evidence. Final assistant `content` may provide
+  low-weight visible outcome evidence, such as completion or verification.
+- Final assistant `content` may also include at most one rare terminal
+  `<!-- agent-dock:deep-memory axes=... importance=... | ... -->` signal when a
+  moment clearly deserves durable memory. Strip it from the answer body, surface
+  it as an auditable notice, and pass it to deep memory capture as structured
+  metadata.
+- Treat signal `importance` as an AI-provided suggestion, not the storage
+  decision. Clamp it, cap its contribution, and combine it with local evidence,
+  salience, thresholds, safety filters, and frequency controls before saving.
+- Malformed terminal `agent-dock` signals should be stripped from the answer
+  body, logged as debug-only activity, and ignored for storage. Do not rely on
+  the agent formatting this signal correctly; user-visible evidence and local
+  deterministic extraction remain the primary capture paths.
+- Recall may use lightweight local query expansion for subtle wording such as
+  natural/continuous/less explicit memory, but if an explicit memory search has
+  no matches, the assistant must say so instead of inventing one.
+- Visible `reasoning` is UI feedback only and must not update prompt
+  construction, deep memory, interaction memory, or durable affect. Never read
+  hidden chain-of-thought.
+- Prompt injection must label deep memories as reflective local continuity
+  notes, not facts, instructions, permissions, user intent, or safety policy.
+- Recalled moments should surface sparingly, with bounded prompt items and recall
+  cooldowns so the assistant does not over-mention them.
+- User controls should be able to disable, tune, or clear deep memory.
+
+## Persona Salience
+
+- `personaPreset` is a soft salience reference, not an identity fact, role-play
+  mode, or replacement for the assistant's working style.
+- Presets may lightly change which events feel important for deep memory,
+  working affect bias, and continuity wording, using axes such as beauty, care,
+  justice, curiosity, craft, achievement, and repair.
+- Persona salience must remain lower priority than current user requests,
+  system/developer instructions, tool policy, safety policy, and filesystem
+  rules.
+- Keep automatic salience drift small, local, testable, and reversible if it is
+  added later.
 
 ## Affect Continuity
 

@@ -1,3 +1,5 @@
+const { getPersonaProfile } = require("../persona/PersonaProfile");
+
 const AFFECT_SENSITIVITY_OPTIONS = {
   low: 0.65,
   normal: 1,
@@ -20,6 +22,54 @@ const DEFAULT_WORKING_AFFECT = {
 
 const STARRY_KEYWORD_PATTERN = /(星星眼|惊艳|被惊艳到|绝了|太绝了|绝美|封神|神了|爱了|太强了|太漂亮了|太美了|亮瞎|美哭|好看到爆|漂亮炸了|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i;
 const STARRY_BLOCKED_PATTERN = /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(星星眼|惊艳|夸张|绝了|爱了|封神|神了|亮瞎|美哭|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i;
+
+const PERSONA_AFFECT_SIGNAL_RULES = [
+  {
+    axis: "beauty",
+    pattern: /(夕阳|晚霞|月光|风景|美|漂亮|诗意|氛围|动人|感动|sunset|beautiful|poetic|atmosphere|moving)/i,
+    signal: { valence: 0.16, arousal: 0.08, warmth: 0.12, starry: 0.16, tension: -0.04 }
+  },
+  {
+    axis: "achievement",
+    pattern: /(终于|总算|做成|搞定|修好|跑通|完成|很难|困难|攻下来|hard-won|finally|fixed|shipped|made it work|got it working)/i,
+    signal: { valence: 0.12, arousal: 0.08, focus: 0.1, confidence: 0.12, tension: -0.06 }
+  },
+  {
+    axis: "craft",
+    pattern: /(漂亮的实现|优雅|克制|准确|工艺|打磨|细节|架构|实现|craft|polish|precise|elegant|well-designed)/i,
+    signal: { focus: 0.12, confidence: 0.1, warmth: 0.04 }
+  },
+  {
+    axis: "care",
+    pattern: /(关心|鼓励|被看见|接住|陪伴|温柔|在乎|care|encourage|seen|held|support|gentle)/i,
+    signal: { valence: 0.1, warmth: 0.16, arousal: -0.04, tension: -0.08 }
+  },
+  {
+    axis: "justice",
+    pattern: /(不公平|公平|正义|原则|边界|伤害|保护|不能这样|justice|unfair|principle|boundary|harm|protect)/i,
+    signal: { focus: 0.12, tension: 0.1, warmth: 0.04, confidence: 0.04 }
+  },
+  {
+    axis: "repair",
+    pattern: /(修正|调整|校准|误解|重新|对了|抓住了|repair|corrected|calibrated|misread|got it right)/i,
+    signal: { warmth: 0.1, focus: 0.08, tension: -0.06, confidence: 0.04 }
+  },
+  {
+    axis: "curiosity",
+    pattern: /(探索|发现|理解|为什么|机制|原理|好奇|explore|discover|understand|curious|mechanism|why)/i,
+    signal: { focus: 0.1, arousal: 0.06, warmth: 0.04 }
+  }
+];
+
+const PERSONA_BASELINE_AXIS_BIASES = {
+  achievement: { valence: 0.02, arousal: 0.03, focus: 0.03, confidence: 0.04 },
+  beauty: { valence: 0.03, arousal: 0.02, warmth: 0.04, starry: 0.02 },
+  care: { warmth: 0.06, tension: -0.02 },
+  craft: { focus: 0.06, confidence: 0.05 },
+  curiosity: { arousal: 0.02, focus: 0.04, warmth: 0.02 },
+  justice: { focus: 0.04, tension: 0.02, confidence: 0.02 },
+  repair: { warmth: 0.04, focus: 0.02, tension: -0.02 }
+};
 
 const AFFECT_SIGNAL_RULES = [
   {
@@ -428,7 +478,11 @@ function getPromptWorkingAffect(settings, affectState, prompt, now = Date.now())
   const current = getEffectiveWorkingAffect(settings, affectState, now);
   const baseline = getBaselineAffect(settings);
   const source = current || baseline;
-  const signal = extractTurnAffectSignal({ prompt, response: "", success: true });
+  const signal = applyPersonaAffectBias(
+    extractTurnAffectSignal({ prompt, response: "", success: true }),
+    settings,
+    prompt
+  );
   if (!current && isNeutralSignal(signal)) {
     return null;
   }
@@ -461,7 +515,11 @@ function updateWorkingAffect(previousState, settings, turn, now = Date.now()) {
   }
 
   const current = getEffectiveWorkingAffect(settings, state, now) || getBaselineAffect(settings);
-  const signal = extractTurnAffectSignal(turn);
+  const signal = applyPersonaAffectBias(
+    extractTurnAffectSignal(turn),
+    settings,
+    [turn?.prompt, turn?.response].filter(Boolean).join("\n")
+  );
   const sensitivity = AFFECT_SENSITIVITY_OPTIONS[settings.affectSensitivity] || AFFECT_SENSITIVITY_OPTIONS.normal;
   const weight = clamp(0.28 * sensitivity, 0.12, 0.45);
 
@@ -664,16 +722,67 @@ function formatWorkingAffectPrompt(affect) {
 
 function getBaselineAffect(settings) {
   const style = settings?.assistantStyle || "collaborative";
+  let baseline = Object.assign({}, DEFAULT_WORKING_AFFECT);
   if (style === "concise") {
-    return Object.assign({}, DEFAULT_WORKING_AFFECT, { warmth: 0.55, focus: 0.82, confidence: 0.72 });
+    baseline = Object.assign({}, baseline, { warmth: 0.55, focus: 0.82, confidence: 0.72 });
+  } else if (style === "teaching") {
+    baseline = Object.assign({}, baseline, { warmth: 0.76, focus: 0.68, confidence: 0.68 });
+  } else if (style === "review") {
+    baseline = Object.assign({}, baseline, { warmth: 0.5, focus: 0.86, confidence: 0.72 });
   }
-  if (style === "teaching") {
-    return Object.assign({}, DEFAULT_WORKING_AFFECT, { warmth: 0.76, focus: 0.68, confidence: 0.68 });
+  return applyPersonaBaselineBias(baseline, settings);
+}
+
+function applyPersonaBaselineBias(baseline, settings) {
+  const profile = getPersonaProfile(settings);
+  if (!profile || profile.preset === "none") {
+    return baseline;
   }
-  if (style === "review") {
-    return Object.assign({}, DEFAULT_WORKING_AFFECT, { warmth: 0.5, focus: 0.86, confidence: 0.72 });
+  const next = Object.assign({}, baseline);
+  for (const [axis, value] of Object.entries(profile.salience || {})) {
+    const bias = PERSONA_BASELINE_AXIS_BIASES[axis];
+    const salience = Number(value) || 0;
+    if (!bias || salience < 0.5) {
+      continue;
+    }
+    const weight = (salience - 0.5) * 0.45;
+    addWeightedSignal(next, bias, weight);
   }
-  return Object.assign({}, DEFAULT_WORKING_AFFECT);
+  next.valence = clampSigned(next.valence);
+  next.arousal = clampUnit(next.arousal);
+  next.warmth = clampUnit(next.warmth);
+  next.focus = clampUnit(next.focus);
+  next.tension = clampUnit(next.tension);
+  next.confidence = clampUnit(next.confidence);
+  next.laughter = clampUnit(next.laughter || 0);
+  next.starry = clampUnit(next.starry || 0);
+  return next;
+}
+
+function applyPersonaAffectBias(signal, settings, text) {
+  const profile = getPersonaProfile(settings);
+  const prompt = compactText(text);
+  if (!profile || profile.preset === "none" || !prompt) {
+    return signal;
+  }
+
+  const next = Object.assign({}, signal);
+  for (const rule of PERSONA_AFFECT_SIGNAL_RULES) {
+    const salience = Number(profile.salience?.[rule.axis]) || 0;
+    if (salience < 0.5 || !rule.pattern.test(prompt)) {
+      continue;
+    }
+    addWeightedSignal(next, rule.signal, salience * 0.38);
+  }
+  next.valence = clampSigned(next.valence);
+  next.arousal = clampUnit(next.arousal);
+  next.warmth = clampUnit(next.warmth);
+  next.focus = clampUnit(next.focus);
+  next.tension = clampUnit(next.tension);
+  next.confidence = clampUnit(next.confidence);
+  next.laughter = clampUnit(next.laughter || 0);
+  next.starry = clampUnit(next.starry || 0);
+  return next;
 }
 
 function blendTowardBaseline(working, baseline, strength) {
@@ -786,6 +895,17 @@ function addSignal(target, signal) {
   target.starry += signal.starry || 0;
 }
 
+function addWeightedSignal(target, signal, weight) {
+  target.valence += (signal.valence || 0) * weight;
+  target.arousal += (signal.arousal || 0) * weight;
+  target.warmth += (signal.warmth || 0) * weight;
+  target.focus += (signal.focus || 0) * weight;
+  target.tension += (signal.tension || 0) * weight;
+  target.confidence += (signal.confidence || 0) * weight;
+  target.laughter += (signal.laughter || 0) * weight;
+  target.starry += (signal.starry || 0) * weight;
+}
+
 function isNeutralSignal(signal) {
   return signal.valence === 0
     && signal.arousal === 0
@@ -879,7 +999,10 @@ module.exports = {
     AFFECT_LABEL_PROFILES,
     AFFECT_LABEL_RULES,
     AFFECT_SIGNAL_RULES,
+    PERSONA_AFFECT_SIGNAL_RULES,
     TURN_VISUAL_SIGNAL_RULES,
+    applyPersonaAffectBias,
+    applyPersonaBaselineBias,
     extractTurnVisualSignal,
     extractTurnAffectSignal,
     labelWorkingAffect

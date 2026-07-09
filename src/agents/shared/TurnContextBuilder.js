@@ -1,4 +1,5 @@
 const { buildPromptInteractionContext } = require("../../interaction/LocalSignalExtractor");
+const { getPersonaProfile } = require("../../persona/PersonaProfile");
 const { buildPromptWithMetadata, buildTurnContextPrompt } = require("../../prompt");
 const { planPromptSignals } = require("../../promptSignals");
 const {
@@ -34,14 +35,23 @@ async function buildAgentTurnContext({
     translate,
     keyPrefix
   );
+  const conversationText = Array.isArray(conversation)
+    ? conversation.slice(-8).map((message) => message?.content || "").filter(Boolean).join("\n")
+    : "";
   const promptSignals = planPromptSignals({
     memories: removeMemorySearchDuplicates(memories, memorySearch.results),
+    deepMemories: await plugin.deepMemoryStore.getPromptMemories(prompt, settings, {
+      activeFilePath,
+      workingDirectory: cwd,
+      conversationText
+    }),
     memorySearchResults: memorySearch.results,
     memorySearchPerformed: memorySearch.performed,
     interactionStance: await plugin.interactionMemoryStore.getPromptStance(
       settings,
       buildPromptInteractionContext(prompt, conversation)
     ),
+    personaProfile: getPersonaProfile(settings),
     workingAffect: plugin.getPromptWorkingAffect(prompt)
   });
   const promptResult = await buildPromptResultForTurnContext({
@@ -72,7 +82,9 @@ async function buildPromptResultForTurnContext({
 }) {
   const options = {
     workingAffect: promptSignals.workingAffect,
+    deepMemories: promptSignals.deepMemories,
     interactionStance: promptSignals.interactionStance,
+    personaProfile: promptSignals.personaProfile,
     memories: promptSignals.memories,
     memorySearchResults: promptSignals.memorySearchResults,
     memorySearchPerformed: promptSignals.memorySearchPerformed

@@ -214,6 +214,38 @@ async function testWorkingAffectReceivesTurnContext() {
   assert.strictEqual(contexts[0].assistantMessage, assistantMessage);
 }
 
+async function testReturnedFinalContentReplacesStreamedContent() {
+  const session = {
+    id: "session-final-content",
+    messages: [],
+    currentRun: null
+  };
+
+  await runChatTurn({
+    session,
+    prompt: "hello",
+    agentLabel: "Codex",
+    agentId: "codex",
+    runAgent: async (_prompt, onUpdate) => {
+      onUpdate({ kind: "content", text: "Done.\n<!-- agent-dock:deep-memory | hidden from final body -->" });
+      return "Done.";
+    },
+    translate,
+    touchSession: () => {},
+    onTurnStarted: () => {},
+    onTurnUpdate: () => {},
+    onTurnFinished: () => {},
+    onComposerChanged: () => {},
+    updateWorkingAffect: async () => {},
+    persistChatSessions: async () => {},
+    notify: () => {}
+  });
+
+  const assistantMessage = session.messages.find((message) => message.role === "assistant");
+  assert.equal(assistantMessage.content, "Done.");
+  assert(!JSON.stringify(assistantMessage.timeline).includes("agent-dock:deep-memory"));
+}
+
 async function testFinalStatusHoldIsEmittedBeforeAffectUpdate() {
   const session = {
     id: "session-hold",
@@ -315,6 +347,7 @@ testAffectFailureDoesNotFailSuccessfulTurn()
   .then(() => testBeforeAgentRunCanInsertMessageBeforeAssistant())
   .then(() => testBeforeAgentRunFailureClearsCurrentRun())
   .then(() => testWorkingAffectReceivesTurnContext())
+  .then(() => testReturnedFinalContentReplacesStreamedContent())
   .then(() => testFinalStatusHoldIsEmittedBeforeAffectUpdate())
   .then(() => testStoppedTurnSettlesAffectDisplayWithoutUpdatingWorkingAffect())
   .then(() => {

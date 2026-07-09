@@ -390,6 +390,25 @@ async function testSearchMemories() {
     true,
     "Chinese n-gram search should recall memories when word order differs slightly"
   );
+
+  const subtleStore = createMemoryStore([
+    {
+      id: "mem-subtle",
+      key: "shared:continuity",
+      kind: "shared",
+      scope: "shared",
+      text: "用户希望重要记忆像自然连续性，而不是显眼标签。",
+      confidence: 0.8,
+      createdAt: Date.UTC(2026, 0, 6),
+      updatedAt: Date.UTC(2026, 6, 4)
+    }
+  ]);
+  const subtleResults = await subtleStore.searchMemories("你还记得我之前说的那个不要太刻意的感觉吗？", settings);
+  assert.equal(
+    subtleResults.some((memory) => memory.id === "mem-subtle"),
+    true,
+    "query expansion should recall subtle continuity memories despite different wording"
+  );
 }
 
 async function testExplicitMemorySearchSurvivesCompression() {

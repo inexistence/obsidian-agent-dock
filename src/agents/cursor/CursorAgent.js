@@ -11,6 +11,11 @@ const { expandHomePath } = require("../../cli/paths");
 const { escapeAppleScriptString, shellQuote } = require("../../cli/shell");
 const { t } = require("../../i18n");
 const { DEFAULT_SETTINGS } = require("../../settings");
+const {
+  extractAgentDockSignals,
+  formatInvalidAgentDockSignalActivity,
+  formatAgentDockSignalNotice
+} = require("../shared/agentSignals");
 const { AcpClient } = require("./AcpClient");
 const { acpUpdateToEvents } = require("./acpEvents");
 const { toCursorMode } = require("./modes");
@@ -262,23 +267,35 @@ class CursorAgent {
     }
 
     throwIfAborted();
+    const signalResult = extractAgentDockSignals(finalOutput.trim());
+    emitInvalidAgentDockSignalActivity(signalResult, emitUpdate);
+    emitAgentDockSignalNotices(signalResult.signals, settings, "cursor", (key, params) => t(settings, key, params), emitUpdate);
+    const visibleOutput = signalResult.visibleText.trim();
 
     await this.captureMemory({
       prompt,
-      response: finalOutput.trim(),
+      response: visibleOutput,
       previousAssistantResponse: getPreviousAssistantResponse(conversation),
       activeFilePath,
       sessionId: options.sessionId || ""
     }, settings, emitUpdate);
     await this.captureInteractionMemory({
       prompt,
-      response: finalOutput.trim(),
+      response: visibleOutput,
+      previousAssistantResponse: getPreviousAssistantResponse(conversation),
+      activeFilePath,
+      sessionId: options.sessionId || ""
+    }, settings, emitUpdate);
+    await this.captureDeepMemory({
+      prompt,
+      response: visibleOutput,
+      agentDockSignals: signalResult.signals,
       previousAssistantResponse: getPreviousAssistantResponse(conversation),
       activeFilePath,
       sessionId: options.sessionId || ""
     }, settings, emitUpdate);
 
-    return finalOutput.trim();
+    return visibleOutput;
   }
 
   async getOrCreateClient(sessionKey, connectionKey, context) {
@@ -489,6 +506,46 @@ class CursorAgent {
         summary: t(settings, "cursor.interactionMemorySkipped.summary")
       });
     }
+  }
+
+  async captureDeepMemory(turn, settings, onUpdate) {
+    try {
+      const saved = await this.plugin.deepMemoryStore.captureTurn(turn, settings);
+      if (saved.length > 0) {
+        onUpdate({
+          kind: "notice",
+          noticeType: "deep_memory_updated",
+          title: t(settings, "cursor.deepMemoryUpdated.title"),
+          summary: t(settings, "cursor.deepMemoryUpdated.summary", {
+            count: saved.length
+          })
+        });
+      }
+    } catch (error) {
+      console.warn("Agent Dock could not update deep memory:", error);
+      onUpdate({
+        kind: "notice",
+        noticeType: "deep_memory_skipped",
+        title: t(settings, "cursor.deepMemorySkipped.title"),
+        summary: t(settings, "cursor.deepMemorySkipped.summary")
+      });
+    }
+  }
+}
+
+function emitAgentDockSignalNotices(signals, settings, keyPrefix, translate, onUpdate) {
+  for (const signal of signals) {
+    const notice = formatAgentDockSignalNotice(signal, settings, keyPrefix, translate);
+    if (notice) {
+      onUpdate(notice);
+    }
+  }
+}
+
+function emitInvalidAgentDockSignalActivity(signalResult, onUpdate) {
+  const activity = formatInvalidAgentDockSignalActivity(signalResult);
+  if (activity) {
+    onUpdate(activity);
   }
 }
 

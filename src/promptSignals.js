@@ -5,21 +5,26 @@ const MIN_SUBSTRING_DUPLICATE_LENGTH_RATIO = 0.72;
 function planPromptSignals(signals = {}) {
   const memorySearchResults = normalizeArray(signals.memorySearchResults);
   const inputMemories = normalizeArray(signals.memories);
+  const inputDeepMemories = normalizeArray(signals.deepMemories);
   const inputInteractionStance = normalizeArray(signals.interactionStance);
   const memories = selectPromptMemories(
     inputMemories,
     memorySearchResults
   );
+  const deepMemories = selectDeepMemories(inputDeepMemories);
   const interactionStance = selectInteractionStance(inputInteractionStance);
   const workingAffect = selectWorkingAffect(signals.workingAffect);
   return {
     memories,
+    deepMemories,
     memorySearchResults,
     memorySearchPerformed: signals.memorySearchPerformed === true,
     interactionStance,
+    personaProfile: signals.personaProfile || null,
     workingAffect,
     metadata: {
       removedMemoryCount: Math.max(0, inputMemories.length - memories.length),
+      removedDeepMemoryCount: Math.max(0, inputDeepMemories.length - deepMemories.length),
       removedInteractionStanceCount: Math.max(0, inputInteractionStance.length - interactionStance.length),
       affectIncluded: Boolean(workingAffect)
     }
@@ -55,6 +60,24 @@ function selectPromptMemories(memories, explicitResults) {
   }
 
   return selected;
+}
+
+function selectDeepMemories(items) {
+  const seen = new Set();
+  return items
+    .filter((item) => Number(item?.importance) >= 0.5 && Number(item?.confidence) >= 0.45)
+    .filter((item) => {
+      const key = [
+        item.key || item.id || "",
+        normalizeComparableText(item.summary),
+        normalizeComparableText(item.userExcerpt)
+      ].join(":");
+      if (!key || seen.has(key)) {
+        return false;
+      }
+      seen.add(key);
+      return true;
+    });
 }
 
 function selectInteractionStance(items) {
@@ -142,6 +165,7 @@ module.exports = {
     areSimilarTexts,
     areNearLengthSubstrings,
     selectInteractionStance,
+    selectDeepMemories,
     selectPromptMemories,
     selectWorkingAffect
   }

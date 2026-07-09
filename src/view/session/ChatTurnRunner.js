@@ -65,7 +65,7 @@ async function runChatTurn({
     persistChatSessions({ immediate: true });
 
     const conversation = session.messages.slice(0, -1);
-    await runAgent(prompt, (update) => {
+    const finalContent = await runAgent(prompt, (update) => {
       if (assistantMessage.isComplete || session.currentRun !== run) {
         return;
       }
@@ -90,6 +90,10 @@ async function runChatTurn({
       dockSession: session
     });
 
+    if (typeof finalContent === "string" && finalContent !== assistantMessage.content) {
+      assistantMessage.content = finalContent;
+      replaceTimelineFinalContent(assistantMessage, assistantMessage.content);
+    }
     if (!assistantMessage.content.trim()) {
       assistantMessage.content = translate("view.agentFinishedEmpty", { agent: agentLabel });
     }

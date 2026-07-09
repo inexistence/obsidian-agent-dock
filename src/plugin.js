@@ -8,6 +8,7 @@ const {
   resetAffectState,
   updateWorkingAffect
 } = require("./affect/WorkingAffectStore");
+const { DeepMemoryStore } = require("./deepMemory/DeepMemoryStore");
 const { VIEW_TYPE_AGENT_DOCK } = require("./constants");
 const { t } = require("./i18n");
 const { InteractionMemoryStore } = require("./interaction/InteractionMemoryStore");
@@ -37,6 +38,7 @@ module.exports = class AgentDockPlugin extends Plugin {
     this.chatStorage = new ChatStorage(this);
     this.memoryStore = new MemoryStore(this);
     this.interactionMemoryStore = new InteractionMemoryStore(this);
+    this.deepMemoryStore = new DeepMemoryStore(this);
     await this.cleanupPastedImageCache();
     this.refreshAgent();
 
@@ -176,6 +178,10 @@ module.exports = class AgentDockPlugin extends Plugin {
 
   async clearInteractionMemory() {
     await this.interactionMemoryStore.clearMemory();
+  }
+
+  async clearDeepMemory() {
+    await this.deepMemoryStore.clearMemory();
   }
 
   getWorkingAffect() {

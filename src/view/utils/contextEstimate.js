@@ -2,8 +2,7 @@ const { CUSTOM_ASSISTANT_STYLE_MAX_CHARS, DEFAULT_SETTINGS } = require("../../se
 
 const BUILT_IN_ASSISTANT_STYLE_ESTIMATE_CHARS = 700;
 const ASSISTANT_STYLE_PROMPT_OVERHEAD_CHARS = 220;
-const AFFECT_PROMPT_ESTIMATE_CHARS = 700;
-const INTERACTION_STANCE_ITEM_ESTIMATE_CHARS = 260;
+const ASSISTANT_CONTINUITY_ESTIMATE_CHARS = 1200;
 
 function estimateContextChars(messages, draft, settings) {
   const transcriptChars = messages.reduce((total, message) => {
@@ -17,13 +16,17 @@ function estimateContextChars(messages, draft, settings) {
     ? (Number(settings.memoryMaxPromptChars) || DEFAULT_SETTINGS.memoryMaxPromptChars)
     : 0;
   const styleChars = estimateAssistantStyleChars(settings);
-  const affectChars = settings.affectEnabled && settings.affectCrossSessionEnabled
-    ? AFFECT_PROMPT_ESTIMATE_CHARS
+  const continuityChars = hasContinuitySignals(settings)
+    ? ASSISTANT_CONTINUITY_ESTIMATE_CHARS
     : 0;
-  const interactionMemoryChars = settings.interactionMemoryEnabled
-    ? (Number(settings.interactionMemoryMaxPromptItems) || DEFAULT_SETTINGS.interactionMemoryMaxPromptItems) * INTERACTION_STANCE_ITEM_ESTIMATE_CHARS
-    : 0;
-  return transcriptChars + draftChars + memoryChars + styleChars + affectChars + interactionMemoryChars;
+  return transcriptChars + draftChars + memoryChars + styleChars + continuityChars;
+}
+
+function hasContinuitySignals(settings) {
+  return (settings.affectEnabled && settings.affectCrossSessionEnabled)
+    || settings.interactionMemoryEnabled
+    || settings.deepMemoryEnabled
+    || (settings.personaPreset && settings.personaPreset !== "none");
 }
 
 function estimateAssistantStyleChars(settings) {

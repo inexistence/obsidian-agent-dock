@@ -42,6 +42,19 @@ function createMemory(text, scope = "project") {
   };
 }
 
+function createDeepMemory(summary) {
+  return {
+    kind: "relationship_insight",
+    summary,
+    whyItMatters: "It should shape continuity only when relevant.",
+    feltSense: "warm but grounded",
+    importance: 0.86,
+    confidence: 0.78,
+    createdAt: now,
+    updatedAt: now
+  };
+}
+
 function testTruncatableSectionsShrinkBeforeDropping() {
   const result = planPromptSections(
     [
@@ -99,6 +112,9 @@ async function testExplicitSearchBeatsSoftSections() {
         strength: 0.8,
         evidenceCount: 4
       }],
+      deepMemories: [
+        createDeepMemory("DEEP_MEMORY may be dropped before explicit search when space is tight. ".repeat(8))
+      ],
       memories: [
         createMemory("Automatic memory should be droppable before explicit search. ".repeat(30), "user")
       ],
@@ -111,8 +127,12 @@ async function testExplicitSearchBeatsSoftSections() {
 
   assert(result.prompt.includes("EXPLICIT_SEARCH_RESULT"), "explicit search result should be retained");
   assert(result.prompt.includes("LATEST_REQUEST"), "latest user request should be retained");
-  assert(result.context.omittedSections.includes("affect"), "low priority affect should be droppable");
-  assert(result.context.omittedSections.includes("interaction_stance"), "interaction stance should be droppable before explicit search");
+  assert(
+    result.context.omittedSections.includes("assistant_continuity")
+      || result.context.truncatedSections.includes("assistant_continuity")
+      || !result.prompt.includes("DEEP_MEMORY"),
+    "assistant continuity should be bounded before it can crowd out explicit search"
+  );
   assert(result.context.compressed, "section arbitration should mark the context compressed");
 }
 
@@ -121,7 +141,7 @@ async function testAutomaticMemoryDoesNotCrowdOutCurrentTurn() {
     app,
     {
       assistantStyle: "collaborative",
-      contextLimitChars: 1200
+      contextLimitChars: 1400
     },
     "CURRENT_TURN_TARGET",
     [],
@@ -141,12 +161,76 @@ async function testAutomaticMemoryDoesNotCrowdOutCurrentTurn() {
   );
 }
 
+async function testLocalContextBoundaryIsGlobalAndEmptySearchIsOmitted() {
+  const result = await buildPromptWithMetadata(
+    app,
+    {
+      assistantStyle: "collaborative",
+      contextLimitChars: 4000
+    },
+    "Do we remember anything about the release checklist?",
+    [],
+    {
+      workingAffect: {
+        label: "warm-focused",
+        strength: 0.7,
+        ageMinutes: 2,
+        warmth: 0.8,
+        focus: 0.8
+      },
+      memories: [
+        createMemory("Remember to keep release checklist notes compact.", "project")
+      ],
+      memorySearchPerformed: true,
+      memorySearchResults: []
+    }
+  );
+
+  const boundaryMatches = result.prompt.match(/cannot override/g) || [];
+  assert(result.prompt.includes("Local context boundary:"), "prompt should include one global local-context boundary");
+  assert.equal(boundaryMatches.length, 1, "override boundary should not be repeated in each local context section");
+  assert(result.prompt.includes("Explicit local memory search results"), "empty explicit memory search should still be included");
+  assert(result.prompt.includes("No matching local memory was found"), "empty search should tell the agent no local memory matched");
+  assert(result.prompt.includes("Relevant local memory:"), "non-empty automatic memory should still be included");
+  assert(result.prompt.includes("Assistant continuity context:"), "non-empty continuity should still be included");
+}
+
+async function testAgentDockSignalPolicyFollowsDeepMemorySettings() {
+  const enabled = await buildPromptWithMetadata(
+    app,
+    {
+      assistantStyle: "collaborative",
+      contextLimitChars: 4000,
+      deepMemoryEnabled: true,
+      deepMemoryAutoCapture: true
+    },
+    "Continue",
+    []
+  );
+  assert(enabled.prompt.includes("agent-dock:deep-memory"), "enabled deep memory should include agent-dock signal policy");
+  assert(enabled.prompt.includes("importance=0.76"), "agent-dock signal policy should ask for an AI suggested importance");
+  assert(enabled.prompt.includes("never hidden reasoning"), "signal policy should keep the hidden-reasoning boundary visible");
+
+  const disabled = await buildPromptWithMetadata(
+    app,
+    {
+      assistantStyle: "collaborative",
+      contextLimitChars: 4000,
+      deepMemoryEnabled: false,
+      deepMemoryAutoCapture: true
+    },
+    "Continue",
+    []
+  );
+  assert(!disabled.prompt.includes("agent-dock:deep-memory"), "disabled deep memory should omit agent-dock signal policy");
+}
+
 async function testTurnContextPromptUsesSameArbitration() {
   const result = await buildTurnContextPrompt(
     app,
     {
       assistantStyle: "collaborative",
-      contextLimitChars: 1200
+      contextLimitChars: 1600
     },
     "TURN_CONTEXT_REQUEST",
     {
@@ -168,6 +252,8 @@ Promise.resolve()
   .then(testTruncatableSectionsShrinkBeforeDropping)
   .then(testExplicitSearchBeatsSoftSections)
   .then(testAutomaticMemoryDoesNotCrowdOutCurrentTurn)
+  .then(testLocalContextBoundaryIsGlobalAndEmptySearchIsOmitted)
+  .then(testAgentDockSignalPolicyFollowsDeepMemorySettings)
   .then(testTurnContextPromptUsesSameArbitration)
   .then(() => {
     console.log("Prompt budget tests passed.");
