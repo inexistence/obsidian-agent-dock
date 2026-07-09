@@ -206,15 +206,69 @@ class MessageTimelineRenderer {
       cls: "codex-dock__processed-item-title",
       text: this.getProcessedEntryTitle(entry)
     });
+    if (item.entries.length > 1) {
+      summary.createSpan({
+        cls: "codex-dock__processed-item-count",
+        text: this.translate("timeline.itemCountShort", { count: item.entries.length })
+      });
+    }
     this.renderChevron(summary);
 
     const body = details.createDiv({ cls: "codex-dock__processed-item-body" });
-    const detail = this.getProcessedItemDetail(item.entries);
-    if (detail) {
-      body.createEl("pre", { cls: "codex-dock__processed-item-detail", text: detail });
-      this.renderCopyButton(body, detail, this.translate("view.copyEventText"));
+    if (item.entries.length > 1) {
+      this.renderProcessedEventSubItems(body, message, key, item);
+    } else {
+      const detail = this.getProcessedEntryDetail(entry);
+      if (detail) {
+        body.createEl("pre", { cls: "codex-dock__processed-item-detail", text: detail });
+        this.renderCopyButton(body, detail, this.translate("view.copyEventText"));
+      }
     }
     this.prepareAnimatedDetails(details, summary, body, message, key);
+  }
+
+  renderProcessedEventSubItems(containerEl, message, parentKey, item) {
+    item.entries.forEach((entry, offset) => {
+      const detail = this.getProcessedEntryDetail(entry);
+      if (!detail) {
+        this.renderProcessedSubItemTitleRow(containerEl, entry);
+        return;
+      }
+
+      const key = `${parentKey}:subitem:${offset}`;
+      const details = this.renderDetails(containerEl, message, key, {
+        cls: `codex-dock__processed-subitem codex-dock__processed-subitem--${entry.kind || "activity"}`,
+        defaultOpen: false
+      });
+      const summary = details.createEl("summary", { cls: "codex-dock__processed-subitem-summary" });
+      this.renderProcessIcon(summary, entry);
+      summary.createSpan({
+        cls: "codex-dock__processed-subitem-title",
+        text: this.getProcessedEntryTitle(entry)
+      });
+      this.renderChevron(summary);
+
+      const body = details.createDiv({ cls: "codex-dock__processed-subitem-body" });
+      body.createEl("pre", { cls: "codex-dock__processed-item-detail", text: detail });
+      this.renderCopyButton(body, detail, this.translate("view.copyEventText"));
+      this.prepareAnimatedDetails(details, summary, body, message, key);
+    });
+  }
+
+  renderProcessedSubItemTitleRow(containerEl, entry) {
+    if (!this.shouldShowEvent(entry)) {
+      return;
+    }
+
+    const row = containerEl.createDiv({
+      cls: `codex-dock__processed-subitem codex-dock__processed-subitem--static codex-dock__processed-subitem--${entry.kind || "activity"}`
+    });
+    const title = row.createDiv({ cls: "codex-dock__processed-subitem-summary" });
+    this.renderProcessIcon(title, entry);
+    title.createSpan({
+      cls: "codex-dock__processed-subitem-title",
+      text: this.getProcessedEntryTitle(entry)
+    });
   }
 
   getProcessedEntryDetail(entry) {
@@ -228,17 +282,6 @@ class MessageTimelineRenderer {
       ? entry.detail || entry.summary || ""
       : entry.summary || entry.detail || "";
     return String(body || "").trim();
-  }
-
-  getProcessedItemDetail(entries) {
-    const parts = [];
-    for (const entry of entries) {
-      const detail = this.getProcessedEntryDetail(entry);
-      if (detail) {
-        parts.push(detail);
-      }
-    }
-    return parts.join("\n\n");
   }
 
   getProcessedEntryTitle(entry) {
@@ -678,7 +721,6 @@ function buildProcessedIndex(entries) {
       previous
       && previous.type === "event"
       && previous.kind === kind
-      && previous.key === key
       && shouldAggregateProcessedEntries(previous.entries[previous.entries.length - 1], entry, key)
     ) {
       previous.entries.push(entry);
@@ -713,6 +755,9 @@ function shouldAggregateProcessedEntries(previous, entry, key) {
   if (!previous || !entry || !key) {
     return false;
   }
+  if (shouldGroupConsecutiveProcessKind(entry.kind) && previous.kind === entry.kind) {
+    return true;
+  }
   if (previous.toolCallId && entry.toolCallId && previous.toolCallId === entry.toolCallId) {
     return true;
   }
@@ -723,6 +768,10 @@ function shouldAggregateProcessedEntries(previous, entry, key) {
     return false;
   }
   return Boolean(normalizeCommandLabel(String(entry.summary || entry.detail || entry.title || "")));
+}
+
+function shouldGroupConsecutiveProcessKind(kind) {
+  return kind === "notice" || kind === "tool";
 }
 
 function hasToolState(entry) {

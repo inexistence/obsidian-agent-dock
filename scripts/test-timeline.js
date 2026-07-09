@@ -190,16 +190,38 @@ function reasoningEntries(message) {
   assert.strictEqual(processed[0].type, "event");
   assert.strictEqual(processed[0].kind, "tool");
   assert.strictEqual(processed[0].entries.length, 2);
+  assert.strictEqual(processed[0].entries[1].title, "$ node scripts/test-timeline.js 已完成");
   assert.strictEqual(processed[1].kind, "notice");
   assert.strictEqual(processed[2].type, "content");
 }
 
 {
   const processed = timelineRendererTest.buildProcessedIndex([
-    { kind: "notice", title: "Notice", summary: "same" },
-    { kind: "notice", title: "Notice", summary: "same" }
+    { kind: "notice", title: "已引用本地记忆", summary: "2 条" },
+    { kind: "notice", title: "记忆查询", summary: "找到 1 条" },
+    { kind: "notice", title: "记忆已更新", summary: "1 条" }
   ]);
-  assert.strictEqual(processed.length, 2, "similar notices should not be merged as a tool lifecycle");
+  assert.strictEqual(processed.length, 1, "consecutive notices should become one process item");
+  assert.strictEqual(processed[0].kind, "notice");
+  assert.strictEqual(processed[0].entries.length, 3);
+  assert.strictEqual(processed[0].entries[2].title, "记忆已更新");
+}
+
+{
+  const processed = timelineRendererTest.buildProcessedIndex([
+    { kind: "notice", title: "已引用本地记忆", summary: "2 条" },
+    { kind: "tool", title: "网页搜索已完成", summary: "query" },
+    { kind: "notice", title: "记忆已更新", summary: "1 条" }
+  ]);
+  assert.strictEqual(processed.length, 3, "different process kinds should stay separate");
+}
+
+{
+  const processed = timelineRendererTest.buildProcessedIndex([
+    { kind: "error", title: "失败", summary: "A" },
+    { kind: "error", title: "失败", summary: "B" }
+  ]);
+  assert.strictEqual(processed.length, 2, "errors should not be folded into ordinary process groups");
 }
 
 console.log("timeline tests passed");

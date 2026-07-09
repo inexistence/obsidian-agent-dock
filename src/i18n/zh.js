@@ -239,6 +239,7 @@ module.exports = {
     "session.stoppedConversationTitle": "{title} 有已停止的任务",
     "timeline.processing": "处理中 {count} 项",
     "timeline.processed": "已处理 {count} 项",
+    "timeline.itemCountShort": "{count} 项",
     "timeline.needsAttention": "需要关注 {count} 项",
     "timeline.toolCalls": "工具调用",
     "timeline.reasoning": "思考",

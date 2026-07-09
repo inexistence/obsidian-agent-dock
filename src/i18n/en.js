@@ -239,6 +239,7 @@ module.exports = {
     "session.stoppedConversationTitle": "{title} has a stopped task",
     "timeline.processing": "Processing {count} items",
     "timeline.processed": "Processed {count} items",
+    "timeline.itemCountShort": "{count} items",
     "timeline.needsAttention": "Needs attention {count} items",
     "timeline.toolCalls": "Tool calls",
     "timeline.reasoning": "Thinking",
