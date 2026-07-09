@@ -85,6 +85,44 @@ const settings = {
 }
 
 {
+  const promptAffect = getPromptWorkingAffect(settings, resetAffectState(settings), "哈哈哈，这个确实好玩。");
+  assert(promptAffect, "user laughter should produce current prompt affect");
+  assert.equal(promptAffect.label, "playful", "user laughter should tune the assistant toward playful, not laughing");
+}
+
+{
+  let state = resetAffectState(settings);
+  state = updateWorkingAffect(state, settings, {
+    prompt: "哈哈哈，这个确实好玩。",
+    response: "可以。",
+    success: true
+  }, Date.now());
+  const promptAffect = getPromptWorkingAffect(settings, state, "这个方向好玩。");
+  assert(promptAffect, "playful follow-up should still produce current prompt affect");
+  assert.notEqual(promptAffect.label, "laughing", "user laughter should not make later prompts look like assistant laughter");
+}
+
+{
+  const legacyState = {
+    working: {
+      valence: 0.34,
+      arousal: 0.48,
+      warmth: 0.84,
+      focus: 0.65,
+      tension: 0,
+      confidence: 0.67,
+      laughter: 1,
+      label: "laughing",
+      updatedAt: Date.now()
+    }
+  };
+  const normalized = normalizeAffectState(legacyState);
+  assert.equal(normalized.working.laughter, 0, "legacy persisted laughter should be discarded on restore");
+  const effective = getEffectiveWorkingAffect(settings, legacyState);
+  assert.notEqual(effective?.label, "laughing", "legacy persisted laughter should not restore a laughing affect");
+}
+
+{
   const promptAffect = getPromptWorkingAffect(settings, resetAffectState(settings), "随意点，轻快点，不用太正式。");
   assert(promptAffect, "expanded casual phrasing should produce current prompt affect");
   assert.equal(promptAffect.label, "playful", "expanded casual phrasing should tune toward playful tone");
@@ -328,9 +366,29 @@ const settings = {
     kind: "content",
     text: "哈哈哈，这个方向确实有趣。"
   });
-  assert.equal(visual.label, "playful", "visible assistant laughter should show a playful live visual cue");
+  assert.equal(visual.label, "laughing", "visible assistant laughter should show a laughing live visual cue");
   assert(visual.valence > 0, "visible assistant laughter should raise live visual valence");
   assert(visual.warmth > 0.7, "visible assistant laughter should keep the live visual warm");
+}
+
+{
+  const visual = getTurnVisualAffect(null, {
+    kind: "content",
+    text: "这个方向确实有趣。"
+  });
+  assert.equal(visual.label, "playful", "visible playful words without laughter should show a playful live visual cue");
+}
+
+{
+  const laughingVisual = getTurnVisualAffect(null, {
+    kind: "content",
+    text: "哈哈哈，这个方向确实有趣。"
+  });
+  const playfulVisual = getTurnVisualAffect(laughingVisual, {
+    kind: "content",
+    text: "这个方向确实有趣。"
+  });
+  assert.notEqual(playfulVisual.label, "laughing", "previous live laughter should not make later non-laughter content look laughing");
 }
 
 {
@@ -348,6 +406,27 @@ const settings = {
     text: "通过了，搞定。"
   });
   assert.equal(visual.label, "celebratory", "visible success text should show a small-celebration live visual cue");
+}
+
+{
+  const signal = affectTest.extractTurnVisualSignal({
+    kind: "tool",
+    title: "$ npm test 已完成",
+    summary: "npm test | 退出码：0",
+    detail: "危险 删除 token permission denied 成功完成 太好了 ".repeat(20)
+  });
+  assert(signal.tension < 0.2, "tool detail should not feed live visual tone classification");
+  assert(signal.valence < 0.2, "tool detail success text should not create celebratory live visual tone");
+}
+
+{
+  const visual = getTurnVisualAffect(null, {
+    kind: "tool",
+    title: "$ npm test 已失败",
+    summary: "npm test | 退出码：1"
+  });
+  assert(["alert", "serious", "tense-focused"].includes(visual.label), "failed tools should produce an alert live visual state");
+  assert(visual.tension > 0.3, "failed tools should raise live visual tension");
 }
 
 {

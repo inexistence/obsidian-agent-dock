@@ -315,12 +315,13 @@ module.exports = {
     "affect.label.alert": "Alert / On alert",
     "affect.label.serious": "Serious / Brow furrowed",
     "affect.label.reassuring": "Reassuring / Voice steady",
+    "affect.label.laughing": "Light / Laughing now",
     "affect.label.excited-open": "Excited / Fired up",
     "affect.label.surprised": "Surprised / Eyes lit",
     "affect.label.admiring": "Admiring / Nodding along",
     "affect.label.close": "Close / Voice softens",
     "affect.label.celebratory": "Upbeat / Small celebration",
-    "affect.label.playful": "Light / Laughing now",
+    "affect.label.playful": "Light / Playful",
     "affect.label.confident": "Confident / Brow raised",
     "affect.label.composed": "Composed / Sorting calmly",
     "affect.label.absorbed": "Absorbed / Leaning into the work",
@@ -654,12 +655,13 @@ module.exports = {
     "affect.label.alert": "警觉 / 警觉起来",
     "affect.label.serious": "严肃 / 皱眉认真",
     "affect.label.reassuring": "安抚 / 语气放稳",
+    "affect.label.laughing": "轻快 / 笑出声了",
     "affect.label.excited-open": "兴奋 / 来劲了",
     "affect.label.surprised": "惊喜 / 眼神一亮",
     "affect.label.admiring": "赞赏 / 点头认可",
     "affect.label.close": "亲近 / 声音变柔",
     "affect.label.celebratory": "开心 / 小小庆祝",
-    "affect.label.playful": "轻快 / 笑出声了",
+    "affect.label.playful": "轻快 / 带点玩心",
     "affect.label.confident": "笃定 / 挑了下眉毛",
     "affect.label.composed": "冷静 / 皱眉梳理",
     "affect.label.absorbed": "投入 / 俯身投入",
@@ -1718,6 +1720,7 @@ const DEFAULT_WORKING_AFFECT = {
   focus: 0.65,
   tension: 0,
   confidence: 0.65,
+  laughter: 0,
   label: "steady",
   sourceSessionId: "",
   updatedAt: 0
@@ -1745,8 +1748,8 @@ const AFFECT_SIGNAL_RULES = [
   {
     name: "playful",
     scope: "prompt",
-    pattern: /(好玩|有趣|开玩笑|玩一下|整活|轻松|轻快点|活泼点|随意点|松弛点|不用太正式|不那么正式|俏皮|哈哈|哈[哈]+|fun|funny|playful|joke|kidding|lighthearted|casual|relaxed|lol|haha)/i,
-    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(开玩笑|玩笑|playful|俏皮|整活|轻松|轻快|活泼|随意|松弛|好玩|casual|relaxed|fun|funny|joke|kidding|lighthearted)/i,
+    pattern: /(好玩|有趣|开玩笑|玩一下|整活|轻松|轻快点|活泼点|随意点|松弛点|不用太正式|不那么正式|俏皮|哈哈|哈[哈]+|笑出声|fun|funny|playful|joke|kidding|lighthearted|casual|relaxed|lol|haha)/i,
+    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(开玩笑|玩笑|playful|俏皮|整活|轻松|轻快|活泼|随意|松弛|好玩|哈哈|笑出声|笑|casual|relaxed|fun|funny|joke|kidding|lighthearted|lol|haha)/i,
     signal: { valence: 0.16, arousal: 0.16, warmth: 0.12, tension: -0.12 }
   },
   {
@@ -1857,6 +1860,7 @@ const AFFECT_LABEL_RULES = [
   { label: "serious", matches: (a) => a.tension >= 0.58 && a.focus >= 0.72 && a.valence <= 0.05 },
   { label: "reassuring", matches: (a) => a.tension >= 0.38 && a.warmth >= 0.64 && a.valence > -0.35 },
   { label: "challenging", matches: (a) => a.confidence >= 0.78 && a.focus >= 0.78 && a.tension >= 0.16 && a.tension <= 0.42 && a.warmth <= 0.68 },
+  { label: "laughing", matches: (a) => a.laughter >= 0.25 && a.valence >= 0.16 && a.arousal >= 0.32 && a.warmth >= 0.74 && a.tension <= 0.18 },
   { label: "excited-open", matches: (a) => a.valence >= 0.32 && a.arousal >= 0.5 && a.tension <= 0.22 },
   { label: "surprised", matches: (a) => a.valence >= 0.26 && a.arousal >= 0.38 && a.warmth >= 0.68 && a.tension <= 0.2 },
   { label: "admiring", matches: (a) => a.valence >= 0.22 && a.valence < 0.3 && a.warmth >= 0.82 && a.confidence >= 0.72 && a.arousal <= 0.4 && a.tension <= 0.16 },
@@ -1911,6 +1915,12 @@ const AFFECT_LABEL_PROFILES = {
     expression: "briefly celebrate progress, then keep moving",
     do: "mark the win in one short beat",
     avoid: "letting celebration replace the next useful action"
+  },
+  laughing: {
+    pacing: "light, quick, and clear",
+    expression: "let the laugh show briefly, then stay useful",
+    do: "acknowledge the funny beat without overplaying it",
+    avoid: "forcing jokes or keeping the bit going too long"
   },
   playful: {
     pacing: "light, quick, and clear",
@@ -1987,9 +1997,15 @@ const TURN_VISUAL_KIND_SIGNALS = {
 
 const TURN_VISUAL_SIGNAL_RULES = [
   {
+    name: "live-laughing",
+    pattern: /(哈哈|哈[哈]+|笑出声|lol|haha)/i,
+    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(哈哈|笑出声|笑|lol|haha)/i,
+    signal: { valence: 0.8, arousal: 0.6, warmth: 0.28, tension: -0.18, laughter: 1 }
+  },
+  {
     name: "live-playful",
-    pattern: /(哈哈|哈[哈]+|笑出声|好玩|有趣|俏皮|轻快|fun|funny|playful|haha|lol)/i,
-    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(哈哈|开玩笑|玩笑|好玩|有趣|俏皮|轻快|fun|funny|playful|haha|lol)/i,
+    pattern: /(好玩|有趣|俏皮|轻快|fun|funny|playful)/i,
+    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(开玩笑|玩笑|好玩|有趣|俏皮|轻快|fun|funny|playful)/i,
     signal: { valence: 0.4, arousal: 0.3, warmth: 0.18, tension: -0.12 }
   },
   {
@@ -2052,6 +2068,7 @@ function normalizeWorkingAffect(raw) {
     focus: normalizeUnit(source.focus, DEFAULT_WORKING_AFFECT.focus),
     tension: normalizeUnit(source.tension, DEFAULT_WORKING_AFFECT.tension),
     confidence: normalizeUnit(source.confidence, DEFAULT_WORKING_AFFECT.confidence),
+    laughter: DEFAULT_WORKING_AFFECT.laughter,
     label: typeof source.label === "string" && source.label ? source.label : DEFAULT_WORKING_AFFECT.label,
     sourceSessionId: typeof source.sourceSessionId === "string" ? source.sourceSessionId : "",
     updatedAt
@@ -2105,6 +2122,9 @@ function getPromptWorkingAffect(settings, affectState, prompt, now = Date.now())
   const sensitivity = AFFECT_SENSITIVITY_OPTIONS[settings.affectSensitivity] || AFFECT_SENSITIVITY_OPTIONS.normal;
   const weight = clamp(1 * sensitivity, 0.65, 1.2);
   const next = applySignalToAffect(source, signal, weight);
+  if ((signal.laughter || 0) <= 0) {
+    next.laughter = 0;
+  }
   next.label = labelWorkingAffect(next);
   addRankedLabels(next);
   next.sourceSessionId = source.sourceSessionId || "";
@@ -2131,6 +2151,7 @@ function updateWorkingAffect(previousState, settings, turn, now = Date.now()) {
     sourceSessionId: turn?.sessionId || current.sourceSessionId || "",
     updatedAt: now
   });
+  next.laughter = 0;
   next.label = labelWorkingAffect(next);
   addRankedLabels(next);
 
@@ -2152,8 +2173,14 @@ function getTurnVisualAffect(previousAffect, event) {
   }
 
   const kind = String(event?.kind || "activity");
-  const weight = TURN_VISUAL_EVENT_WEIGHTS[kind] || TURN_VISUAL_EVENT_WEIGHTS.activity;
+  const isFailedTool = kind === "tool" && isToolFailureText(getVisibleEventText(event));
+  const weight = isFailedTool
+    ? TURN_VISUAL_EVENT_WEIGHTS.error
+    : TURN_VISUAL_EVENT_WEIGHTS[kind] || TURN_VISUAL_EVENT_WEIGHTS.activity;
   const next = applySignalToAffect(previous, signal, weight);
+  if ((signal.laughter || 0) <= 0) {
+    next.laughter = 0;
+  }
   next.label = labelWorkingAffect(next);
   addRankedLabels(next);
   return next;
@@ -2178,7 +2205,8 @@ function extractTurnAffectSignal(turn) {
     warmth: 0,
     focus: 0,
     tension: 0,
-    confidence: 0
+    confidence: 0,
+    laughter: 0
   };
 
   if (turn?.success === false) {
@@ -2217,10 +2245,26 @@ function extractTurnVisualSignal(event) {
     warmth: 0,
     focus: 0,
     tension: 0,
-    confidence: 0
+    confidence: 0,
+    laughter: 0
   };
 
   addSignal(signal, TURN_VISUAL_KIND_SIGNALS[kind] || {});
+
+  if (kind === "tool") {
+    if (isToolFailureText(text)) {
+      addSignal(signal, { valence: -0.12, arousal: 0.12, warmth: -0.18, focus: 0.16, tension: 0.36, confidence: -0.08 });
+      for (const rule of getToolFailureSignalRules()) {
+        if (rule.blockedBy?.test(text)) {
+          continue;
+        }
+        if (rule.pattern.test(text)) {
+          addSignal(signal, rule.signal);
+        }
+      }
+    }
+    return signal;
+  }
 
   for (const rule of TURN_VISUAL_SIGNAL_RULES) {
     if (rule.blockedBy?.test(text)) {
@@ -2238,6 +2282,12 @@ function getVisibleEventText(event) {
   if (!event || typeof event !== "object") {
     return "";
   }
+  if (event.kind === "tool") {
+    return compactText([
+      event.title,
+      event.summary
+    ].filter(Boolean).join(" "));
+  }
   return compactText([
     event.text,
     event.title,
@@ -2246,6 +2296,18 @@ function getVisibleEventText(event) {
     event.content,
     event.message
   ].filter(Boolean).join(" "));
+}
+
+function isToolFailureText(text) {
+  return /(已失败|失败|报错|错误|error|failed|failure|permission denied|denied|exit code:\s*[1-9]\d*|退出码[:：]\s*[1-9]\d*)/i.test(text);
+}
+
+function getToolFailureSignalRules() {
+  return TURN_VISUAL_SIGNAL_RULES.filter((rule) => (
+    rule.name === "live-alert"
+    || rule.name === "live-stuck"
+    || rule.name === "live-serious"
+  ));
 }
 
 function formatWorkingAffectPrompt(affect) {
@@ -2296,7 +2358,8 @@ function blendTowardBaseline(working, baseline, strength) {
     warmth: blendValue(baseline.warmth, working.warmth, strength),
     focus: blendValue(baseline.focus, working.focus, strength),
     tension: blendValue(baseline.tension, working.tension, strength),
-    confidence: blendValue(baseline.confidence, working.confidence, strength)
+    confidence: blendValue(baseline.confidence, working.confidence, strength),
+    laughter: blendValue(baseline.laughter || 0, working.laughter || 0, strength)
   };
 }
 
@@ -2380,7 +2443,8 @@ function applySignalToAffect(affect, signal, weight) {
     warmth: clampUnit(affect.warmth + signal.warmth * weight),
     focus: clampUnit(affect.focus + signal.focus * weight),
     tension: clampUnit(affect.tension + signal.tension * weight),
-    confidence: clampUnit(affect.confidence + signal.confidence * weight)
+    confidence: clampUnit(affect.confidence + signal.confidence * weight),
+    laughter: clampUnit((affect.laughter || 0) + (signal.laughter || 0) * weight)
   };
 }
 
@@ -2391,6 +2455,7 @@ function addSignal(target, signal) {
   target.focus += signal.focus || 0;
   target.tension += signal.tension || 0;
   target.confidence += signal.confidence || 0;
+  target.laughter += signal.laughter || 0;
 }
 
 function isNeutralSignal(signal) {
@@ -2399,7 +2464,8 @@ function isNeutralSignal(signal) {
     && signal.warmth === 0
     && signal.focus === 0
     && signal.tension === 0
-    && signal.confidence === 0;
+    && signal.confidence === 0
+    && (signal.laughter || 0) === 0;
 }
 
 function formatLevel(value) {
@@ -12808,6 +12874,7 @@ const PROMPT_TONE_PREVIEW_KINDS = [
   "serious",
   "reassuring",
   "challenging",
+  "laughing",
   "excited-open",
   "surprised",
   "admiring",
@@ -12831,11 +12898,12 @@ const PROMPT_TONE_STATUS_META = {
   serious: { mode: "serious", color: "#6f5a4f" },
   reassuring: { mode: "settle", color: "#4d7c5a" },
   challenging: { mode: "alert", color: "#7c5aa6" },
+  laughing: { mode: "excited", color: "#d27a2f" },
   "excited-open": { mode: "excited", color: "#ea7a1a" },
   surprised: { mode: "glint", color: "#7a9f32" },
   admiring: { mode: "warm", color: "#8b6f3f" },
   celebratory: { mode: "celebrate", color: "#d45f4f" },
-  playful: { mode: "excited", color: "#d27a2f" },
+  playful: { mode: "glint", color: "#8a9635" },
   confident: { mode: "lock", color: "#4f63b6" },
   absorbed: { mode: "absorbed", color: "#2f766f" },
   close: { mode: "warm", color: "#b76e79" },
@@ -12859,6 +12927,7 @@ const TURN_VISUAL_LABEL_PRIORITY = {
   celebratory: 78,
   confident: 72,
   challenging: 64,
+  laughing: 62,
   absorbed: 60,
   focused: 58,
   "warm-focused": 56,
