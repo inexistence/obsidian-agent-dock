@@ -117,6 +117,10 @@ The plugin keeps `main.js` as a thin Obsidian entrypoint and puts implementation
 src/
   agents/
     AgentRegistry.js
+    shared/
+      TurnContextBuilder.js
+      memoryNotices.js
+      memorySearch.js
     codex/
       CodexAgent.js
       jsonEvents.js
@@ -143,11 +147,13 @@ src/
   constants.js
   modes.js
   prompt.js
+  promptBudget.js
+  promptSignals.js
   settings.js
   settingsTab.js
 ```
 
-Future CLIs such as Claude Code should be added as new agent adapters under `src/agents/`, then registered in `AgentRegistry.js`. Cursor is available now via `src/agents/cursor/`. The view only consumes normalized agent events: `content`, `reasoning`, `tool`, `error`, and `activity`.
+Future CLIs such as Claude Code should be added as new agent adapters under `src/agents/`, then registered in `AgentRegistry.js`. Prompt context preparation is shared through `src/agents/shared/TurnContextBuilder.js`, so new providers can focus on launching their agent, sending the final prompt, and mapping provider output into normalized events. Cursor is available now via `src/agents/cursor/`. The view only consumes normalized agent events: `content`, `reasoning`, `tool`, `error`, and `activity`.
 
 For Obsidian runtime compatibility, `main.js` is generated as a single-file bundle:
 
@@ -230,6 +236,11 @@ The default context character limit is:
 You can change this in Settings -> Agent Dock -> Context character limit. When
 the prompt would exceed this limit, older conversation history is compressed
 while the latest user request is preserved.
+
+Before compression, Agent Dock plans soft prompt signals and section budgets:
+explicit memory search and user-referenced paths take priority, while automatic
+memory, interaction stance, and short-lived affect can be filtered, omitted, or
+truncated so they do not crowd out the current request.
 
 The composer shows an estimated context usage percentage below the prompt box.
 If a send actually triggers compression, the response timeline includes a

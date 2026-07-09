@@ -45,7 +45,7 @@ src/
     AgentRegistry.js                provider registry
     codex/                          Codex CLI adapter
     cursor/                         Cursor ACP adapter
-    shared/                         provider-shared prompt notices/search
+    shared/                         provider-shared turn prompt context, notices, and memory search
   cli/                              CLI args, env, path, shell helpers
   storage/                          chat and memory persistence
   interaction/                      interaction memory pipeline
@@ -63,6 +63,12 @@ The view should stay provider-agnostic. Provider-specific parsing belongs under
 ## Provider Architecture
 
 Providers adapt local agent CLIs to Agent Dock's normalized event protocol.
+They should stay focused on provider execution: starting subprocesses or ACP
+clients, sending the final prompt, handling provider-specific session state, and
+normalizing provider output. Shared prompt context preparation lives in
+`src/agents/shared/TurnContextBuilder.js`, which gathers local memory, explicit
+memory search, interaction stance, working affect, prompt signal planning,
+prompt construction, and memory/context notices.
 
 Current providers:
 
@@ -73,10 +79,12 @@ Provider registration lives in `src/agents/AgentRegistry.js`. To add a future
 provider such as Claude Code:
 
 1. Add an adapter under `src/agents/<provider>/`.
-2. Convert provider output into normalized events.
-3. Register the provider in `AgentRegistry.js`.
-4. Add settings and mode mapping only where needed.
-5. Keep `AgentDockView` unaware of provider-specific protocols.
+2. Reuse `TurnContextBuilder` for prompt context preparation unless the provider
+   has a specific reason to opt out.
+3. Convert provider output into normalized events.
+4. Register the provider in `AgentRegistry.js`.
+5. Add settings and mode mapping only where needed.
+6. Keep `AgentDockView` unaware of provider-specific protocols.
 
 ### Codex Provider
 
@@ -477,6 +485,7 @@ Useful focused tests:
 - Timeline rendering: `node scripts/test-timeline.js`
 - Affect scoring and prompt guidance: `node scripts/test-affect.js`
 - Prompt signal planning: `node scripts/test-prompt-signals.js`
+- Turn prompt context builder: `node scripts/test-turn-context-builder.js`
 - Turn lifecycle: `node scripts/test-chat-turn-runner.js`
 - Interaction memory episodes and stance: `node scripts/test-interaction-memory.js`
 
@@ -485,10 +494,12 @@ Useful focused tests:
 Add a provider:
 
 1. Create `src/agents/<provider>/`.
-2. Normalize provider events.
-3. Register in `AgentRegistry.js`.
-4. Add settings and docs.
-5. Add focused tests for event mapping and turn lifecycle.
+2. Reuse `src/agents/shared/TurnContextBuilder.js` for memory, interaction,
+   affect, prompt signal planning, prompt construction, and prompt notices.
+3. Normalize provider events.
+4. Register in `AgentRegistry.js`.
+5. Add settings and docs.
+6. Add focused tests for event mapping and turn lifecycle.
 
 Add a memory extraction provider:
 

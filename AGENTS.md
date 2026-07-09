@@ -23,6 +23,7 @@ should stay ready for other agent CLIs such as Claude Code or Cursor.
 - `src/plugin.js`: Obsidian plugin lifecycle, commands, settings, and view registration.
 - `src/view/AgentDockView.js`: sidebar UI, message timeline rendering, copy buttons, Markdown rendering, loading indicator.
 - `src/agents/AgentRegistry.js`: provider registry. Add future providers here.
+- `src/agents/shared/TurnContextBuilder.js`: provider-shared turn prompt context builder; gathers local memory, explicit memory search, interaction stance, working affect, prompt signal planning, prompt construction, and memory/context notices before providers send prompts.
 - `src/agents/codex/CodexAgent.js`: Codex CLI process runner.
 - `src/agents/codex/jsonEvents.js`: maps Codex JSONL events into the normalized UI event protocol.
 - `src/agents/cursor/CursorAgent.js`: Cursor CLI ACP adapter.
@@ -33,6 +34,8 @@ should stay ready for other agent CLIs such as Claude Code or Cursor.
 - `src/settings.js`: defaults and settings migration.
 - `src/settingsTab.js`: Obsidian settings UI.
 - `src/prompt.js`: prompt construction, active note inclusion, and conversation transcript.
+- `src/promptSignals.js`: soft prompt signal planner; de-duplicates automatic memory against explicit search, filters weak interaction stance, and suppresses neutral transient affect.
+- `src/promptBudget.js`: prompt section budget arbitration; protects high-priority sections and omits/truncates optional soft sections before conversation compression.
 - `src/cli/*.js`: CLI argument/env/shell helpers.
 - `src/storage/ChatStorage.js`: persisted chat session index/body storage.
 - `src/storage/MemoryStore.js`: automatic local memory extraction, storage, and retrieval.
@@ -105,6 +108,13 @@ Users can change this in plugin settings.
 - `contextLimitChars` defaults to `258000`.
 - This is a character budget, not a tokenizer-backed token budget.
 - `src/prompt.js` applies the limit while building the prompt.
+- Provider adapters should use `src/agents/shared/TurnContextBuilder.js` for
+  turn prompt context preparation instead of reimplementing memory, interaction,
+  affect, signal planning, prompt construction, or prompt notice logic.
+- `src/promptSignals.js` filters soft prompt inputs before formatting. Keep this
+  local and deterministic; do not mutate memory or interaction storage there.
+- `src/promptBudget.js` arbitrates formatted prompt sections before transcript
+  compression so soft signals cannot crowd out the current user request.
 - Active note content is clipped separately by `activeNoteMaxChars`.
 - If conversation history exceeds the remaining budget, older messages are
   compressed into a compact transcript summary.
@@ -329,9 +339,10 @@ Cursor extension methods such as `cursor/ask_question` and `cursor/create_plan` 
 To add a provider:
 
 1. Add an adapter under `src/agents/<provider>/`.
-2. Normalize provider events into the event protocol above.
-3. Register it in `src/agents/AgentRegistry.js`.
-4. Keep view code provider-agnostic.
+2. Reuse `src/agents/shared/TurnContextBuilder.js` for prompt context preparation unless the provider has a documented reason to opt out.
+3. Normalize provider events into the event protocol above.
+4. Register it in `src/agents/AgentRegistry.js`.
+5. Keep view code provider-agnostic.
 
 Do not put provider-specific parsing logic in `AgentDockView.js`.
 

@@ -8,19 +8,9 @@ const { parseArgsTemplate, withJsonOutput, withOutputLastMessage } = require("..
 const { buildCliPath } = require("../../cli/env");
 const { escapeAppleScriptString, shellQuote } = require("../../cli/shell");
 const { t } = require("../../i18n");
-const { buildPromptInteractionContext } = require("../../interaction/LocalSignalExtractor");
 const { applyModeArgs } = require("../../modes");
-const { buildPromptWithMetadata } = require("../../prompt");
-const { planPromptSignals } = require("../../promptSignals");
 const { DEFAULT_SETTINGS } = require("../../settings");
-const {
-  emitContextCompressedNotice,
-  emitMemoryNotice
-} = require("../shared/memoryNotices");
-const {
-  getExplicitMemorySearch,
-  removeMemorySearchDuplicates
-} = require("../shared/memorySearch");
+const { buildAgentTurnContext } = require("../shared/TurnContextBuilder");
 const { codexJsonEventToUpdates } = require("./jsonEvents");
 
 class CodexAgent {
@@ -35,45 +25,17 @@ class CodexAgent {
     const settings = this.plugin.settings;
     const translate = (key, params) => t(settings, key, params);
     const cwd = this.getWorkingDirectory();
-    const activeFilePath = this.plugin.app.workspace.getActiveFile()?.path || "";
-    const memories = await this.plugin.memoryStore.getRelevantMemories(prompt, settings, {
-      activeFilePath,
-      workingDirectory: cwd
-    });
-    const memorySearch = await getExplicitMemorySearch(
-      this.plugin.memoryStore,
-      prompt,
+    const turnContext = await buildAgentTurnContext({
+      plugin: this.plugin,
       settings,
+      prompt,
       onUpdate,
       translate,
-      "codex"
-    );
-    const promptMemories = removeMemorySearchDuplicates(memories, memorySearch.results);
-    const interactionStance = await this.plugin.interactionMemoryStore.getPromptStance(
-      settings,
-      buildPromptInteractionContext(prompt, conversation)
-    );
-    const promptSignals = planPromptSignals({
-      memories: promptMemories,
-      memorySearchResults: memorySearch.results,
-      memorySearchPerformed: memorySearch.performed,
-      interactionStance,
-      workingAffect: this.plugin.getPromptWorkingAffect(prompt)
+      conversation,
+      cwd,
+      keyPrefix: "codex"
     });
-    const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, {
-      workingAffect: promptSignals.workingAffect,
-      interactionStance: promptSignals.interactionStance,
-      memories: promptSignals.memories,
-      memorySearchResults: promptSignals.memorySearchResults,
-      memorySearchPerformed: promptSignals.memorySearchPerformed
-    });
-    const finalPrompt = promptResult.prompt;
-    if (promptSignals.memories.length > 0) {
-      emitMemoryNotice(onUpdate, promptSignals.memories, translate, "codex");
-    }
-    if (promptResult.context.compressed) {
-      emitContextCompressedNotice(onUpdate, promptResult.context, translate, "codex");
-    }
+    const finalPrompt = turnContext.promptResult.prompt;
     const outputPath = path.join(
       os.tmpdir(),
       `obsidian-agent-dock-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`

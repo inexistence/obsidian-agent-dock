@@ -1,18 +1,15 @@
 const { Notice } = require("obsidian");
 const { spawn } = require("child_process");
 
-const { emitContextCompressedNotice, emitMemoryNotice } = require("../shared/memoryNotices");
 const {
-  getExplicitMemorySearch,
-  removeMemorySearchDuplicates
-} = require("../shared/memorySearch");
+  buildAgentTurnContext,
+  buildPromptResultForTurnContext,
+  emitPromptContextNotices
+} = require("../shared/TurnContextBuilder");
 const { buildCliPath } = require("../../cli/env");
 const { expandHomePath } = require("../../cli/paths");
 const { escapeAppleScriptString, shellQuote } = require("../../cli/shell");
 const { t } = require("../../i18n");
-const { buildPromptInteractionContext } = require("../../interaction/LocalSignalExtractor");
-const { buildPromptWithMetadata, buildTurnContextPrompt } = require("../../prompt");
-const { planPromptSignals } = require("../../promptSignals");
 const { DEFAULT_SETTINGS } = require("../../settings");
 const { AcpClient } = require("./AcpClient");
 const { acpUpdateToEvents } = require("./acpEvents");
@@ -48,7 +45,6 @@ class CursorAgent {
     const settings = this.plugin.settings;
     const translate = (key, params) => t(settings, key, params);
     const cwd = this.getWorkingDirectory();
-    const activeFilePath = this.plugin.app.workspace.getActiveFile()?.path || "";
 
     if (!options.dockSession) {
       console.warn("Agent Dock Cursor run missing dockSession; ACP session reuse is disabled for this turn.");
@@ -59,31 +55,6 @@ class CursorAgent {
     const cursorMode = toCursorMode(settings.mode, DEFAULT_SETTINGS.mode);
     const connectionKey = buildConnectionKey(settings, cwd, cursorMode);
     const sessionKey = dockSession?.id || "__anonymous__";
-
-    const memories = await this.plugin.memoryStore.getRelevantMemories(prompt, settings, {
-      activeFilePath,
-      workingDirectory: cwd
-    });
-    const memorySearch = await getExplicitMemorySearch(
-      this.plugin.memoryStore,
-      prompt,
-      settings,
-      onUpdate,
-      translate,
-      "cursor"
-    );
-    const promptMemories = removeMemorySearchDuplicates(memories, memorySearch.results);
-    const interactionStance = await this.plugin.interactionMemoryStore.getPromptStance(
-      settings,
-      buildPromptInteractionContext(prompt, conversation)
-    );
-    const promptSignals = planPromptSignals({
-      memories: promptMemories,
-      memorySearchResults: memorySearch.results,
-      memorySearchPerformed: memorySearch.performed,
-      interactionStance,
-      workingAffect: this.plugin.getPromptWorkingAffect(prompt)
-    });
 
     let useFullPrompt = !cursorState.acpSessionId;
     let finalOutput = "";
@@ -127,21 +98,22 @@ class CursorAgent {
     options.signal?.addEventListener("abort", abortRun, { once: true });
 
     try {
-      const promptResult = await this.buildPromptForTurn({
-        useFullPrompt,
-        app: this.plugin.app,
+      const turnContext = await buildAgentTurnContext({
+        plugin: this.plugin,
         settings,
         prompt,
         conversation,
-        memories: promptSignals.memories,
-        interactionStance: promptSignals.interactionStance,
-        memorySearchResults: promptSignals.memorySearchResults,
-        memorySearchPerformed: promptSignals.memorySearchPerformed,
-        workingAffect: promptSignals.workingAffect
+        cwd,
+        onUpdate: emitUpdate,
+        translate,
+        keyPrefix: "cursor",
+        useFullPrompt
       });
+      const promptResult = turnContext.promptResult;
+      const promptSignals = turnContext.promptSignals;
+      const activeFilePath = turnContext.activeFilePath;
       throwIfAborted();
 
-      applyPromptNotices(emitUpdate, promptResult, promptSignals.memories, translate, "cursor");
       const promptText = promptResult.prompt;
 
       emitUpdate({
@@ -187,20 +159,15 @@ class CursorAgent {
             summary: translate("cursor.sessionReloadFailed.summary")
           });
           cursorState.acpSessionId = "";
-          const reloadPromptResult = await buildPromptWithMetadata(
-            this.plugin.app,
+          const reloadPromptResult = await buildPromptResultForTurnContext({
+            app: this.plugin.app,
             settings,
             prompt,
             conversation,
-            {
-              workingAffect: promptSignals.workingAffect,
-              interactionStance: promptSignals.interactionStance,
-              memories: promptSignals.memories,
-              memorySearchResults: promptSignals.memorySearchResults,
-              memorySearchPerformed: promptSignals.memorySearchPerformed
-            }
-          );
-          applyPromptNotices(emitUpdate, reloadPromptResult, promptSignals.memories, translate, "cursor");
+            promptSignals,
+            useFullPrompt: true
+          });
+          emitPromptContextNotices(emitUpdate, reloadPromptResult, promptSignals, translate, "cursor");
           emitCursorAuthenticationNoticeIfNeeded(client, emitUpdate, translate);
           emitUpdate({
             kind: "notice",
@@ -285,36 +252,6 @@ class CursorAgent {
     } finally {
       options.signal?.removeEventListener("abort", abortRun);
     }
-  }
-
-  async buildPromptForTurn({
-    useFullPrompt,
-    app,
-    settings,
-    prompt,
-    conversation,
-    memories,
-    interactionStance,
-    memorySearchResults,
-    memorySearchPerformed,
-    workingAffect
-  }) {
-    if (useFullPrompt) {
-      return buildPromptWithMetadata(app, settings, prompt, conversation, {
-        workingAffect,
-        interactionStance,
-        memories,
-        memorySearchResults,
-        memorySearchPerformed
-      });
-    }
-    return buildTurnContextPrompt(app, settings, prompt, {
-      workingAffect,
-      interactionStance,
-      memories,
-      memorySearchResults,
-      memorySearchPerformed
-    });
   }
 
   async finishTurn({ result, finalOutput, emitUpdate, prompt, activeFilePath, conversation, options, settings, throwIfAborted }) {
@@ -566,11 +503,6 @@ function getPreviousAssistantResponse(conversation) {
     }
   }
   return "";
-}
-
-function applyPromptNotices(onUpdate, promptResult, memories, translate, keyPrefix) {
-  emitMemoryNotice(onUpdate, memories, translate, keyPrefix);
-  emitContextCompressedNotice(onUpdate, promptResult.context, translate, keyPrefix);
 }
 
 function emitCursorAuthenticationNoticeIfNeeded(client, emitUpdate, translate) {

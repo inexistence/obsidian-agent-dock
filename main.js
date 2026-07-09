@@ -858,327 +858,6 @@ module.exports = {
 };
 
 },
-"src/storage/sensitiveText.js": function(module, exports, __require) {
-function containsSensitiveText(text) {
-  return /(api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd|secret|token|bearer|private[_-]?key|ssh-rsa|BEGIN (?:OPENSSH |RSA |EC )?PRIVATE KEY|sk-[a-z0-9]|ghp_[a-z0-9]|github_pat_[a-z0-9_]+|xox[baprs]-[a-z0-9-]+|AKIA[0-9A-Z]{16}|密码|密钥|私钥|令牌|凭证)/i.test(text);
-}
-
-function redactSensitiveText(text) {
-  return containsSensitiveText(text) ? "[Sensitive content omitted]" : String(text || "");
-}
-
-module.exports = {
-  containsSensitiveText,
-  redactSensitiveText
-};
-
-},
-"src/interaction/LocalSignalExtractor.js": function(module, exports, __require) {
-const { containsSensitiveText, redactSensitiveText } = __require("src/storage/sensitiveText.js");
-
-const MAX_EXCERPT_CHARS = 220;
-
-const CONTEXT_RULES = [
-  {
-    id: "agent_continuity",
-    patterns: [/AI|agent|助手|智能体/i, /profile|memory|记忆|连续性|情绪|affect/i, /自然生长|设定|人设|人格|主体感/]
-  },
-  {
-    id: "implementation",
-    patterns: [/代码|模块|接口|数据模型|测试|脚本|设置页|prompt|store|reducer|extractor/i, /\b(code|module|interface|schema|test|script|prompt|store|reducer|extractor)\b/i]
-  },
-  {
-    id: "debugging",
-    patterns: [/报错|失败|崩溃|bug|修复|排查/, /\b(error|failed|failure|crash|fix|debug)\b/i]
-  },
-  {
-    id: "planning",
-    patterns: [/计划|规划|任务|TODO|今日|工作流/, /\b(plan|todo|workflow|task)\b/i]
-  }
-];
-
-const USER_SIGNAL_RULES = [
-  {
-    id: "asks_for_judgment",
-    strong: [/你怎么看/, /你的判断/, /你觉得/, /你建议/, /给个结论/, /你来拍板/, /你来决定/, /帮我判断/, /不要只列选项/, /你判断/, /你来定/, /\b(your take|what do you think|recommend|decide|don't just agree|make the call)\b/i],
-    weak: [/判断/, /建议/, /结论/, /取舍/],
-    blockedBy: [/不要.*判断/, /不用.*建议/, /先别.*结论/]
-  },
-  {
-    id: "asks_for_mechanism",
-    strong: [/机制/, /原理/, /为什么/, /边界/, /取舍/, /怎么理解/, /怎么做到/, /背后逻辑/, /底层逻辑/, /\b(mechanism|principle|why|boundary|tradeoff|how exactly|under the hood)\b/i],
-    weak: [/逻辑/, /原因/, /区别/, /关系/, /本质/],
-    blockedBy: [/不用.*解释/, /不要.*原理/, /先别.*机制/]
-  },
-  {
-    id: "asks_for_implementation",
-    strong: [/具体/, /可实施/, /可执行/, /落地/, /实现/, /数据模型/, /任务拆分/, /验收标准/, /怎么做/, /接入/, /改代码/, /\b(concrete|specific|implementation|actionable|schema|task|wire it|code change)\b/i],
-    weak: [/方案/, /步骤/, /清单/, /路径/, /计划/],
-    blockedBy: [/先不.*实现/, /不用.*代码/, /不要.*任务/]
-  },
-  {
-    id: "asks_for_redesign",
-    strong: [/重新设计/, /重构/, /完全重新/, /如果不考虑现有/, /推倒重来/, /\b(redesign|rebuild|refactor|from scratch|start over)\b/i],
-    weak: [/换个方案/, /另一种设计/]
-  },
-  {
-    id: "pushes_for_nuance",
-    strong: [/微妙/, /细腻/, /分寸/, /纹理/, /不是.*硬规则/, /不要.*压成/, /不能.*压成/, /像人类/, /不要.*扁平/, /\b(nuance|subtle|texture|not.*rigid|flatten|not.*mechanical)\b/i],
-    weak: [/复杂/, /自然/, /风格/, /气质/, /手感/],
-    contexts: ["agent_continuity", "implementation", "general"],
-    blockedBy: [/不用.*微妙/, /不要.*复杂/, /简单点/, /别.*细腻/]
-  },
-  {
-    id: "rejects_flattening",
-    strong: [/压扁/, /压成/, /太.*规则/, /具体的要求prompt/, /偏好清单/, /设置项/, /硬编码/, /模板化/, /\b(flatten|rigid prompt|preference list|settings-only|too mechanical)\b/i],
-    weak: [/规则/, /清单/, /设置/],
-    blockedBy: [/可以.*规则/, /就.*清单/, /只要.*设置/]
-  },
-  {
-    id: "asks_about_cost",
-    strong: [/token/, /成本/, /消耗/, /太贵/, /预算/, /缓存/, /每轮.*总结/, /\b(cost|expensive|budget|tokens?|cache)\b/i],
-    weak: [/省/, /轻量/, /低频/]
-  },
-  {
-    id: "asks_for_directness",
-    strong: [/直接说/, /别废话/, /简短/, /先给结论/, /长话短说/, /不用铺垫/, /\b(brief|direct|tl;dr|short answer|cut to the chase)\b/i],
-    weak: [/快点/, /短一点/],
-    blockedBy: [/不要.*太短/, /别.*省略/]
-  },
-  {
-    id: "asks_for_depth",
-    strong: [/展开/, /详细/, /讲透/, /多解释/, /完整一点/, /深入/, /细说/, /\b(explain more|go deeper|full detail|walk me through|deep dive)\b/i],
-    weak: [/补充/, /再说说/, /多一点/],
-    blockedBy: [/不用.*展开/, /别.*太长/]
-  },
-  {
-    id: "asks_for_clarification",
-    strong: [/没懂/, /什么意思/, /说清楚/, /举例/, /例子/, /换个说法/, /具体区别/, /还是不明白/, /\b(what do you mean|not clear|unclear|example|for example|can you clarify|say that differently)\b/i],
-    weak: [/不明白/, /看不懂/, /解释一下/],
-    blockedBy: [/不用.*举例/, /不用.*解释/]
-  },
-  {
-    id: "style_feedback",
-    strong: [/太(?:啰嗦|官方|像客服|生硬|机械|短|长|冷|热情)/, /别(?:这么|太).*(?:啰嗦|官方|客服|生硬|机械)/, /语气/, /风格不对/, /\b(too verbose|too formal|too robotic|too terse|tone|style feels off)\b/i]
-  },
-  {
-    id: "positive_feedback",
-    strong: [/这样(?:很好|不错|可以|对)/, /对[，,\s]*(?:就是|是这个|这个方向)/, /继续(?:这样|这个方向)/, /到位/, /说得对/, /这个方向可以/, /\b(exactly|that's it|useful|clear|solid|keep going|nailed it)\b/i],
-    blockedBy: [/不对/, /不是.*对/, /没.*清楚/]
-  },
-  {
-    id: "negative_feedback",
-    strong: [/不对/, /不是(?:这个|这样|我的意思)/, /太(?:空|泛|虚|啰嗦|官方|像客服)/, /没有(?:回答|解决|落地)/, /跑偏了/, /没抓住重点/, /误解了/, /不是我要的/, /\b(wrong|not what i mean|too vague|missed the point|not useful|misread)\b/i]
-  }
-];
-
-const CONTINUATION_PATTERNS = [
-  /继续/,
-  /刚才/,
-  /上面/,
-  /这个/,
-  /这点/,
-  /那/,
-  /所以/,
-  /也就是说/,
-  /换句话说/,
-  /\b(continue|that|this|above|previous|so|then)\b/i
-];
-
-const ASSISTANT_SHAPE_RULES = [
-  {
-    id: "implementation_plan",
-    strong: [/数据模型/, /接入/, /任务拆分/, /验收标准/, /实现/, /测试/, /落地/, /\b(schema|implementation|test|task|wire|module|concrete steps)\b/i]
-  },
-  {
-    id: "mechanism_explanation",
-    strong: [/机制/, /边界/, /取舍/, /原因/, /归纳/, /衰减/, /证据/, /\b(mechanism|boundary|tradeoff|reason|evidence|principle)\b/i]
-  },
-  {
-    id: "independent_judgment",
-    strong: [/我会/, /我建议/, /我的判断/, /更合理/, /不建议/, /我倾向/, /\b(i would|i recommend|my take|better|avoid|i'd choose)\b/i]
-  },
-  {
-    id: "settings_framing",
-    strong: [/设置/, /开关/, /选项/, /\b(settings|toggle|option)\b/i]
-  },
-  {
-    id: "repair_response",
-    strong: [/我理解错了/, /我修正/, /改一下/, /重新来/, /\b(i misread|let me correct|revise)\b/i]
-  },
-  {
-    id: "warm_presence",
-    strong: [/一起/, /陪你/, /我在/, /我们可以/, /\b(with you|together|we can)\b/i]
-  }
-];
-
-function extractEpisodeDraft(turn, previousPending) {
-  const prompt = compactText(turn?.prompt);
-  const response = compactText(turn?.response);
-  const reaction = previousPending
-    ? classifyReaction(previousPending, prompt)
-    : null;
-
-  return {
-    context: classifyContext(prompt),
-    userExcerpt: sanitizeExcerpt(prompt),
-    assistantExcerpt: sanitizeExcerpt(response),
-    userSignals: extractSignals(prompt, USER_SIGNAL_RULES),
-    assistantShape: extractSignals(response, ASSISTANT_SHAPE_RULES),
-    reaction,
-    outcomeHint: reaction?.outcomeHint || "",
-    sourceSessionId: turn?.sessionId || "",
-    createdAt: Number(turn?.now) || Date.now()
-  };
-}
-
-function buildPromptInteractionContext(prompt, conversation) {
-  const conversationText = Array.isArray(conversation)
-    ? conversation.slice(-8).map((message) => compactText(message?.content)).filter(Boolean).join("\n")
-    : "";
-  return {
-    context: classifyContext(prompt),
-    signals: extractSignals(prompt, USER_SIGNAL_RULES),
-    conversationText
-  };
-}
-
-function classifyReaction(previousPending, prompt) {
-  const signals = extractSignals(prompt, USER_SIGNAL_RULES);
-  const context = classifyContext(prompt);
-  const sharedSignal = hasSharedSignal(previousPending.userSignals, signals);
-  const sameContext = previousPending.context === context;
-  const explicitContinuation = matches(prompt, CONTINUATION_PATTERNS);
-  let kind = "topic_shift";
-  let outcomeHint = "topic_shift";
-
-  if (signals.includes("negative_feedback")) {
-    kind = "correction";
-    outcomeHint = "correction";
-    if (signals.includes("style_feedback")) {
-      kind = "style_recalibration";
-      outcomeHint = "style_recalibration";
-    }
-  } else if (signals.includes("style_feedback")) {
-    kind = "style_recalibration";
-    outcomeHint = "style_recalibration";
-  } else if (signals.includes("asks_for_clarification")) {
-    kind = "clarification";
-    outcomeHint = "clarification_requested";
-  } else if (signals.includes("positive_feedback")) {
-    kind = "acceptance";
-    outcomeHint = "accepted";
-  } else if (signals.includes("asks_for_implementation") && previousPending.assistantShape?.includes("mechanism_explanation")) {
-    kind = "implementation_followup";
-    outcomeHint = "implementation_followup";
-  } else if (sameContext && (sharedSignal || explicitContinuation)) {
-    kind = "deepening";
-    outcomeHint = "productive_deepening";
-  } else if (!sameContext || signals.length > 0) {
-    kind = "new_request";
-    outcomeHint = "new_request";
-  }
-
-  return {
-    kind,
-    outcomeHint,
-    excerpt: sanitizeExcerpt(prompt),
-    signals
-  };
-}
-
-function classifyContext(text) {
-  const compact = compactText(text);
-  for (const rule of CONTEXT_RULES) {
-    if (rule.patterns.some((pattern) => pattern.test(compact))) {
-      return rule.id;
-    }
-  }
-  return "general";
-}
-
-function extractSignals(text, rules) {
-  const compact = compactText(text);
-  if (!compact) {
-    return [];
-  }
-  const context = classifyContext(compact);
-  return rules
-    .filter((rule) => matchesRule(compact, rule, context))
-    .map((rule) => rule.id);
-}
-
-function matchesRule(text, rule, context) {
-  if (rule.blockedBy?.some((pattern) => pattern.test(text))) {
-    return false;
-  }
-  if (rule.strong?.some((pattern) => pattern.test(text))) {
-    return true;
-  }
-  const weakMatch = rule.weak?.some((pattern) => pattern.test(text));
-  if (!weakMatch) {
-    return false;
-  }
-  if (!rule.contexts || rule.contexts.includes(context)) {
-    return true;
-  }
-  return false;
-}
-
-function hasSharedSignal(left, right) {
-  if (!Array.isArray(left) || !Array.isArray(right)) {
-    return false;
-  }
-  return left.some((signal) => right.includes(signal));
-}
-
-function matches(text, patterns) {
-  const compact = compactText(text);
-  return patterns.some((pattern) => pattern.test(compact));
-}
-
-function sanitizeExcerpt(text) {
-  const compact = truncateText(compactText(text), MAX_EXCERPT_CHARS);
-  if (!compact) {
-    return "";
-  }
-  return redactSensitiveText(compact);
-}
-
-function isSensitiveEpisode(episode) {
-  return containsSensitiveText(episode.userExcerpt)
-    || containsSensitiveText(episode.assistantExcerpt)
-    || containsSensitiveText(episode.reaction?.excerpt);
-}
-
-function compactText(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
-}
-
-function truncateText(text, maxLength) {
-  if (text.length <= maxLength) {
-    return text;
-  }
-  return `${text.slice(0, Math.max(0, maxLength - 1))}…`;
-}
-
-module.exports = {
-  extractEpisodeDraft,
-  buildPromptInteractionContext,
-  classifyContext,
-  extractSignals,
-  isSensitiveEpisode,
-  sanitizeExcerpt,
-  _test: {
-    classifyReaction,
-    CONTINUATION_PATTERNS,
-    matchesRule,
-    USER_SIGNAL_RULES,
-    ASSISTANT_SHAPE_RULES
-  }
-};
-
-},
 "src/modes.js": function(module, exports, __require) {
 const MODE_OPTIONS = {
   readOnly: {
@@ -1254,775 +933,26 @@ module.exports = {
 };
 
 },
-"src/storage/memoryExtraction/RuleBasedMemoryExtractor.js": function(module, exports, __require) {
-class RuleBasedMemoryExtractor {
-  constructor(options = {}) {
-    this.candidateExtractor = options.candidateExtractor || new RuleBasedMemoryCandidateExtractor();
-    this.classifier = options.classifier || new RuleBasedMemoryClassifier();
-  }
+"src/cli/paths.js": function(module, exports, __require) {
+const os = require("os");
+const path = require("path");
 
-  extractTurn(turn) {
-    const context = normalizeTurnContext(turn);
-    const candidates = this.candidateExtractor.extractCandidates(context);
-    return dedupeExtracted(this.classifier.classifyCandidates(candidates, context));
-  }
-}
-
-class RuleBasedMemoryCandidateExtractor {
-  extractCandidates(context) {
-    return [
-      ...extractPreferenceCandidates(context.prompt),
-      ...extractExplicitMemoryCandidates(context.prompt),
-      ...extractAgentIdentityCandidates(context.prompt, context.response),
-      ...extractSharedCandidates(context.prompt, context.response),
-      ...extractTaskCandidates(context.prompt, context.response, context.activeFilePath),
-      ...extractDecisionCandidates(context.response)
-    ];
-  }
-}
-
-class RuleBasedMemoryClassifier {
-  classifyCandidates(candidates, context) {
-    return candidates
-      .map((candidate) => classifyCandidate(candidate, context))
-      .filter(Boolean);
-  }
-}
-
-function normalizeTurnContext(turn) {
-  return {
-    prompt: compactText(turn?.prompt),
-    response: compactText(turn?.response),
-    sourceSessionId: turn?.sessionId || "",
-    activeFilePath: turn?.activeFilePath || ""
-  };
-}
-
-function classifyCandidate(candidate, context) {
-  if (!candidate || !candidate.text || !isMemoryKind(candidate.kind)) {
-    return null;
-  }
-
-  return {
-    kind: candidate.kind,
-    scope: normalizeScope(candidate.scope),
-    text: candidate.text,
-    confidence: Number(candidate.confidence) || 0.6,
-    source: candidate.source || "auto",
-    sourceSessionId: candidate.sourceSessionId || context.sourceSessionId || ""
-  };
-}
-
-function extractPreferenceCandidates(text) {
-  const candidates = [];
-  const patterns = [
-    /(?:我|用户)(?:更)?(?:喜欢|偏好|希望|想要)([^。.!?\n]{2,80})/g,
-    /(?:我|用户)(?:通常|一般|习惯|倾向于|更愿意)([^。.!?\n]{2,80})/g,
-    /(?:以后|之后|今后)(?:都|请)?([^。.!?\n]{2,80})/g,
-    /(?:以后|之后|今后).{0,12}(?:别|不要|不用|避免)([^。.!?\n]{2,80})/g,
-    /(?:默认|尽量|优先)(?:按|用|走|采用)([^。.!?\n]{2,80})/g,
-    /\b(?:prefer|likes?|wants?)\b([^.!?\n]{2,100})/gi,
-    /\b(?:usually|generally|tend to|would rather)\b([^.!?\n]{2,100})/gi,
-    /\b(?:always|never)\b([^.!?\n]{2,100})/gi
-  ];
-
-  for (const pattern of patterns) {
-    let match;
-    while ((match = pattern.exec(text)) !== null) {
-      const fragment = compactText(match[0]);
-      if (fragment.length >= 8) {
-        candidates.push(createCandidate({
-          kind: "preference",
-          scope: "user",
-          text: truncateText(fragment, 180),
-          confidence: 0.76
-        }));
-      }
-    }
-  }
-
-  return candidates;
-}
-
-function extractExplicitMemoryCandidates(text) {
-  const match = text.match(/(?:记住|记一下|帮我记|保存一下|作为约定|remember(?: that)?|note(?: that)?)(?:[:：\s，,]*)([^。.!?\n]{4,180})/i);
-  if (!match) {
-    return [];
-  }
-
-  return [createCandidate({
-    kind: "fact",
-    scope: "user",
-    text: truncateText(compactText(match[1]), 220),
-    confidence: 0.9
-  })];
-}
-
-function extractAgentIdentityCandidates(prompt, response) {
-  return [
-    ...extractPromptAgentIdentityCandidates(prompt),
-    ...extractResponseAgentIdentityCandidates(response)
-  ].slice(0, 2);
-}
-
-function extractPromptAgentIdentityCandidates(text) {
-  const patterns = [
-    /(?:AI|Agent|assistant|助手|智能体)(?:的)?(?:自己|自身|人格|性格|兴趣|偏好|判断|气质)[^。.!?\n]{4,140}/gi,
-    /(?:AI|Agent|assistant|助手|智能体)(?:应该|倾向于|偏好|喜欢|持续关注|感兴趣)[^。.!?\n]{4,140}/gi,
-    /(?:agentMemory|Agent Identity|协作气质|兴趣方向)[^。.!?\n]{4,140}/gi
-  ];
-
-  return extractIdentityCandidatesByPatterns(text, patterns, 0.68);
-}
-
-function extractResponseAgentIdentityCandidates(text) {
-  const patterns = [
-    /(?:AI|Agent|assistant|助手|智能体)(?:的)?(?:自己|自身|人格|性格|兴趣|偏好|判断|气质)[^。.!?\n]{4,140}/gi,
-    /(?:AI|Agent|assistant|助手|智能体)(?:应该|倾向于|偏好|喜欢|持续关注|感兴趣)[^。.!?\n]{4,140}/gi,
-    /(?:我)(?:倾向于|偏好|喜欢|持续关注|感兴趣)[^。.!?\n]{4,140}/gi,
-    /(?:agentMemory|Agent Identity|协作气质|兴趣方向)[^。.!?\n]{4,140}/gi
-  ];
-
-  return extractIdentityCandidatesByPatterns(text, patterns, 0.66);
-}
-
-function extractIdentityCandidatesByPatterns(text, patterns, confidence) {
-  const candidates = [];
-  const source = compactText(text);
-
-  for (const pattern of patterns) {
-    let match;
-    while ((match = pattern.exec(source)) !== null) {
-      const fragment = compactText(match[0]);
-      if (fragment.length < 12 || looksLikeUserPreference(fragment)) {
-        continue;
-      }
-      candidates.push(createCandidate({
-        kind: "identity",
-        scope: "agent",
-        text: truncateText(fragment, 220),
-        confidence
-      }));
-      if (candidates.length >= 2) {
-        return candidates;
-      }
-    }
-  }
-
-  return candidates;
-}
-
-function extractSharedCandidates(prompt, response) {
-  const text = compactText(`${prompt} ${response}`);
-  const candidates = [];
-  const patterns = [
-    /(?:我们|共同|一起)(?:正在|在|想|要|可以|会|已经|之前)?[^。.!?\n]{0,80}(?:探索|讨论|设计|实现|做成|形成|构建)[^。.!?\n]{4,140}/g,
-    /(?:sharedMemory|共同记忆|共同项目记忆|关系连续性)[^。.!?\n]{4,140}/gi
-  ];
-
-  for (const pattern of patterns) {
-    let match;
-    while ((match = pattern.exec(text)) !== null) {
-      const fragment = compactText(match[0]);
-      if (fragment.length < 12) {
-        continue;
-      }
-      candidates.push(createCandidate({
-        kind: "shared",
-        scope: "shared",
-        text: truncateText(fragment, 220),
-        confidence: 0.64
-      }));
-      if (candidates.length >= 2) {
-        return candidates;
-      }
-    }
-  }
-
-  return candidates;
-}
-
-function extractTaskCandidates(prompt, response, activeFilePath) {
-  if (prompt.length < 12 || response.length < 20) {
-    return [];
-  }
-  if (!hasTaskMemorySignal(prompt, response)) {
-    return [];
-  }
-
-  const summary = truncateText(prompt, 180);
-  const location = activeFilePath ? ` Active note: ${activeFilePath}.` : "";
-  return [createCandidate({
-    kind: "task",
-    scope: "project",
-    text: `Recent task: ${summary}.${location}`,
-    confidence: 0.55
-  })];
-}
-
-function extractDecisionCandidates(response) {
-  const sentences = splitSentences(response);
-  const decisionMarkers = [
-    "建议",
-    "推荐",
-    "应该",
-    "决定",
-    "采用",
-    "选用",
-    "约定",
-    "不要",
-    "废弃",
-    "MVP",
-    "新增",
-    "保留",
-    "默认"
-  ];
-  const englishDecisionPatterns = [
-    /\bchoose\b/i,
-    /\badopt\b/i,
-    /\bavoid\b/i,
-    /\bdrop\b/i,
-    /\bagreed\b/i,
-    /\brecommend\b/i,
-    /\bshould\b/i,
-    /\bdefault\b/i,
-    /\bdecision\b/i,
-    /\buse\b.{0,40}\b(?:approach|strategy|implementation|default|rule|method)\b/i
-  ];
-  const candidates = [];
-
-  for (const sentence of sentences) {
-    if (candidates.length >= 2) {
-      break;
-    }
-    const compact = compactText(sentence);
-    if (compact.length < 18 || compact.length > 220) {
-      continue;
-    }
-    if (!decisionMarkers.some((marker) => compact.includes(marker))
-      && !englishDecisionPatterns.some((pattern) => pattern.test(compact))) {
-      continue;
-    }
-    candidates.push(createCandidate({
-      kind: "decision",
-      scope: "project",
-      text: truncateText(compact, 220),
-      confidence: 0.62
-    }));
-  }
-
-  return candidates;
-}
-
-function createCandidate(candidate) {
-  return Object.assign({
-    source: "auto"
-  }, candidate);
-}
-
-function splitSentences(text) {
-  return String(text || "")
-    .split(/(?<=[。.!?])\s+|\n+/)
-    .map((sentence) => sentence.replace(/^[-*\d.\s]+/, "").trim())
-    .filter(Boolean);
-}
-
-function dedupeExtracted(items) {
-  const seen = new Set();
-  const deduped = [];
-  for (const item of items) {
-    const key = createExtractionKey(item.kind, item.text);
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    deduped.push(Object.assign({}, item, { key }));
-  }
-  return deduped;
-}
-
-function hasTaskMemorySignal(prompt, response) {
-  const text = `${prompt}\n${response}`;
-  return /(src\/|main\.js|README|AGENTS|manifest\.json|scripts\/|Obsidian|Codex|plugin|commit|build|review|bug|feature|setting|storage|prompt|实现|修复|增加|新增|设计|重构|提交|插件|设置|记忆|代码|文件|测试|脚本|构建|发布|兼容|回归)/i.test(text);
-}
-
-function looksLikeUserPreference(text) {
-  return /(?:用户|user|我)(?:更)?(?:喜欢|偏好|希望|想要|prefer|likes?|wants?)/i.test(text)
-    && !/(?:AI|Agent|assistant|助手|智能体)/i.test(text);
-}
-
-function isMemoryKind(kind) {
-  return ["preference", "fact", "decision", "task", "identity", "shared"].includes(kind);
-}
-
-function normalizeScope(scope) {
-  if (["user", "agent", "shared", "project"].includes(scope)) {
-    return scope;
-  }
-  return "project";
-}
-
-function createExtractionKey(kind, text) {
-  return `${kind}:${compactText(text).toLowerCase().slice(0, 160)}`;
-}
-
-function compactText(text) {
-  return String(text || "").replace(/\s+/g, " ").trim();
-}
-
-function truncateText(text, maxChars) {
-  if (text.length <= maxChars) {
+function expandHomePath(value) {
+  const text = String(value || "").trim();
+  if (!text) {
     return text;
   }
-  if (maxChars <= 3) {
-    return text.slice(0, maxChars);
+  if (text === "~") {
+    return os.homedir();
   }
-  return `${text.slice(0, maxChars - 3)}...`;
+  if (text.startsWith("~/")) {
+    return path.join(os.homedir(), text.slice(2));
+  }
+  return text;
 }
 
 module.exports = {
-  RuleBasedMemoryCandidateExtractor,
-  RuleBasedMemoryClassifier,
-  RuleBasedMemoryExtractor
-};
-
-},
-"src/storage/MemoryStore.js": function(module, exports, __require) {
-const { normalizePath } = require("obsidian");
-
-const { RuleBasedMemoryExtractor } = __require("src/storage/memoryExtraction/RuleBasedMemoryExtractor.js");
-const { containsSensitiveText } = __require("src/storage/sensitiveText.js");
-
-const MEMORY_VERSION = 1;
-const MEMORY_DIR_NAME = "memory";
-const MEMORY_FILE_NAME = "memory.json";
-const MAX_EXTRACTED_ITEMS_PER_TURN = 4;
-const DEFAULT_SEARCH_LIMIT = 5;
-const DEFAULT_SEARCH_MAX_CHARS = 3000;
-const STOP_WORDS = new Set([
-  "about",
-  "after",
-  "again",
-  "agent",
-  "because",
-  "before",
-  "could",
-  "from",
-  "have",
-  "into",
-  "that",
-  "the",
-  "this",
-  "with",
-  "would",
-  "一个",
-  "这个",
-  "那个",
-  "可以",
-  "怎么",
-  "什么",
-  "我们",
-  "你们",
-  "他们",
-  "功能",
-  "用户"
-]);
-
-class MemoryStore {
-  constructor(plugin, options = {}) {
-    this.plugin = plugin;
-    this.adapter = plugin.app.vault.adapter;
-    const pluginDir = plugin.manifest.dir || `.obsidian/plugins/${plugin.manifest.id}`;
-    this.baseDir = normalizePath(`${pluginDir}/${MEMORY_DIR_NAME}`);
-    this.memoryPath = normalizePath(`${this.baseDir}/${MEMORY_FILE_NAME}`);
-    this.cache = null;
-    this.extractor = options.extractor || new RuleBasedMemoryExtractor();
-  }
-
-  async getRelevantMemories(query, settings, options = {}) {
-    if (!settings.memoryEnabled) {
-      return [];
-    }
-
-    const memory = await this.loadMemory();
-    const items = memory.items.filter(isPromptSafeMemory);
-    if (items.length === 0) {
-      return [];
-    }
-
-    const queryText = [
-      query,
-      options.activeFilePath || "",
-      options.workingDirectory || ""
-    ].filter(Boolean).join(" ");
-    const queryTokens = tokenize(queryText);
-    const scored = items
-      .map((item) => scoreMemory(item, queryTokens))
-      .filter((entry) => entry.matchScore > 0 || isGlobalMemory(entry.item))
-      .sort(compareScoredMemories);
-
-    const maxChars = Number(settings.memoryMaxPromptChars) || 8000;
-    const maxItems = Math.min(Number(settings.memoryMaxPromptItems) || 12, scored.length);
-    const selected = [];
-    let used = 0;
-
-    for (const entry of scored) {
-      if (selected.length >= maxItems) {
-        break;
-      }
-      const text = formatMemoryLine(entry.item);
-      if (used + text.length + 1 > maxChars) {
-        continue;
-      }
-      selected.push(entry.item);
-      used += text.length + 1;
-    }
-
-    return selected;
-  }
-
-  async searchMemories(query, settings, options = {}) {
-    if (!settings.memoryEnabled || !settings.memoryAgentSearchEnabled) {
-      return [];
-    }
-
-    const memory = await this.loadMemory();
-    const items = memory.items.filter(isPromptSafeMemory);
-    if (items.length === 0) {
-      return [];
-    }
-
-    const queryTokens = tokenize(query);
-    const scored = items
-      .map((item) => scoreMemory(item, queryTokens))
-      .filter((entry) => entry.matchScore > 0)
-      .sort(compareScoredMemories);
-
-    const limit = Math.max(1, Math.min(Number(options.limit) || DEFAULT_SEARCH_LIMIT, scored.length));
-    const maxChars = Number(options.maxChars) || DEFAULT_SEARCH_MAX_CHARS;
-    const selected = [];
-    let used = 0;
-
-    for (const entry of scored) {
-      if (selected.length >= limit) {
-        break;
-      }
-      const text = formatMemoryLine(entry.item);
-      if (used + text.length + 1 > maxChars) {
-        continue;
-      }
-      selected.push(Object.assign({}, entry.item, {
-        matchScore: entry.matchScore,
-        score: entry.totalScore
-      }));
-      used += text.length + 1;
-    }
-
-    return selected;
-  }
-
-  async captureTurn(turn, settings) {
-    if (!settings.memoryEnabled || !settings.memoryAutoCapture) {
-      return [];
-    }
-
-    const memory = await this.loadMemory();
-    const extracted = this.extractor.extractTurn(turn)
-      .filter((item) => item.text && !containsSensitiveText(item.text))
-      .slice(0, MAX_EXTRACTED_ITEMS_PER_TURN);
-
-    if (extracted.length === 0) {
-      return [];
-    }
-
-    const now = Date.now();
-    const existingByKey = new Map(memory.items.map((item) => [item.key, item]));
-    const saved = [];
-
-    for (const item of extracted) {
-      const key = item.key || createMemoryKey(item.kind, item.text);
-      const previous = existingByKey.get(key);
-      if (previous) {
-        previous.text = item.text;
-        previous.kind = item.kind;
-        previous.scope = item.scope || previous.scope || "project";
-        previous.confidence = Math.max(Number(previous.confidence) || 0, Number(item.confidence) || 0.6);
-        previous.updatedAt = now;
-        previous.sourceSessionId = item.sourceSessionId || previous.sourceSessionId || "";
-        previous.source = item.source || previous.source || "auto";
-        saved.push(previous);
-        continue;
-      }
-
-      const next = {
-        id: createMemoryId(),
-        key,
-        kind: item.kind,
-        scope: item.scope || "project",
-        text: item.text,
-        confidence: Number(item.confidence) || 0.6,
-        source: item.source || "auto",
-        sourceSessionId: item.sourceSessionId || "",
-        createdAt: now,
-        updatedAt: now
-      };
-      memory.items.push(next);
-      existingByKey.set(key, next);
-      saved.push(next);
-    }
-
-    memory.items = limitMemoryItems(memory.items, settings);
-    memory.updatedAt = now;
-    await this.saveMemory(memory);
-    return saved;
-  }
-
-  async clearMemory() {
-    this.cache = createEmptyMemory();
-    try {
-      if (await this.adapter.exists(this.memoryPath)) {
-        await this.adapter.remove(this.memoryPath);
-      }
-    } catch (error) {
-      console.warn("Agent Dock could not clear memory:", error);
-    }
-  }
-
-  async loadMemory() {
-    if (this.cache) {
-      return this.cache;
-    }
-
-    try {
-      const raw = await this.adapter.read(this.memoryPath);
-      this.cache = normalizeMemory(JSON.parse(raw));
-      return this.cache;
-    } catch {
-      this.cache = createEmptyMemory();
-      return this.cache;
-    }
-  }
-
-  async saveMemory(memory) {
-    await this.ensureMemoryDir();
-    this.cache = normalizeMemory(memory);
-    await this.adapter.write(this.memoryPath, `${JSON.stringify(this.cache, null, 2)}\n`);
-  }
-
-  async ensureMemoryDir() {
-    if (await this.adapter.exists(this.baseDir)) {
-      return;
-    }
-    await this.adapter.mkdir(this.baseDir);
-  }
-}
-
-function limitMemoryItems(items, settings) {
-  const maxItems = Number(settings.memoryMaxItems) || 200;
-  return [...items]
-    .sort((left, right) => {
-      const kindDelta = kindPriority(right.kind) - kindPriority(left.kind);
-      if (kindDelta !== 0) {
-        return kindDelta;
-      }
-      return normalizeTimestamp(right.updatedAt, 0) - normalizeTimestamp(left.updatedAt, 0);
-    })
-    .slice(0, maxItems)
-    .sort((left, right) => normalizeTimestamp(left.createdAt, 0) - normalizeTimestamp(right.createdAt, 0));
-}
-
-function scoreMemory(item, queryTokens) {
-  const itemTokens = tokenize(item.text);
-  let matchScore = 0;
-  for (const token of itemTokens) {
-    if (queryTokens.has(token)) {
-      matchScore += token.length > 8 ? 3 : 1;
-    }
-  }
-  let totalScore = matchScore;
-  totalScore += kindPriority(item.kind);
-  const ageDays = Math.max(0, (Date.now() - normalizeTimestamp(item.updatedAt, Date.now())) / 86400000);
-  totalScore += Math.max(0, 2 - ageDays / 30);
-  return {
-    item,
-    matchScore,
-    totalScore
-  };
-}
-
-function compareScoredMemories(left, right) {
-  if (right.totalScore !== left.totalScore) {
-    return right.totalScore - left.totalScore;
-  }
-  return normalizeTimestamp(right.item.updatedAt, 0) - normalizeTimestamp(left.item.updatedAt, 0);
-}
-
-function isGlobalMemory(item) {
-  return (item.kind === "preference" && item.scope === "user")
-    || item.kind === "identity";
-}
-
-function kindPriority(kind) {
-  if (kind === "identity") {
-    return 6;
-  }
-  if (kind === "preference") {
-    return 5;
-  }
-  if (kind === "shared") {
-    return 4;
-  }
-  if (kind === "fact") {
-    return 4;
-  }
-  if (kind === "decision") {
-    return 3;
-  }
-  return 1;
-}
-
-function tokenize(text) {
-  const tokens = new Set();
-  const normalized = String(text || "").toLowerCase();
-  const matches = normalized.match(/[a-z0-9_./-]{3,}|[\u4e00-\u9fff]{2,}/g) || [];
-  for (const match of matches) {
-    if (!STOP_WORDS.has(match)) {
-      tokens.add(match);
-      addCjkNgrams(tokens, match);
-    }
-  }
-  return tokens;
-}
-
-function addCjkNgrams(tokens, token) {
-  if (!/^[\u4e00-\u9fff]{3,}$/.test(token)) {
-    return;
-  }
-  for (const size of [2, 3]) {
-    for (let index = 0; index <= token.length - size; index += 1) {
-      const gram = token.slice(index, index + size);
-      if (!STOP_WORDS.has(gram)) {
-        tokens.add(gram);
-      }
-    }
-  }
-}
-
-function formatMemoryLine(item) {
-  const labels = {
-    decision: "Decision",
-    fact: "Fact",
-    identity: "Agent identity",
-    preference: "Preference",
-    shared: "Shared memory",
-    task: "Recent task"
-  };
-  const label = labels[item.kind] || "Fact";
-  const updatedDate = formatMemoryDate(item.updatedAt);
-  const createdDate = formatMemoryDate(item.createdAt);
-  const metadata = [
-    updatedDate ? `updated ${updatedDate}` : "",
-    createdDate && createdDate !== updatedDate ? `created ${createdDate}` : ""
-  ].filter(Boolean).join(", ");
-  const suffix = metadata ? ` (${metadata})` : "";
-  return `- ${label}${suffix}: ${item.text}`;
-}
-
-function formatMemoryDate(value) {
-  const timestamp = normalizeTimestamp(value, 0);
-  if (!timestamp) {
-    return "";
-  }
-  return new Date(timestamp).toISOString().slice(0, 10);
-}
-
-function isPromptSafeMemory(item) {
-  return item && item.text && !containsSensitiveText(item.text);
-}
-
-function normalizeMemory(raw) {
-  const source = raw && typeof raw === "object" ? raw : {};
-  const items = Array.isArray(source.items)
-    ? source.items.map(normalizeMemoryItem).filter(Boolean)
-    : [];
-
-  return {
-    version: MEMORY_VERSION,
-    items,
-    updatedAt: normalizeTimestamp(source.updatedAt, Date.now())
-  };
-}
-
-function normalizeMemoryItem(item) {
-  if (!item || typeof item !== "object") {
-    return null;
-  }
-
-  const text = compactText(item.text);
-  if (!text) {
-    return null;
-  }
-
-  const kind = ["preference", "fact", "decision", "task", "identity", "shared"].includes(item.kind)
-    ? item.kind
-    : "fact";
-
-  return {
-    id: typeof item.id === "string" && item.id ? item.id : createMemoryId(),
-    key: typeof item.key === "string" && item.key ? item.key : createMemoryKey(kind, text),
-    kind,
-    scope: normalizeScope(item.scope),
-    text,
-    confidence: Number.isFinite(Number(item.confidence)) ? Number(item.confidence) : 0.6,
-    source: typeof item.source === "string" && item.source ? item.source : "auto",
-    sourceSessionId: typeof item.sourceSessionId === "string" ? item.sourceSessionId : "",
-    createdAt: normalizeTimestamp(item.createdAt, Date.now()),
-    updatedAt: normalizeTimestamp(item.updatedAt, Date.now())
-  };
-}
-
-function normalizeScope(scope) {
-  if (["user", "agent", "shared", "project"].includes(scope)) {
-    return scope;
-  }
-  return "project";
-}
-
-function createEmptyMemory() {
-  return {
-    version: MEMORY_VERSION,
-    items: [],
-    updatedAt: Date.now()
-  };
-}
-
-function createMemoryId() {
-  return `mem-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function createMemoryKey(kind, text) {
-  return `${kind}:${compactText(text).toLowerCase().slice(0, 160)}`;
-}
-
-function compactText(text) {
-  return String(text || "").replace(/\s+/g, " ").trim();
-}
-
-function normalizeTimestamp(value, fallback) {
-  const timestamp = Number(value);
-  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : fallback;
-}
-
-module.exports = {
-  MemoryStore,
-  formatMemoryLine,
-  _test: {
-    createEmptyMemory,
-    isPromptSafeMemory,
-    isGlobalMemory,
-    scoreMemory,
-    tokenize
-  }
+  expandHomePath
 };
 
 },
@@ -2916,6 +1846,1391 @@ module.exports = {
 };
 
 },
+"src/settings.js": function(module, exports, __require) {
+const { MODE_OPTIONS } = __require("src/modes.js");
+const { DEFAULT_LANGUAGE, normalizeLanguage } = __require("src/i18n/index.js");
+const { expandHomePath } = __require("src/cli/paths.js");
+const { normalizeAffectState } = __require("src/affect/WorkingAffectStore.js");
+
+const CUSTOM_ASSISTANT_STYLE_MAX_CHARS = 4000;
+const ASSISTANT_DISPLAY_NAME_MAX_CHARS = 80;
+const AFFECT_HALF_LIFE_MINUTES_MIN = 5;
+const AFFECT_HALF_LIFE_MINUTES_MAX = 1440;
+
+const ASSISTANT_STYLE_OPTIONS = {
+  concise: {
+    label: "Concise",
+    description: "Direct and economical. Leads with the answer or action taken, with only necessary explanation."
+  },
+  collaborative: {
+    label: "Collaborative",
+    description: "Warm, capable, and practical. Shares brief progress, makes decisions, and grounds the final answer in what was done."
+  },
+  teaching: {
+    label: "Teaching",
+    description: "Patient and explanatory. Explains important choices, local concepts, tradeoffs, and useful examples."
+  },
+  review: {
+    label: "Review",
+    description: "Code-review posture. Prioritizes bugs, regressions, data loss, privacy or security risks, and missing verification."
+  },
+  custom: {
+    label: "Custom",
+    description: "Uses your own style guidance below as tone and collaboration preference."
+  }
+};
+
+const DEFAULT_SETTINGS = {
+  language: DEFAULT_LANGUAGE,
+  agentId: "codex",
+  codexPath: "/opt/homebrew/bin/codex",
+  args: "exec {{prompt}}",
+  interactiveArgs: "",
+  cursorPath: "~/.local/bin/agent",
+  cursorExtraArgs: "",
+  cursorInteractiveArgs: "",
+  cursorPermissionPolicy: "allow-once",
+  mode: "readOnly",
+  workingDirectory: "",
+  assistantDisplayName: "",
+  assistantStyle: "collaborative",
+  customAssistantStyle: "",
+  debugActivity: false,
+  contextLimitChars: 258000,
+  persistChatHistory: true,
+  maxPersistedSessions: 20,
+  maxPersistedMessagesPerSession: 200,
+  memoryEnabled: true,
+  memoryAutoCapture: true,
+  memoryAgentSearchEnabled: true,
+  memoryMaxItems: 200,
+  memoryMaxPromptItems: 12,
+  memoryMaxPromptChars: 8000,
+  interactionMemoryEnabled: true,
+  interactionMemoryAutoCapture: true,
+  interactionMemoryMaxPromptItems: 6,
+  interactionMemoryMaxPersonaItems: 2,
+  interactionMemoryMaxStanceItems: 4,
+  interactionMemoryMinEvidence: 2,
+  interactionMemoryHalfLifeDays: 30,
+  affectEnabled: true,
+  affectCrossSessionEnabled: true,
+  affectRestoreAfterRestart: true,
+  affectShowIndicator: true,
+  affectSensitivity: "normal",
+  affectHalfLifeMinutes: 45
+};
+
+function normalizeSettings(savedSettings) {
+  const settings = Object.assign({}, DEFAULT_SETTINGS, savedSettings || {});
+
+  if (savedSettings && savedSettings.command && !savedSettings.codexPath) {
+    settings.codexPath = savedSettings.command;
+  }
+
+  if (settings.mode === "ask") {
+    settings.mode = "readOnly";
+  }
+
+  if (!MODE_OPTIONS[settings.mode]) {
+    settings.mode = DEFAULT_SETTINGS.mode;
+  }
+
+  settings.language = normalizeLanguage(settings.language);
+  settings.assistantDisplayName = truncateString(
+    normalizeString(settings.assistantDisplayName).trim(),
+    ASSISTANT_DISPLAY_NAME_MAX_CHARS
+  );
+
+  if (!settings.agentId) {
+    settings.agentId = DEFAULT_SETTINGS.agentId;
+  }
+
+  settings.cursorPath = expandHomePath(normalizeString(settings.cursorPath) || DEFAULT_SETTINGS.cursorPath);
+  settings.cursorExtraArgs = normalizeString(settings.cursorExtraArgs);
+  settings.cursorInteractiveArgs = normalizeString(settings.cursorInteractiveArgs);
+  settings.cursorPermissionPolicy = normalizeCursorPermissionPolicy(
+    settings.cursorPermissionPolicy,
+    DEFAULT_SETTINGS.cursorPermissionPolicy
+  );
+
+  if (!ASSISTANT_STYLE_OPTIONS[settings.assistantStyle]) {
+    settings.assistantStyle = DEFAULT_SETTINGS.assistantStyle;
+  }
+  settings.customAssistantStyle = truncateString(
+    normalizeString(settings.customAssistantStyle),
+    CUSTOM_ASSISTANT_STYLE_MAX_CHARS
+  );
+
+  settings.contextLimitChars = normalizePositiveInteger(
+    settings.contextLimitChars,
+    DEFAULT_SETTINGS.contextLimitChars
+  );
+  settings.persistChatHistory = settings.persistChatHistory !== false;
+  settings.maxPersistedSessions = normalizePositiveInteger(
+    settings.maxPersistedSessions,
+    DEFAULT_SETTINGS.maxPersistedSessions
+  );
+  settings.maxPersistedMessagesPerSession = normalizePositiveInteger(
+    settings.maxPersistedMessagesPerSession,
+    DEFAULT_SETTINGS.maxPersistedMessagesPerSession
+  );
+  settings.memoryEnabled = settings.memoryEnabled !== false;
+  settings.memoryAutoCapture = settings.memoryAutoCapture !== false;
+  settings.memoryAgentSearchEnabled = settings.memoryAgentSearchEnabled !== false;
+  settings.memoryMaxItems = normalizePositiveInteger(
+    settings.memoryMaxItems,
+    DEFAULT_SETTINGS.memoryMaxItems
+  );
+  settings.memoryMaxPromptItems = normalizePositiveInteger(
+    settings.memoryMaxPromptItems,
+    DEFAULT_SETTINGS.memoryMaxPromptItems
+  );
+  settings.memoryMaxPromptChars = normalizePositiveInteger(
+    settings.memoryMaxPromptChars,
+    DEFAULT_SETTINGS.memoryMaxPromptChars
+  );
+  settings.interactionMemoryEnabled = settings.interactionMemoryEnabled !== false;
+  settings.interactionMemoryAutoCapture = settings.interactionMemoryAutoCapture !== false;
+  settings.interactionMemoryMaxPromptItems = normalizePositiveInteger(
+    settings.interactionMemoryMaxPromptItems,
+    DEFAULT_SETTINGS.interactionMemoryMaxPromptItems
+  );
+  settings.interactionMemoryMaxPersonaItems = normalizeNonNegativeInteger(
+    settings.interactionMemoryMaxPersonaItems,
+    DEFAULT_SETTINGS.interactionMemoryMaxPersonaItems
+  );
+  settings.interactionMemoryMaxStanceItems = normalizeNonNegativeInteger(
+    settings.interactionMemoryMaxStanceItems,
+    DEFAULT_SETTINGS.interactionMemoryMaxStanceItems
+  );
+  settings.interactionMemoryMinEvidence = normalizePositiveInteger(
+    settings.interactionMemoryMinEvidence,
+    DEFAULT_SETTINGS.interactionMemoryMinEvidence
+  );
+  settings.interactionMemoryHalfLifeDays = normalizePositiveInteger(
+    settings.interactionMemoryHalfLifeDays,
+    DEFAULT_SETTINGS.interactionMemoryHalfLifeDays
+  );
+  settings.affectEnabled = settings.affectEnabled !== false;
+  settings.affectCrossSessionEnabled = settings.affectCrossSessionEnabled !== false;
+  settings.affectRestoreAfterRestart = settings.affectRestoreAfterRestart !== false;
+  settings.affectShowIndicator = settings.affectShowIndicator !== false;
+  settings.affectSensitivity = normalizeAffectSensitivity(
+    settings.affectSensitivity,
+    DEFAULT_SETTINGS.affectSensitivity
+  );
+  settings.affectHalfLifeMinutes = normalizePositiveInteger(
+    settings.affectHalfLifeMinutes,
+    DEFAULT_SETTINGS.affectHalfLifeMinutes
+  );
+  settings.affectHalfLifeMinutes = clampNumber(
+    settings.affectHalfLifeMinutes,
+    AFFECT_HALF_LIFE_MINUTES_MIN,
+    AFFECT_HALF_LIFE_MINUTES_MAX
+  );
+
+  delete settings.command;
+  delete settings.includeActiveNote;
+  delete settings.activeNoteMaxChars;
+  delete settings.agentProfileEnabled;
+  delete settings.agentProfileAutoCapture;
+  delete settings.agentProfileMaxPromptTraits;
+  delete settings.agentProfileMinEvidence;
+  delete settings.agentProfileHalfLifeDays;
+  return settings;
+}
+
+function normalizePluginData(savedData) {
+  if (savedData && savedData.schemaVersion >= 2) {
+    return {
+      schemaVersion: 2,
+      settings: normalizeSettings(savedData.settings),
+      chatState: normalizeChatState(savedData.chatState),
+      affectState: normalizeAffectState(savedData.affectState)
+    };
+  }
+
+  return {
+    schemaVersion: 2,
+    settings: normalizeSettings(savedData),
+    chatState: normalizeChatState(null),
+    affectState: normalizeAffectState(null)
+  };
+}
+
+function normalizeChatState(savedState) {
+  const state = savedState && typeof savedState === "object" ? savedState : {};
+  const sessionIndex = Array.isArray(state.sessionIndex)
+    ? state.sessionIndex.map(normalizeSessionIndexEntry).filter(Boolean)
+    : [];
+
+  return {
+    activeSessionId: typeof state.activeSessionId === "string" ? state.activeSessionId : "",
+    sessionIndex
+  };
+}
+
+function normalizeSessionIndexEntry(entry) {
+  if (!entry || typeof entry !== "object" || typeof entry.id !== "string" || !entry.id) {
+    return null;
+  }
+
+  return {
+    id: entry.id,
+    title: typeof entry.title === "string" && entry.title ? entry.title : "Chat",
+    isUntitled: entry.isUntitled === true,
+    createdAt: normalizeTimestamp(entry.createdAt),
+    updatedAt: normalizeTimestamp(entry.updatedAt)
+  };
+}
+
+function normalizeTimestamp(value) {
+  const timestamp = Number(value);
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : Date.now();
+}
+
+function normalizePositiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function normalizeNonNegativeInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function clampNumber(value, min, max) {
+  return Math.min(max, Math.max(min, value));
+}
+
+function normalizeString(value) {
+  return typeof value === "string" ? value : "";
+}
+
+function truncateString(value, maxChars) {
+  return value.length > maxChars ? value.slice(0, maxChars) : value;
+}
+
+function normalizeCursorPermissionPolicy(value, fallback) {
+  if (value === "allow-once" || value === "allow-always" || value === "reject-once") {
+    return value;
+  }
+  return fallback;
+}
+
+function normalizeAffectSensitivity(value, fallback) {
+  if (value === "low" || value === "normal" || value === "high") {
+    return value;
+  }
+  return fallback;
+}
+
+module.exports = {
+  AFFECT_HALF_LIFE_MINUTES_MAX,
+  AFFECT_HALF_LIFE_MINUTES_MIN,
+  ASSISTANT_DISPLAY_NAME_MAX_CHARS,
+  ASSISTANT_STYLE_OPTIONS,
+  CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
+  DEFAULT_SETTINGS,
+  normalizePluginData,
+  normalizeSettings
+};
+
+},
+"src/storage/sensitiveText.js": function(module, exports, __require) {
+function containsSensitiveText(text) {
+  return /(api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd|secret|token|bearer|private[_-]?key|ssh-rsa|BEGIN (?:OPENSSH |RSA |EC )?PRIVATE KEY|sk-[a-z0-9]|ghp_[a-z0-9]|github_pat_[a-z0-9_]+|xox[baprs]-[a-z0-9-]+|AKIA[0-9A-Z]{16}|密码|密钥|私钥|令牌|凭证)/i.test(text);
+}
+
+function redactSensitiveText(text) {
+  return containsSensitiveText(text) ? "[Sensitive content omitted]" : String(text || "");
+}
+
+module.exports = {
+  containsSensitiveText,
+  redactSensitiveText
+};
+
+},
+"src/interaction/LocalSignalExtractor.js": function(module, exports, __require) {
+const { containsSensitiveText, redactSensitiveText } = __require("src/storage/sensitiveText.js");
+
+const MAX_EXCERPT_CHARS = 220;
+
+const CONTEXT_RULES = [
+  {
+    id: "agent_continuity",
+    patterns: [/AI|agent|助手|智能体/i, /profile|memory|记忆|连续性|情绪|affect/i, /自然生长|设定|人设|人格|主体感/]
+  },
+  {
+    id: "implementation",
+    patterns: [/代码|模块|接口|数据模型|测试|脚本|设置页|prompt|store|reducer|extractor/i, /\b(code|module|interface|schema|test|script|prompt|store|reducer|extractor)\b/i]
+  },
+  {
+    id: "debugging",
+    patterns: [/报错|失败|崩溃|bug|修复|排查/, /\b(error|failed|failure|crash|fix|debug)\b/i]
+  },
+  {
+    id: "planning",
+    patterns: [/计划|规划|任务|TODO|今日|工作流/, /\b(plan|todo|workflow|task)\b/i]
+  }
+];
+
+const USER_SIGNAL_RULES = [
+  {
+    id: "asks_for_judgment",
+    strong: [/你怎么看/, /你的判断/, /你觉得/, /你建议/, /给个结论/, /你来拍板/, /你来决定/, /帮我判断/, /不要只列选项/, /你判断/, /你来定/, /\b(your take|what do you think|recommend|decide|don't just agree|make the call)\b/i],
+    weak: [/判断/, /建议/, /结论/, /取舍/],
+    blockedBy: [/不要.*判断/, /不用.*建议/, /先别.*结论/]
+  },
+  {
+    id: "asks_for_mechanism",
+    strong: [/机制/, /原理/, /为什么/, /边界/, /取舍/, /怎么理解/, /怎么做到/, /背后逻辑/, /底层逻辑/, /\b(mechanism|principle|why|boundary|tradeoff|how exactly|under the hood)\b/i],
+    weak: [/逻辑/, /原因/, /区别/, /关系/, /本质/],
+    blockedBy: [/不用.*解释/, /不要.*原理/, /先别.*机制/]
+  },
+  {
+    id: "asks_for_implementation",
+    strong: [/具体/, /可实施/, /可执行/, /落地/, /实现/, /数据模型/, /任务拆分/, /验收标准/, /怎么做/, /接入/, /改代码/, /\b(concrete|specific|implementation|actionable|schema|task|wire it|code change)\b/i],
+    weak: [/方案/, /步骤/, /清单/, /路径/, /计划/],
+    blockedBy: [/先不.*实现/, /不用.*代码/, /不要.*任务/]
+  },
+  {
+    id: "asks_for_redesign",
+    strong: [/重新设计/, /重构/, /完全重新/, /如果不考虑现有/, /推倒重来/, /\b(redesign|rebuild|refactor|from scratch|start over)\b/i],
+    weak: [/换个方案/, /另一种设计/]
+  },
+  {
+    id: "pushes_for_nuance",
+    strong: [/微妙/, /细腻/, /分寸/, /纹理/, /不是.*硬规则/, /不要.*压成/, /不能.*压成/, /像人类/, /不要.*扁平/, /\b(nuance|subtle|texture|not.*rigid|flatten|not.*mechanical)\b/i],
+    weak: [/复杂/, /自然/, /风格/, /气质/, /手感/],
+    contexts: ["agent_continuity", "implementation", "general"],
+    blockedBy: [/不用.*微妙/, /不要.*复杂/, /简单点/, /别.*细腻/]
+  },
+  {
+    id: "rejects_flattening",
+    strong: [/压扁/, /压成/, /太.*规则/, /具体的要求prompt/, /偏好清单/, /设置项/, /硬编码/, /模板化/, /\b(flatten|rigid prompt|preference list|settings-only|too mechanical)\b/i],
+    weak: [/规则/, /清单/, /设置/],
+    blockedBy: [/可以.*规则/, /就.*清单/, /只要.*设置/]
+  },
+  {
+    id: "asks_about_cost",
+    strong: [/token/, /成本/, /消耗/, /太贵/, /预算/, /缓存/, /每轮.*总结/, /\b(cost|expensive|budget|tokens?|cache)\b/i],
+    weak: [/省/, /轻量/, /低频/]
+  },
+  {
+    id: "asks_for_directness",
+    strong: [/直接说/, /别废话/, /简短/, /先给结论/, /长话短说/, /不用铺垫/, /\b(brief|direct|tl;dr|short answer|cut to the chase)\b/i],
+    weak: [/快点/, /短一点/],
+    blockedBy: [/不要.*太短/, /别.*省略/]
+  },
+  {
+    id: "asks_for_depth",
+    strong: [/展开/, /详细/, /讲透/, /多解释/, /完整一点/, /深入/, /细说/, /\b(explain more|go deeper|full detail|walk me through|deep dive)\b/i],
+    weak: [/补充/, /再说说/, /多一点/],
+    blockedBy: [/不用.*展开/, /别.*太长/]
+  },
+  {
+    id: "asks_for_clarification",
+    strong: [/没懂/, /什么意思/, /说清楚/, /举例/, /例子/, /换个说法/, /具体区别/, /还是不明白/, /\b(what do you mean|not clear|unclear|example|for example|can you clarify|say that differently)\b/i],
+    weak: [/不明白/, /看不懂/, /解释一下/],
+    blockedBy: [/不用.*举例/, /不用.*解释/]
+  },
+  {
+    id: "style_feedback",
+    strong: [/太(?:啰嗦|官方|像客服|生硬|机械|短|长|冷|热情)/, /别(?:这么|太).*(?:啰嗦|官方|客服|生硬|机械)/, /语气/, /风格不对/, /\b(too verbose|too formal|too robotic|too terse|tone|style feels off)\b/i]
+  },
+  {
+    id: "positive_feedback",
+    strong: [/这样(?:很好|不错|可以|对)/, /对[，,\s]*(?:就是|是这个|这个方向)/, /继续(?:这样|这个方向)/, /到位/, /说得对/, /这个方向可以/, /\b(exactly|that's it|useful|clear|solid|keep going|nailed it)\b/i],
+    blockedBy: [/不对/, /不是.*对/, /没.*清楚/]
+  },
+  {
+    id: "negative_feedback",
+    strong: [/不对/, /不是(?:这个|这样|我的意思)/, /太(?:空|泛|虚|啰嗦|官方|像客服)/, /没有(?:回答|解决|落地)/, /跑偏了/, /没抓住重点/, /误解了/, /不是我要的/, /\b(wrong|not what i mean|too vague|missed the point|not useful|misread)\b/i]
+  }
+];
+
+const CONTINUATION_PATTERNS = [
+  /继续/,
+  /刚才/,
+  /上面/,
+  /这个/,
+  /这点/,
+  /那/,
+  /所以/,
+  /也就是说/,
+  /换句话说/,
+  /\b(continue|that|this|above|previous|so|then)\b/i
+];
+
+const ASSISTANT_SHAPE_RULES = [
+  {
+    id: "implementation_plan",
+    strong: [/数据模型/, /接入/, /任务拆分/, /验收标准/, /实现/, /测试/, /落地/, /\b(schema|implementation|test|task|wire|module|concrete steps)\b/i]
+  },
+  {
+    id: "mechanism_explanation",
+    strong: [/机制/, /边界/, /取舍/, /原因/, /归纳/, /衰减/, /证据/, /\b(mechanism|boundary|tradeoff|reason|evidence|principle)\b/i]
+  },
+  {
+    id: "independent_judgment",
+    strong: [/我会/, /我建议/, /我的判断/, /更合理/, /不建议/, /我倾向/, /\b(i would|i recommend|my take|better|avoid|i'd choose)\b/i]
+  },
+  {
+    id: "settings_framing",
+    strong: [/设置/, /开关/, /选项/, /\b(settings|toggle|option)\b/i]
+  },
+  {
+    id: "repair_response",
+    strong: [/我理解错了/, /我修正/, /改一下/, /重新来/, /\b(i misread|let me correct|revise)\b/i]
+  },
+  {
+    id: "warm_presence",
+    strong: [/一起/, /陪你/, /我在/, /我们可以/, /\b(with you|together|we can)\b/i]
+  }
+];
+
+function extractEpisodeDraft(turn, previousPending) {
+  const prompt = compactText(turn?.prompt);
+  const response = compactText(turn?.response);
+  const reaction = previousPending
+    ? classifyReaction(previousPending, prompt)
+    : null;
+
+  return {
+    context: classifyContext(prompt),
+    userExcerpt: sanitizeExcerpt(prompt),
+    assistantExcerpt: sanitizeExcerpt(response),
+    userSignals: extractSignals(prompt, USER_SIGNAL_RULES),
+    assistantShape: extractSignals(response, ASSISTANT_SHAPE_RULES),
+    reaction,
+    outcomeHint: reaction?.outcomeHint || "",
+    sourceSessionId: turn?.sessionId || "",
+    createdAt: Number(turn?.now) || Date.now()
+  };
+}
+
+function buildPromptInteractionContext(prompt, conversation) {
+  const conversationText = Array.isArray(conversation)
+    ? conversation.slice(-8).map((message) => compactText(message?.content)).filter(Boolean).join("\n")
+    : "";
+  return {
+    context: classifyContext(prompt),
+    signals: extractSignals(prompt, USER_SIGNAL_RULES),
+    conversationText
+  };
+}
+
+function classifyReaction(previousPending, prompt) {
+  const signals = extractSignals(prompt, USER_SIGNAL_RULES);
+  const context = classifyContext(prompt);
+  const sharedSignal = hasSharedSignal(previousPending.userSignals, signals);
+  const sameContext = previousPending.context === context;
+  const explicitContinuation = matches(prompt, CONTINUATION_PATTERNS);
+  let kind = "topic_shift";
+  let outcomeHint = "topic_shift";
+
+  if (signals.includes("negative_feedback")) {
+    kind = "correction";
+    outcomeHint = "correction";
+    if (signals.includes("style_feedback")) {
+      kind = "style_recalibration";
+      outcomeHint = "style_recalibration";
+    }
+  } else if (signals.includes("style_feedback")) {
+    kind = "style_recalibration";
+    outcomeHint = "style_recalibration";
+  } else if (signals.includes("asks_for_clarification")) {
+    kind = "clarification";
+    outcomeHint = "clarification_requested";
+  } else if (signals.includes("positive_feedback")) {
+    kind = "acceptance";
+    outcomeHint = "accepted";
+  } else if (signals.includes("asks_for_implementation") && previousPending.assistantShape?.includes("mechanism_explanation")) {
+    kind = "implementation_followup";
+    outcomeHint = "implementation_followup";
+  } else if (sameContext && (sharedSignal || explicitContinuation)) {
+    kind = "deepening";
+    outcomeHint = "productive_deepening";
+  } else if (!sameContext || signals.length > 0) {
+    kind = "new_request";
+    outcomeHint = "new_request";
+  }
+
+  return {
+    kind,
+    outcomeHint,
+    excerpt: sanitizeExcerpt(prompt),
+    signals
+  };
+}
+
+function classifyContext(text) {
+  const compact = compactText(text);
+  for (const rule of CONTEXT_RULES) {
+    if (rule.patterns.some((pattern) => pattern.test(compact))) {
+      return rule.id;
+    }
+  }
+  return "general";
+}
+
+function extractSignals(text, rules) {
+  const compact = compactText(text);
+  if (!compact) {
+    return [];
+  }
+  const context = classifyContext(compact);
+  return rules
+    .filter((rule) => matchesRule(compact, rule, context))
+    .map((rule) => rule.id);
+}
+
+function matchesRule(text, rule, context) {
+  if (rule.blockedBy?.some((pattern) => pattern.test(text))) {
+    return false;
+  }
+  if (rule.strong?.some((pattern) => pattern.test(text))) {
+    return true;
+  }
+  const weakMatch = rule.weak?.some((pattern) => pattern.test(text));
+  if (!weakMatch) {
+    return false;
+  }
+  if (!rule.contexts || rule.contexts.includes(context)) {
+    return true;
+  }
+  return false;
+}
+
+function hasSharedSignal(left, right) {
+  if (!Array.isArray(left) || !Array.isArray(right)) {
+    return false;
+  }
+  return left.some((signal) => right.includes(signal));
+}
+
+function matches(text, patterns) {
+  const compact = compactText(text);
+  return patterns.some((pattern) => pattern.test(compact));
+}
+
+function sanitizeExcerpt(text) {
+  const compact = truncateText(compactText(text), MAX_EXCERPT_CHARS);
+  if (!compact) {
+    return "";
+  }
+  return redactSensitiveText(compact);
+}
+
+function isSensitiveEpisode(episode) {
+  return containsSensitiveText(episode.userExcerpt)
+    || containsSensitiveText(episode.assistantExcerpt)
+    || containsSensitiveText(episode.reaction?.excerpt);
+}
+
+function compactText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function truncateText(text, maxLength) {
+  if (text.length <= maxLength) {
+    return text;
+  }
+  return `${text.slice(0, Math.max(0, maxLength - 1))}…`;
+}
+
+module.exports = {
+  extractEpisodeDraft,
+  buildPromptInteractionContext,
+  classifyContext,
+  extractSignals,
+  isSensitiveEpisode,
+  sanitizeExcerpt,
+  _test: {
+    classifyReaction,
+    CONTINUATION_PATTERNS,
+    matchesRule,
+    USER_SIGNAL_RULES,
+    ASSISTANT_SHAPE_RULES
+  }
+};
+
+},
+"src/storage/memoryExtraction/RuleBasedMemoryExtractor.js": function(module, exports, __require) {
+class RuleBasedMemoryExtractor {
+  constructor(options = {}) {
+    this.candidateExtractor = options.candidateExtractor || new RuleBasedMemoryCandidateExtractor();
+    this.classifier = options.classifier || new RuleBasedMemoryClassifier();
+  }
+
+  extractTurn(turn) {
+    const context = normalizeTurnContext(turn);
+    const candidates = this.candidateExtractor.extractCandidates(context);
+    return dedupeExtracted(this.classifier.classifyCandidates(candidates, context));
+  }
+}
+
+class RuleBasedMemoryCandidateExtractor {
+  extractCandidates(context) {
+    return [
+      ...extractPreferenceCandidates(context.prompt),
+      ...extractExplicitMemoryCandidates(context.prompt),
+      ...extractAgentIdentityCandidates(context.prompt, context.response),
+      ...extractSharedCandidates(context.prompt, context.response),
+      ...extractTaskCandidates(context.prompt, context.response, context.activeFilePath),
+      ...extractDecisionCandidates(context.response)
+    ];
+  }
+}
+
+class RuleBasedMemoryClassifier {
+  classifyCandidates(candidates, context) {
+    return candidates
+      .map((candidate) => classifyCandidate(candidate, context))
+      .filter(Boolean);
+  }
+}
+
+function normalizeTurnContext(turn) {
+  return {
+    prompt: compactText(turn?.prompt),
+    response: compactText(turn?.response),
+    sourceSessionId: turn?.sessionId || "",
+    activeFilePath: turn?.activeFilePath || ""
+  };
+}
+
+function classifyCandidate(candidate, context) {
+  if (!candidate || !candidate.text || !isMemoryKind(candidate.kind)) {
+    return null;
+  }
+
+  return {
+    kind: candidate.kind,
+    scope: normalizeScope(candidate.scope),
+    text: candidate.text,
+    confidence: Number(candidate.confidence) || 0.6,
+    source: candidate.source || "auto",
+    sourceSessionId: candidate.sourceSessionId || context.sourceSessionId || ""
+  };
+}
+
+function extractPreferenceCandidates(text) {
+  const candidates = [];
+  const patterns = [
+    /(?:我|用户)(?:更)?(?:喜欢|偏好|希望|想要)([^。.!?\n]{2,80})/g,
+    /(?:我|用户)(?:通常|一般|习惯|倾向于|更愿意)([^。.!?\n]{2,80})/g,
+    /(?:以后|之后|今后)(?:都|请)?([^。.!?\n]{2,80})/g,
+    /(?:以后|之后|今后).{0,12}(?:别|不要|不用|避免)([^。.!?\n]{2,80})/g,
+    /(?:默认|尽量|优先)(?:按|用|走|采用)([^。.!?\n]{2,80})/g,
+    /\b(?:prefer|likes?|wants?)\b([^.!?\n]{2,100})/gi,
+    /\b(?:usually|generally|tend to|would rather)\b([^.!?\n]{2,100})/gi,
+    /\b(?:always|never)\b([^.!?\n]{2,100})/gi
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const fragment = compactText(match[0]);
+      if (fragment.length >= 8) {
+        candidates.push(createCandidate({
+          kind: "preference",
+          scope: "user",
+          text: truncateText(fragment, 180),
+          confidence: 0.76
+        }));
+      }
+    }
+  }
+
+  return candidates;
+}
+
+function extractExplicitMemoryCandidates(text) {
+  const match = text.match(/(?:记住|记一下|帮我记|保存一下|作为约定|remember(?: that)?|note(?: that)?)(?:[:：\s，,]*)([^。.!?\n]{4,180})/i);
+  if (!match) {
+    return [];
+  }
+
+  return [createCandidate({
+    kind: "fact",
+    scope: "user",
+    text: truncateText(compactText(match[1]), 220),
+    confidence: 0.9
+  })];
+}
+
+function extractAgentIdentityCandidates(prompt, response) {
+  return [
+    ...extractPromptAgentIdentityCandidates(prompt),
+    ...extractResponseAgentIdentityCandidates(response)
+  ].slice(0, 2);
+}
+
+function extractPromptAgentIdentityCandidates(text) {
+  const patterns = [
+    /(?:AI|Agent|assistant|助手|智能体)(?:的)?(?:自己|自身|人格|性格|兴趣|偏好|判断|气质)[^。.!?\n]{4,140}/gi,
+    /(?:AI|Agent|assistant|助手|智能体)(?:应该|倾向于|偏好|喜欢|持续关注|感兴趣)[^。.!?\n]{4,140}/gi,
+    /(?:agentMemory|Agent Identity|协作气质|兴趣方向)[^。.!?\n]{4,140}/gi
+  ];
+
+  return extractIdentityCandidatesByPatterns(text, patterns, 0.68);
+}
+
+function extractResponseAgentIdentityCandidates(text) {
+  const patterns = [
+    /(?:AI|Agent|assistant|助手|智能体)(?:的)?(?:自己|自身|人格|性格|兴趣|偏好|判断|气质)[^。.!?\n]{4,140}/gi,
+    /(?:AI|Agent|assistant|助手|智能体)(?:应该|倾向于|偏好|喜欢|持续关注|感兴趣)[^。.!?\n]{4,140}/gi,
+    /(?:我)(?:倾向于|偏好|喜欢|持续关注|感兴趣)[^。.!?\n]{4,140}/gi,
+    /(?:agentMemory|Agent Identity|协作气质|兴趣方向)[^。.!?\n]{4,140}/gi
+  ];
+
+  return extractIdentityCandidatesByPatterns(text, patterns, 0.66);
+}
+
+function extractIdentityCandidatesByPatterns(text, patterns, confidence) {
+  const candidates = [];
+  const source = compactText(text);
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(source)) !== null) {
+      const fragment = compactText(match[0]);
+      if (fragment.length < 12 || looksLikeUserPreference(fragment)) {
+        continue;
+      }
+      candidates.push(createCandidate({
+        kind: "identity",
+        scope: "agent",
+        text: truncateText(fragment, 220),
+        confidence
+      }));
+      if (candidates.length >= 2) {
+        return candidates;
+      }
+    }
+  }
+
+  return candidates;
+}
+
+function extractSharedCandidates(prompt, response) {
+  const text = compactText(`${prompt} ${response}`);
+  const candidates = [];
+  const patterns = [
+    /(?:我们|共同|一起)(?:正在|在|想|要|可以|会|已经|之前)?[^。.!?\n]{0,80}(?:探索|讨论|设计|实现|做成|形成|构建)[^。.!?\n]{4,140}/g,
+    /(?:sharedMemory|共同记忆|共同项目记忆|关系连续性)[^。.!?\n]{4,140}/gi
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const fragment = compactText(match[0]);
+      if (fragment.length < 12) {
+        continue;
+      }
+      candidates.push(createCandidate({
+        kind: "shared",
+        scope: "shared",
+        text: truncateText(fragment, 220),
+        confidence: 0.64
+      }));
+      if (candidates.length >= 2) {
+        return candidates;
+      }
+    }
+  }
+
+  return candidates;
+}
+
+function extractTaskCandidates(prompt, response, activeFilePath) {
+  if (prompt.length < 12 || response.length < 20) {
+    return [];
+  }
+  if (!hasTaskMemorySignal(prompt, response)) {
+    return [];
+  }
+
+  const summary = truncateText(prompt, 180);
+  const location = activeFilePath ? ` Active note: ${activeFilePath}.` : "";
+  return [createCandidate({
+    kind: "task",
+    scope: "project",
+    text: `Recent task: ${summary}.${location}`,
+    confidence: 0.55
+  })];
+}
+
+function extractDecisionCandidates(response) {
+  const sentences = splitSentences(response);
+  const decisionMarkers = [
+    "建议",
+    "推荐",
+    "应该",
+    "决定",
+    "采用",
+    "选用",
+    "约定",
+    "不要",
+    "废弃",
+    "MVP",
+    "新增",
+    "保留",
+    "默认"
+  ];
+  const englishDecisionPatterns = [
+    /\bchoose\b/i,
+    /\badopt\b/i,
+    /\bavoid\b/i,
+    /\bdrop\b/i,
+    /\bagreed\b/i,
+    /\brecommend\b/i,
+    /\bshould\b/i,
+    /\bdefault\b/i,
+    /\bdecision\b/i,
+    /\buse\b.{0,40}\b(?:approach|strategy|implementation|default|rule|method)\b/i
+  ];
+  const candidates = [];
+
+  for (const sentence of sentences) {
+    if (candidates.length >= 2) {
+      break;
+    }
+    const compact = compactText(sentence);
+    if (compact.length < 18 || compact.length > 220) {
+      continue;
+    }
+    if (!decisionMarkers.some((marker) => compact.includes(marker))
+      && !englishDecisionPatterns.some((pattern) => pattern.test(compact))) {
+      continue;
+    }
+    candidates.push(createCandidate({
+      kind: "decision",
+      scope: "project",
+      text: truncateText(compact, 220),
+      confidence: 0.62
+    }));
+  }
+
+  return candidates;
+}
+
+function createCandidate(candidate) {
+  return Object.assign({
+    source: "auto"
+  }, candidate);
+}
+
+function splitSentences(text) {
+  return String(text || "")
+    .split(/(?<=[。.!?])\s+|\n+/)
+    .map((sentence) => sentence.replace(/^[-*\d.\s]+/, "").trim())
+    .filter(Boolean);
+}
+
+function dedupeExtracted(items) {
+  const seen = new Set();
+  const deduped = [];
+  for (const item of items) {
+    const key = createExtractionKey(item.kind, item.text);
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    deduped.push(Object.assign({}, item, { key }));
+  }
+  return deduped;
+}
+
+function hasTaskMemorySignal(prompt, response) {
+  const text = `${prompt}\n${response}`;
+  return /(src\/|main\.js|README|AGENTS|manifest\.json|scripts\/|Obsidian|Codex|plugin|commit|build|review|bug|feature|setting|storage|prompt|实现|修复|增加|新增|设计|重构|提交|插件|设置|记忆|代码|文件|测试|脚本|构建|发布|兼容|回归)/i.test(text);
+}
+
+function looksLikeUserPreference(text) {
+  return /(?:用户|user|我)(?:更)?(?:喜欢|偏好|希望|想要|prefer|likes?|wants?)/i.test(text)
+    && !/(?:AI|Agent|assistant|助手|智能体)/i.test(text);
+}
+
+function isMemoryKind(kind) {
+  return ["preference", "fact", "decision", "task", "identity", "shared"].includes(kind);
+}
+
+function normalizeScope(scope) {
+  if (["user", "agent", "shared", "project"].includes(scope)) {
+    return scope;
+  }
+  return "project";
+}
+
+function createExtractionKey(kind, text) {
+  return `${kind}:${compactText(text).toLowerCase().slice(0, 160)}`;
+}
+
+function compactText(text) {
+  return String(text || "").replace(/\s+/g, " ").trim();
+}
+
+function truncateText(text, maxChars) {
+  if (text.length <= maxChars) {
+    return text;
+  }
+  if (maxChars <= 3) {
+    return text.slice(0, maxChars);
+  }
+  return `${text.slice(0, maxChars - 3)}...`;
+}
+
+module.exports = {
+  RuleBasedMemoryCandidateExtractor,
+  RuleBasedMemoryClassifier,
+  RuleBasedMemoryExtractor
+};
+
+},
+"src/storage/MemoryStore.js": function(module, exports, __require) {
+const { normalizePath } = require("obsidian");
+
+const { RuleBasedMemoryExtractor } = __require("src/storage/memoryExtraction/RuleBasedMemoryExtractor.js");
+const { containsSensitiveText } = __require("src/storage/sensitiveText.js");
+
+const MEMORY_VERSION = 1;
+const MEMORY_DIR_NAME = "memory";
+const MEMORY_FILE_NAME = "memory.json";
+const MAX_EXTRACTED_ITEMS_PER_TURN = 4;
+const DEFAULT_SEARCH_LIMIT = 5;
+const DEFAULT_SEARCH_MAX_CHARS = 3000;
+const STOP_WORDS = new Set([
+  "about",
+  "after",
+  "again",
+  "agent",
+  "because",
+  "before",
+  "could",
+  "from",
+  "have",
+  "into",
+  "that",
+  "the",
+  "this",
+  "with",
+  "would",
+  "一个",
+  "这个",
+  "那个",
+  "可以",
+  "怎么",
+  "什么",
+  "我们",
+  "你们",
+  "他们",
+  "功能",
+  "用户"
+]);
+
+class MemoryStore {
+  constructor(plugin, options = {}) {
+    this.plugin = plugin;
+    this.adapter = plugin.app.vault.adapter;
+    const pluginDir = plugin.manifest.dir || `.obsidian/plugins/${plugin.manifest.id}`;
+    this.baseDir = normalizePath(`${pluginDir}/${MEMORY_DIR_NAME}`);
+    this.memoryPath = normalizePath(`${this.baseDir}/${MEMORY_FILE_NAME}`);
+    this.cache = null;
+    this.extractor = options.extractor || new RuleBasedMemoryExtractor();
+  }
+
+  async getRelevantMemories(query, settings, options = {}) {
+    if (!settings.memoryEnabled) {
+      return [];
+    }
+
+    const memory = await this.loadMemory();
+    const items = memory.items.filter(isPromptSafeMemory);
+    if (items.length === 0) {
+      return [];
+    }
+
+    const queryText = [
+      query,
+      options.activeFilePath || "",
+      options.workingDirectory || ""
+    ].filter(Boolean).join(" ");
+    const queryTokens = tokenize(queryText);
+    const scored = items
+      .map((item) => scoreMemory(item, queryTokens))
+      .filter((entry) => entry.matchScore > 0 || isGlobalMemory(entry.item))
+      .sort(compareScoredMemories);
+
+    const maxChars = Number(settings.memoryMaxPromptChars) || 8000;
+    const maxItems = Math.min(Number(settings.memoryMaxPromptItems) || 12, scored.length);
+    const selected = [];
+    let used = 0;
+
+    for (const entry of scored) {
+      if (selected.length >= maxItems) {
+        break;
+      }
+      const text = formatMemoryLine(entry.item);
+      if (used + text.length + 1 > maxChars) {
+        continue;
+      }
+      selected.push(entry.item);
+      used += text.length + 1;
+    }
+
+    return selected;
+  }
+
+  async searchMemories(query, settings, options = {}) {
+    if (!settings.memoryEnabled || !settings.memoryAgentSearchEnabled) {
+      return [];
+    }
+
+    const memory = await this.loadMemory();
+    const items = memory.items.filter(isPromptSafeMemory);
+    if (items.length === 0) {
+      return [];
+    }
+
+    const queryTokens = tokenize(query);
+    const scored = items
+      .map((item) => scoreMemory(item, queryTokens))
+      .filter((entry) => entry.matchScore > 0)
+      .sort(compareScoredMemories);
+
+    const limit = Math.max(1, Math.min(Number(options.limit) || DEFAULT_SEARCH_LIMIT, scored.length));
+    const maxChars = Number(options.maxChars) || DEFAULT_SEARCH_MAX_CHARS;
+    const selected = [];
+    let used = 0;
+
+    for (const entry of scored) {
+      if (selected.length >= limit) {
+        break;
+      }
+      const text = formatMemoryLine(entry.item);
+      if (used + text.length + 1 > maxChars) {
+        continue;
+      }
+      selected.push(Object.assign({}, entry.item, {
+        matchScore: entry.matchScore,
+        score: entry.totalScore
+      }));
+      used += text.length + 1;
+    }
+
+    return selected;
+  }
+
+  async captureTurn(turn, settings) {
+    if (!settings.memoryEnabled || !settings.memoryAutoCapture) {
+      return [];
+    }
+
+    const memory = await this.loadMemory();
+    const extracted = this.extractor.extractTurn(turn)
+      .filter((item) => item.text && !containsSensitiveText(item.text))
+      .slice(0, MAX_EXTRACTED_ITEMS_PER_TURN);
+
+    if (extracted.length === 0) {
+      return [];
+    }
+
+    const now = Date.now();
+    const existingByKey = new Map(memory.items.map((item) => [item.key, item]));
+    const saved = [];
+
+    for (const item of extracted) {
+      const key = item.key || createMemoryKey(item.kind, item.text);
+      const previous = existingByKey.get(key);
+      if (previous) {
+        previous.text = item.text;
+        previous.kind = item.kind;
+        previous.scope = item.scope || previous.scope || "project";
+        previous.confidence = Math.max(Number(previous.confidence) || 0, Number(item.confidence) || 0.6);
+        previous.updatedAt = now;
+        previous.sourceSessionId = item.sourceSessionId || previous.sourceSessionId || "";
+        previous.source = item.source || previous.source || "auto";
+        saved.push(previous);
+        continue;
+      }
+
+      const next = {
+        id: createMemoryId(),
+        key,
+        kind: item.kind,
+        scope: item.scope || "project",
+        text: item.text,
+        confidence: Number(item.confidence) || 0.6,
+        source: item.source || "auto",
+        sourceSessionId: item.sourceSessionId || "",
+        createdAt: now,
+        updatedAt: now
+      };
+      memory.items.push(next);
+      existingByKey.set(key, next);
+      saved.push(next);
+    }
+
+    memory.items = limitMemoryItems(memory.items, settings);
+    memory.updatedAt = now;
+    await this.saveMemory(memory);
+    return saved;
+  }
+
+  async clearMemory() {
+    this.cache = createEmptyMemory();
+    try {
+      if (await this.adapter.exists(this.memoryPath)) {
+        await this.adapter.remove(this.memoryPath);
+      }
+    } catch (error) {
+      console.warn("Agent Dock could not clear memory:", error);
+    }
+  }
+
+  async loadMemory() {
+    if (this.cache) {
+      return this.cache;
+    }
+
+    try {
+      const raw = await this.adapter.read(this.memoryPath);
+      this.cache = normalizeMemory(JSON.parse(raw));
+      return this.cache;
+    } catch {
+      this.cache = createEmptyMemory();
+      return this.cache;
+    }
+  }
+
+  async saveMemory(memory) {
+    await this.ensureMemoryDir();
+    this.cache = normalizeMemory(memory);
+    await this.adapter.write(this.memoryPath, `${JSON.stringify(this.cache, null, 2)}\n`);
+  }
+
+  async ensureMemoryDir() {
+    if (await this.adapter.exists(this.baseDir)) {
+      return;
+    }
+    await this.adapter.mkdir(this.baseDir);
+  }
+}
+
+function limitMemoryItems(items, settings) {
+  const maxItems = Number(settings.memoryMaxItems) || 200;
+  return [...items]
+    .sort((left, right) => {
+      const kindDelta = kindPriority(right.kind) - kindPriority(left.kind);
+      if (kindDelta !== 0) {
+        return kindDelta;
+      }
+      return normalizeTimestamp(right.updatedAt, 0) - normalizeTimestamp(left.updatedAt, 0);
+    })
+    .slice(0, maxItems)
+    .sort((left, right) => normalizeTimestamp(left.createdAt, 0) - normalizeTimestamp(right.createdAt, 0));
+}
+
+function scoreMemory(item, queryTokens) {
+  const itemTokens = tokenize(item.text);
+  let matchScore = 0;
+  for (const token of itemTokens) {
+    if (queryTokens.has(token)) {
+      matchScore += token.length > 8 ? 3 : 1;
+    }
+  }
+  let totalScore = matchScore;
+  totalScore += kindPriority(item.kind);
+  const ageDays = Math.max(0, (Date.now() - normalizeTimestamp(item.updatedAt, Date.now())) / 86400000);
+  totalScore += Math.max(0, 2 - ageDays / 30);
+  return {
+    item,
+    matchScore,
+    totalScore
+  };
+}
+
+function compareScoredMemories(left, right) {
+  if (right.totalScore !== left.totalScore) {
+    return right.totalScore - left.totalScore;
+  }
+  return normalizeTimestamp(right.item.updatedAt, 0) - normalizeTimestamp(left.item.updatedAt, 0);
+}
+
+function isGlobalMemory(item) {
+  return (item.kind === "preference" && item.scope === "user")
+    || item.kind === "identity";
+}
+
+function kindPriority(kind) {
+  if (kind === "identity") {
+    return 6;
+  }
+  if (kind === "preference") {
+    return 5;
+  }
+  if (kind === "shared") {
+    return 4;
+  }
+  if (kind === "fact") {
+    return 4;
+  }
+  if (kind === "decision") {
+    return 3;
+  }
+  return 1;
+}
+
+function tokenize(text) {
+  const tokens = new Set();
+  const normalized = String(text || "").toLowerCase();
+  const matches = normalized.match(/[a-z0-9_./-]{3,}|[\u4e00-\u9fff]{2,}/g) || [];
+  for (const match of matches) {
+    if (!STOP_WORDS.has(match)) {
+      tokens.add(match);
+      addCjkNgrams(tokens, match);
+    }
+  }
+  return tokens;
+}
+
+function addCjkNgrams(tokens, token) {
+  if (!/^[\u4e00-\u9fff]{3,}$/.test(token)) {
+    return;
+  }
+  for (const size of [2, 3]) {
+    for (let index = 0; index <= token.length - size; index += 1) {
+      const gram = token.slice(index, index + size);
+      if (!STOP_WORDS.has(gram)) {
+        tokens.add(gram);
+      }
+    }
+  }
+}
+
+function formatMemoryLine(item) {
+  const labels = {
+    decision: "Decision",
+    fact: "Fact",
+    identity: "Agent identity",
+    preference: "Preference",
+    shared: "Shared memory",
+    task: "Recent task"
+  };
+  const label = labels[item.kind] || "Fact";
+  const updatedDate = formatMemoryDate(item.updatedAt);
+  const createdDate = formatMemoryDate(item.createdAt);
+  const metadata = [
+    updatedDate ? `updated ${updatedDate}` : "",
+    createdDate && createdDate !== updatedDate ? `created ${createdDate}` : ""
+  ].filter(Boolean).join(", ");
+  const suffix = metadata ? ` (${metadata})` : "";
+  return `- ${label}${suffix}: ${item.text}`;
+}
+
+function formatMemoryDate(value) {
+  const timestamp = normalizeTimestamp(value, 0);
+  if (!timestamp) {
+    return "";
+  }
+  return new Date(timestamp).toISOString().slice(0, 10);
+}
+
+function isPromptSafeMemory(item) {
+  return item && item.text && !containsSensitiveText(item.text);
+}
+
+function normalizeMemory(raw) {
+  const source = raw && typeof raw === "object" ? raw : {};
+  const items = Array.isArray(source.items)
+    ? source.items.map(normalizeMemoryItem).filter(Boolean)
+    : [];
+
+  return {
+    version: MEMORY_VERSION,
+    items,
+    updatedAt: normalizeTimestamp(source.updatedAt, Date.now())
+  };
+}
+
+function normalizeMemoryItem(item) {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+
+  const text = compactText(item.text);
+  if (!text) {
+    return null;
+  }
+
+  const kind = ["preference", "fact", "decision", "task", "identity", "shared"].includes(item.kind)
+    ? item.kind
+    : "fact";
+
+  return {
+    id: typeof item.id === "string" && item.id ? item.id : createMemoryId(),
+    key: typeof item.key === "string" && item.key ? item.key : createMemoryKey(kind, text),
+    kind,
+    scope: normalizeScope(item.scope),
+    text,
+    confidence: Number.isFinite(Number(item.confidence)) ? Number(item.confidence) : 0.6,
+    source: typeof item.source === "string" && item.source ? item.source : "auto",
+    sourceSessionId: typeof item.sourceSessionId === "string" ? item.sourceSessionId : "",
+    createdAt: normalizeTimestamp(item.createdAt, Date.now()),
+    updatedAt: normalizeTimestamp(item.updatedAt, Date.now())
+  };
+}
+
+function normalizeScope(scope) {
+  if (["user", "agent", "shared", "project"].includes(scope)) {
+    return scope;
+  }
+  return "project";
+}
+
+function createEmptyMemory() {
+  return {
+    version: MEMORY_VERSION,
+    items: [],
+    updatedAt: Date.now()
+  };
+}
+
+function createMemoryId() {
+  return `mem-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function createMemoryKey(kind, text) {
+  return `${kind}:${compactText(text).toLowerCase().slice(0, 160)}`;
+}
+
+function compactText(text) {
+  return String(text || "").replace(/\s+/g, " ").trim();
+}
+
+function normalizeTimestamp(value, fallback) {
+  const timestamp = Number(value);
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : fallback;
+}
+
+module.exports = {
+  MemoryStore,
+  formatMemoryLine,
+  _test: {
+    createEmptyMemory,
+    isPromptSafeMemory,
+    isGlobalMemory,
+    scoreMemory,
+    tokenize
+  }
+};
+
+},
 "src/interaction/InteractionPromptFormatter.js": function(module, exports, __require) {
 function formatInteractionStancePrompt(items) {
   if (!Array.isArray(items) || items.length === 0) {
@@ -3804,383 +4119,6 @@ module.exports = {
 };
 
 },
-"src/cli/paths.js": function(module, exports, __require) {
-const os = require("os");
-const path = require("path");
-
-function expandHomePath(value) {
-  const text = String(value || "").trim();
-  if (!text) {
-    return text;
-  }
-  if (text === "~") {
-    return os.homedir();
-  }
-  if (text.startsWith("~/")) {
-    return path.join(os.homedir(), text.slice(2));
-  }
-  return text;
-}
-
-module.exports = {
-  expandHomePath
-};
-
-},
-"src/settings.js": function(module, exports, __require) {
-const { MODE_OPTIONS } = __require("src/modes.js");
-const { DEFAULT_LANGUAGE, normalizeLanguage } = __require("src/i18n/index.js");
-const { expandHomePath } = __require("src/cli/paths.js");
-const { normalizeAffectState } = __require("src/affect/WorkingAffectStore.js");
-
-const CUSTOM_ASSISTANT_STYLE_MAX_CHARS = 4000;
-const ASSISTANT_DISPLAY_NAME_MAX_CHARS = 80;
-const AFFECT_HALF_LIFE_MINUTES_MIN = 5;
-const AFFECT_HALF_LIFE_MINUTES_MAX = 1440;
-
-const ASSISTANT_STYLE_OPTIONS = {
-  concise: {
-    label: "Concise",
-    description: "Direct and economical. Leads with the answer or action taken, with only necessary explanation."
-  },
-  collaborative: {
-    label: "Collaborative",
-    description: "Warm, capable, and practical. Shares brief progress, makes decisions, and grounds the final answer in what was done."
-  },
-  teaching: {
-    label: "Teaching",
-    description: "Patient and explanatory. Explains important choices, local concepts, tradeoffs, and useful examples."
-  },
-  review: {
-    label: "Review",
-    description: "Code-review posture. Prioritizes bugs, regressions, data loss, privacy or security risks, and missing verification."
-  },
-  custom: {
-    label: "Custom",
-    description: "Uses your own style guidance below as tone and collaboration preference."
-  }
-};
-
-const DEFAULT_SETTINGS = {
-  language: DEFAULT_LANGUAGE,
-  agentId: "codex",
-  codexPath: "/opt/homebrew/bin/codex",
-  args: "exec {{prompt}}",
-  interactiveArgs: "",
-  cursorPath: "~/.local/bin/agent",
-  cursorExtraArgs: "",
-  cursorInteractiveArgs: "",
-  cursorPermissionPolicy: "allow-once",
-  mode: "readOnly",
-  workingDirectory: "",
-  assistantDisplayName: "",
-  assistantStyle: "collaborative",
-  customAssistantStyle: "",
-  debugActivity: false,
-  contextLimitChars: 258000,
-  persistChatHistory: true,
-  maxPersistedSessions: 20,
-  maxPersistedMessagesPerSession: 200,
-  memoryEnabled: true,
-  memoryAutoCapture: true,
-  memoryAgentSearchEnabled: true,
-  memoryMaxItems: 200,
-  memoryMaxPromptItems: 12,
-  memoryMaxPromptChars: 8000,
-  interactionMemoryEnabled: true,
-  interactionMemoryAutoCapture: true,
-  interactionMemoryMaxPromptItems: 6,
-  interactionMemoryMaxPersonaItems: 2,
-  interactionMemoryMaxStanceItems: 4,
-  interactionMemoryMinEvidence: 2,
-  interactionMemoryHalfLifeDays: 30,
-  affectEnabled: true,
-  affectCrossSessionEnabled: true,
-  affectRestoreAfterRestart: true,
-  affectShowIndicator: true,
-  affectSensitivity: "normal",
-  affectHalfLifeMinutes: 45
-};
-
-function normalizeSettings(savedSettings) {
-  const settings = Object.assign({}, DEFAULT_SETTINGS, savedSettings || {});
-
-  if (savedSettings && savedSettings.command && !savedSettings.codexPath) {
-    settings.codexPath = savedSettings.command;
-  }
-
-  if (settings.mode === "ask") {
-    settings.mode = "readOnly";
-  }
-
-  if (!MODE_OPTIONS[settings.mode]) {
-    settings.mode = DEFAULT_SETTINGS.mode;
-  }
-
-  settings.language = normalizeLanguage(settings.language);
-  settings.assistantDisplayName = truncateString(
-    normalizeString(settings.assistantDisplayName).trim(),
-    ASSISTANT_DISPLAY_NAME_MAX_CHARS
-  );
-
-  if (!settings.agentId) {
-    settings.agentId = DEFAULT_SETTINGS.agentId;
-  }
-
-  settings.cursorPath = expandHomePath(normalizeString(settings.cursorPath) || DEFAULT_SETTINGS.cursorPath);
-  settings.cursorExtraArgs = normalizeString(settings.cursorExtraArgs);
-  settings.cursorInteractiveArgs = normalizeString(settings.cursorInteractiveArgs);
-  settings.cursorPermissionPolicy = normalizeCursorPermissionPolicy(
-    settings.cursorPermissionPolicy,
-    DEFAULT_SETTINGS.cursorPermissionPolicy
-  );
-
-  if (!ASSISTANT_STYLE_OPTIONS[settings.assistantStyle]) {
-    settings.assistantStyle = DEFAULT_SETTINGS.assistantStyle;
-  }
-  settings.customAssistantStyle = truncateString(
-    normalizeString(settings.customAssistantStyle),
-    CUSTOM_ASSISTANT_STYLE_MAX_CHARS
-  );
-
-  settings.contextLimitChars = normalizePositiveInteger(
-    settings.contextLimitChars,
-    DEFAULT_SETTINGS.contextLimitChars
-  );
-  settings.persistChatHistory = settings.persistChatHistory !== false;
-  settings.maxPersistedSessions = normalizePositiveInteger(
-    settings.maxPersistedSessions,
-    DEFAULT_SETTINGS.maxPersistedSessions
-  );
-  settings.maxPersistedMessagesPerSession = normalizePositiveInteger(
-    settings.maxPersistedMessagesPerSession,
-    DEFAULT_SETTINGS.maxPersistedMessagesPerSession
-  );
-  settings.memoryEnabled = settings.memoryEnabled !== false;
-  settings.memoryAutoCapture = settings.memoryAutoCapture !== false;
-  settings.memoryAgentSearchEnabled = settings.memoryAgentSearchEnabled !== false;
-  settings.memoryMaxItems = normalizePositiveInteger(
-    settings.memoryMaxItems,
-    DEFAULT_SETTINGS.memoryMaxItems
-  );
-  settings.memoryMaxPromptItems = normalizePositiveInteger(
-    settings.memoryMaxPromptItems,
-    DEFAULT_SETTINGS.memoryMaxPromptItems
-  );
-  settings.memoryMaxPromptChars = normalizePositiveInteger(
-    settings.memoryMaxPromptChars,
-    DEFAULT_SETTINGS.memoryMaxPromptChars
-  );
-  settings.interactionMemoryEnabled = settings.interactionMemoryEnabled !== false;
-  settings.interactionMemoryAutoCapture = settings.interactionMemoryAutoCapture !== false;
-  settings.interactionMemoryMaxPromptItems = normalizePositiveInteger(
-    settings.interactionMemoryMaxPromptItems,
-    DEFAULT_SETTINGS.interactionMemoryMaxPromptItems
-  );
-  settings.interactionMemoryMaxPersonaItems = normalizeNonNegativeInteger(
-    settings.interactionMemoryMaxPersonaItems,
-    DEFAULT_SETTINGS.interactionMemoryMaxPersonaItems
-  );
-  settings.interactionMemoryMaxStanceItems = normalizeNonNegativeInteger(
-    settings.interactionMemoryMaxStanceItems,
-    DEFAULT_SETTINGS.interactionMemoryMaxStanceItems
-  );
-  settings.interactionMemoryMinEvidence = normalizePositiveInteger(
-    settings.interactionMemoryMinEvidence,
-    DEFAULT_SETTINGS.interactionMemoryMinEvidence
-  );
-  settings.interactionMemoryHalfLifeDays = normalizePositiveInteger(
-    settings.interactionMemoryHalfLifeDays,
-    DEFAULT_SETTINGS.interactionMemoryHalfLifeDays
-  );
-  settings.affectEnabled = settings.affectEnabled !== false;
-  settings.affectCrossSessionEnabled = settings.affectCrossSessionEnabled !== false;
-  settings.affectRestoreAfterRestart = settings.affectRestoreAfterRestart !== false;
-  settings.affectShowIndicator = settings.affectShowIndicator !== false;
-  settings.affectSensitivity = normalizeAffectSensitivity(
-    settings.affectSensitivity,
-    DEFAULT_SETTINGS.affectSensitivity
-  );
-  settings.affectHalfLifeMinutes = normalizePositiveInteger(
-    settings.affectHalfLifeMinutes,
-    DEFAULT_SETTINGS.affectHalfLifeMinutes
-  );
-  settings.affectHalfLifeMinutes = clampNumber(
-    settings.affectHalfLifeMinutes,
-    AFFECT_HALF_LIFE_MINUTES_MIN,
-    AFFECT_HALF_LIFE_MINUTES_MAX
-  );
-
-  delete settings.command;
-  delete settings.includeActiveNote;
-  delete settings.activeNoteMaxChars;
-  delete settings.agentProfileEnabled;
-  delete settings.agentProfileAutoCapture;
-  delete settings.agentProfileMaxPromptTraits;
-  delete settings.agentProfileMinEvidence;
-  delete settings.agentProfileHalfLifeDays;
-  return settings;
-}
-
-function normalizePluginData(savedData) {
-  if (savedData && savedData.schemaVersion >= 2) {
-    return {
-      schemaVersion: 2,
-      settings: normalizeSettings(savedData.settings),
-      chatState: normalizeChatState(savedData.chatState),
-      affectState: normalizeAffectState(savedData.affectState)
-    };
-  }
-
-  return {
-    schemaVersion: 2,
-    settings: normalizeSettings(savedData),
-    chatState: normalizeChatState(null),
-    affectState: normalizeAffectState(null)
-  };
-}
-
-function normalizeChatState(savedState) {
-  const state = savedState && typeof savedState === "object" ? savedState : {};
-  const sessionIndex = Array.isArray(state.sessionIndex)
-    ? state.sessionIndex.map(normalizeSessionIndexEntry).filter(Boolean)
-    : [];
-
-  return {
-    activeSessionId: typeof state.activeSessionId === "string" ? state.activeSessionId : "",
-    sessionIndex
-  };
-}
-
-function normalizeSessionIndexEntry(entry) {
-  if (!entry || typeof entry !== "object" || typeof entry.id !== "string" || !entry.id) {
-    return null;
-  }
-
-  return {
-    id: entry.id,
-    title: typeof entry.title === "string" && entry.title ? entry.title : "Chat",
-    isUntitled: entry.isUntitled === true,
-    createdAt: normalizeTimestamp(entry.createdAt),
-    updatedAt: normalizeTimestamp(entry.updatedAt)
-  };
-}
-
-function normalizeTimestamp(value) {
-  const timestamp = Number(value);
-  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : Date.now();
-}
-
-function normalizePositiveInteger(value, fallback) {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
-}
-
-function normalizeNonNegativeInteger(value, fallback) {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
-}
-
-function clampNumber(value, min, max) {
-  return Math.min(max, Math.max(min, value));
-}
-
-function normalizeString(value) {
-  return typeof value === "string" ? value : "";
-}
-
-function truncateString(value, maxChars) {
-  return value.length > maxChars ? value.slice(0, maxChars) : value;
-}
-
-function normalizeCursorPermissionPolicy(value, fallback) {
-  if (value === "allow-once" || value === "allow-always" || value === "reject-once") {
-    return value;
-  }
-  return fallback;
-}
-
-function normalizeAffectSensitivity(value, fallback) {
-  if (value === "low" || value === "normal" || value === "high") {
-    return value;
-  }
-  return fallback;
-}
-
-module.exports = {
-  AFFECT_HALF_LIFE_MINUTES_MAX,
-  AFFECT_HALF_LIFE_MINUTES_MIN,
-  ASSISTANT_DISPLAY_NAME_MAX_CHARS,
-  ASSISTANT_STYLE_OPTIONS,
-  CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
-  DEFAULT_SETTINGS,
-  normalizePluginData,
-  normalizeSettings
-};
-
-},
-"src/agents/shared/memoryNotices.js": function(module, exports, __require) {
-const { formatMemoryLine } = __require("src/storage/MemoryStore.js");
-
-function emitMemoryNotice(onUpdate, memories, translate, keyPrefix = "cursor") {
-  if (!Array.isArray(memories) || memories.length === 0) {
-    return;
-  }
-
-  onUpdate({
-    kind: "notice",
-    noticeType: "memory_referenced",
-    title: translate(`${keyPrefix}.memoryReferenced.title`),
-    summary: formatMemoryNoticeSummary(memories, translate, keyPrefix),
-    detail: memories.map(formatMemoryLine).join("\n")
-  });
-}
-
-function emitContextCompressedNotice(onUpdate, context, translate, keyPrefix = "cursor") {
-  if (!context?.compressed) {
-    return;
-  }
-
-  onUpdate({
-    kind: "notice",
-    title: translate(`${keyPrefix}.contextCompressed.title`),
-    summary: translate(`${keyPrefix}.contextCompressed.summary`, {
-      original: formatNumber(context.originalChars),
-      prompt: formatNumber(context.promptChars),
-      limit: formatNumber(context.limitChars)
-    })
-  });
-}
-
-function formatMemoryNoticeSummary(memories, translate, keyPrefix = "cursor") {
-  const count = memories.length;
-  const lines = [
-    translate(`${keyPrefix}.memoryReferenced.summary`, {
-      count,
-      noteLabel: count === 1 ? "note" : "notes"
-    })
-  ];
-  const visibleMemories = memories.slice(0, 5).map(formatMemoryLine);
-  lines.push(...visibleMemories);
-  if (memories.length > visibleMemories.length) {
-    lines.push(translate(`${keyPrefix}.memoryReferenced.more`, {
-      count: memories.length - visibleMemories.length
-    }));
-  }
-  return lines.join("\n");
-}
-
-function formatNumber(value) {
-  return new Intl.NumberFormat().format(value);
-}
-
-module.exports = {
-  emitContextCompressedNotice,
-  emitMemoryNotice,
-  formatMemoryNoticeSummary
-};
-
-},
 "src/agents/shared/memorySearch.js": function(module, exports, __require) {
 const { formatMemoryLine } = __require("src/storage/MemoryStore.js");
 
@@ -4272,6 +4210,171 @@ module.exports = {
     formatMemorySearchDetail,
     MEMORY_LOOKUP_PATTERNS
   }
+};
+
+},
+"src/agents/shared/memoryNotices.js": function(module, exports, __require) {
+const { formatMemoryLine } = __require("src/storage/MemoryStore.js");
+
+function emitMemoryNotice(onUpdate, memories, translate, keyPrefix = "cursor") {
+  if (!Array.isArray(memories) || memories.length === 0) {
+    return;
+  }
+
+  onUpdate({
+    kind: "notice",
+    noticeType: "memory_referenced",
+    title: translate(`${keyPrefix}.memoryReferenced.title`),
+    summary: formatMemoryNoticeSummary(memories, translate, keyPrefix),
+    detail: memories.map(formatMemoryLine).join("\n")
+  });
+}
+
+function emitContextCompressedNotice(onUpdate, context, translate, keyPrefix = "cursor") {
+  if (!context?.compressed) {
+    return;
+  }
+
+  onUpdate({
+    kind: "notice",
+    title: translate(`${keyPrefix}.contextCompressed.title`),
+    summary: translate(`${keyPrefix}.contextCompressed.summary`, {
+      original: formatNumber(context.originalChars),
+      prompt: formatNumber(context.promptChars),
+      limit: formatNumber(context.limitChars)
+    })
+  });
+}
+
+function formatMemoryNoticeSummary(memories, translate, keyPrefix = "cursor") {
+  const count = memories.length;
+  const lines = [
+    translate(`${keyPrefix}.memoryReferenced.summary`, {
+      count,
+      noteLabel: count === 1 ? "note" : "notes"
+    })
+  ];
+  const visibleMemories = memories.slice(0, 5).map(formatMemoryLine);
+  lines.push(...visibleMemories);
+  if (memories.length > visibleMemories.length) {
+    lines.push(translate(`${keyPrefix}.memoryReferenced.more`, {
+      count: memories.length - visibleMemories.length
+    }));
+  }
+  return lines.join("\n");
+}
+
+function formatNumber(value) {
+  return new Intl.NumberFormat().format(value);
+}
+
+module.exports = {
+  emitContextCompressedNotice,
+  emitMemoryNotice,
+  formatMemoryNoticeSummary
+};
+
+},
+"src/agents/shared/TurnContextBuilder.js": function(module, exports, __require) {
+const { buildPromptInteractionContext } = __require("src/interaction/LocalSignalExtractor.js");
+const { buildPromptWithMetadata, buildTurnContextPrompt } = __require("src/prompt.js");
+const { planPromptSignals } = __require("src/promptSignals.js");
+const {
+  getExplicitMemorySearch,
+  removeMemorySearchDuplicates
+} = __require("src/agents/shared/memorySearch.js");
+const {
+  emitContextCompressedNotice,
+  emitMemoryNotice
+} = __require("src/agents/shared/memoryNotices.js");
+
+async function buildAgentTurnContext({
+  plugin,
+  settings,
+  prompt,
+  conversation,
+  cwd,
+  onUpdate,
+  translate,
+  keyPrefix,
+  useFullPrompt = true
+}) {
+  const activeFilePath = plugin.app.workspace.getActiveFile()?.path || "";
+  const memories = await plugin.memoryStore.getRelevantMemories(prompt, settings, {
+    activeFilePath,
+    workingDirectory: cwd
+  });
+  const memorySearch = await getExplicitMemorySearch(
+    plugin.memoryStore,
+    prompt,
+    settings,
+    onUpdate,
+    translate,
+    keyPrefix
+  );
+  const promptSignals = planPromptSignals({
+    memories: removeMemorySearchDuplicates(memories, memorySearch.results),
+    memorySearchResults: memorySearch.results,
+    memorySearchPerformed: memorySearch.performed,
+    interactionStance: await plugin.interactionMemoryStore.getPromptStance(
+      settings,
+      buildPromptInteractionContext(prompt, conversation)
+    ),
+    workingAffect: plugin.getPromptWorkingAffect(prompt)
+  });
+  const promptResult = await buildPromptResultForTurnContext({
+    app: plugin.app,
+    settings,
+    prompt,
+    conversation,
+    promptSignals,
+    useFullPrompt
+  });
+
+  emitPromptContextNotices(onUpdate, promptResult, promptSignals, translate, keyPrefix);
+
+  return {
+    activeFilePath,
+    promptResult,
+    promptSignals
+  };
+}
+
+async function buildPromptResultForTurnContext({
+  app,
+  settings,
+  prompt,
+  conversation,
+  promptSignals,
+  useFullPrompt = true
+}) {
+  const options = {
+    workingAffect: promptSignals.workingAffect,
+    interactionStance: promptSignals.interactionStance,
+    memories: promptSignals.memories,
+    memorySearchResults: promptSignals.memorySearchResults,
+    memorySearchPerformed: promptSignals.memorySearchPerformed
+  };
+
+  if (useFullPrompt) {
+    return buildPromptWithMetadata(app, settings, prompt, conversation, options);
+  }
+  return buildTurnContextPrompt(app, settings, prompt, options);
+}
+
+function emitPromptContextNotices(onUpdate, promptResult, promptSignals, translate, keyPrefix) {
+  if (promptSignals.memories.length > 0) {
+    emitMemoryNotice(onUpdate, promptSignals.memories, translate, keyPrefix);
+  }
+  if (promptResult.context.compressed) {
+    emitContextCompressedNotice(onUpdate, promptResult.context, translate, keyPrefix);
+  }
+}
+
+module.exports = {
+  buildAgentTurnContext,
+  buildPromptResultForTurnContext,
+  emitPromptContextNotices
 };
 
 },
@@ -4545,19 +4648,9 @@ const { parseArgsTemplate, withJsonOutput, withOutputLastMessage } = __require("
 const { buildCliPath } = __require("src/cli/env.js");
 const { escapeAppleScriptString, shellQuote } = __require("src/cli/shell.js");
 const { t } = __require("src/i18n/index.js");
-const { buildPromptInteractionContext } = __require("src/interaction/LocalSignalExtractor.js");
 const { applyModeArgs } = __require("src/modes.js");
-const { buildPromptWithMetadata } = __require("src/prompt.js");
-const { planPromptSignals } = __require("src/promptSignals.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
-const {
-  emitContextCompressedNotice,
-  emitMemoryNotice
-} = __require("src/agents/shared/memoryNotices.js");
-const {
-  getExplicitMemorySearch,
-  removeMemorySearchDuplicates
-} = __require("src/agents/shared/memorySearch.js");
+const { buildAgentTurnContext } = __require("src/agents/shared/TurnContextBuilder.js");
 const { codexJsonEventToUpdates } = __require("src/agents/codex/jsonEvents.js");
 
 class CodexAgent {
@@ -4572,45 +4665,17 @@ class CodexAgent {
     const settings = this.plugin.settings;
     const translate = (key, params) => t(settings, key, params);
     const cwd = this.getWorkingDirectory();
-    const activeFilePath = this.plugin.app.workspace.getActiveFile()?.path || "";
-    const memories = await this.plugin.memoryStore.getRelevantMemories(prompt, settings, {
-      activeFilePath,
-      workingDirectory: cwd
-    });
-    const memorySearch = await getExplicitMemorySearch(
-      this.plugin.memoryStore,
-      prompt,
+    const turnContext = await buildAgentTurnContext({
+      plugin: this.plugin,
       settings,
+      prompt,
       onUpdate,
       translate,
-      "codex"
-    );
-    const promptMemories = removeMemorySearchDuplicates(memories, memorySearch.results);
-    const interactionStance = await this.plugin.interactionMemoryStore.getPromptStance(
-      settings,
-      buildPromptInteractionContext(prompt, conversation)
-    );
-    const promptSignals = planPromptSignals({
-      memories: promptMemories,
-      memorySearchResults: memorySearch.results,
-      memorySearchPerformed: memorySearch.performed,
-      interactionStance,
-      workingAffect: this.plugin.getPromptWorkingAffect(prompt)
+      conversation,
+      cwd,
+      keyPrefix: "codex"
     });
-    const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, {
-      workingAffect: promptSignals.workingAffect,
-      interactionStance: promptSignals.interactionStance,
-      memories: promptSignals.memories,
-      memorySearchResults: promptSignals.memorySearchResults,
-      memorySearchPerformed: promptSignals.memorySearchPerformed
-    });
-    const finalPrompt = promptResult.prompt;
-    if (promptSignals.memories.length > 0) {
-      emitMemoryNotice(onUpdate, promptSignals.memories, translate, "codex");
-    }
-    if (promptResult.context.compressed) {
-      emitContextCompressedNotice(onUpdate, promptResult.context, translate, "codex");
-    }
+    const finalPrompt = turnContext.promptResult.prompt;
     const outputPath = path.join(
       os.tmpdir(),
       `obsidian-agent-dock-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`
@@ -5603,18 +5668,15 @@ module.exports = {
 const { Notice } = require("obsidian");
 const { spawn } = require("child_process");
 
-const { emitContextCompressedNotice, emitMemoryNotice } = __require("src/agents/shared/memoryNotices.js");
 const {
-  getExplicitMemorySearch,
-  removeMemorySearchDuplicates
-} = __require("src/agents/shared/memorySearch.js");
+  buildAgentTurnContext,
+  buildPromptResultForTurnContext,
+  emitPromptContextNotices
+} = __require("src/agents/shared/TurnContextBuilder.js");
 const { buildCliPath } = __require("src/cli/env.js");
 const { expandHomePath } = __require("src/cli/paths.js");
 const { escapeAppleScriptString, shellQuote } = __require("src/cli/shell.js");
 const { t } = __require("src/i18n/index.js");
-const { buildPromptInteractionContext } = __require("src/interaction/LocalSignalExtractor.js");
-const { buildPromptWithMetadata, buildTurnContextPrompt } = __require("src/prompt.js");
-const { planPromptSignals } = __require("src/promptSignals.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
 const { AcpClient } = __require("src/agents/cursor/AcpClient.js");
 const { acpUpdateToEvents } = __require("src/agents/cursor/acpEvents.js");
@@ -5650,7 +5712,6 @@ class CursorAgent {
     const settings = this.plugin.settings;
     const translate = (key, params) => t(settings, key, params);
     const cwd = this.getWorkingDirectory();
-    const activeFilePath = this.plugin.app.workspace.getActiveFile()?.path || "";
 
     if (!options.dockSession) {
       console.warn("Agent Dock Cursor run missing dockSession; ACP session reuse is disabled for this turn.");
@@ -5661,31 +5722,6 @@ class CursorAgent {
     const cursorMode = toCursorMode(settings.mode, DEFAULT_SETTINGS.mode);
     const connectionKey = buildConnectionKey(settings, cwd, cursorMode);
     const sessionKey = dockSession?.id || "__anonymous__";
-
-    const memories = await this.plugin.memoryStore.getRelevantMemories(prompt, settings, {
-      activeFilePath,
-      workingDirectory: cwd
-    });
-    const memorySearch = await getExplicitMemorySearch(
-      this.plugin.memoryStore,
-      prompt,
-      settings,
-      onUpdate,
-      translate,
-      "cursor"
-    );
-    const promptMemories = removeMemorySearchDuplicates(memories, memorySearch.results);
-    const interactionStance = await this.plugin.interactionMemoryStore.getPromptStance(
-      settings,
-      buildPromptInteractionContext(prompt, conversation)
-    );
-    const promptSignals = planPromptSignals({
-      memories: promptMemories,
-      memorySearchResults: memorySearch.results,
-      memorySearchPerformed: memorySearch.performed,
-      interactionStance,
-      workingAffect: this.plugin.getPromptWorkingAffect(prompt)
-    });
 
     let useFullPrompt = !cursorState.acpSessionId;
     let finalOutput = "";
@@ -5729,21 +5765,22 @@ class CursorAgent {
     options.signal?.addEventListener("abort", abortRun, { once: true });
 
     try {
-      const promptResult = await this.buildPromptForTurn({
-        useFullPrompt,
-        app: this.plugin.app,
+      const turnContext = await buildAgentTurnContext({
+        plugin: this.plugin,
         settings,
         prompt,
         conversation,
-        memories: promptSignals.memories,
-        interactionStance: promptSignals.interactionStance,
-        memorySearchResults: promptSignals.memorySearchResults,
-        memorySearchPerformed: promptSignals.memorySearchPerformed,
-        workingAffect: promptSignals.workingAffect
+        cwd,
+        onUpdate: emitUpdate,
+        translate,
+        keyPrefix: "cursor",
+        useFullPrompt
       });
+      const promptResult = turnContext.promptResult;
+      const promptSignals = turnContext.promptSignals;
+      const activeFilePath = turnContext.activeFilePath;
       throwIfAborted();
 
-      applyPromptNotices(emitUpdate, promptResult, promptSignals.memories, translate, "cursor");
       const promptText = promptResult.prompt;
 
       emitUpdate({
@@ -5789,20 +5826,15 @@ class CursorAgent {
             summary: translate("cursor.sessionReloadFailed.summary")
           });
           cursorState.acpSessionId = "";
-          const reloadPromptResult = await buildPromptWithMetadata(
-            this.plugin.app,
+          const reloadPromptResult = await buildPromptResultForTurnContext({
+            app: this.plugin.app,
             settings,
             prompt,
             conversation,
-            {
-              workingAffect: promptSignals.workingAffect,
-              interactionStance: promptSignals.interactionStance,
-              memories: promptSignals.memories,
-              memorySearchResults: promptSignals.memorySearchResults,
-              memorySearchPerformed: promptSignals.memorySearchPerformed
-            }
-          );
-          applyPromptNotices(emitUpdate, reloadPromptResult, promptSignals.memories, translate, "cursor");
+            promptSignals,
+            useFullPrompt: true
+          });
+          emitPromptContextNotices(emitUpdate, reloadPromptResult, promptSignals, translate, "cursor");
           emitCursorAuthenticationNoticeIfNeeded(client, emitUpdate, translate);
           emitUpdate({
             kind: "notice",
@@ -5887,36 +5919,6 @@ class CursorAgent {
     } finally {
       options.signal?.removeEventListener("abort", abortRun);
     }
-  }
-
-  async buildPromptForTurn({
-    useFullPrompt,
-    app,
-    settings,
-    prompt,
-    conversation,
-    memories,
-    interactionStance,
-    memorySearchResults,
-    memorySearchPerformed,
-    workingAffect
-  }) {
-    if (useFullPrompt) {
-      return buildPromptWithMetadata(app, settings, prompt, conversation, {
-        workingAffect,
-        interactionStance,
-        memories,
-        memorySearchResults,
-        memorySearchPerformed
-      });
-    }
-    return buildTurnContextPrompt(app, settings, prompt, {
-      workingAffect,
-      interactionStance,
-      memories,
-      memorySearchResults,
-      memorySearchPerformed
-    });
   }
 
   async finishTurn({ result, finalOutput, emitUpdate, prompt, activeFilePath, conversation, options, settings, throwIfAborted }) {
@@ -6168,11 +6170,6 @@ function getPreviousAssistantResponse(conversation) {
     }
   }
   return "";
-}
-
-function applyPromptNotices(onUpdate, promptResult, memories, translate, keyPrefix) {
-  emitMemoryNotice(onUpdate, memories, translate, keyPrefix);
-  emitContextCompressedNotice(onUpdate, promptResult.context, translate, keyPrefix);
 }
 
 function emitCursorAuthenticationNoticeIfNeeded(client, emitUpdate, translate) {
