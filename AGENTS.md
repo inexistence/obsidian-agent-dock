@@ -54,6 +54,7 @@ node scripts/build-main.js
 node --check main.js
 node scripts/test-timeline.js
 node scripts/test-affect.js
+node scripts/test-codex-events.js
 node scripts/test-chat-turn-runner.js
 node scripts/test-agent-profile.js
 find src scripts -name '*.js' -print -exec node --check {} \;

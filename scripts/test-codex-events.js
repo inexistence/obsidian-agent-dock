@@ -1,0 +1,46 @@
+const assert = require("assert");
+
+const { codexJsonEventToUpdates } = require("../src/agents/codex/jsonEvents");
+
+const translate = (key, params = {}) => {
+  const messages = {
+    "codex.started": "{label} 已开始",
+    "codex.completed": "{label} 已完成",
+    "codex.failed": "{label} 已失败",
+    "codex.exitCode": "退出码：{code}"
+  };
+  return String(messages[key] || key).replace(/\{([a-zA-Z0-9_]+)\}/g, (match, name) => (
+    params[name] === undefined || params[name] === null ? match : String(params[name])
+  ));
+};
+
+{
+  const [update] = codexJsonEventToUpdates({
+    type: "item.started",
+    item: {
+      type: "command_execution",
+      command: "/bin/zsh -lc 'git status'",
+      exit_code: null
+    }
+  }, translate);
+
+  assert.equal(update.kind, "tool");
+  assert(update.title.includes("已开始"), "started command should keep started title");
+  assert(!update.summary.includes("{code}"), "null exit code should not leak a placeholder");
+  assert(!update.summary.includes("退出码"), "started command should omit missing exit code");
+}
+
+{
+  const [update] = codexJsonEventToUpdates({
+    type: "item.completed",
+    item: {
+      type: "command_execution",
+      command: "/bin/zsh -lc 'git status'",
+      exit_code: 0
+    }
+  }, translate);
+
+  assert.equal(update.kind, "tool");
+  assert(update.title.includes("已完成"), "completed command should keep completed title");
+  assert(update.summary.includes("退出码：0"), "completed command should show exit code");
+}

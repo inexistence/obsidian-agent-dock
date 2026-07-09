@@ -147,7 +147,7 @@ function formatCommandSummary(item, translate = defaultTranslate) {
   if (command) {
     parts.push(command);
   }
-  if (item.exit_code !== undefined) {
+  if (hasExitCode(item)) {
     parts.push(translate("codex.exitCode", { code: item.exit_code }));
   }
   const text = extractText(item);
@@ -163,7 +163,7 @@ function formatCommandExecution(item, translate = defaultTranslate) {
   if (command) {
     parts.push(`$ ${command}`);
   }
-  if (item.exit_code !== undefined) {
+  if (hasExitCode(item)) {
     parts.push(translate("codex.exitCode", { code: item.exit_code }));
   }
   const text = extractText(item);
@@ -181,6 +181,10 @@ function formatCommand(command) {
     return "";
   }
   return String(command);
+}
+
+function hasExitCode(item) {
+  return item?.exit_code !== undefined && item.exit_code !== null && item.exit_code !== "";
 }
 
 function compactOneLine(text) {
