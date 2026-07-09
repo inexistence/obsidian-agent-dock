@@ -149,6 +149,11 @@ Users can change this in plugin settings.
   pacing, warmth, and focus.
 - Do not write temporary working affect into durable memory. Only stable user or
   shared collaboration preferences belong in memory.
+- Live turn tone/status visuals may read visible normalized events such as
+  `content`, visible `reasoning`, `tool`, `notice`, and `error` summaries, but
+  they are UI feedback only. They must not update prompt construction, durable
+  memory, emergent profile traits, or `affectState.working`, and they must not
+  read hidden chain-of-thought.
 - User controls should be able to disable, tune, or reset affect continuity.
 
 ## Emergent Agent Profile
@@ -252,6 +257,11 @@ content F
 - Non-debug mode still shows concise reasoning/tool/error status. Reasoning streams as plain text in the sidebar during a turn.
 - Tool summaries should be useful without enabling debug. Include command names,
   exit codes, or compact outputs where available.
+- Live turn tone/status labels should use compact readable timing, explicit
+  priority, and a short shared transition so fast event streams do not flicker
+  or queue stale states. Failure and stop states always own final completion
+  feedback; successful turns may briefly hold a meaningful live status before
+  showing `完成` / `值得庆祝`.
 - Avoid noisy activity such as raw stderr in normal mode.
 - Use compact controls. This plugin is an operational sidebar, not a landing page.
 - Keep text from overlapping controls at narrow sidebar widths.
