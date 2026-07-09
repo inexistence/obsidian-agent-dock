@@ -1,0 +1,20 @@
+AGENTS.md
+  s_995dc0d47ccffa::t_c5afacf32a91f5 266-270
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "a1a8f7de14d625423a01a793ce72751d8cd5c125",
+  "prompts": {},
+  "logical_commit_id": "a1a8f7de14d625423a01a793ce72751d8cd5c125",
+  "sessions": {
+    "s_995dc0d47ccffa": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f44a8-4a46-7a62-b1ae-128115a06136",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
