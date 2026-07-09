@@ -1,6 +1,7 @@
 data.json
 /sessions/
 /memory/
+/deep-memory/
 /profile/
 /interaction/
 .idea/
