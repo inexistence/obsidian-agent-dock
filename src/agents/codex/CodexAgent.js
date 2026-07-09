@@ -11,6 +11,7 @@ const { t } = require("../../i18n");
 const { buildPromptInteractionContext } = require("../../interaction/LocalSignalExtractor");
 const { applyModeArgs } = require("../../modes");
 const { buildPromptWithMetadata } = require("../../prompt");
+const { planPromptSignals } = require("../../promptSignals");
 const { DEFAULT_SETTINGS } = require("../../settings");
 const {
   emitContextCompressedNotice,
@@ -52,16 +53,23 @@ class CodexAgent {
       settings,
       buildPromptInteractionContext(prompt, conversation)
     );
-    const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, {
-      workingAffect: this.plugin.getPromptWorkingAffect(prompt),
-      interactionStance,
+    const promptSignals = planPromptSignals({
       memories: promptMemories,
       memorySearchResults: memorySearch.results,
-      memorySearchPerformed: memorySearch.performed
+      memorySearchPerformed: memorySearch.performed,
+      interactionStance,
+      workingAffect: this.plugin.getPromptWorkingAffect(prompt)
+    });
+    const promptResult = await buildPromptWithMetadata(this.plugin.app, settings, prompt, conversation, {
+      workingAffect: promptSignals.workingAffect,
+      interactionStance: promptSignals.interactionStance,
+      memories: promptSignals.memories,
+      memorySearchResults: promptSignals.memorySearchResults,
+      memorySearchPerformed: promptSignals.memorySearchPerformed
     });
     const finalPrompt = promptResult.prompt;
-    if (promptMemories.length > 0) {
-      emitMemoryNotice(onUpdate, promptMemories, translate, "codex");
+    if (promptSignals.memories.length > 0) {
+      emitMemoryNotice(onUpdate, promptSignals.memories, translate, "codex");
     }
     if (promptResult.context.compressed) {
       emitContextCompressedNotice(onUpdate, promptResult.context, translate, "codex");

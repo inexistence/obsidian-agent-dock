@@ -12,6 +12,7 @@ const { escapeAppleScriptString, shellQuote } = require("../../cli/shell");
 const { t } = require("../../i18n");
 const { buildPromptInteractionContext } = require("../../interaction/LocalSignalExtractor");
 const { buildPromptWithMetadata, buildTurnContextPrompt } = require("../../prompt");
+const { planPromptSignals } = require("../../promptSignals");
 const { DEFAULT_SETTINGS } = require("../../settings");
 const { AcpClient } = require("./AcpClient");
 const { acpUpdateToEvents } = require("./acpEvents");
@@ -76,6 +77,13 @@ class CursorAgent {
       settings,
       buildPromptInteractionContext(prompt, conversation)
     );
+    const promptSignals = planPromptSignals({
+      memories: promptMemories,
+      memorySearchResults: memorySearch.results,
+      memorySearchPerformed: memorySearch.performed,
+      interactionStance,
+      workingAffect: this.plugin.getPromptWorkingAffect(prompt)
+    });
 
     let useFullPrompt = !cursorState.acpSessionId;
     let finalOutput = "";
@@ -125,15 +133,15 @@ class CursorAgent {
         settings,
         prompt,
         conversation,
-        memories: promptMemories,
-        interactionStance,
-        memorySearchResults: memorySearch.results,
-        memorySearchPerformed: memorySearch.performed,
-        workingAffect: this.plugin.getPromptWorkingAffect(prompt)
+        memories: promptSignals.memories,
+        interactionStance: promptSignals.interactionStance,
+        memorySearchResults: promptSignals.memorySearchResults,
+        memorySearchPerformed: promptSignals.memorySearchPerformed,
+        workingAffect: promptSignals.workingAffect
       });
       throwIfAborted();
 
-      applyPromptNotices(emitUpdate, promptResult, promptMemories, translate, "cursor");
+      applyPromptNotices(emitUpdate, promptResult, promptSignals.memories, translate, "cursor");
       const promptText = promptResult.prompt;
 
       emitUpdate({
@@ -185,14 +193,14 @@ class CursorAgent {
             prompt,
             conversation,
             {
-              workingAffect: this.plugin.getPromptWorkingAffect(prompt),
-              interactionStance,
-              memories: promptMemories,
-              memorySearchResults: memorySearch.results,
-              memorySearchPerformed: memorySearch.performed
+              workingAffect: promptSignals.workingAffect,
+              interactionStance: promptSignals.interactionStance,
+              memories: promptSignals.memories,
+              memorySearchResults: promptSignals.memorySearchResults,
+              memorySearchPerformed: promptSignals.memorySearchPerformed
             }
           );
-          applyPromptNotices(emitUpdate, reloadPromptResult, promptMemories, translate, "cursor");
+          applyPromptNotices(emitUpdate, reloadPromptResult, promptSignals.memories, translate, "cursor");
           emitCursorAuthenticationNoticeIfNeeded(client, emitUpdate, translate);
           emitUpdate({
             kind: "notice",

@@ -171,6 +171,13 @@ Inputs may include:
 - Provider and system metadata.
 
 `contextLimitChars` is a character budget, not a tokenizer-backed token budget.
+Provider adapters first pass soft prompt inputs through `src/promptSignals.js`.
+This local planner keeps explicit memory search results authoritative, removes
+automatic memories that duplicate explicit results, filters weak or duplicate
+interaction stance items, and suppresses neutral transient affect. It does not
+change memory or interaction storage; it only decides which soft signals are
+worth offering to prompt construction for the current turn.
+
 Prompt sections are planned before the conversation transcript is formatted so
 soft signals cannot crowd out the current turn. The assistant style and explicit
 local memory search are protected first. User-referenced Obsidian paths are
@@ -462,6 +469,7 @@ node scripts/build-main.js
 node --check main.js
 node scripts/test-timeline.js
 node scripts/test-affect.js
+node scripts/test-prompt-signals.js
 node scripts/test-chat-turn-runner.js
 node scripts/test-interaction-memory.js
 find src scripts -name '*.js' -print -exec node --check {} \;
@@ -473,6 +481,7 @@ Useful focused tests:
 
 - Timeline rendering: `node scripts/test-timeline.js`
 - Affect scoring and prompt guidance: `node scripts/test-affect.js`
+- Prompt signal planning: `node scripts/test-prompt-signals.js`
 - Turn lifecycle: `node scripts/test-chat-turn-runner.js`
 - Interaction memory episodes and stance: `node scripts/test-interaction-memory.js`
 
