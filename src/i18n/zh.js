@@ -42,7 +42,7 @@ module.exports = {
     "settings.contextLimitChars.name": "上下文字符限制",
     "settings.contextLimitChars.desc": "旧对话历史被压缩前的最大提示词大小。默认 258k 字符。",
     "settings.persistChatHistory.name": "持久化聊天历史",
-    "settings.persistChatHistory.desc": "Obsidian 重启后恢复对话。消息正文会按会话存为插件文件夹里的 JSON 文件。",
+    "settings.persistChatHistory.desc": "Obsidian 重启后恢复对话。消息正文和有上限的助手时间线详情会按会话存为插件文件夹里的 JSON 文件。",
     "settings.maxPersistedSessions.name": "持久化会话数量限制",
     "settings.maxPersistedSessions.desc": "磁盘上保留的最近对话最大数量。",
     "settings.maxPersistedMessagesPerSession.name": "每个会话的持久化消息数",

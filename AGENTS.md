@@ -204,9 +204,10 @@ adapters must stay unaware of this UI session model.
 When chat history persistence is enabled, `data.json` stores settings, the
 active session id, and a lightweight session index. Full user and assistant
 message bodies are stored separately under the plugin folder in
-`sessions/<session-id>.json`. Persisted sessions restore as plain user/assistant
-Markdown message content; tool, reasoning, notice, and activity timeline details
-are runtime UI events and are not persisted by default.
+`sessions/<session-id>.json`. Persisted sessions restore user/assistant Markdown
+message content plus bounded assistant timeline details for processed reasoning,
+tool, error, notice, and debug-only `activity` entries. Restored `activity`
+entries remain hidden unless Debug activity is enabled.
 
 While a turn is running:
 

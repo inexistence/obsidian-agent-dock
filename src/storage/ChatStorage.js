@@ -1,8 +1,18 @@
 const { normalizePath } = require("obsidian");
 const { normalizeProviderState, serializeProviderState } = require("./providerState");
+const { redactSensitiveText } = require("./sensitiveText");
 
 const CHAT_STATE_VERSION = 1;
 const SESSION_DIR_NAME = "sessions";
+const PERSISTED_TIMELINE_KINDS = new Set(["message", "content", "reasoning", "tool", "error", "notice", "activity"]);
+const PERSISTED_TIMELINE_STRING_FIELDS = ["text", "title", "summary", "detail", "toolCallId"];
+const PERSISTED_TIMELINE_TEXT_LIMITS = {
+  title: 300,
+  summary: 1000,
+  detail: 12000,
+  toolCallId: 200
+};
+const TRUNCATED_TEXT_MARKER = "\n\n[Persisted timeline detail truncated]";
 
 class ChatStorage {
   constructor(plugin) {
@@ -195,6 +205,13 @@ function serializeMessage(message) {
     createdAt: normalizeTimestamp(message.createdAt, Date.now())
   };
   if (message.role === "assistant") {
+    const timeline = serializeTimeline(message.timeline, message.role, content);
+    if (timeline.length > 0) {
+      serialized.timeline = timeline;
+    }
+    if (message.agentLabel) {
+      serialized.agentLabel = String(message.agentLabel);
+    }
     if (message.agentId) {
       serialized.agentId = String(message.agentId);
     }
@@ -257,7 +274,7 @@ function normalizePersistedMessage(message) {
   const normalized = {
     role: message.role,
     content,
-    timeline: getRestoredTimeline(message.role, content),
+    timeline: normalizePersistedTimeline(message.timeline, message.role, content),
     createdAt: normalizeTimestamp(message.createdAt, Date.now()),
     isComplete: true,
     isLoading: false
@@ -290,6 +307,69 @@ function getRestoredTimeline(role, content) {
     return [{ kind: "message", text: content }];
   }
   return [];
+}
+
+function serializeTimeline(timeline, role, content) {
+  return normalizePersistedTimeline(timeline, role, content);
+}
+
+function normalizePersistedTimeline(timeline, role, content) {
+  const normalized = Array.isArray(timeline)
+    ? timeline.map(normalizeTimelineEntry).filter(Boolean)
+    : [];
+
+  if (role === "assistant") {
+    if (normalized.some((entry) => entry.kind === "content")) {
+      return normalized;
+    }
+    return content ? [{ kind: "content", text: content }] : normalized;
+  }
+
+  if (role === "user") {
+    return normalized.length > 0 ? normalized : getRestoredTimeline(role, content);
+  }
+
+  return [];
+}
+
+function normalizeTimelineEntry(entry) {
+  if (!entry || typeof entry !== "object" || !PERSISTED_TIMELINE_KINDS.has(entry.kind)) {
+    return null;
+  }
+
+  const normalized = { kind: entry.kind };
+  for (const field of PERSISTED_TIMELINE_STRING_FIELDS) {
+    if (entry[field] !== undefined && entry[field] !== null) {
+      normalized[field] = normalizeTimelineStringField(field, entry[field]);
+    }
+  }
+  if (entry.kind === "reasoning" && entry.discrete !== undefined) {
+    normalized.discrete = entry.discrete === true;
+  }
+
+  if ((entry.kind === "message" || entry.kind === "content") && !normalized.text) {
+    return null;
+  }
+
+  return normalized;
+}
+
+function normalizeTimelineStringField(field, value) {
+  const text = String(value);
+  if (field === "text") {
+    return text;
+  }
+
+  return truncatePersistedTimelineText(redactSensitiveText(text), PERSISTED_TIMELINE_TEXT_LIMITS[field]);
+}
+
+function truncatePersistedTimelineText(text, limit) {
+  const normalized = String(text || "");
+  const maxLength = Number(limit);
+  if (!Number.isFinite(maxLength) || maxLength <= 0 || normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength)}${TRUNCATED_TEXT_MARKER}`;
 }
 
 function limitSessions(sessions, settings) {

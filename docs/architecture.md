@@ -131,13 +131,16 @@ Persistence model:
 - `data.json` stores settings, active session id, and a lightweight session
   index.
 - `sessions/<session-id>.json` stores persisted user and assistant Markdown
-  message bodies and per-session pasted image cache paths used for cleanup.
+  message bodies, persisted assistant timeline details, and per-session pasted
+  image cache paths used for cleanup.
 - `.agent-dock-cache/pasted-images/` stores temporary composer-pasted images.
   Agent Dock prunes expired files on plugin startup and before new image
   pastes, and deletes tracked cache images when a conversation is deleted or
   pruned from persisted storage.
-- Runtime details such as tool output, reasoning groups, notices, and activity
-  events are not persisted by default.
+- Restored sessions keep bounded assistant timeline details for processed
+  reasoning, tool, error, notice, and debug-only `activity` entries. Persisted
+  `activity` entries remain hidden unless Debug activity is enabled, and
+  persisted timeline details are filtered for obvious secrets.
 
 Timeline rendering rules:
 

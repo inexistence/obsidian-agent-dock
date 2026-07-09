@@ -42,7 +42,7 @@ module.exports = {
     "settings.contextLimitChars.name": "Context character limit",
     "settings.contextLimitChars.desc": "Maximum prompt size before older conversation history is compressed. Default is 258k characters.",
     "settings.persistChatHistory.name": "Persist chat history",
-    "settings.persistChatHistory.desc": "Restore conversations after Obsidian restarts. Message bodies are stored as per-session JSON files in the plugin folder.",
+    "settings.persistChatHistory.desc": "Restore conversations after Obsidian restarts. Message bodies and bounded assistant timeline details are stored as per-session JSON files in the plugin folder.",
     "settings.maxPersistedSessions.name": "Persisted session limit",
     "settings.maxPersistedSessions.desc": "Maximum number of recent conversations kept on disk.",
     "settings.maxPersistedMessagesPerSession.name": "Persisted messages per session",

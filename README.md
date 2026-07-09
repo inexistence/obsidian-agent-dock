@@ -42,13 +42,15 @@ the language packs in `src/i18n/`.
 Chat history uses the plugin data folder:
 
 - `data.json` stores settings, the active session id, and a lightweight session index.
-- `sessions/<session-id>.json` stores each conversation's user and assistant message bodies, plus local pasted-image cache references for cleanup.
+- `sessions/<session-id>.json` stores each conversation's user and assistant message bodies, assistant timeline details, plus local pasted-image cache references for cleanup.
 - `.agent-dock-cache/pasted-images/` stores temporary images pasted into the composer. Agent Dock prunes old files on startup and before new image pastes, and removes a session's tracked images when that session is deleted.
 - `memory/memory.json` stores automatically extracted local memories when memory is enabled.
 - `profile/agent-profile.json` stores bounded local observations and inferred agent profile tendencies when emergent profile is enabled.
 
-Tool and reasoning timeline details are not persisted; restored conversations
-show the final Markdown message content and can continue as normal context.
+Assistant timeline details are persisted so restored conversations can show the
+processed reasoning/tool/error/notice history. Debug-only raw activity is also
+persisted, but remains hidden unless Debug activity is enabled. Stored timeline
+details are bounded and filtered for obvious secrets.
 
 Memory is enabled by default. After a successful reply, Agent Dock saves a few
 concise local memories such as user preferences, explicit "remember" requests,

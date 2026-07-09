@@ -165,7 +165,7 @@ module.exports = {
     "settings.contextLimitChars.name": "Context character limit",
     "settings.contextLimitChars.desc": "Maximum prompt size before older conversation history is compressed. Default is 258k characters.",
     "settings.persistChatHistory.name": "Persist chat history",
-    "settings.persistChatHistory.desc": "Restore conversations after Obsidian restarts. Message bodies are stored as per-session JSON files in the plugin folder.",
+    "settings.persistChatHistory.desc": "Restore conversations after Obsidian restarts. Message bodies and bounded assistant timeline details are stored as per-session JSON files in the plugin folder.",
     "settings.maxPersistedSessions.name": "Persisted session limit",
     "settings.maxPersistedSessions.desc": "Maximum number of recent conversations kept on disk.",
     "settings.maxPersistedMessagesPerSession.name": "Persisted messages per session",
@@ -506,7 +506,7 @@ module.exports = {
     "settings.contextLimitChars.name": "上下文字符限制",
     "settings.contextLimitChars.desc": "旧对话历史被压缩前的最大提示词大小。默认 258k 字符。",
     "settings.persistChatHistory.name": "持久化聊天历史",
-    "settings.persistChatHistory.desc": "Obsidian 重启后恢复对话。消息正文会按会话存为插件文件夹里的 JSON 文件。",
+    "settings.persistChatHistory.desc": "Obsidian 重启后恢复对话。消息正文和有上限的助手时间线详情会按会话存为插件文件夹里的 JSON 文件。",
     "settings.maxPersistedSessions.name": "持久化会话数量限制",
     "settings.maxPersistedSessions.desc": "磁盘上保留的最近对话最大数量。",
     "settings.maxPersistedMessagesPerSession.name": "每个会话的持久化消息数",
@@ -7058,9 +7058,19 @@ module.exports = {
 "src/storage/ChatStorage.js": function(module, exports, __require) {
 const { normalizePath } = require("obsidian");
 const { normalizeProviderState, serializeProviderState } = __require("src/storage/providerState.js");
+const { redactSensitiveText } = __require("src/storage/sensitiveText.js");
 
 const CHAT_STATE_VERSION = 1;
 const SESSION_DIR_NAME = "sessions";
+const PERSISTED_TIMELINE_KINDS = new Set(["message", "content", "reasoning", "tool", "error", "notice", "activity"]);
+const PERSISTED_TIMELINE_STRING_FIELDS = ["text", "title", "summary", "detail", "toolCallId"];
+const PERSISTED_TIMELINE_TEXT_LIMITS = {
+  title: 300,
+  summary: 1000,
+  detail: 12000,
+  toolCallId: 200
+};
+const TRUNCATED_TEXT_MARKER = "\n\n[Persisted timeline detail truncated]";
 
 class ChatStorage {
   constructor(plugin) {
@@ -7253,6 +7263,13 @@ function serializeMessage(message) {
     createdAt: normalizeTimestamp(message.createdAt, Date.now())
   };
   if (message.role === "assistant") {
+    const timeline = serializeTimeline(message.timeline, message.role, content);
+    if (timeline.length > 0) {
+      serialized.timeline = timeline;
+    }
+    if (message.agentLabel) {
+      serialized.agentLabel = String(message.agentLabel);
+    }
     if (message.agentId) {
       serialized.agentId = String(message.agentId);
     }
@@ -7315,7 +7332,7 @@ function normalizePersistedMessage(message) {
   const normalized = {
     role: message.role,
     content,
-    timeline: getRestoredTimeline(message.role, content),
+    timeline: normalizePersistedTimeline(message.timeline, message.role, content),
     createdAt: normalizeTimestamp(message.createdAt, Date.now()),
     isComplete: true,
     isLoading: false
@@ -7348,6 +7365,69 @@ function getRestoredTimeline(role, content) {
     return [{ kind: "message", text: content }];
   }
   return [];
+}
+
+function serializeTimeline(timeline, role, content) {
+  return normalizePersistedTimeline(timeline, role, content);
+}
+
+function normalizePersistedTimeline(timeline, role, content) {
+  const normalized = Array.isArray(timeline)
+    ? timeline.map(normalizeTimelineEntry).filter(Boolean)
+    : [];
+
+  if (role === "assistant") {
+    if (normalized.some((entry) => entry.kind === "content")) {
+      return normalized;
+    }
+    return content ? [{ kind: "content", text: content }] : normalized;
+  }
+
+  if (role === "user") {
+    return normalized.length > 0 ? normalized : getRestoredTimeline(role, content);
+  }
+
+  return [];
+}
+
+function normalizeTimelineEntry(entry) {
+  if (!entry || typeof entry !== "object" || !PERSISTED_TIMELINE_KINDS.has(entry.kind)) {
+    return null;
+  }
+
+  const normalized = { kind: entry.kind };
+  for (const field of PERSISTED_TIMELINE_STRING_FIELDS) {
+    if (entry[field] !== undefined && entry[field] !== null) {
+      normalized[field] = normalizeTimelineStringField(field, entry[field]);
+    }
+  }
+  if (entry.kind === "reasoning" && entry.discrete !== undefined) {
+    normalized.discrete = entry.discrete === true;
+  }
+
+  if ((entry.kind === "message" || entry.kind === "content") && !normalized.text) {
+    return null;
+  }
+
+  return normalized;
+}
+
+function normalizeTimelineStringField(field, value) {
+  const text = String(value);
+  if (field === "text") {
+    return text;
+  }
+
+  return truncatePersistedTimelineText(redactSensitiveText(text), PERSISTED_TIMELINE_TEXT_LIMITS[field]);
+}
+
+function truncatePersistedTimelineText(text, limit) {
+  const normalized = String(text || "");
+  const maxLength = Number(limit);
+  if (!Number.isFinite(maxLength) || maxLength <= 0 || normalized.length <= maxLength) {
+    return normalized;
+  }
+  return `${normalized.slice(0, maxLength)}${TRUNCATED_TEXT_MARKER}`;
 }
 
 function limitSessions(sessions, settings) {
