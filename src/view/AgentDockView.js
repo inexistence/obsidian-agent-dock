@@ -665,7 +665,7 @@ class AgentDockView extends ItemView {
     if (toneMeta) {
       statusEl.style.setProperty("--codex-dock-turn-status-color", toneMeta.color);
       if (toneMeta.mode === "starry") {
-        this.renderTurnStatusSparks(statusEl);
+        this.renderStarryTurnStatusEffects(statusEl);
       }
     }
     if (isSwitchingIn) {
@@ -704,7 +704,7 @@ class AgentDockView extends ItemView {
     }
   }
 
-  renderTurnStatusSparks(statusEl) {
+  renderStarryTurnStatusEffects(statusEl) {
     const positions = [
       { x: "-13px", y: "-9px", size: "5px" },
       { x: "11px", y: "-12px", size: "7px" },

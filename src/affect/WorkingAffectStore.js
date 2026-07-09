@@ -18,6 +18,9 @@ const DEFAULT_WORKING_AFFECT = {
   updatedAt: 0
 };
 
+const STARRY_KEYWORD_PATTERN = /(星星眼|惊艳|被惊艳到|绝了|太绝了|绝美|封神|神了|爱了|太强了|太漂亮了|太美了|亮瞎|美哭|好看到爆|漂亮炸了|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i;
+const STARRY_BLOCKED_PATTERN = /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(星星眼|惊艳|夸张|绝了|爱了|封神|神了|亮瞎|美哭|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i;
+
 const AFFECT_SIGNAL_RULES = [
   {
     name: "urgent",
@@ -61,8 +64,8 @@ const AFFECT_SIGNAL_RULES = [
   {
     name: "starry-eyed",
     scope: "prompt",
-    pattern: /(星星眼|惊艳|被惊艳到|绝了|太绝了|绝美|封神|神了|爱了|太强了|太漂亮了|太美了|亮瞎|美哭|好看到爆|漂亮炸了|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i,
-    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(星星眼|惊艳|夸张|绝了|爱了|封神|神了|亮瞎|美哭|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i,
+    pattern: STARRY_KEYWORD_PATTERN,
+    blockedBy: STARRY_BLOCKED_PATTERN,
     signal: { valence: 0.24, arousal: 0.22, warmth: 0.18, confidence: 0.08, tension: -0.12 }
   },
   {
@@ -304,8 +307,8 @@ const TURN_VISUAL_KIND_SIGNALS = {
 const TURN_VISUAL_SIGNAL_RULES = [
   {
     name: "live-starry-eyed",
-    pattern: /(星星眼|惊艳|被惊艳到|绝了|太绝了|绝美|封神|神了|爱了|太强了|太漂亮了|太美了|亮瞎|美哭|好看到爆|漂亮炸了|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i,
-    blockedBy: /(不要|别|禁止|不想|少点|别太|不要太)[^，。！？,.!?]{0,12}(星星眼|惊艳|夸张|绝了|爱了|封神|神了|亮瞎|美哭|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i,
+    pattern: STARRY_KEYWORD_PATTERN,
+    blockedBy: STARRY_BLOCKED_PATTERN,
     signal: { valence: 0.8, arousal: 0.55, warmth: 0.28, confidence: 0.16, tension: -0.18, starry: 1 }
   },
   {
