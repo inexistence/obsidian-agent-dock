@@ -1,0 +1,45 @@
+scripts/test-timeline.js
+  s_bd3cea14e07599::t_fb0cca64d55c88 193,200-202,204-224
+src/view/timeline/MessageTimelineRenderer.js
+  s_bd3cea14e07599::t_488cd14144cc36 758-759,771-774
+  s_bd3cea14e07599::t_c50814ddf9a247 218-233,235-251,254-256,757
+  s_bd3cea14e07599::t_248b6b09884d42 209-214
+  s_bd3cea14e07599::t_ee233e09bcf899 234,258-260,262-271
+  s_bd3cea14e07599::t_be42700ca5c29a 257
+  s_bd3cea14e07599::t_99ccbf7746a9d8 760
+  s_bd3cea14e07599::t_3bf0b626f269e4 775-776
+src/i18n/zh.js
+  s_bd3cea14e07599::t_44814ad66d11bd 242
+main.js
+  s_bd3cea14e07599::t_c20cc9e96e9b38 365,708
+  s_bd3cea14e07599::t_eccd7cf4aa4ca5 12075-12080
+  s_bd3cea14e07599::t_71bbfe94616716 12084-12099,12101-12117,12120-12122,12623
+  s_bd3cea14e07599::t_fee252df9b599d 12100,12124-12126,12128-12137
+  s_bd3cea14e07599::t_8c75dc53179def 12624-12625,12637-12640
+  s_bd3cea14e07599::t_a2e4eea0011917 12123,12626,12641-12642
+src/i18n/en.js
+  s_bd3cea14e07599::t_44814ad66d11bd 242
+styles.css
+  s_bd3cea14e07599::t_b9c00d0ec3d8fd 2181,2183-2185,2188-2207,2212-2213,2224-2247,2251
+  s_bd3cea14e07599::t_2edb4617553045 2186-2187,2214-2223
+  s_bd3cea14e07599::t_3fad4fb491dd63 2134-2146
+  s_bd3cea14e07599::t_537d7426104691 2208-2211
+  s_bd3cea14e07599::t_11916407464f4a 2248-2250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "d66984a619ed69d79a3e18dc1be6f101f9709652",
+  "prompts": {},
+  "logical_commit_id": "d66984a619ed69d79a3e18dc1be6f101f9709652",
+  "sessions": {
+    "s_bd3cea14e07599": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4508-c7d8-7411-adc9-0d5f5956feb0",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
