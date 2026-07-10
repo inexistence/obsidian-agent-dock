@@ -55,7 +55,7 @@ function formatInteractionMemoryUpdateSummary(settings, keyPrefix, translate, re
       items: formatItemList(changed, (item) => formatInteractionChange(settings, keyPrefix, translate, item))
     }));
   }
-  return [base].concat(sections.slice(0, 1)).filter(Boolean).join("\n");
+  return [base].concat(sections).filter(Boolean).join("\n");
 }
 
 function buildMemoryUpdateAuditItems(saved, settings, keyPrefix, translate) {
@@ -261,27 +261,11 @@ function formatItemList(items, formatter) {
   return visible.join("\n");
 }
 
-function formatMemoryItem(item) {
-  const label = [item.scope, item.kind].filter(Boolean).join("/");
-  const text = truncateNoticeText(item.text);
-  return label ? `- [${label}] ${text}` : `- ${text}`;
-}
-
-function formatDeepMemoryItem(settings, keyPrefix, translate, item) {
-  const labels = [item.kind];
-  if (isAiReflectionDeepMemory(item)) {
-    labels.push(translate(settings, `${keyPrefix}.deepMemoryUpdated.aiReflectionSource`));
-  }
-  const label = labels.filter(Boolean).join(" | ");
-  const text = truncateNoticeText(item.summary);
-  return label ? `- [${label}] ${text}` : `- ${text}`;
-}
-
 function formatInteractionEpisode(item) {
   const parts = [
     item.userExcerpt,
     item.reaction?.excerpt || item.outcomeHint
-  ].map(truncateNoticeText).filter(Boolean);
+  ].map((part) => truncateNoticeText(part)).filter(Boolean);
   return parts.length > 1 ? `- ${parts[0]} -> ${parts[1]}` : `- ${parts[0] || item.context || item.phase}`;
 }
 

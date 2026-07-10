@@ -23,7 +23,8 @@ const {
 } = require("../src/agents/shared/memorySearch");
 const {
   buildDeepMemoryAuditItems,
-  buildInteractionMemoryAuditItems
+  buildInteractionMemoryAuditItems,
+  formatInteractionMemoryUpdateSummary
 } = require("../src/agents/shared/captureNotices");
 const { t } = require("../src/i18n");
 const { buildPromptWithMetadata } = require("../src/prompt");
@@ -666,4 +667,25 @@ testSearchMemories().then(() => {
   assert.equal(interactionItems[0].fields[1].label, "来源", "interaction episode audit should show source after reason");
   assert.equal(interactionItems[1].fields[0].label, "原因", "interaction change audit should lead with reason");
   assert.equal(interactionItems[1].fields[1].label, "来源", "interaction change audit should show source after reason");
+
+  const interactionSummary = formatInteractionMemoryUpdateSummary(settings, "codex", t, {
+    closedEpisodes: [{
+      context: "review",
+      phase: "repair",
+      userExcerpt: "这里不对",
+      reaction: { excerpt: "好了" }
+    }],
+    updatedPatterns: [{
+      summary: "用户希望先看风险",
+      evidenceCount: 2
+    }],
+    updatedTensions: [],
+    updatedStableImpressions: []
+  });
+  assert.match(interactionSummary, /本轮关闭/, "interaction summary should include closed episode context");
+  assert.match(interactionSummary, /影响到的经验/, "interaction summary should include affected experience when present");
+  assert.match(interactionSummary, /这里不对/, "interaction summary should include the closed episode user excerpt");
+  assert.match(interactionSummary, /好了/, "interaction summary should include the closed episode reaction");
+  assert.match(interactionSummary, /用户希望先看风险/, "interaction summary should include the affected experience content");
+  assert.match(interactionSummary, /2 条证据/, "interaction summary should include the affected experience evidence count");
 }

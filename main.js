@@ -2869,7 +2869,7 @@ function formatInteractionMemoryUpdateSummary(settings, keyPrefix, translate, re
       items: formatItemList(changed, (item) => formatInteractionChange(settings, keyPrefix, translate, item))
     }));
   }
-  return [base].concat(sections.slice(0, 1)).filter(Boolean).join("\n");
+  return [base].concat(sections).filter(Boolean).join("\n");
 }
 
 function buildMemoryUpdateAuditItems(saved, settings, keyPrefix, translate) {
@@ -3075,27 +3075,11 @@ function formatItemList(items, formatter) {
   return visible.join("\n");
 }
 
-function formatMemoryItem(item) {
-  const label = [item.scope, item.kind].filter(Boolean).join("/");
-  const text = truncateNoticeText(item.text);
-  return label ? `- [${label}] ${text}` : `- ${text}`;
-}
-
-function formatDeepMemoryItem(settings, keyPrefix, translate, item) {
-  const labels = [item.kind];
-  if (isAiReflectionDeepMemory(item)) {
-    labels.push(translate(settings, `${keyPrefix}.deepMemoryUpdated.aiReflectionSource`));
-  }
-  const label = labels.filter(Boolean).join(" | ");
-  const text = truncateNoticeText(item.summary);
-  return label ? `- [${label}] ${text}` : `- ${text}`;
-}
-
 function formatInteractionEpisode(item) {
   const parts = [
     item.userExcerpt,
     item.reaction?.excerpt || item.outcomeHint
-  ].map(truncateNoticeText).filter(Boolean);
+  ].map((part) => truncateNoticeText(part)).filter(Boolean);
   return parts.length > 1 ? `- ${parts[0]} -> ${parts[1]}` : `- ${parts[0] || item.context || item.phase}`;
 }
 
@@ -17746,7 +17730,7 @@ class MemoryNoticeModal extends Modal {
   renderFieldValue(containerEl, value) {
     const valueEl = containerEl.createDiv({ cls: "codex-dock__memory-modal-field-value" });
     if (typeof this.renderMarkdownContent === "function") {
-      this.renderMarkdownContent(valueEl, value || "");
+      this.renderMarkdownContent(valueEl, value || "", { restricted: true });
       return valueEl;
     }
     valueEl.setText(value || "");
@@ -18928,6 +18912,45 @@ module.exports = {
 };
 
 },
+"src/view/utils/restrictedMarkdown.js": function(module, exports, __require) {
+function toRestrictedMarkdown(value) {
+  const protectedSegments = [];
+  const source = String(value || "");
+  const protectedText = protectCodeSegments(source, protectedSegments);
+  const restrictedText = neutralizeMediaEmbeds(protectedText)
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+  return restoreCodeSegments(restrictedText, protectedSegments);
+}
+
+function neutralizeMediaEmbeds(text) {
+  return text.replace(/(^|[^\\])((?:\\\\)*)!\[/g, (match, prefix, slashes) => (
+    `${prefix}${slashes}\\![`
+  ));
+}
+
+function protectCodeSegments(text, segments) {
+  return text
+    .replace(/(```[^\n]*\n[\s\S]*?\n```|~~~[^\n]*\n[\s\S]*?\n~~~)/g, (match) => createPlaceholder(match, segments))
+    .replace(/(`+)([^\n]*?)\1/g, (match) => createPlaceholder(match, segments));
+}
+
+function createPlaceholder(value, segments) {
+  const index = segments.push(value) - 1;
+  return `\u0000agent-dock-code-${index}\u0000`;
+}
+
+function restoreCodeSegments(text, segments) {
+  return text.replace(/\u0000agent-dock-code-(\d+)\u0000/g, (match, index) => (
+    segments[Number(index)] === undefined ? match : segments[Number(index)]
+  ));
+}
+
+module.exports = {
+  toRestrictedMarkdown
+};
+
+},
 "src/view/AgentDockView.js": function(module, exports, __require) {
 const { ItemView, MarkdownRenderer, Notice, setIcon } = require("obsidian");
 
@@ -18958,6 +18981,7 @@ const { copyText } = __require("src/view/utils/clipboard.js");
 const { estimateContextChars, formatCompactNumber } = __require("src/view/utils/contextEstimate.js");
 const { decorateLocalFileLinks, normalizeLocalFileMarkdownLinks } = __require("src/view/utils/fileLinks.js");
 const { formatMessageTime, formatMessageTimeIso, formatMessageTimeTitle } = __require("src/view/utils/messageTime.js");
+const { toRestrictedMarkdown } = __require("src/view/utils/restrictedMarkdown.js");
 
 class AgentDockView extends ItemView {
   constructor(leaf, plugin) {
@@ -19881,7 +19905,10 @@ class AgentDockView extends ItemView {
     const contentEl = containerEl.createDiv({ cls: contentClass });
     const markdownEl = contentEl.createDiv({ cls: "codex-dock__content-body" });
     const sourcePath = this.app.workspace.getActiveFile()?.path || "";
-    const renderText = normalizeLocalFileMarkdownLinks(text || "");
+    const normalizedText = normalizeLocalFileMarkdownLinks(text || "");
+    const renderText = options.restricted
+      ? toRestrictedMarkdown(normalizedText)
+      : normalizedText;
     MarkdownRenderer.render(this.app, renderText, markdownEl, sourcePath, this).then(() => {
       decorateLocalFileLinks(markdownEl, this.app, {
         sourcePath,

@@ -27,6 +27,7 @@ const { copyText } = require("./utils/clipboard");
 const { estimateContextChars, formatCompactNumber } = require("./utils/contextEstimate");
 const { decorateLocalFileLinks, normalizeLocalFileMarkdownLinks } = require("./utils/fileLinks");
 const { formatMessageTime, formatMessageTimeIso, formatMessageTimeTitle } = require("./utils/messageTime");
+const { toRestrictedMarkdown } = require("./utils/restrictedMarkdown");
 
 class AgentDockView extends ItemView {
   constructor(leaf, plugin) {
@@ -950,7 +951,10 @@ class AgentDockView extends ItemView {
     const contentEl = containerEl.createDiv({ cls: contentClass });
     const markdownEl = contentEl.createDiv({ cls: "codex-dock__content-body" });
     const sourcePath = this.app.workspace.getActiveFile()?.path || "";
-    const renderText = normalizeLocalFileMarkdownLinks(text || "");
+    const normalizedText = normalizeLocalFileMarkdownLinks(text || "");
+    const renderText = options.restricted
+      ? toRestrictedMarkdown(normalizedText)
+      : normalizedText;
     MarkdownRenderer.render(this.app, renderText, markdownEl, sourcePath, this).then(() => {
       decorateLocalFileLinks(markdownEl, this.app, {
         sourcePath,

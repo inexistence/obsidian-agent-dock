@@ -191,7 +191,7 @@ class MemoryNoticeModal extends Modal {
   renderFieldValue(containerEl, value) {
     const valueEl = containerEl.createDiv({ cls: "codex-dock__memory-modal-field-value" });
     if (typeof this.renderMarkdownContent === "function") {
-      this.renderMarkdownContent(valueEl, value || "");
+      this.renderMarkdownContent(valueEl, value || "", { restricted: true });
       return valueEl;
     }
     valueEl.setText(value || "");

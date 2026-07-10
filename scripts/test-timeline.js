@@ -1,4 +1,21 @@
 const assert = require("assert");
+const Module = require("module");
+
+const originalLoad = Module._load;
+Module._load = function patchedLoad(request, parent, isMain) {
+  if (request === "obsidian") {
+    return {
+      Modal: class Modal {
+        constructor(app) {
+          this.app = app;
+          this.contentEl = new FakeElement();
+          this.modalEl = new FakeElement();
+        }
+      }
+    };
+  }
+  return originalLoad.call(this, request, parent, isMain);
+};
 
 const {
   _test: timelineTest
@@ -53,6 +70,9 @@ class FakeElement {
     return null;
   }
 }
+
+const { MemoryNoticeModal } = require("../src/view/timeline/MemoryNoticeModal");
+const { toRestrictedMarkdown } = require("../src/view/utils/restrictedMarkdown");
 
 function hasClass(element, cls) {
   return String(element.cls || "").split(/\s+/).includes(cls);
@@ -369,6 +389,49 @@ function reasoningEntries(message) {
   const container = new FakeElement();
   renderer.renderChevron(container);
   assert(iconCalls.some((call) => call.iconName === "chevron-right"), "expandable rows should still use disclosure chevrons");
+}
+
+{
+  let markdownRenderCalls = 0;
+  let renderedMarkdown = "";
+  let markdownRenderOptions = null;
+  const modal = Object.create(MemoryNoticeModal.prototype);
+  modal.renderMarkdownContent = (containerEl, text, options) => {
+    markdownRenderCalls += 1;
+    renderedMarkdown = text;
+    markdownRenderOptions = options;
+  };
+  const container = new FakeElement();
+  const valueEl = modal.renderFieldValue(container, "**bold** [[private note]] ![[embed.png]] [site](https://example.com) <iframe>");
+  assert.strictEqual(markdownRenderCalls, 1, "audit field values should still use Markdown rendering");
+  assert.strictEqual(
+    renderedMarkdown,
+    "**bold** [[private note]] ![[embed.png]] [site](https://example.com) <iframe>",
+    "audit field rendering should receive the original captured evidence"
+  );
+  assert.deepStrictEqual(markdownRenderOptions, { restricted: true }, "audit field markdown should disable active embeds and raw HTML");
+  assert.strictEqual(valueEl.text, "", "rendered markdown containers should not duplicate text fallback");
+}
+
+{
+  const restricted = toRestrictedMarkdown([
+    "**bold** [[private note]] ![[embed.png]] ![remote](https://example.com/image.png) <iframe src=\"https://example.com\">",
+    "`![[inline-code]] <span>`",
+    "```md",
+    "![[fenced-code]] <iframe>",
+    "```"
+  ].join("\n"));
+  assert.match(restricted, /\*\*bold\*\* \[\[private note\]\]/, "restricted markdown should preserve ordinary formatting and wiki links");
+  assert.match(restricted, /\\!\[\[embed\.png\]\]/, "restricted markdown should neutralize wiki embeds");
+  assert.match(restricted, /\\!\[remote\]\(https:\/\/example\.com\/image\.png\)/, "restricted markdown should neutralize remote images");
+  assert.match(restricted, /&lt;iframe src="https:\/\/example\.com"&gt;/, "restricted markdown should escape raw HTML");
+  assert.match(restricted, /`!\[\[inline-code\]\] <span>`/, "restricted markdown should leave inline code unchanged");
+  assert.match(restricted, /```md\n!\[\[fenced-code\]\] <iframe>\n```/, "restricted markdown should leave fenced code unchanged");
+  assert.strictEqual(
+    toRestrictedMarkdown("\\![[already-safe]] \\\\![[active-after-literal-slash]]"),
+    "\\![[already-safe]] \\\\\\![[active-after-literal-slash]]",
+    "restricted markdown should preserve escaped embeds and neutralize embeds after literal backslashes"
+  );
 }
 
 console.log("timeline tests passed");
