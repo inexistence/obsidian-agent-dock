@@ -359,6 +359,21 @@ impressions and relevant turn-local patterns; it is not a full conversation
 summary and may be empty when current context already carries the needed
 evidence.
 
+Interaction memory is the v1 collaboration-continuity engine. Its unit is an
+impactful visible collaboration episode rather than a raw chat line or a hidden
+psychological state. Episodes may include deterministic local fields such as
+`phase`, `eventWeight`, `memoryRole`, and `repairPath`. `repairPath` records
+visible calibration arcs like a user correction, the assistant's adjustment
+shape, and whether the next user reaction accepted, continued correcting, asked
+for clarification, or left the repair unresolved. These fields are reducer
+evidence only; they are not injected directly into prompts.
+
+This system deliberately does not implement Big Five scores, emotion vectors,
+AI birth stories, graph memory, or model-scored inner feelings. Working affect
+remains a short-lived tone signal. Deep memory remains a sparse high-meaning
+moment store. Interaction memory owns collaboration habits, repair paths,
+communication tensions, and long-term stance.
+
 Boundaries:
 
 - Do not store or infer from hidden chain-of-thought.

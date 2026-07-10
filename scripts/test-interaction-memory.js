@@ -17,6 +17,7 @@ const {
 } = require("../src/interaction/InteractionMemoryStore");
 const { formatInteractionStancePrompt } = require("../src/interaction/InteractionPromptFormatter");
 const {
+  extractEpisodeDraft,
   buildPromptInteractionContext,
   _test: signalTest
 } = require("../src/interaction/LocalSignalExtractor");
@@ -435,6 +436,238 @@ function testAssistantShapeReviewStatusAndNegativeEvidence() {
   assert.equal(reviewedStance[0].text, "Confirmed persona.", "confirmed stable impressions should outrank equal auto impressions");
 }
 
+async function testRepairPathCaptureAndOutcome() {
+  const now = Date.UTC(2026, 6, 10);
+  const { store } = createStore();
+
+  await store.captureTurn({
+    prompt: "先讲讲这个连续性方案",
+    response: "我会从机制和边界说起。",
+    sessionId: "repair-a",
+    now
+  }, settings);
+
+  await store.captureTurn({
+    prompt: "不是这个意思，你跑偏了。先重述我的目标，再给具体方案。",
+    response: "我理解你的意思是：不要做人格模拟器，而是做协作连续性引擎。具体落地是扩展 episode、repairPath、测试和文档。",
+    sessionId: "repair-a",
+    now: now + 1000
+  }, settings);
+
+  let memory = await store.loadMemory();
+  const pendingRepair = memory.pendingEpisodes.find((episode) => episode.sourceSessionId === "repair-a");
+  assert(pendingRepair.repairPath, "correction turn should create a pending repair path");
+  assert.equal(pendingRepair.phase, "repair", "correction turn should be classified as repair phase");
+  assert.equal(pendingRepair.repairPath.trigger, "misread", "misread correction should be the repair trigger");
+  assert.equal(pendingRepair.repairPath.assistantAdjustment, "restated_intent", "assistant restatement should be captured as adjustment");
+  assert.equal(pendingRepair.memoryRole, "pattern_evidence", "repair episodes should be pattern evidence");
+
+  await store.captureTurn({
+    prompt: "对，就是这个方向，继续这样。",
+    response: "我继续把它拆成实现任务和验收标准。",
+    sessionId: "repair-a",
+    now: now + 2000
+  }, settings);
+
+  memory = await store.loadMemory();
+  const closedRepair = memory.episodes.find((episode) => episode.repairPath?.trigger === "misread");
+  assert(closedRepair, "accepted follow-up should close the repair episode");
+  assert.equal(closedRepair.repairPath.outcome, "accepted", "acceptance should settle repair outcome");
+  assert(closedRepair.eventWeight >= pendingRepair.eventWeight, "closed repair should preserve or raise event weight");
+}
+
+function testRepairPatternsFromEvidence() {
+  const now = Date.UTC(2026, 6, 10);
+  const repairEpisodes = [
+    {
+      id: "repair-1",
+      status: "closed",
+      context: "agent_continuity",
+      phase: "repair",
+      userSignals: ["repair_trigger_too_flat", "asks_for_implementation"],
+      assistantShape: ["became_concrete", "implementation_plan"],
+      repairPath: {
+        trigger: "too_flat",
+        assistantAdjustment: "became_concrete",
+        outcome: "accepted"
+      },
+      eventWeight: 0.78,
+      memoryRole: "pattern_evidence",
+      outcomeHint: "accepted",
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "repair-2",
+      status: "closed",
+      context: "implementation",
+      phase: "repair",
+      userSignals: ["repair_trigger_too_flat", "asks_for_implementation"],
+      assistantShape: ["became_concrete", "implementation_plan"],
+      repairPath: {
+        trigger: "too_flat",
+        assistantAdjustment: "became_concrete",
+        outcome: "accepted"
+      },
+      eventWeight: 0.74,
+      memoryRole: "pattern_evidence",
+      outcomeHint: "accepted",
+      createdAt: now + 1000,
+      updatedAt: now + 1000
+    },
+    {
+      id: "repair-3",
+      status: "closed",
+      context: "agent_continuity",
+      phase: "repair",
+      userSignals: ["repair_trigger_too_flat", "pushes_for_nuance", "rejects_flattening"],
+      assistantShape: ["became_deeper", "mechanism_explanation"],
+      repairPath: {
+        trigger: "too_flat",
+        assistantAdjustment: "became_deeper",
+        outcome: "accepted"
+      },
+      eventWeight: 0.76,
+      memoryRole: "pattern_evidence",
+      outcomeHint: "accepted",
+      createdAt: now + 2000,
+      updatedAt: now + 2000
+    }
+  ];
+  const memory = applyEpisodes({}, repairEpisodes, settings, now + 3000);
+  assert(
+    memory.patterns.some((pattern) => pattern.key === "repair_by_concretizing"),
+    "repeated concrete repair evidence should produce repair_by_concretizing"
+  );
+  assert(
+    memory.patterns.some((pattern) => pattern.key === "avoid_flattening_after_pushback"),
+    "flattening pushback should produce avoid_flattening_after_pushback"
+  );
+  assert(
+    memory.stableImpressions.some((impression) => impression.key === "repair_path_sensitive"),
+    "repeated repair patterns should promote a repair-path stable impression"
+  );
+}
+
+function testSingleNegativeAndLowWeightDoNotMature() {
+  const now = Date.UTC(2026, 6, 10);
+  const singleNegative = applyEpisodes({}, [{
+    id: "negative-once",
+    status: "closed",
+    context: "general",
+    phase: "repair",
+    userSignals: ["negative_feedback", "repair_trigger_misread"],
+    assistantShape: ["repair_response"],
+    repairPath: {
+      trigger: "misread",
+      assistantAdjustment: "softened_tone",
+      outcome: "unresolved"
+    },
+    eventWeight: 0.7,
+    memoryRole: "pattern_evidence",
+    outcomeHint: "correction",
+    createdAt: now,
+    updatedAt: now
+  }], settings, now);
+  assert.equal(singleNegative.stableImpressions.length, 0, "one negative repair episode should not become a stable impression");
+
+  const lowWeight = applyEpisodes({}, [
+    {
+      id: "chat-1",
+      status: "closed",
+      context: "general",
+      phase: "general",
+      userSignals: [],
+      assistantShape: [],
+      eventWeight: 0.12,
+      memoryRole: "short_term_episode",
+      outcomeHint: "new_request",
+      createdAt: now,
+      updatedAt: now
+    },
+    {
+      id: "chat-2",
+      status: "closed",
+      context: "general",
+      phase: "general",
+      userSignals: [],
+      assistantShape: [],
+      eventWeight: 0.1,
+      memoryRole: "short_term_episode",
+      outcomeHint: "topic_shift",
+      createdAt: now + 1000,
+      updatedAt: now + 1000
+    }
+  ], settings, now + 1000);
+  assert.equal(lowWeight.patterns.length, 0, "low-weight ordinary chat should not produce patterns");
+}
+
+function testRepairPhaseDoesNotCrossMatchUnrelatedPatterns() {
+  const now = Date.UTC(2026, 6, 10);
+  const misreadRepairEpisodes = [0, 1].map((index) => ({
+    id: `misread-repair-${index}`,
+    status: "closed",
+    context: "agent_continuity",
+    phase: "repair",
+    userSignals: ["repair_trigger_misread", "negative_feedback"],
+    assistantShape: ["restated_intent"],
+    repairPath: {
+      trigger: "misread",
+      assistantAdjustment: "restated_intent",
+      outcome: "accepted"
+    },
+    eventWeight: 0.78,
+    memoryRole: "pattern_evidence",
+    outcomeHint: "accepted",
+    createdAt: now + index,
+    updatedAt: now + index
+  }));
+  const memory = applyEpisodes({}, misreadRepairEpisodes, settings, now + 1000);
+  const patternKeys = memory.patterns.map((pattern) => pattern.key);
+  assert(patternKeys.includes("repair_by_restating_intent"), "matching repair evidence should keep its intended repair pattern");
+  assert(!patternKeys.includes("repair_by_concretizing"), "misread repair should not imply concrete repair");
+  assert(!patternKeys.includes("avoid_flattening_after_pushback"), "misread repair should not imply flattening pushback");
+  assert(!patternKeys.includes("concrete_design_after_concept"), "accepted repair alone should not imply implementation preference");
+  assert(!patternKeys.includes("action_after_alignment"), "accepted repair alone should not imply action-after-alignment preference");
+}
+
+function testPositiveHighWeightCanBecomeDeepCandidate() {
+  const now = Date.UTC(2026, 6, 10);
+  const draft = extractEpisodeDraft({
+    prompt: "对，就是这个方向，继续这样。具体落地到测试和验收。",
+    response: "我会继续具体实现，补上任务、测试和验收标准。",
+    sessionId: "deep-candidate",
+    now
+  }, {
+    context: "implementation",
+    userSignals: ["asks_for_mechanism"],
+    assistantShape: ["mechanism_explanation"]
+  });
+  assert(draft.eventWeight >= 0.62, "positive accepted implementation follow-up should be high weight");
+  assert.equal(draft.memoryRole, "deep_candidate", "high-weight positive feedback should remain eligible as a deep candidate");
+}
+
+function testOldInteractionMemoryNormalizesNewFields() {
+  const oldMemory = {
+    episodes: [{
+      id: "old",
+      status: "closed",
+      context: "general",
+      userExcerpt: "old prompt",
+      assistantExcerpt: "old response",
+      userSignals: [],
+      assistantShape: [],
+      createdAt: Date.UTC(2026, 6, 10),
+      updatedAt: Date.UTC(2026, 6, 10)
+    }]
+  };
+  const normalized = require("../src/interaction/PatternReducer").normalizeInteractionMemory(oldMemory);
+  assert.equal(normalized.episodes[0].phase, "general", "old episodes should get default phase");
+  assert.equal(normalized.episodes[0].repairPath, null, "old episodes should not invent repair paths");
+  assert.equal(normalized.episodes[0].memoryRole, "short_term_episode", "old episodes should get default memory role");
+  assert.equal(normalized.episodes[0].eventWeight, 0.2, "old episodes should get a low default event weight");
+}
+
 testEpisodeClosureAndStance()
   .then(testPromptIntegrationAndSensitiveFiltering)
   .then(testReactionClassification)
@@ -443,6 +676,12 @@ testEpisodeClosureAndStance()
   .then(testPendingEpisodesAreBoundedAndLegacyProfileClears)
   .then(testTensionSignalBoostUsesSignals)
   .then(testAssistantShapeReviewStatusAndNegativeEvidence)
+  .then(testRepairPathCaptureAndOutcome)
+  .then(testRepairPatternsFromEvidence)
+  .then(testSingleNegativeAndLowWeightDoNotMature)
+  .then(testRepairPhaseDoesNotCrossMatchUnrelatedPatterns)
+  .then(testPositiveHighWeightCanBecomeDeepCandidate)
+  .then(testOldInteractionMemoryNormalizesNewFields)
   .then(() => {
     console.log("Interaction memory tests passed.");
   })

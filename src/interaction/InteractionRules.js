@@ -104,6 +104,66 @@ const PATTERN_RULES = [
     outcomeHints: ["style_recalibration", "correction"],
     contexts: ["general", "implementation", "agent_continuity", "planning"],
     weight: 0.58
+  },
+  {
+    key: "repair_by_restating_intent",
+    axis: "repair_style",
+    summary: "When corrected, first restate the user's intended distinction, then revise the plan without over-apologizing.",
+    signals: ["repair_trigger_misread", "negative_feedback"],
+    assistantShapes: ["restated_intent", "repair_response"],
+    phases: ["repair"],
+    repairTriggers: ["misread", "wrong_direction"],
+    repairAdjustments: ["restated_intent"],
+    repairOutcomes: ["accepted", "unresolved"],
+    outcomeHints: ["correction", "style_recalibration", "accepted"],
+    contexts: ["general", "implementation", "agent_continuity", "planning"],
+    minEventWeight: 0.42,
+    weight: 0.74
+  },
+  {
+    key: "repair_by_concretizing",
+    axis: "repair_style",
+    summary: "When abstraction stalls or feels too flat, the user often needs concrete architecture, tasks, tests, or acceptance boundaries.",
+    signals: ["repair_trigger_too_flat", "asks_for_implementation", "asks_for_clarification"],
+    assistantShapes: ["became_concrete", "implementation_plan"],
+    phases: ["repair", "implementation"],
+    repairTriggers: ["too_flat", "unclear"],
+    repairAdjustments: ["became_concrete"],
+    repairOutcomes: ["accepted", "unresolved"],
+    outcomeHints: ["implementation_followup", "clarification_requested", "accepted"],
+    contexts: ["agent_continuity", "implementation", "planning"],
+    minEventWeight: 0.42,
+    weight: 0.72
+  },
+  {
+    key: "avoid_flattening_after_pushback",
+    axis: "collaboration_texture",
+    summary: "When the user pushes back against flattened rules or preference-list framing, preserve the underlying tension, nuance, and boundaries.",
+    signals: ["repair_trigger_too_flat", "pushes_for_nuance", "rejects_flattening"],
+    assistantShapes: ["mechanism_explanation", "became_deeper"],
+    phases: ["repair", "concept"],
+    repairTriggers: ["too_flat"],
+    repairAdjustments: ["became_deeper", "changed_level", "restated_intent"],
+    repairOutcomes: ["accepted", "unresolved"],
+    negativeAssistantShapes: ["settings_framing"],
+    contexts: ["agent_continuity", "implementation"],
+    minEventWeight: 0.42,
+    weight: 0.76
+  },
+  {
+    key: "correction_without_defensiveness",
+    axis: "repair_style",
+    summary: "Corrections should be absorbed as calibration: revise calmly, avoid self-defense, and keep the next move useful.",
+    signals: ["negative_feedback", "style_feedback"],
+    assistantShapes: ["repair_response", "softened_tone"],
+    phases: ["repair"],
+    repairTriggers: ["misread", "too_flat", "too_verbose", "wrong_direction", "style_mismatch", "unclear"],
+    repairAdjustments: ["restated_intent", "became_concrete", "became_shorter", "became_deeper", "softened_tone", "changed_level"],
+    repairOutcomes: ["accepted", "unresolved", "clarification_requested"],
+    outcomeHints: ["correction", "style_recalibration", "accepted"],
+    contexts: ["general", "implementation", "agent_continuity", "planning"],
+    minEventWeight: 0.42,
+    weight: 0.68
   }
 ];
 
@@ -135,6 +195,14 @@ const TENSION_RULES = [
     sideB: "The user also wants implementation paths and boundaries.",
     resolutionStyle: "Explain the concept deeply enough, then land it in concrete next steps or design boundaries.",
     signals: ["asks_for_depth", "asks_for_implementation"]
+  },
+  {
+    key: "repair_without_overcorrecting",
+    sideA: "The user may correct direction, tone, or level of abstraction.",
+    sideB: "The user still wants momentum rather than defensive apology or a total reset.",
+    resolutionStyle: "Treat correction as calibration: name the adjusted understanding briefly, then continue with a useful revised answer.",
+    signals: ["negative_feedback"],
+    repairTriggers: ["misread", "wrong_direction", "style_mismatch", "too_flat"]
   }
 ];
 
@@ -172,8 +240,14 @@ const STABLE_PERSONA_RULES = [
   {
     key: "calibrated_after_correction",
     axis: "long_term_persona",
-    patternKeys: ["correction_calibrates_style"],
+    patternKeys: ["correction_calibrates_style", "correction_without_defensiveness", "repair_without_overcorrecting"],
     text: "When corrected, the assistant should absorb the calibration calmly, adjust course, and avoid becoming defensive or overly apologetic."
+  },
+  {
+    key: "repair_path_sensitive",
+    axis: "long_term_persona",
+    patternKeys: ["repair_by_restating_intent", "repair_by_concretizing", "avoid_flattening_after_pushback"],
+    text: "The assistant should remember useful repair paths: restate the user's intended distinction when direction is off, then make the revision concrete while preserving nuance."
   },
   {
     key: "warm_but_useful_presence",

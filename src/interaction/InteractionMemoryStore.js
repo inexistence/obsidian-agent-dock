@@ -1,6 +1,6 @@
 const { normalizePath } = require("obsidian");
 
-const { extractEpisodeDraft, isSensitiveEpisode } = require("./LocalSignalExtractor");
+const { extractEpisodeDraft, isSensitiveEpisode, updateRepairOutcome } = require("./LocalSignalExtractor");
 const {
   applyEpisodes,
   getPromptStance,
@@ -174,10 +174,14 @@ function createPendingEpisode(draft, now) {
     id: createInteractionId("episode"),
     status: "pending",
     context: draft.context,
+    phase: draft.phase,
     userExcerpt: draft.userExcerpt,
     assistantExcerpt: draft.assistantExcerpt,
     userSignals: draft.userSignals,
     assistantShape: draft.assistantShape,
+    repairPath: draft.repairPath,
+    eventWeight: draft.eventWeight,
+    memoryRole: draft.memoryRole,
     reaction: null,
     outcomeHint: "",
     sourceSessionId: draft.sourceSessionId,
@@ -187,9 +191,13 @@ function createPendingEpisode(draft, now) {
 }
 
 function closePendingEpisode(pending, draft, now) {
+  const repairPath = updateRepairOutcome(pending.repairPath, draft.reaction);
   return Object.assign({}, pending, {
     status: "closed",
     reaction: draft.reaction,
+    repairPath,
+    eventWeight: Math.max(Number(pending.eventWeight) || 0, Number(draft.eventWeight) || 0),
+    memoryRole: repairPath || Number(pending.eventWeight) >= 0.45 ? "pattern_evidence" : pending.memoryRole,
     outcomeHint: draft.outcomeHint,
     updatedAt: now
   });

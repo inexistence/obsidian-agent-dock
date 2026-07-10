@@ -116,7 +116,12 @@ records a bounded local pending episode from the visible user message and final
 assistant answer. The next successful turn closes that episode with the next
 user message as reaction evidence, then a local reducer merges closed episodes
 into patterns and tensions with strength, confidence, evidence count, and time
-decay. New user requests close pending episodes without becoming positive
+decay. Episodes also carry local collaboration-continuity fields such as phase,
+event weight, memory role, and repair path when a visible correction or style
+calibration happens. This lets Agent Dock learn useful repair paths, such as
+restating the user's intended distinction before revising concretely, without
+adding personality parameters, emotion vectors, birth stories, or model-scored
+inner states. New user requests close pending episodes without becoming positive
 reaction evidence. Repeated evidence can promote patterns into cached long-term
 persona impressions that describe the assistant's recurring collaboration mode
 with the user. Future prompts may include a brief `Interaction memory` section

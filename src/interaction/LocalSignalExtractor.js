@@ -93,6 +93,26 @@ const USER_SIGNAL_RULES = [
   {
     id: "negative_feedback",
     strong: [/不对/, /不是(?:这个|这样|我的意思)/, /太(?:空|泛|虚|啰嗦|官方|像客服)/, /没有(?:回答|解决|落地)/, /跑偏了/, /没抓住重点/, /误解了/, /不是我要的/, /\b(wrong|not what i mean|too vague|missed the point|not useful|misread)\b/i]
+  },
+  {
+    id: "repair_trigger_misread",
+    strong: [/不是(?:这个|这样|我的意思)/, /你误解了/, /没抓住重点/, /跑偏了/, /\b(not what i mean|misread|missed the point|wrong direction)\b/i]
+  },
+  {
+    id: "repair_trigger_too_flat",
+    strong: [/压扁/, /压成/, /太(?:空|泛|虚|抽象)/, /泛泛而谈/, /别(?:压扁|压成)/, /不要.*(?:硬规则|偏好清单|模板化)/, /\b(too vague|too abstract|flatten|too mechanical|rigid)\b/i]
+  },
+  {
+    id: "repair_trigger_too_verbose",
+    strong: [/太(?:啰嗦|长|废话)/, /别废话/, /不用铺垫/, /\b(too verbose|too long|cut to the chase)\b/i]
+  },
+  {
+    id: "repair_trigger_style_mismatch",
+    strong: [/太像客服/, /语气不对/, /太(?:官方|生硬|机械|冷|热情)/, /风格不对/, /\b(too formal|too robotic|tone feels off|style feels off)\b/i]
+  },
+  {
+    id: "repair_acceptance",
+    strong: [/对[，,\s]*(?:就是|是这个|这个方向)/, /这个方向(?:可以|对了)/, /这样(?:更对|很好|可以)/, /继续(?:这样|这个方向)/, /抓住了/, /\b(exactly|that's it|this direction works|keep going with this|now you got it)\b/i]
   }
 ];
 
@@ -131,6 +151,26 @@ const ASSISTANT_SHAPE_RULES = [
     strong: [/我理解错了/, /我修正/, /改一下/, /重新来/, /\b(i misread|let me correct|revise)\b/i]
   },
   {
+    id: "restated_intent",
+    strong: [/你的意思是/, /我理解你的意思/, /换句话说/, /你要的不是.*而是/, /\b(what you mean is|if i understand|in other words|you're asking for)\b/i]
+  },
+  {
+    id: "became_concrete",
+    strong: [/具体/, /落地/, /实现/, /数据模型/, /接口/, /任务/, /验收/, /测试/, /\b(concrete|implementation|schema|interface|tasks|acceptance|tests?)\b/i]
+  },
+  {
+    id: "became_shorter",
+    strong: [/简短/, /直接/, /先给结论/, /\b(short version|briefly|directly|bottom line)\b/i]
+  },
+  {
+    id: "became_deeper",
+    strong: [/展开/, /深入/, /机制/, /取舍/, /边界/, /\b(deeper|mechanism|tradeoff|boundary)\b/i]
+  },
+  {
+    id: "softened_tone",
+    strong: [/抱歉/, /我理解/, /温和/, /不防御/, /校准/, /\b(sorry|you're right|calibrate|without defensiveness)\b/i]
+  },
+  {
     id: "warm_presence",
     strong: [/一起/, /陪你/, /我在/, /我们可以/, /\b(with you|together|we can)\b/i]
   }
@@ -142,18 +182,149 @@ function extractEpisodeDraft(turn, previousPending) {
   const reaction = previousPending
     ? classifyReaction(previousPending, prompt)
     : null;
+  const context = classifyContext(prompt);
+  const userSignals = extractSignals(prompt, USER_SIGNAL_RULES);
+  const assistantShape = extractSignals(response, ASSISTANT_SHAPE_RULES);
+  const repairPath = createRepairPath(userSignals, assistantShape, reaction);
+  const eventWeight = calculateEventWeight({
+    context,
+    userSignals,
+    assistantShape,
+    reaction,
+    repairPath
+  });
 
   return {
-    context: classifyContext(prompt),
+    context,
+    phase: classifyPhase(context, userSignals, assistantShape, reaction, repairPath),
     userExcerpt: sanitizeExcerpt(prompt),
     assistantExcerpt: sanitizeExcerpt(response),
-    userSignals: extractSignals(prompt, USER_SIGNAL_RULES),
-    assistantShape: extractSignals(response, ASSISTANT_SHAPE_RULES),
+    userSignals,
+    assistantShape,
     reaction,
+    repairPath,
+    eventWeight,
+    memoryRole: classifyMemoryRole(eventWeight, repairPath, userSignals),
     outcomeHint: reaction?.outcomeHint || "",
     sourceSessionId: turn?.sessionId || "",
     createdAt: Number(turn?.now) || Date.now()
   };
+}
+
+function classifyPhase(context, userSignals, assistantShape, reaction, repairPath) {
+  if (repairPath || ["correction", "style_recalibration"].includes(reaction?.kind)) {
+    return "repair";
+  }
+  if (userSignals.includes("positive_feedback")) {
+    return "validation";
+  }
+  if (userSignals.includes("asks_for_implementation") || assistantShape.includes("implementation_plan") || assistantShape.includes("became_concrete")) {
+    return "implementation";
+  }
+  if (["agent_continuity", "planning"].includes(context) || userSignals.includes("asks_for_mechanism") || userSignals.includes("pushes_for_nuance")) {
+    return "concept";
+  }
+  return "general";
+}
+
+function createRepairPath(userSignals, assistantShape, reaction) {
+  const trigger = getRepairTrigger(userSignals);
+  const assistantAdjustment = getAssistantAdjustment(assistantShape);
+  if (!trigger && !["correction", "style_recalibration", "clarification"].includes(reaction?.kind)) {
+    return null;
+  }
+  return {
+    trigger: trigger || (reaction?.kind === "clarification" ? "unclear" : "wrong_direction"),
+    assistantAdjustment: assistantAdjustment || "changed_level",
+    outcome: "unresolved"
+  };
+}
+
+function getRepairTrigger(signals) {
+  if (signals.includes("repair_trigger_misread")) {
+    return "misread";
+  }
+  if (signals.includes("repair_trigger_too_flat") || signals.includes("rejects_flattening")) {
+    return "too_flat";
+  }
+  if (signals.includes("repair_trigger_too_verbose")) {
+    return "too_verbose";
+  }
+  if (signals.includes("repair_trigger_style_mismatch") || signals.includes("style_feedback")) {
+    return "style_mismatch";
+  }
+  if (signals.includes("asks_for_clarification")) {
+    return "unclear";
+  }
+  if (signals.includes("negative_feedback")) {
+    return "wrong_direction";
+  }
+  return "";
+}
+
+function getAssistantAdjustment(shapes) {
+  if (shapes.includes("restated_intent")) {
+    return "restated_intent";
+  }
+  if (shapes.includes("became_concrete") || shapes.includes("implementation_plan")) {
+    return "became_concrete";
+  }
+  if (shapes.includes("became_shorter")) {
+    return "became_shorter";
+  }
+  if (shapes.includes("became_deeper") || shapes.includes("mechanism_explanation")) {
+    return "became_deeper";
+  }
+  if (shapes.includes("softened_tone") || shapes.includes("repair_response")) {
+    return "softened_tone";
+  }
+  return "";
+}
+
+function updateRepairOutcome(repairPath, reaction) {
+  if (!repairPath) {
+    return null;
+  }
+  let outcome = "unresolved";
+  if (reaction?.kind === "acceptance" || reaction?.signals?.includes("repair_acceptance")) {
+    outcome = "accepted";
+  } else if (["correction", "style_recalibration"].includes(reaction?.kind)) {
+    outcome = "continued_correction";
+  } else if (reaction?.kind === "clarification") {
+    outcome = "clarification_requested";
+  }
+  return Object.assign({}, repairPath, { outcome });
+}
+
+function calculateEventWeight(event) {
+  let weight = 0.12;
+  const signals = event.userSignals || [];
+  if (signals.includes("positive_feedback") || signals.includes("negative_feedback") || signals.includes("style_feedback")) {
+    weight += 0.22;
+  }
+  if (signals.some((signal) => signal.startsWith("repair_trigger_")) || event.repairPath) {
+    weight += 0.28;
+  }
+  if (signals.includes("asks_for_implementation") || signals.includes("pushes_for_nuance") || signals.includes("rejects_flattening")) {
+    weight += 0.18;
+  }
+  if (["accepted", "correction", "style_recalibration", "implementation_followup", "productive_deepening"].includes(event.reaction?.outcomeHint)) {
+    weight += 0.14;
+  }
+  if (event.context === "agent_continuity" || event.context === "implementation") {
+    weight += 0.06;
+  }
+  return Math.max(0, Math.min(1, weight));
+}
+
+function classifyMemoryRole(eventWeight, repairPath, userSignals) {
+  if (userSignals.includes("positive_feedback") && eventWeight >= 0.62) {
+    return "deep_candidate";
+  }
+  if (repairPath || eventWeight >= 0.45) {
+    return "pattern_evidence";
+  }
+  return "short_term_episode";
 }
 
 function buildPromptInteractionContext(prompt, conversation) {
@@ -293,8 +464,13 @@ module.exports = {
   extractSignals,
   isSensitiveEpisode,
   sanitizeExcerpt,
+  updateRepairOutcome,
   _test: {
     classifyReaction,
+    classifyPhase,
+    createRepairPath,
+    updateRepairOutcome,
+    calculateEventWeight,
     CONTINUATION_PATTERNS,
     matchesRule,
     USER_SIGNAL_RULES,

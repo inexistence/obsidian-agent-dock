@@ -120,7 +120,8 @@ function reducePatterns(episodes, settings, now) {
     const contexts = countBy(matching.map((episode) => episode.context));
     const evidenceCount = matching.length;
     const negativeEvidenceCount = negativeMatching.length;
-    const netEvidence = Math.max(0, evidenceCount - negativeEvidenceCount * 0.75);
+    const weightedEvidence = matching.reduce((total, episode) => total + getEpisodeEvidenceWeight(episode, rule), 0);
+    const netEvidence = Math.max(0, weightedEvidence - negativeEvidenceCount * 0.75);
     if (netEvidence <= 0) {
       continue;
     }
@@ -137,6 +138,10 @@ function reducePatterns(episodes, settings, now) {
       signals: rule.signals,
       assistantShapes: rule.assistantShapes || [],
       outcomeHints: rule.outcomeHints || [],
+      phases: rule.phases || [],
+      repairTriggers: rule.repairTriggers || [],
+      repairAdjustments: rule.repairAdjustments || [],
+      repairOutcomes: rule.repairOutcomes || [],
       negativeEvidenceCount,
       evidenceEpisodeIds: matching.map((episode) => episode.id),
       evidenceCount,
@@ -161,7 +166,7 @@ function reduceTensions(episodes, settings, now) {
   return TENSION_RULES.map((rule) => {
     const matching = episodes.filter((episode) => (
       !["topic_shift", "new_request"].includes(episode.outcomeHint)
-      && rule.signals.every((signal) => episode.userSignals.includes(signal))
+      && ruleMatchesEpisode(rule, episode)
     ));
     if (matching.length === 0) {
       return null;
@@ -207,7 +212,8 @@ function reduceStableImpressions(patterns, tensions, previous, settings, now) {
     const matched = rule.patternKeys
       .map((key) => byKey.get(key))
       .filter(Boolean);
-    const evidenceCount = matched.reduce((total, item) => total + item.evidenceCount, 0);
+    const evidenceEpisodeIds = uniqueStrings(matched.flatMap((item) => item.evidenceEpisodeIds || []));
+    const evidenceCount = evidenceEpisodeIds.length || matched.reduce((total, item) => total + item.evidenceCount, 0);
     if (matched.length === 0 || evidenceCount < stableMinEvidence) {
       return previousByKey.get(rule.key) || null;
     }
@@ -216,7 +222,6 @@ function reduceStableImpressions(patterns, tensions, previous, settings, now) {
     const strength = clampUnit(0.28 + evidenceCount * 0.08 + confidence * 0.22);
     const latest = matched.reduce((timestamp, item) => Math.max(timestamp, normalizeTimestamp(item.updatedAt, now)), 0);
     const sourcePatternKeys = matched.map((item) => item.key);
-    const evidenceEpisodeIds = uniqueStrings(matched.flatMap((item) => item.evidenceEpisodeIds || []));
     const sourceHash = createSourceHash(rule.key, matched);
     return {
       id: previousItem?.id || `stable_${normalizeKeyText(rule.key)}`,
@@ -243,11 +248,66 @@ function reduceStableImpressions(patterns, tensions, previous, settings, now) {
 }
 
 function episodeMatchesRule(episode, rule) {
-  const hasSignal = rule.signals.some((signal) => episode.userSignals.includes(signal) || episode.reaction?.signals?.includes(signal));
+  const ruleSignals = Array.isArray(rule.signals) ? rule.signals : [];
+  const hasSignal = ruleSignals.some((signal) => episode.userSignals.includes(signal) || episode.reaction?.signals?.includes(signal));
   const hasOutcome = outcomeMatchesRule(episode, rule);
+  const hasRepair = repairMatchesRule(episode, rule);
+  const hasAssistant = assistantMatchesRule(episode, rule);
+  const phaseCompatible = !Array.isArray(rule.phases) || rule.phases.length === 0 || rule.phases.includes(episode.phase);
   const inContext = !rule.contexts || rule.contexts.includes(episode.context);
   const usefulOutcome = isUsefulPositiveOutcome(episode.outcomeHint, rule);
-  return (hasSignal || hasOutcome) && inContext && usefulOutcome;
+  const enoughWeight = !Number.isFinite(Number(rule.minEventWeight)) || Number(episode.eventWeight) >= Number(rule.minEventWeight);
+  const outcomeHasSpecificEvidence = hasOutcome && episode.outcomeHint !== "accepted";
+  const acceptedHasSupportingEvidence = hasOutcome && episode.outcomeHint === "accepted" && (hasSignal || hasRepair || hasAssistant);
+  return (
+    (hasSignal || hasRepair || outcomeHasSpecificEvidence || acceptedHasSupportingEvidence)
+    && phaseCompatible
+    && inContext
+    && usefulOutcome
+    && enoughWeight
+  );
+}
+
+function ruleMatchesEpisode(rule, episode) {
+  const signals = Array.isArray(rule.signals) ? rule.signals : [];
+  const signalMatch = signals.every((signal) => episode.userSignals.includes(signal) || episode.reaction?.signals?.includes(signal));
+  return signalMatch || repairMatchesRule(episode, rule);
+}
+
+function repairMatchesRule(episode, rule) {
+  const repairPath = episode.repairPath;
+  if (!repairPath) {
+    return false;
+  }
+  const triggers = Array.isArray(rule.repairTriggers) ? rule.repairTriggers : [];
+  const adjustments = Array.isArray(rule.repairAdjustments) ? rule.repairAdjustments : [];
+  const outcomes = Array.isArray(rule.repairOutcomes) ? rule.repairOutcomes : [];
+  return (
+    (triggers.length === 0 || triggers.includes(repairPath.trigger))
+    && (adjustments.length === 0 || adjustments.includes(repairPath.assistantAdjustment))
+    && (outcomes.length === 0 || outcomes.includes(repairPath.outcome))
+    && (triggers.length > 0 || adjustments.length > 0 || outcomes.length > 0)
+  );
+}
+
+function getEpisodeEvidenceWeight(episode, rule) {
+  let weight = Math.max(0.2, Number(episode.eventWeight) || 0.2);
+  if (episode.userSignals?.length > 0 || episode.assistantShape?.length > 0 || episode.reaction?.signals?.length > 0) {
+    weight = Math.max(weight, 0.55);
+  }
+  if (repairMatchesRule(episode, rule)) {
+    weight += 0.35;
+  }
+  if (episode.memoryRole === "pattern_evidence") {
+    weight += 0.12;
+  }
+  if (episode.repairPath?.outcome === "accepted") {
+    weight += 0.12;
+  }
+  if (episode.repairPath?.outcome === "continued_correction") {
+    weight -= 0.08;
+  }
+  return Math.max(0.1, weight);
 }
 
 function isUsefulPositiveOutcome(outcomeHint, rule) {
@@ -385,16 +445,44 @@ function normalizeEpisode(item) {
     id,
     status: item.status === "pending" ? "pending" : "closed",
     context: compactText(item.context) || "general",
+    phase: normalizePhase(item.phase),
     userExcerpt: compactText(item.userExcerpt),
     assistantExcerpt: compactText(item.assistantExcerpt),
     userSignals: normalizeStringArray(item.userSignals),
     assistantShape: normalizeStringArray(item.assistantShape),
+    repairPath: normalizeRepairPath(item.repairPath),
+    eventWeight: clampUnit(Number.isFinite(Number(item.eventWeight)) ? Number(item.eventWeight) : 0.2),
+    memoryRole: normalizeMemoryRole(item.memoryRole),
     reaction: normalizeReaction(item.reaction),
     outcomeHint: compactText(item.outcomeHint),
     sourceSessionId: compactText(item.sourceSessionId),
     createdAt: normalizeTimestamp(item.createdAt, Date.now()),
     updatedAt: normalizeTimestamp(item.updatedAt, item.createdAt || Date.now())
   };
+}
+
+function normalizePhase(value) {
+  const phase = compactText(value);
+  return ["concept", "implementation", "repair", "validation", "general"].includes(phase) ? phase : "general";
+}
+
+function normalizeRepairPath(item) {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+  const trigger = compactText(item.trigger);
+  const assistantAdjustment = compactText(item.assistantAdjustment);
+  const outcome = compactText(item.outcome);
+  return {
+    trigger: ["misread", "too_flat", "too_verbose", "wrong_direction", "style_mismatch", "unclear"].includes(trigger) ? trigger : "wrong_direction",
+    assistantAdjustment: ["restated_intent", "changed_level", "became_concrete", "became_shorter", "became_deeper", "softened_tone"].includes(assistantAdjustment) ? assistantAdjustment : "changed_level",
+    outcome: ["accepted", "continued_correction", "clarification_requested", "unresolved"].includes(outcome) ? outcome : "unresolved"
+  };
+}
+
+function normalizeMemoryRole(value) {
+  const role = compactText(value);
+  return ["short_term_episode", "pattern_evidence", "deep_candidate"].includes(role) ? role : "short_term_episode";
 }
 
 function normalizeReaction(item) {
@@ -427,6 +515,10 @@ function normalizePattern(item) {
     signals: normalizeStringArray(item.signals),
     assistantShapes: normalizeStringArray(item.assistantShapes),
     outcomeHints: normalizeStringArray(item.outcomeHints),
+    phases: normalizeStringArray(item.phases),
+    repairTriggers: normalizeStringArray(item.repairTriggers),
+    repairAdjustments: normalizeStringArray(item.repairAdjustments),
+    repairOutcomes: normalizeStringArray(item.repairOutcomes),
     negativeEvidenceCount: Math.max(0, Number.parseInt(item.negativeEvidenceCount, 10) || 0),
     evidenceEpisodeIds: normalizeStringArray(item.evidenceEpisodeIds),
     evidenceCount: Math.max(0, Number.parseInt(item.evidenceCount, 10) || 0),

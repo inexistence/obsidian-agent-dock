@@ -2714,6 +2714,26 @@ const USER_SIGNAL_RULES = [
   {
     id: "negative_feedback",
     strong: [/不对/, /不是(?:这个|这样|我的意思)/, /太(?:空|泛|虚|啰嗦|官方|像客服)/, /没有(?:回答|解决|落地)/, /跑偏了/, /没抓住重点/, /误解了/, /不是我要的/, /\b(wrong|not what i mean|too vague|missed the point|not useful|misread)\b/i]
+  },
+  {
+    id: "repair_trigger_misread",
+    strong: [/不是(?:这个|这样|我的意思)/, /你误解了/, /没抓住重点/, /跑偏了/, /\b(not what i mean|misread|missed the point|wrong direction)\b/i]
+  },
+  {
+    id: "repair_trigger_too_flat",
+    strong: [/压扁/, /压成/, /太(?:空|泛|虚|抽象)/, /泛泛而谈/, /别(?:压扁|压成)/, /不要.*(?:硬规则|偏好清单|模板化)/, /\b(too vague|too abstract|flatten|too mechanical|rigid)\b/i]
+  },
+  {
+    id: "repair_trigger_too_verbose",
+    strong: [/太(?:啰嗦|长|废话)/, /别废话/, /不用铺垫/, /\b(too verbose|too long|cut to the chase)\b/i]
+  },
+  {
+    id: "repair_trigger_style_mismatch",
+    strong: [/太像客服/, /语气不对/, /太(?:官方|生硬|机械|冷|热情)/, /风格不对/, /\b(too formal|too robotic|tone feels off|style feels off)\b/i]
+  },
+  {
+    id: "repair_acceptance",
+    strong: [/对[，,\s]*(?:就是|是这个|这个方向)/, /这个方向(?:可以|对了)/, /这样(?:更对|很好|可以)/, /继续(?:这样|这个方向)/, /抓住了/, /\b(exactly|that's it|this direction works|keep going with this|now you got it)\b/i]
   }
 ];
 
@@ -2752,6 +2772,26 @@ const ASSISTANT_SHAPE_RULES = [
     strong: [/我理解错了/, /我修正/, /改一下/, /重新来/, /\b(i misread|let me correct|revise)\b/i]
   },
   {
+    id: "restated_intent",
+    strong: [/你的意思是/, /我理解你的意思/, /换句话说/, /你要的不是.*而是/, /\b(what you mean is|if i understand|in other words|you're asking for)\b/i]
+  },
+  {
+    id: "became_concrete",
+    strong: [/具体/, /落地/, /实现/, /数据模型/, /接口/, /任务/, /验收/, /测试/, /\b(concrete|implementation|schema|interface|tasks|acceptance|tests?)\b/i]
+  },
+  {
+    id: "became_shorter",
+    strong: [/简短/, /直接/, /先给结论/, /\b(short version|briefly|directly|bottom line)\b/i]
+  },
+  {
+    id: "became_deeper",
+    strong: [/展开/, /深入/, /机制/, /取舍/, /边界/, /\b(deeper|mechanism|tradeoff|boundary)\b/i]
+  },
+  {
+    id: "softened_tone",
+    strong: [/抱歉/, /我理解/, /温和/, /不防御/, /校准/, /\b(sorry|you're right|calibrate|without defensiveness)\b/i]
+  },
+  {
     id: "warm_presence",
     strong: [/一起/, /陪你/, /我在/, /我们可以/, /\b(with you|together|we can)\b/i]
   }
@@ -2763,18 +2803,149 @@ function extractEpisodeDraft(turn, previousPending) {
   const reaction = previousPending
     ? classifyReaction(previousPending, prompt)
     : null;
+  const context = classifyContext(prompt);
+  const userSignals = extractSignals(prompt, USER_SIGNAL_RULES);
+  const assistantShape = extractSignals(response, ASSISTANT_SHAPE_RULES);
+  const repairPath = createRepairPath(userSignals, assistantShape, reaction);
+  const eventWeight = calculateEventWeight({
+    context,
+    userSignals,
+    assistantShape,
+    reaction,
+    repairPath
+  });
 
   return {
-    context: classifyContext(prompt),
+    context,
+    phase: classifyPhase(context, userSignals, assistantShape, reaction, repairPath),
     userExcerpt: sanitizeExcerpt(prompt),
     assistantExcerpt: sanitizeExcerpt(response),
-    userSignals: extractSignals(prompt, USER_SIGNAL_RULES),
-    assistantShape: extractSignals(response, ASSISTANT_SHAPE_RULES),
+    userSignals,
+    assistantShape,
     reaction,
+    repairPath,
+    eventWeight,
+    memoryRole: classifyMemoryRole(eventWeight, repairPath, userSignals),
     outcomeHint: reaction?.outcomeHint || "",
     sourceSessionId: turn?.sessionId || "",
     createdAt: Number(turn?.now) || Date.now()
   };
+}
+
+function classifyPhase(context, userSignals, assistantShape, reaction, repairPath) {
+  if (repairPath || ["correction", "style_recalibration"].includes(reaction?.kind)) {
+    return "repair";
+  }
+  if (userSignals.includes("positive_feedback")) {
+    return "validation";
+  }
+  if (userSignals.includes("asks_for_implementation") || assistantShape.includes("implementation_plan") || assistantShape.includes("became_concrete")) {
+    return "implementation";
+  }
+  if (["agent_continuity", "planning"].includes(context) || userSignals.includes("asks_for_mechanism") || userSignals.includes("pushes_for_nuance")) {
+    return "concept";
+  }
+  return "general";
+}
+
+function createRepairPath(userSignals, assistantShape, reaction) {
+  const trigger = getRepairTrigger(userSignals);
+  const assistantAdjustment = getAssistantAdjustment(assistantShape);
+  if (!trigger && !["correction", "style_recalibration", "clarification"].includes(reaction?.kind)) {
+    return null;
+  }
+  return {
+    trigger: trigger || (reaction?.kind === "clarification" ? "unclear" : "wrong_direction"),
+    assistantAdjustment: assistantAdjustment || "changed_level",
+    outcome: "unresolved"
+  };
+}
+
+function getRepairTrigger(signals) {
+  if (signals.includes("repair_trigger_misread")) {
+    return "misread";
+  }
+  if (signals.includes("repair_trigger_too_flat") || signals.includes("rejects_flattening")) {
+    return "too_flat";
+  }
+  if (signals.includes("repair_trigger_too_verbose")) {
+    return "too_verbose";
+  }
+  if (signals.includes("repair_trigger_style_mismatch") || signals.includes("style_feedback")) {
+    return "style_mismatch";
+  }
+  if (signals.includes("asks_for_clarification")) {
+    return "unclear";
+  }
+  if (signals.includes("negative_feedback")) {
+    return "wrong_direction";
+  }
+  return "";
+}
+
+function getAssistantAdjustment(shapes) {
+  if (shapes.includes("restated_intent")) {
+    return "restated_intent";
+  }
+  if (shapes.includes("became_concrete") || shapes.includes("implementation_plan")) {
+    return "became_concrete";
+  }
+  if (shapes.includes("became_shorter")) {
+    return "became_shorter";
+  }
+  if (shapes.includes("became_deeper") || shapes.includes("mechanism_explanation")) {
+    return "became_deeper";
+  }
+  if (shapes.includes("softened_tone") || shapes.includes("repair_response")) {
+    return "softened_tone";
+  }
+  return "";
+}
+
+function updateRepairOutcome(repairPath, reaction) {
+  if (!repairPath) {
+    return null;
+  }
+  let outcome = "unresolved";
+  if (reaction?.kind === "acceptance" || reaction?.signals?.includes("repair_acceptance")) {
+    outcome = "accepted";
+  } else if (["correction", "style_recalibration"].includes(reaction?.kind)) {
+    outcome = "continued_correction";
+  } else if (reaction?.kind === "clarification") {
+    outcome = "clarification_requested";
+  }
+  return Object.assign({}, repairPath, { outcome });
+}
+
+function calculateEventWeight(event) {
+  let weight = 0.12;
+  const signals = event.userSignals || [];
+  if (signals.includes("positive_feedback") || signals.includes("negative_feedback") || signals.includes("style_feedback")) {
+    weight += 0.22;
+  }
+  if (signals.some((signal) => signal.startsWith("repair_trigger_")) || event.repairPath) {
+    weight += 0.28;
+  }
+  if (signals.includes("asks_for_implementation") || signals.includes("pushes_for_nuance") || signals.includes("rejects_flattening")) {
+    weight += 0.18;
+  }
+  if (["accepted", "correction", "style_recalibration", "implementation_followup", "productive_deepening"].includes(event.reaction?.outcomeHint)) {
+    weight += 0.14;
+  }
+  if (event.context === "agent_continuity" || event.context === "implementation") {
+    weight += 0.06;
+  }
+  return Math.max(0, Math.min(1, weight));
+}
+
+function classifyMemoryRole(eventWeight, repairPath, userSignals) {
+  if (userSignals.includes("positive_feedback") && eventWeight >= 0.62) {
+    return "deep_candidate";
+  }
+  if (repairPath || eventWeight >= 0.45) {
+    return "pattern_evidence";
+  }
+  return "short_term_episode";
 }
 
 function buildPromptInteractionContext(prompt, conversation) {
@@ -2914,8 +3085,13 @@ module.exports = {
   extractSignals,
   isSensitiveEpisode,
   sanitizeExcerpt,
+  updateRepairOutcome,
   _test: {
     classifyReaction,
+    classifyPhase,
+    createRepairPath,
+    updateRepairOutcome,
+    calculateEventWeight,
     CONTINUATION_PATTERNS,
     matchesRule,
     USER_SIGNAL_RULES,
@@ -8082,6 +8258,66 @@ const PATTERN_RULES = [
     outcomeHints: ["style_recalibration", "correction"],
     contexts: ["general", "implementation", "agent_continuity", "planning"],
     weight: 0.58
+  },
+  {
+    key: "repair_by_restating_intent",
+    axis: "repair_style",
+    summary: "When corrected, first restate the user's intended distinction, then revise the plan without over-apologizing.",
+    signals: ["repair_trigger_misread", "negative_feedback"],
+    assistantShapes: ["restated_intent", "repair_response"],
+    phases: ["repair"],
+    repairTriggers: ["misread", "wrong_direction"],
+    repairAdjustments: ["restated_intent"],
+    repairOutcomes: ["accepted", "unresolved"],
+    outcomeHints: ["correction", "style_recalibration", "accepted"],
+    contexts: ["general", "implementation", "agent_continuity", "planning"],
+    minEventWeight: 0.42,
+    weight: 0.74
+  },
+  {
+    key: "repair_by_concretizing",
+    axis: "repair_style",
+    summary: "When abstraction stalls or feels too flat, the user often needs concrete architecture, tasks, tests, or acceptance boundaries.",
+    signals: ["repair_trigger_too_flat", "asks_for_implementation", "asks_for_clarification"],
+    assistantShapes: ["became_concrete", "implementation_plan"],
+    phases: ["repair", "implementation"],
+    repairTriggers: ["too_flat", "unclear"],
+    repairAdjustments: ["became_concrete"],
+    repairOutcomes: ["accepted", "unresolved"],
+    outcomeHints: ["implementation_followup", "clarification_requested", "accepted"],
+    contexts: ["agent_continuity", "implementation", "planning"],
+    minEventWeight: 0.42,
+    weight: 0.72
+  },
+  {
+    key: "avoid_flattening_after_pushback",
+    axis: "collaboration_texture",
+    summary: "When the user pushes back against flattened rules or preference-list framing, preserve the underlying tension, nuance, and boundaries.",
+    signals: ["repair_trigger_too_flat", "pushes_for_nuance", "rejects_flattening"],
+    assistantShapes: ["mechanism_explanation", "became_deeper"],
+    phases: ["repair", "concept"],
+    repairTriggers: ["too_flat"],
+    repairAdjustments: ["became_deeper", "changed_level", "restated_intent"],
+    repairOutcomes: ["accepted", "unresolved"],
+    negativeAssistantShapes: ["settings_framing"],
+    contexts: ["agent_continuity", "implementation"],
+    minEventWeight: 0.42,
+    weight: 0.76
+  },
+  {
+    key: "correction_without_defensiveness",
+    axis: "repair_style",
+    summary: "Corrections should be absorbed as calibration: revise calmly, avoid self-defense, and keep the next move useful.",
+    signals: ["negative_feedback", "style_feedback"],
+    assistantShapes: ["repair_response", "softened_tone"],
+    phases: ["repair"],
+    repairTriggers: ["misread", "too_flat", "too_verbose", "wrong_direction", "style_mismatch", "unclear"],
+    repairAdjustments: ["restated_intent", "became_concrete", "became_shorter", "became_deeper", "softened_tone", "changed_level"],
+    repairOutcomes: ["accepted", "unresolved", "clarification_requested"],
+    outcomeHints: ["correction", "style_recalibration", "accepted"],
+    contexts: ["general", "implementation", "agent_continuity", "planning"],
+    minEventWeight: 0.42,
+    weight: 0.68
   }
 ];
 
@@ -8113,6 +8349,14 @@ const TENSION_RULES = [
     sideB: "The user also wants implementation paths and boundaries.",
     resolutionStyle: "Explain the concept deeply enough, then land it in concrete next steps or design boundaries.",
     signals: ["asks_for_depth", "asks_for_implementation"]
+  },
+  {
+    key: "repair_without_overcorrecting",
+    sideA: "The user may correct direction, tone, or level of abstraction.",
+    sideB: "The user still wants momentum rather than defensive apology or a total reset.",
+    resolutionStyle: "Treat correction as calibration: name the adjusted understanding briefly, then continue with a useful revised answer.",
+    signals: ["negative_feedback"],
+    repairTriggers: ["misread", "wrong_direction", "style_mismatch", "too_flat"]
   }
 ];
 
@@ -8150,8 +8394,14 @@ const STABLE_PERSONA_RULES = [
   {
     key: "calibrated_after_correction",
     axis: "long_term_persona",
-    patternKeys: ["correction_calibrates_style"],
+    patternKeys: ["correction_calibrates_style", "correction_without_defensiveness", "repair_without_overcorrecting"],
     text: "When corrected, the assistant should absorb the calibration calmly, adjust course, and avoid becoming defensive or overly apologetic."
+  },
+  {
+    key: "repair_path_sensitive",
+    axis: "long_term_persona",
+    patternKeys: ["repair_by_restating_intent", "repair_by_concretizing", "avoid_flattening_after_pushback"],
+    text: "The assistant should remember useful repair paths: restate the user's intended distinction when direction is off, then make the revision concrete while preserving nuance."
   },
   {
     key: "warm_but_useful_presence",
@@ -8297,7 +8547,8 @@ function reducePatterns(episodes, settings, now) {
     const contexts = countBy(matching.map((episode) => episode.context));
     const evidenceCount = matching.length;
     const negativeEvidenceCount = negativeMatching.length;
-    const netEvidence = Math.max(0, evidenceCount - negativeEvidenceCount * 0.75);
+    const weightedEvidence = matching.reduce((total, episode) => total + getEpisodeEvidenceWeight(episode, rule), 0);
+    const netEvidence = Math.max(0, weightedEvidence - negativeEvidenceCount * 0.75);
     if (netEvidence <= 0) {
       continue;
     }
@@ -8314,6 +8565,10 @@ function reducePatterns(episodes, settings, now) {
       signals: rule.signals,
       assistantShapes: rule.assistantShapes || [],
       outcomeHints: rule.outcomeHints || [],
+      phases: rule.phases || [],
+      repairTriggers: rule.repairTriggers || [],
+      repairAdjustments: rule.repairAdjustments || [],
+      repairOutcomes: rule.repairOutcomes || [],
       negativeEvidenceCount,
       evidenceEpisodeIds: matching.map((episode) => episode.id),
       evidenceCount,
@@ -8338,7 +8593,7 @@ function reduceTensions(episodes, settings, now) {
   return TENSION_RULES.map((rule) => {
     const matching = episodes.filter((episode) => (
       !["topic_shift", "new_request"].includes(episode.outcomeHint)
-      && rule.signals.every((signal) => episode.userSignals.includes(signal))
+      && ruleMatchesEpisode(rule, episode)
     ));
     if (matching.length === 0) {
       return null;
@@ -8384,7 +8639,8 @@ function reduceStableImpressions(patterns, tensions, previous, settings, now) {
     const matched = rule.patternKeys
       .map((key) => byKey.get(key))
       .filter(Boolean);
-    const evidenceCount = matched.reduce((total, item) => total + item.evidenceCount, 0);
+    const evidenceEpisodeIds = uniqueStrings(matched.flatMap((item) => item.evidenceEpisodeIds || []));
+    const evidenceCount = evidenceEpisodeIds.length || matched.reduce((total, item) => total + item.evidenceCount, 0);
     if (matched.length === 0 || evidenceCount < stableMinEvidence) {
       return previousByKey.get(rule.key) || null;
     }
@@ -8393,7 +8649,6 @@ function reduceStableImpressions(patterns, tensions, previous, settings, now) {
     const strength = clampUnit(0.28 + evidenceCount * 0.08 + confidence * 0.22);
     const latest = matched.reduce((timestamp, item) => Math.max(timestamp, normalizeTimestamp(item.updatedAt, now)), 0);
     const sourcePatternKeys = matched.map((item) => item.key);
-    const evidenceEpisodeIds = uniqueStrings(matched.flatMap((item) => item.evidenceEpisodeIds || []));
     const sourceHash = createSourceHash(rule.key, matched);
     return {
       id: previousItem?.id || `stable_${normalizeKeyText(rule.key)}`,
@@ -8420,11 +8675,66 @@ function reduceStableImpressions(patterns, tensions, previous, settings, now) {
 }
 
 function episodeMatchesRule(episode, rule) {
-  const hasSignal = rule.signals.some((signal) => episode.userSignals.includes(signal) || episode.reaction?.signals?.includes(signal));
+  const ruleSignals = Array.isArray(rule.signals) ? rule.signals : [];
+  const hasSignal = ruleSignals.some((signal) => episode.userSignals.includes(signal) || episode.reaction?.signals?.includes(signal));
   const hasOutcome = outcomeMatchesRule(episode, rule);
+  const hasRepair = repairMatchesRule(episode, rule);
+  const hasAssistant = assistantMatchesRule(episode, rule);
+  const phaseCompatible = !Array.isArray(rule.phases) || rule.phases.length === 0 || rule.phases.includes(episode.phase);
   const inContext = !rule.contexts || rule.contexts.includes(episode.context);
   const usefulOutcome = isUsefulPositiveOutcome(episode.outcomeHint, rule);
-  return (hasSignal || hasOutcome) && inContext && usefulOutcome;
+  const enoughWeight = !Number.isFinite(Number(rule.minEventWeight)) || Number(episode.eventWeight) >= Number(rule.minEventWeight);
+  const outcomeHasSpecificEvidence = hasOutcome && episode.outcomeHint !== "accepted";
+  const acceptedHasSupportingEvidence = hasOutcome && episode.outcomeHint === "accepted" && (hasSignal || hasRepair || hasAssistant);
+  return (
+    (hasSignal || hasRepair || outcomeHasSpecificEvidence || acceptedHasSupportingEvidence)
+    && phaseCompatible
+    && inContext
+    && usefulOutcome
+    && enoughWeight
+  );
+}
+
+function ruleMatchesEpisode(rule, episode) {
+  const signals = Array.isArray(rule.signals) ? rule.signals : [];
+  const signalMatch = signals.every((signal) => episode.userSignals.includes(signal) || episode.reaction?.signals?.includes(signal));
+  return signalMatch || repairMatchesRule(episode, rule);
+}
+
+function repairMatchesRule(episode, rule) {
+  const repairPath = episode.repairPath;
+  if (!repairPath) {
+    return false;
+  }
+  const triggers = Array.isArray(rule.repairTriggers) ? rule.repairTriggers : [];
+  const adjustments = Array.isArray(rule.repairAdjustments) ? rule.repairAdjustments : [];
+  const outcomes = Array.isArray(rule.repairOutcomes) ? rule.repairOutcomes : [];
+  return (
+    (triggers.length === 0 || triggers.includes(repairPath.trigger))
+    && (adjustments.length === 0 || adjustments.includes(repairPath.assistantAdjustment))
+    && (outcomes.length === 0 || outcomes.includes(repairPath.outcome))
+    && (triggers.length > 0 || adjustments.length > 0 || outcomes.length > 0)
+  );
+}
+
+function getEpisodeEvidenceWeight(episode, rule) {
+  let weight = Math.max(0.2, Number(episode.eventWeight) || 0.2);
+  if (episode.userSignals?.length > 0 || episode.assistantShape?.length > 0 || episode.reaction?.signals?.length > 0) {
+    weight = Math.max(weight, 0.55);
+  }
+  if (repairMatchesRule(episode, rule)) {
+    weight += 0.35;
+  }
+  if (episode.memoryRole === "pattern_evidence") {
+    weight += 0.12;
+  }
+  if (episode.repairPath?.outcome === "accepted") {
+    weight += 0.12;
+  }
+  if (episode.repairPath?.outcome === "continued_correction") {
+    weight -= 0.08;
+  }
+  return Math.max(0.1, weight);
 }
 
 function isUsefulPositiveOutcome(outcomeHint, rule) {
@@ -8562,16 +8872,44 @@ function normalizeEpisode(item) {
     id,
     status: item.status === "pending" ? "pending" : "closed",
     context: compactText(item.context) || "general",
+    phase: normalizePhase(item.phase),
     userExcerpt: compactText(item.userExcerpt),
     assistantExcerpt: compactText(item.assistantExcerpt),
     userSignals: normalizeStringArray(item.userSignals),
     assistantShape: normalizeStringArray(item.assistantShape),
+    repairPath: normalizeRepairPath(item.repairPath),
+    eventWeight: clampUnit(Number.isFinite(Number(item.eventWeight)) ? Number(item.eventWeight) : 0.2),
+    memoryRole: normalizeMemoryRole(item.memoryRole),
     reaction: normalizeReaction(item.reaction),
     outcomeHint: compactText(item.outcomeHint),
     sourceSessionId: compactText(item.sourceSessionId),
     createdAt: normalizeTimestamp(item.createdAt, Date.now()),
     updatedAt: normalizeTimestamp(item.updatedAt, item.createdAt || Date.now())
   };
+}
+
+function normalizePhase(value) {
+  const phase = compactText(value);
+  return ["concept", "implementation", "repair", "validation", "general"].includes(phase) ? phase : "general";
+}
+
+function normalizeRepairPath(item) {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+  const trigger = compactText(item.trigger);
+  const assistantAdjustment = compactText(item.assistantAdjustment);
+  const outcome = compactText(item.outcome);
+  return {
+    trigger: ["misread", "too_flat", "too_verbose", "wrong_direction", "style_mismatch", "unclear"].includes(trigger) ? trigger : "wrong_direction",
+    assistantAdjustment: ["restated_intent", "changed_level", "became_concrete", "became_shorter", "became_deeper", "softened_tone"].includes(assistantAdjustment) ? assistantAdjustment : "changed_level",
+    outcome: ["accepted", "continued_correction", "clarification_requested", "unresolved"].includes(outcome) ? outcome : "unresolved"
+  };
+}
+
+function normalizeMemoryRole(value) {
+  const role = compactText(value);
+  return ["short_term_episode", "pattern_evidence", "deep_candidate"].includes(role) ? role : "short_term_episode";
 }
 
 function normalizeReaction(item) {
@@ -8604,6 +8942,10 @@ function normalizePattern(item) {
     signals: normalizeStringArray(item.signals),
     assistantShapes: normalizeStringArray(item.assistantShapes),
     outcomeHints: normalizeStringArray(item.outcomeHints),
+    phases: normalizeStringArray(item.phases),
+    repairTriggers: normalizeStringArray(item.repairTriggers),
+    repairAdjustments: normalizeStringArray(item.repairAdjustments),
+    repairOutcomes: normalizeStringArray(item.repairOutcomes),
     negativeEvidenceCount: Math.max(0, Number.parseInt(item.negativeEvidenceCount, 10) || 0),
     evidenceEpisodeIds: normalizeStringArray(item.evidenceEpisodeIds),
     evidenceCount: Math.max(0, Number.parseInt(item.evidenceCount, 10) || 0),
@@ -8792,7 +9134,7 @@ module.exports = {
 "src/interaction/InteractionMemoryStore.js": function(module, exports, __require) {
 const { normalizePath } = require("obsidian");
 
-const { extractEpisodeDraft, isSensitiveEpisode } = __require("src/interaction/LocalSignalExtractor.js");
+const { extractEpisodeDraft, isSensitiveEpisode, updateRepairOutcome } = __require("src/interaction/LocalSignalExtractor.js");
 const {
   applyEpisodes,
   getPromptStance,
@@ -8966,10 +9308,14 @@ function createPendingEpisode(draft, now) {
     id: createInteractionId("episode"),
     status: "pending",
     context: draft.context,
+    phase: draft.phase,
     userExcerpt: draft.userExcerpt,
     assistantExcerpt: draft.assistantExcerpt,
     userSignals: draft.userSignals,
     assistantShape: draft.assistantShape,
+    repairPath: draft.repairPath,
+    eventWeight: draft.eventWeight,
+    memoryRole: draft.memoryRole,
     reaction: null,
     outcomeHint: "",
     sourceSessionId: draft.sourceSessionId,
@@ -8979,9 +9325,13 @@ function createPendingEpisode(draft, now) {
 }
 
 function closePendingEpisode(pending, draft, now) {
+  const repairPath = updateRepairOutcome(pending.repairPath, draft.reaction);
   return Object.assign({}, pending, {
     status: "closed",
     reaction: draft.reaction,
+    repairPath,
+    eventWeight: Math.max(Number(pending.eventWeight) || 0, Number(draft.eventWeight) || 0),
+    memoryRole: repairPath || Number(pending.eventWeight) >= 0.45 ? "pattern_evidence" : pending.memoryRole,
     outcomeHint: draft.outcomeHint,
     updatedAt: now
   });
