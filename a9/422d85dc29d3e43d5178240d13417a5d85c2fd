@@ -1,0 +1,73 @@
+scripts/test-memory-store.js
+  s_ecf5d8d0f427f4::t_e8ba81681ede68 27,879-890,896-898,903-905,915-917,923-925,934-939
+  s_5ab1851314f8b1::t_c3d317dfc18b02 35,866-878
+scripts/test-prompt-budget.js
+  s_5ab1851314f8b1::t_637bae738f7d85 238-239,242
+  s_5ab1851314f8b1::t_23d3e44a62bd67 241
+  s_5ab1851314f8b1::t_1c55b016ced76d 237,240
+src/prompt.js
+  s_5ab1851314f8b1::t_1c55b016ced76d 190
+  s_5ab1851314f8b1::t_0fd26c204c67fd 174-175
+  s_5ab1851314f8b1::t_65e41d8571e32a 189,191
+src/i18n/zh.js
+  s_ecf5d8d0f427f4::t_11d81fdef4cc1b 377-378,518-519
+scripts/test-turn-context-builder.js
+  s_5ab1851314f8b1::t_c3d317dfc18b02 22
+  s_ecf5d8d0f427f4::t_e8ba81681ede68 167-179,184-186
+src/agents/shared/memorySearch.js
+  s_5ab1851314f8b1::t_6c2859b2af61db 2,40-41
+src/agents/shared/memoryNotices.js
+  s_5ab1851314f8b1::t_ba44c56bd4eeab 2
+src/agents/shared/captureNotices.js
+  s_5ab1851314f8b1::t_d6c330facc51e9 1-2
+  s_ecf5d8d0f427f4::t_11d81fdef4cc1b 90-91,136-137,169-170,227-228
+main.js
+  s_5ab1851314f8b1::t_280d676c480b93 6760
+  s_5ab1851314f8b1::t_7b10b391801ca1 4042-4073,4075-4076,7868,11080-11082,11084,11108,11113,11121-11123,11146
+  s_5ab1851314f8b1::t_f5f432e260d1c4 6744-6745,6759,6761,11083,11106-11107,11155,11350-11354,11400-11401,11411
+  s_ecf5d8d0f427f4::t_0a0edbd9fed3dd 500-501,641-642,1111-1112,1252-1253,4164-4165,4210-4211,4243-4244,4301-4302,7939-7940,7968-7969,8115-8211
+  s_5ab1851314f8b1::t_257653eba1e93f 4041,8212-8213,11109-11110
+src/i18n/en.js
+  s_ecf5d8d0f427f4::t_11d81fdef4cc1b 377-378,518-519
+scripts/test-deep-memory.js
+  s_5ab1851314f8b1::t_c3d317dfc18b02 14-17,81-93,136-145,147-150
+  s_5ab1851314f8b1::t_23d3e44a62bd67 282,352,355
+  s_5ab1851314f8b1::t_65e41d8571e32a 107,109-135,151,158,188-202
+  s_5ab1851314f8b1::t_32341873fc67dc 106,152-156
+  s_5ab1851314f8b1::t_81afc62e1267c5 146
+  s_5ab1851314f8b1::t_2b2738ba0d4123 157
+  s_5ab1851314f8b1::t_ac047134e61fbf 203-204
+src/deepMemory/DeepMemoryExtractor.js
+  s_5ab1851314f8b1::t_65e41d8571e32a 39-40,85,280-284,330-331,341
+  s_5ab1851314f8b1::t_32341873fc67dc 11
+  s_5ab1851314f8b1::t_ba44c56bd4eeab 10,12,14,38,43,49-51,76
+  s_5ab1851314f8b1::t_86e8c82b65d7eb 13
+  s_5ab1851314f8b1::t_e4887aeb830a13 52-53
+src/agents/shared/auditFormatting.js
+  s_5ab1851314f8b1::t_ba44c56bd4eeab 1-29
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "a9422d85dc29d3e43d5178240d13417a5d85c2fd",
+  "prompts": {},
+  "logical_commit_id": "a9422d85dc29d3e43d5178240d13417a5d85c2fd",
+  "sessions": {
+    "s_5ab1851314f8b1": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4b70-1fee-7f93-93f1-3190b6c5a919",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    },
+    "s_ecf5d8d0f427f4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4b69-7994-7c50-bef8-320a160bc592",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
