@@ -14,7 +14,8 @@ const { DEFAULT_SETTINGS } = require("../../settings");
 const {
   extractAgentDockSignals,
   formatInvalidAgentDockSignalActivity,
-  formatAgentDockSignalNotice
+  formatAgentDockSignalNotice,
+  formatAgentDockReflectionNotice
 } = require("../shared/agentSignals");
 const {
   buildDeepMemoryAuditItems,
@@ -27,6 +28,11 @@ const {
 const { AcpClient } = require("./AcpClient");
 const { acpUpdateToEvents } = require("./acpEvents");
 const { toCursorMode } = require("./modes");
+const { ReflectionContentFilter } = require("../shared/ReflectionContentFilter");
+const {
+  createSignalEvidenceContext,
+  mergeSignalEvidenceContexts
+} = require("../shared/signalEvidence");
 
 const CONNECTION_IDLE_MS = 30 * 60 * 1000;
 
@@ -73,6 +79,35 @@ class CursorAgent {
     let finalOutput = "";
     let aborted = false;
     let client = null;
+    let toolResultEvidence = "";
+    let baseSignalEvidenceContext = createSignalEvidenceContext({ user_message: prompt });
+    const getSignalEvidenceContext = () => mergeSignalEvidenceContexts(
+      baseSignalEvidenceContext,
+      {
+        assistant_message: extractAgentDockSignals(finalOutput).visibleText,
+        tool_result: toolResultEvidence
+      }
+    );
+    const reflectionNoticeSignals = [];
+    const emitReflectionNotice = (signals) => {
+      reflectionNoticeSignals.push(...signals);
+      const notice = formatAgentDockReflectionNotice(
+        reflectionNoticeSignals,
+        settings,
+        "cursor",
+        translate
+      );
+      if (notice) {
+        notice.agentDockSignals = signals;
+        notice.signalEvidenceContext = getSignalEvidenceContext();
+        onUpdate(notice);
+      }
+    };
+    const reflectionFilter = new ReflectionContentFilter({
+      onAppraisal: emitReflectionNotice,
+      onOutcome: emitReflectionNotice,
+      onSourceComplete: () => emitReflectionNotice([])
+    });
 
     const existingConnection = this.connections.get(sessionKey);
     if (existingConnection && existingConnection.connectionKey !== connectionKey) {
@@ -81,10 +116,23 @@ class CursorAgent {
     }
 
     const emitUpdate = (update) => {
+      if (update.kind === "tool") {
+        toolResultEvidence = appendToolResultEvidence(toolResultEvidence, update);
+      }
       if (update.kind === "content") {
         finalOutput += update.text;
+        for (const visibleText of reflectionFilter.push(update.text)) {
+          onUpdate(Object.assign({}, update, { text: visibleText }));
+        }
+        return;
       }
       onUpdate(update);
+    };
+    const flushContent = () => {
+      for (const visibleText of reflectionFilter.flush()) {
+        onUpdate({ kind: "content", text: visibleText });
+      }
+      reflectionFilter.endSource();
     };
 
     const throwIfAborted = () => {
@@ -126,6 +174,7 @@ class CursorAgent {
       const promptSignals = turnContext.promptSignals;
       const expressionPolicy = turnContext.expressionPolicy;
       const activeFilePath = turnContext.activeFilePath;
+      baseSignalEvidenceContext = turnContext.signalEvidenceContext;
       throwIfAborted();
 
       const promptText = promptResult.prompt;
@@ -206,7 +255,10 @@ class CursorAgent {
             conversation,
             options,
             settings,
-            throwIfAborted
+            throwIfAborted,
+            flushContent,
+            reflectionFilter,
+            getSignalEvidenceContext
           });
         }
       }
@@ -227,7 +279,10 @@ class CursorAgent {
         conversation,
         options,
         settings,
-        throwIfAborted
+        throwIfAborted,
+        flushContent,
+        reflectionFilter,
+        getSignalEvidenceContext
       });
     } catch (error) {
       if (aborted || error.name === "AbortError") {
@@ -269,7 +324,20 @@ class CursorAgent {
     }
   }
 
-  async finishTurn({ result, finalOutput, emitUpdate, prompt, activeFilePath, conversation, options, settings, throwIfAborted }) {
+  async finishTurn({
+    result,
+    finalOutput,
+    emitUpdate,
+    prompt,
+    activeFilePath,
+    conversation,
+    options,
+    settings,
+    throwIfAborted,
+    flushContent,
+    reflectionFilter,
+    getSignalEvidenceContext
+  }) {
     const resultText = extractPromptResultText(result);
     if (!finalOutput.trim() && resultText) {
       finalOutput = resultText;
@@ -277,14 +345,29 @@ class CursorAgent {
     }
 
     throwIfAborted();
+    flushContent?.();
     const signalResult = extractAgentDockSignals(finalOutput.trim());
+    const signalEvidenceContext = mergeSignalEvidenceContexts(
+      getSignalEvidenceContext?.(),
+      { user_message: prompt, assistant_message: signalResult.visibleText }
+    );
     emitInvalidAgentDockSignalActivity(signalResult, emitUpdate);
-    emitAgentDockSignalNotices(signalResult.signals, settings, "cursor", (key, params) => t(settings, key, params), emitUpdate);
+    emitAgentDockSignalNotices(
+      signalResult.signals,
+      settings,
+      "cursor",
+      (key, params) => t(settings, key, params),
+      emitUpdate,
+      reflectionFilter,
+      signalEvidenceContext
+    );
     const visibleOutput = signalResult.visibleText.trim();
 
     await this.captureMemory({
       prompt,
       response: visibleOutput,
+      agentDockSignals: signalResult.signals,
+      signalEvidenceContext,
       previousAssistantResponse: getPreviousAssistantResponse(conversation),
       activeFilePath,
       sessionId: options.sessionId || ""
@@ -292,6 +375,8 @@ class CursorAgent {
     await this.captureInteractionMemory({
       prompt,
       response: visibleOutput,
+      agentDockSignals: signalResult.signals,
+      signalEvidenceContext,
       previousAssistantResponse: getPreviousAssistantResponse(conversation),
       activeFilePath,
       sessionId: options.sessionId || ""
@@ -300,6 +385,7 @@ class CursorAgent {
       prompt,
       response: visibleOutput,
       agentDockSignals: signalResult.signals,
+      signalEvidenceContext,
       previousAssistantResponse: getPreviousAssistantResponse(conversation),
       activeFilePath,
       sessionId: options.sessionId || ""
@@ -476,6 +562,7 @@ class CursorAgent {
         onUpdate({
           kind: "notice",
           noticeType: "memory_updated",
+          insertBeforeLastContent: true,
           title: t(settings, "cursor.memoryUpdated.title"),
           summary: formatMemoryUpdateSummary(settings, "cursor", t, saved),
           auditItems: buildMemoryUpdateAuditItems(saved, settings, "cursor", t)
@@ -486,6 +573,7 @@ class CursorAgent {
       onUpdate({
         kind: "notice",
         noticeType: "memory_skipped",
+        insertBeforeLastContent: true,
         title: t(settings, "cursor.memorySkipped.title"),
         summary: t(settings, "cursor.memorySkipped.summary")
       });
@@ -499,6 +587,7 @@ class CursorAgent {
         onUpdate({
           kind: "notice",
           noticeType: "interaction_memory_updated",
+          insertBeforeLastContent: true,
           title: t(settings, "cursor.interactionMemoryUpdated.title"),
           summary: formatInteractionMemoryUpdateSummary(settings, "cursor", t, result),
           auditItems: buildInteractionMemoryAuditItems(result, settings, "cursor", t)
@@ -509,6 +598,7 @@ class CursorAgent {
       onUpdate({
         kind: "notice",
         noticeType: "interaction_memory_skipped",
+        insertBeforeLastContent: true,
         title: t(settings, "cursor.interactionMemorySkipped.title"),
         summary: t(settings, "cursor.interactionMemorySkipped.summary")
       });
@@ -522,6 +612,7 @@ class CursorAgent {
         onUpdate({
           kind: "notice",
           noticeType: "deep_memory_updated",
+          insertBeforeLastContent: true,
           title: t(settings, "cursor.deepMemoryUpdated.title"),
           summary: formatDeepMemoryUpdateSummary(settings, "cursor", t, saved),
           auditItems: buildDeepMemoryAuditItems(saved, settings, "cursor", t)
@@ -532,6 +623,7 @@ class CursorAgent {
       onUpdate({
         kind: "notice",
         noticeType: "deep_memory_skipped",
+        insertBeforeLastContent: true,
         title: t(settings, "cursor.deepMemorySkipped.title"),
         summary: t(settings, "cursor.deepMemorySkipped.summary")
       });
@@ -539,13 +631,38 @@ class CursorAgent {
   }
 }
 
-function emitAgentDockSignalNotices(signals, settings, keyPrefix, translate, onUpdate) {
-  for (const signal of signals) {
+function emitAgentDockSignalNotices(
+  signals,
+  settings,
+  keyPrefix,
+  translate,
+  onUpdate,
+  reflectionFilter,
+  signalEvidenceContext
+) {
+  const reflectionNotice = formatAgentDockReflectionNotice(
+    signals.filter((signal) => !reflectionFilter?.hasEmitted(signal)),
+    settings,
+    keyPrefix,
+    translate
+  );
+  if (reflectionNotice) {
+    reflectionNotice.signalEvidenceContext = signalEvidenceContext;
+    onUpdate(reflectionNotice);
+  }
+  for (const signal of signals.filter((item) => item?.envelope !== "reflection_v1")) {
     const notice = formatAgentDockSignalNotice(signal, settings, keyPrefix, translate);
     if (notice) {
       onUpdate(notice);
     }
   }
+}
+
+function appendToolResultEvidence(existing, update) {
+  return mergeSignalEvidenceContexts(
+    { tool_result: existing },
+    { tool_result: [update?.title, update?.summary, update?.detail].filter(Boolean).join("\n") }
+  ).tool_result;
 }
 
 function emitInvalidAgentDockSignalActivity(signalResult, onUpdate) {

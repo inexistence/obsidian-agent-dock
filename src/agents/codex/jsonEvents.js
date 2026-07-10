@@ -32,7 +32,23 @@ function codexJsonEventToUpdates(event, translate = defaultTranslate) {
 
   if (item.type === "agent_message") {
     const text = extractText(item);
-    return text ? [{ kind: "content", text }] : [];
+    if (!text) {
+      return [];
+    }
+    if (item.phase && item.phase !== "final_answer") {
+      return [{
+        kind: "reasoning",
+        title: translate("codex.progress"),
+        detail: text,
+        discrete: true,
+        agentMessagePhase: item.phase
+      }];
+    }
+    return [{
+      kind: "content",
+      text,
+      agentMessagePhase: item.phase || ""
+    }];
   }
 
   if (item.type === "reasoning") {
@@ -238,6 +254,7 @@ function defaultTranslate(key, params = {}) {
     "codex.turnFailed": "Turn failed",
     "codex.thinkingStarted": "Thinking...",
     "codex.thinking": "Thinking",
+    "codex.progress": "Progress",
     "codex.webSearch": "Web search",
     "codex.item": "Item",
     "codex.command": "Command",

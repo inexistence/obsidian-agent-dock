@@ -1,3 +1,9 @@
+const {
+  hasGroundedAgentSignal,
+  mergeSignalEvidenceContexts,
+  normalizeAgentDockSignals
+} = require("../../agents/shared/signalEvidence");
+
 class RuleBasedMemoryExtractor {
   constructor(options = {}) {
     this.candidateExtractor = options.candidateExtractor || new RuleBasedMemoryCandidateExtractor();
@@ -14,6 +20,7 @@ class RuleBasedMemoryExtractor {
 class RuleBasedMemoryCandidateExtractor {
   extractCandidates(context) {
     return [
+      ...extractAgentDockSignalCandidates(context),
       ...extractPreferenceCandidates(context.prompt),
       ...extractExplicitMemoryCandidates(context.prompt),
       ...extractAgentIdentityCandidates(context.prompt, context.response),
@@ -37,8 +44,47 @@ function normalizeTurnContext(turn) {
     prompt: compactText(turn?.prompt),
     response: compactText(turn?.response),
     sourceSessionId: turn?.sessionId || "",
-    activeFilePath: turn?.activeFilePath || ""
+    activeFilePath: turn?.activeFilePath || "",
+    agentDockSignals: normalizeAgentDockSignals(turn?.agentDockSignals),
+    signalEvidenceContext: mergeSignalEvidenceContexts(
+      turn?.signalEvidenceContext,
+      { user_message: turn?.prompt, assistant_message: turn?.response }
+    )
   };
+}
+
+function extractAgentDockSignalCandidates(context) {
+  return context.agentDockSignals
+    .filter((signal) => signal.type === "memory_candidate")
+    .filter((signal) => signal.phase !== "appraisal")
+    .filter((signal) => isGroundedMemorySignal(signal, context))
+    .map((signal) => createCandidate({
+      kind: signal.kind,
+      scope: signal.scope,
+      text: truncateText(compactText(signal.text), 220),
+      confidence: Math.min(0.72, Math.max(0.45, Number(signal.confidence) || 0.6)),
+      source: "ai",
+      sourceSessionId: context.sourceSessionId
+    }));
+}
+
+function isGroundedMemorySignal(signal, context) {
+  if (!signal?.text || !hasGroundedAgentSignal(signal, context.signalEvidenceContext)) {
+    return false;
+  }
+  if (signal.kind === "decision") {
+    return extractDecisionCandidates(context.response).length > 0;
+  }
+  if (signal.kind === "task") {
+    return context.response.length >= 20 && hasTaskMemorySignal(context.prompt, context.response);
+  }
+  if (signal.kind === "identity") {
+    return extractAgentIdentityCandidates(context.prompt, context.response).length > 0;
+  }
+  if (signal.kind === "shared") {
+    return extractSharedCandidates(context.prompt, context.response).length > 0;
+  }
+  return false;
 }
 
 function classifyCandidate(candidate, context) {

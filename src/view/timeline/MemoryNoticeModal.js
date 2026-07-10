@@ -6,6 +6,7 @@ class MemoryNoticeModal extends Modal {
     this.entry = options.entry || {};
     this.translate = options.translate;
     this.renderMarkdownContent = options.renderMarkdownContent;
+    this.debugActivity = options.debugActivity === true;
     this.selectedIndex = 0;
     this.itemButtons = [];
     this.itemTitles = [];
@@ -162,7 +163,7 @@ class MemoryNoticeModal extends Modal {
       }
     }
 
-    const fields = Array.isArray(item.fields) ? item.fields : [];
+    const fields = getVisibleAuditFields(item.fields, this.debugActivity);
     if (fields.length === 0 && item.summary) {
       this.renderFieldValue(containerEl, item.summary);
       return;
@@ -171,7 +172,7 @@ class MemoryNoticeModal extends Modal {
     for (const field of fields) {
       const row = containerEl.createDiv({ cls: "codex-dock__memory-modal-field" });
       row.createDiv({ cls: "codex-dock__memory-modal-field-label", text: field.label });
-      this.renderFieldValue(row, field.value);
+      this.renderFieldValue(row, field.value, { preformatted: field.preformatted === true });
     }
   }
 
@@ -188,8 +189,15 @@ class MemoryNoticeModal extends Modal {
     return `${type} ${index + 1}`;
   }
 
-  renderFieldValue(containerEl, value) {
+  renderFieldValue(containerEl, value, options = {}) {
     const valueEl = containerEl.createDiv({ cls: "codex-dock__memory-modal-field-value" });
+    if (options.preformatted) {
+      valueEl.createEl("pre", {
+        cls: "codex-dock__memory-modal-field-pre",
+        text: value || ""
+      });
+      return valueEl;
+    }
     if (typeof this.renderMarkdownContent === "function") {
       this.renderMarkdownContent(valueEl, value || "", { restricted: true });
       return valueEl;
@@ -202,6 +210,11 @@ class MemoryNoticeModal extends Modal {
 
 function getAuditItems(entry) {
   return Array.isArray(entry?.auditItems) ? entry.auditItems : [];
+}
+
+function getVisibleAuditFields(fields, debugActivity) {
+  return (Array.isArray(fields) ? fields : [])
+    .filter((field) => !field?.debugOnly || debugActivity === true);
 }
 
 function clampIndex(index, length) {
@@ -217,5 +230,8 @@ function clampIndex(index, length) {
 }
 
 module.exports = {
-  MemoryNoticeModal
+  MemoryNoticeModal,
+  _test: {
+    getVisibleAuditFields
+  }
 };

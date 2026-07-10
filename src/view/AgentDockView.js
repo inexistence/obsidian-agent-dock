@@ -126,6 +126,7 @@ class AgentDockView extends ItemView {
   openMemoryNoticeDetails(entry) {
     new MemoryNoticeModal(this.app, {
       entry,
+      debugActivity: this.plugin.settings.debugActivity,
       translate: (key, params) => this.translate(key, params),
       renderMarkdownContent: (containerEl, text, options) => this.renderMarkdownContent(containerEl, text, {
         ...options,

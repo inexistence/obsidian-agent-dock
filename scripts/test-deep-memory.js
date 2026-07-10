@@ -121,6 +121,31 @@ function testExtractorDoesNotTreatOrdinaryAssistantContentAsSignal() {
   assert.equal(candidates.length, 0, "ordinary assistant content should not become signal memory");
 }
 
+function testSalienceObservationOnlyBoostsMatchingExistingCandidates() {
+  const turn = {
+    prompt: "终于修好了这个很难的问题。",
+    response: "这个很难的问题终于修好了。",
+    now
+  };
+  const baseline = extractDeepMemoryCandidates(turn, { threshold: 0, now });
+  const supplemented = extractDeepMemoryCandidates(Object.assign({}, turn, {
+    agentDockSignals: [{
+      type: "salience_observation",
+      text: "这次经历体现了攻克困难问题后的成就感与实现工艺。",
+      evidence: ["这个很难的问题终于修好了"],
+      axes: ["achievement", "craft"],
+      confidence: 0.9,
+      envelope: "reflection_v1"
+    }]
+  }), { threshold: 0, now });
+
+  const baselineAchievement = baseline.find((item) => item.kind === "hard_won_achievement");
+  const supplementedAchievement = supplemented.find((item) => item.kind === "hard_won_achievement");
+  assert.equal(supplemented.length, baseline.length, "salience observations must not create standalone deep memories");
+  assert(supplementedAchievement.importance > baselineAchievement.importance, "matching salience axes should add a bounded importance boost");
+  assert(supplementedAchievement.topics.includes("agent_salience_observation"), "boosted candidates should retain auditable salience provenance");
+}
+
 async function testStoreCapturesAndRecallsWithCooldown() {
   const { adapter, store } = createStore();
   const settings = createSettings();
@@ -245,6 +270,7 @@ Promise.resolve()
   .then(testExtractorSkipsGenericThanksAndSensitiveText)
   .then(testExtractorCapturesAgentDockDeepMemorySignal)
   .then(testExtractorDoesNotTreatOrdinaryAssistantContentAsSignal)
+  .then(testSalienceObservationOnlyBoostsMatchingExistingCandidates)
   .then(testStoreCapturesAndRecallsWithCooldown)
   .then(testDeepMemoryRecallsSubtleParaphrase)
   .then(testSaliencePresetInfluencesCapture)

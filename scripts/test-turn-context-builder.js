@@ -38,7 +38,8 @@ function createPlugin() {
       },
       vault: {
         getAllLoadedFiles: () => [],
-        getAbstractFileByPath: () => null
+        getAbstractFileByPath: () => null,
+        cachedRead: async () => "Active note evidence for architecture review."
       }
     },
     memoryStore: {
@@ -144,6 +145,10 @@ async function testBuildAgentTurnContext() {
     ["auto-project"],
     "automatic memory should be planned after explicit-search de-duplication"
   );
+  assert(result.signalEvidenceContext.user_message.includes("之前说过偏好是什么"));
+  assert(result.signalEvidenceContext.recalled_memory.includes("Keep architecture docs updated"));
+  assert(result.signalEvidenceContext.recalled_memory.includes("important moments"));
+  assert(result.signalEvidenceContext.active_note.includes("Active note evidence"));
   assert(notices.some((notice) => notice.noticeType === "memory_search"));
   assert(notices.some((notice) => notice.noticeType === "memory_referenced"));
 }

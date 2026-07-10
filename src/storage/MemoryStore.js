@@ -300,7 +300,9 @@ function createReferenceAudit(entry) {
 
 function createUpdateAudit(item, existing) {
   return {
-    reasonCode: existing ? "existing_memory_refreshed" : "local_rule_capture",
+    reasonCode: existing
+      ? "existing_memory_refreshed"
+      : item.source === "ai" ? "ai_signal_capture" : "local_rule_capture",
     kind: item.kind,
     scope: item.scope || "project",
     confidence: Number(item.confidence) || 0.6,
@@ -408,7 +410,18 @@ function formatMemoryLine(item) {
     createdDate && createdDate !== updatedDate ? `created ${createdDate}` : ""
   ].filter(Boolean).join(", ");
   const suffix = metadata ? ` (${metadata})` : "";
-  return `- ${label}${suffix}: ${item.text}`;
+  const provenance = formatMemoryProvenance(item);
+  return `- [${provenance}] ${label}${suffix}: ${item.text}`;
+}
+
+function formatMemoryProvenance(item) {
+  if (item?.scope === "user" || item?.source === "user") {
+    return "origin=user_message; speaker=user; local summary, not quote";
+  }
+  if (item?.source === "ai") {
+    return "origin=assistant_reflection; speaker=assistant; accepted summary, not user statement";
+  }
+  return "origin=local_rules; speaker=none; synthesis, not quote";
 }
 
 function formatMemoryDate(value) {

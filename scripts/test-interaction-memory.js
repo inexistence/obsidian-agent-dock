@@ -171,6 +171,7 @@ async function testEpisodeClosureAndStance() {
   assert(prompt.includes("evidence updated 2026-07-09"), "stance prompt should expose evidence date anchors");
   assert(prompt.includes("interpret relative dates relative to the evidence date"), "stance prompt should tell agents how to interpret relative dates");
   assert(prompt.includes("soft local interaction notes"), "stance prompt should preserve its local context label");
+  assert(prompt.includes("origin=local_interaction_inference; speaker=none"), "stance items should be labeled as local inference rather than either speaker's statement");
 }
 
 async function testPromptIntegrationAndSensitiveFiltering() {
@@ -650,6 +651,68 @@ function testPositiveHighWeightCanBecomeDeepCandidate() {
   assert.equal(draft.memoryRole, "deep_candidate", "high-weight positive feedback should remain eligible as a deep candidate");
 }
 
+function testAssistantInteractionSignalOnlySupplementsPendingEpisode() {
+  const baseline = extractEpisodeDraft({
+    prompt: "Choose the safer design.",
+    response: "The final answer chose the safer design and explained the tradeoff.",
+    sessionId: "interaction-signal-base"
+  });
+  const supplemented = extractEpisodeDraft({
+    prompt: "Choose the safer design.",
+    response: "The final answer chose the safer design and explained the tradeoff.",
+    agentDockSignals: [{
+      type: "interaction_candidate",
+      text: "The assistant exercised independent judgment instead of listing options.",
+      evidenceRefs: [{
+        origin: "assistant_message",
+        speaker: "assistant",
+        quote: "chose the safer design and explained the tradeoff"
+      }],
+      shapes: ["independent_judgment"],
+      confidence: 0.6,
+      envelope: "reflection_v1"
+    }],
+    sessionId: "interaction-signal"
+  });
+  const rejected = extractEpisodeDraft({
+    prompt: "Choose the safer design.",
+    response: "The final answer chose the safer design and explained the tradeoff.",
+    agentDockSignals: [{
+      type: "interaction_candidate",
+      text: "The assistant apologized and became much warmer.",
+      evidenceRefs: [{
+        origin: "assistant_message",
+        speaker: "assistant",
+        quote: "apologized and became much warmer"
+      }],
+      shapes: ["softened_tone"],
+      confidence: 0.6,
+      envelope: "reflection_v1"
+    }],
+    sessionId: "interaction-signal-rejected"
+  });
+  const appraisalOnly = extractEpisodeDraft({
+    prompt: "Choose the safer design.",
+    response: "The final answer chose the safer design and explained the tradeoff.",
+    agentDockSignals: [{
+      type: "interaction_candidate",
+      text: "The assistant intends to exercise independent judgment.",
+      evidence: ["Choose the safer design"],
+      shapes: ["independent_judgment"],
+      confidence: 0.6,
+      envelope: "reflection_v1",
+      phase: "appraisal"
+    }],
+    sessionId: "interaction-appraisal-only"
+  });
+
+  assert(!baseline.assistantShape.includes("independent_judgment"), "the local rule should not already infer the proposed shape");
+  assert(supplemented.assistantShape.includes("independent_judgment"), "a grounded assistant signal should supplement pending episode shape");
+  assert(supplemented.eventWeight > baseline.eventWeight, "grounded interaction hints should add only a bounded episode weight");
+  assert(!rejected.assistantShape.includes("softened_tone"), "ungrounded interaction hints must be ignored");
+  assert(!appraisalOnly.assistantShape.includes("independent_judgment"), "interaction memory must wait for outcome rather than persist intended appraisal shape");
+}
+
 function testOldInteractionMemoryNormalizesNewFields() {
   const oldMemory = {
     episodes: [{
@@ -684,6 +747,7 @@ testEpisodeClosureAndStance()
   .then(testSingleNegativeAndLowWeightDoNotMature)
   .then(testRepairPhaseDoesNotCrossMatchUnrelatedPatterns)
   .then(testPositiveHighWeightCanBecomeDeepCandidate)
+  .then(testAssistantInteractionSignalOnlySupplementsPendingEpisode)
   .then(testOldInteractionMemoryNormalizesNewFields)
   .then(() => {
     console.log("Interaction memory tests passed.");

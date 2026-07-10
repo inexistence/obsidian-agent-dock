@@ -25,7 +25,7 @@ const PERSISTED_AUDIT_TEXT_LIMITS = {
   source: 160,
   badge: 100,
   label: 120,
-  value: 1600
+  value: 12000
 };
 const TRUNCATED_TEXT_MARKER = "\n\n[Persisted timeline detail truncated]";
 
@@ -464,11 +464,20 @@ function normalizeAuditFields(fields) {
         return null;
       }
       const label = normalizeAuditText(field.label, PERSISTED_AUDIT_TEXT_LIMITS.label);
-      const value = normalizeAuditText(field.value, PERSISTED_AUDIT_TEXT_LIMITS.value);
+      const value = field.preformatted === true
+        ? normalizeAuditPreformattedText(field.value, PERSISTED_AUDIT_TEXT_LIMITS.value)
+        : normalizeAuditText(field.value, PERSISTED_AUDIT_TEXT_LIMITS.value);
       if (!label || !value) {
         return null;
       }
-      return { label, value };
+      const normalized = { label, value };
+      if (field.debugOnly === true) {
+        normalized.debugOnly = true;
+      }
+      if (field.preformatted === true) {
+        normalized.preformatted = true;
+      }
+      return normalized;
     })
     .filter(Boolean)
     .slice(0, PERSISTED_AUDIT_FIELDS_LIMIT);
@@ -476,6 +485,14 @@ function normalizeAuditFields(fields) {
 
 function normalizeAuditText(value, limit) {
   return truncatePersistedTimelineText(redactSensitiveText(String(value || "").replace(/\s+/g, " ").trim()), limit);
+}
+
+function normalizeAuditPreformattedText(value, limit) {
+  const text = String(value || "");
+  if (!text.trim()) {
+    return "";
+  }
+  return truncatePersistedTimelineText(redactSensitiveText(text), limit);
 }
 
 function limitSessions(sessions, settings) {

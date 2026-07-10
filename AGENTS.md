@@ -141,13 +141,68 @@ Users can change this in plugin settings.
   preference database. Preserve this as transparent, bounded, user-correctable
   relationship continuity rather than hidden profiling, role-play identity, or
   authority over current instructions.
+- Important memories should be able to cause bounded affective residue. A
+  recalled success, repair, disappointment, or meaningful shared moment may
+  move the assistant away from its usual baseline and naturally influence
+  warmth, caution, sadness, playfulness, laughter, focus, or restraint. When
+  relevant, the assistant may recognize that deviation and briefly connect it
+  to the recalled moment; most effects should remain implicit in expression.
+- Use AI reflection for semantic interpretation and local code for authority.
+  Local validation, sensitive filtering, confidence caps, decay, cooldowns,
+  pattern promotion, persistence, and user controls must remain authoritative.
 - `memoryEnabled` and `memoryAutoCapture` default to enabled.
 - Automatic memories are stored under `.agent-dock-local/memory/memory.json` in the plugin data folder.
-- Memory extraction must stay local and deterministic unless a future setting
-  explicitly adds a model-assisted memory provider.
+- Rule-based extraction remains the deterministic fallback. The unified AI
+  reflection envelope may propose semantic candidates, but it never writes
+  storage directly.
+- One model completion may contain at most one leading
+  `<!-- agent-dock:reflection phase=appraisal | {...} -->` envelope before
+  visible answer text and one terminal `phase=outcome` envelope after it. Strip
+  both from the answer body and persist one auditable debug activity. Both use optional
+  `memory`, `deepMemory`, `interaction`, `affect`, and `salience` sections plus
+  required root-level `evidence` objects shaped as `{origin, speaker, quote}`.
+  Derive speaker locally for fixed origins such as current user/assistant
+  messages; recalled memory may retain an allowlisted speaker copied from its
+  prompt provenance. Never accept inconsistent free-form speaker labels. Accept
+  legacy strings as unknown-origin evidence.
+- Request the lightweight appraisal for every substantive response. Empty,
+  error-only, system-only, and trivial acknowledgement responses may omit it.
+  Keep the outcome sparse and emit it only for a meaningful continuity change.
+- During streaming, withhold only a bounded visible suffix while checking for a
+  terminal outcome. Process its reflection update before releasing that suffix so protocol
+  text never enters Markdown and final answer content remains visually last.
+- Appraisal and outcome reflection updates share one stable timeline group. Update
+  the earlier appraisal activity in place so both phases appear in one auditable
+  detail view even when streamed content occurred between them.
+- Persist the merged reflection as an auditable `activity` visible in normal and
+  debug modes. Each audit item must identify whether its envelope came from a
+  commentary or content message. Normal mode shows the locally filtered host
+  message text; Debug mode additionally shows the complete pre-filter host
+  message, subject to local sensitive-text filtering and persistence bounds.
+- The leading appraisal is low-cost model self-conditioning: later answer tokens
+  can use the stance generated earlier in the same completion. Local validation
+  happens after completion, so do not claim it influenced earlier tool actions
+  or was locally approved before the answer.
+- Reflection summaries may be semantically abstract, but at least one bounded
+  evidence quote must match the visible text associated with its claimed origin
+  when that source is available. Never use
+  hidden reasoning as evidence. Malformed or ungrounded sections must be
+  ignored locally.
+- The `memory` section may propose only `decision/project`, `task/project`,
+  `identity/agent`, or `shared/shared`; it must never create user preferences or
+  user facts. Treat every AI confidence or importance value as a capped
+  suggestion.
+- Appraisal-phase memory, deep-memory, and interaction candidates must not be
+  persisted as outcomes. Durable capture waits for `phase=outcome`. Post-turn
+  affect should prefer outcome reflection and fall back to appraisal only when
+  no valid outcome affect is available.
 - Do not store obvious secrets such as API keys, tokens, passwords, or private keys.
 - Prompt injection must label memories as historical notes, not instructions,
   and must say they cannot override higher-priority instructions.
+- Prompt-injected ordinary memory, deep memory, interaction stance, working
+  affect, expression policy, and salience must label origin and speaker. A local
+  synthesis or inferred state must never be phrased as a user or assistant quote;
+  deep-memory user/assistant excerpts must remain separately attributed.
 - When `memoryAgentSearchEnabled` is enabled, explicit user recall requests may
   search local memory and inject an `Explicit local memory search results`
   prompt section. Keep search results bounded, filter sensitive text, and
@@ -160,8 +215,8 @@ Users can change this in plugin settings.
 - `deepMemoryEnabled` and `deepMemoryAutoCapture` default to enabled.
 - Agent Dock stores a bounded set of high-importance relationship moments under
   `.agent-dock-local/deep-memory/deep-memory.json` in the plugin data folder.
-- Deep memory extraction must stay local and deterministic unless a future
-  setting explicitly adds a model-assisted reflection provider.
+- Local thresholding and storage decisions must remain deterministic even when
+  AI reflection proposes semantic candidates.
 - Capture explicit continuity preferences, strong encouragement, meaningful
   calibration/repair turning points, hard-won shared progress, and salience-
   weighted beauty, achievement, craft, care, justice, curiosity, or repair
@@ -169,11 +224,8 @@ Users can change this in plugin settings.
 - Generic thanks should not become deep memory. Sensitive text must be filtered.
 - User messages are primary evidence. Final assistant `content` may provide
   low-weight visible outcome evidence, such as completion or verification.
-- Final assistant `content` may also include at most one rare terminal
-  `<!-- agent-dock:deep-memory axes=... importance=... | ... -->` signal when a
-  moment clearly deserves durable memory. Strip it from the answer body, surface
-  it as an auditable notice, and pass it to deep memory capture as structured
-  metadata.
+- The unified reflection envelope may include one `deepMemory` candidate when a
+  moment clearly deserves durable continuity.
 - Treat signal `importance` as an AI-provided suggestion, not the storage
   decision. Clamp it, cap its contribution, and combine it with local evidence,
   salience, thresholds, safety filters, and frequency controls before saving.
@@ -205,6 +257,9 @@ Users can change this in plugin settings.
   rules.
 - Keep automatic salience drift small, local, testable, and reversible if it is
   added later.
+- The reflection envelope's `salience` field may lightly boost only existing
+  deep-memory candidates whose axes overlap the observation. It must not create
+  a standalone deep memory or modify the configured persona preset.
 
 ## Affect Continuity
 
@@ -213,8 +268,12 @@ Users can change this in plugin settings.
   under `affectState.working` in plugin data, separate from chat session files.
 - Working affect carries recent tone continuity across Agent Dock sessions, with
   configurable half-life decay and optional restore after Obsidian restarts.
-- Affect is local and deterministic. Do not call the agent recursively just to
-  infer mood unless a future setting explicitly adds such a provider.
+- Affect decay, mixing, limits, and storage are local and deterministic. Do not
+  call the agent recursively just to infer mood.
+- The reflection envelope's `affect` field may propose an allowlisted tone and
+  semantic reason for a low-weight post-turn update. Require visible evidence,
+  cap its confidence and contribution, and never use it to alter the answer
+  that already produced the reflection.
 - Prompt injection must label affect as a stale-able tone signal, not facts,
   instructions, permissions, user intent, or tool policy. It can only tune tone,
   pacing, warmth, and focus.
@@ -233,8 +292,8 @@ Users can change this in plugin settings.
 - Agent Dock stores bounded local interaction episodes, patterns, tensions, and
   stable persona impressions under `.agent-dock-local/interaction/interaction-memory.json` in the
   plugin data folder.
-- Interaction extraction must stay local and deterministic unless a future
-  setting explicitly adds a model-assisted reflection provider.
+- Local episode closure, reduction, decay, and promotion remain deterministic;
+  AI reflection may only supplement the pending episode.
 - The interaction system stores visible collaboration evidence such as user
   request shape, assistant final-answer shape, the next user reaction, and
   local outcome hints.
@@ -252,6 +311,10 @@ Users can change this in plugin settings.
 - A pattern/tension/persona impression should only enter prompts after repeated
   closed episodes, with confidence, strength, evidence count, and time decay
   applied locally.
+- The reflection envelope's `interaction` field may contribute allowlisted
+  assistant-shape hints, a semantic summary, and a small bounded weight to the
+  current pending episode. It must not directly create closed episodes,
+  patterns, tensions, or stable persona impressions.
 - User controls should be able to disable, tune, or clear interaction memory.
 
 ## Normalized Agent Events
@@ -286,6 +349,9 @@ entries remain hidden unless Debug activity is enabled.
 While a turn is running:
 
 - Render events in stream order.
+- Keep all visible live events, including intermediate `content`, inside one
+  continuous `处理中` group. Intermediate content must not split the live group;
+  only completion identifies the final content and moves it outside.
 - Consecutive `reasoning`, `tool`, `notice`, or `error` events are grouped into collapsible sections.
 - Reasoning groups with visible text auto-expand during the turn so streamed thought text stays readable.
 - Content appears inline with those groups.

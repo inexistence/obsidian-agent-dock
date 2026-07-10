@@ -1,4 +1,9 @@
 const { containsSensitiveText, redactSensitiveText } = require("../storage/sensitiveText");
+const {
+  hasGroundedAgentSignal,
+  mergeSignalEvidenceContexts,
+  normalizeAgentDockSignals
+} = require("../agents/shared/signalEvidence");
 
 const MAX_EXCERPT_CHARS = 260;
 
@@ -16,6 +21,10 @@ const GENERIC_THANKS_PATTERN = /^(谢谢|感谢|辛苦了|thanks|thank you|appre
 function extractDeepMemoryCandidates(turn, options = {}) {
   const prompt = compactText(turn?.prompt);
   const response = compactText(turn?.response);
+  const signalEvidenceContext = mergeSignalEvidenceContexts(
+    turn?.signalEvidenceContext,
+    { user_message: prompt, assistant_message: response }
+  );
   const previousAssistantResponse = compactText(turn?.previousAssistantResponse);
   const now = Number(options.now || turn?.now) || Date.now();
   if (!prompt || containsSensitiveText(prompt) || containsSensitiveText(response)) {
@@ -28,6 +37,12 @@ function extractDeepMemoryCandidates(turn, options = {}) {
   const candidates = [];
   for (const signal of normalizeAgentDockSignals(turn?.agentDockSignals)) {
     if (signal.type !== "deep_memory") {
+      continue;
+    }
+    if (signal.phase === "appraisal") {
+      continue;
+    }
+    if (signal.envelope === "reflection_v1" && !hasGroundedAgentSignal(signal, signalEvidenceContext)) {
       continue;
     }
     const text = sanitizeExcerpt(signal.text);
@@ -161,9 +176,59 @@ function extractDeepMemoryCandidates(turn, options = {}) {
     }, turn, now));
   }
 
+  const salienceObservation = getSalienceObservation(
+    turn?.agentDockSignals,
+    signalEvidenceContext
+  );
   return candidates
+    .map((candidate) => applySalienceObservationBoost(candidate, salienceObservation))
     .map((candidate) => applySalienceBoost(candidate, options.personaProfile))
     .filter((candidate) => candidate.importance >= Number(options.threshold || 0));
+}
+
+function getSalienceObservation(signals, evidenceContextOrPrompt, response = "") {
+  for (const signal of preferOutcomeSignals(normalizeAgentDockSignals(signals))) {
+    if (signal.type !== "salience_observation") {
+      continue;
+    }
+    if (!hasGroundedAgentSignal(signal, evidenceContextOrPrompt, response)) {
+      continue;
+    }
+    return {
+      axes: normalizeStringArray(signal.axes),
+      confidence: Math.min(0.65, Math.max(0.35, Number(signal.confidence) || 0.55))
+    };
+  }
+  return null;
+}
+
+function preferOutcomeSignals(signals) {
+  return [...signals].sort((left, right) => reflectionPhasePriority(right) - reflectionPhasePriority(left));
+}
+
+function reflectionPhasePriority(signal) {
+  if (signal?.phase === "outcome") {
+    return 2;
+  }
+  if (signal?.phase === "appraisal") {
+    return 1;
+  }
+  return 0;
+}
+
+function applySalienceObservationBoost(candidate, observation) {
+  if (!observation || observation.axes.length === 0) {
+    return candidate;
+  }
+  const candidateAxes = new Set(normalizeStringArray(candidate.salienceAxes));
+  const overlaps = observation.axes.filter((axis) => candidateAxes.has(axis));
+  if (overlaps.length === 0) {
+    return candidate;
+  }
+  return Object.assign({}, candidate, {
+    importance: Math.min(1, candidate.importance + observation.confidence * 0.08),
+    topics: [...new Set(normalizeStringArray(candidate.topics).concat("agent_salience_observation"))]
+  });
 }
 
 function createCandidate(data, turn, now) {
@@ -231,12 +296,6 @@ function normalizeStringArray(value) {
     .slice(0, 8);
 }
 
-function normalizeAgentDockSignals(value) {
-  return (Array.isArray(value) ? value : [])
-    .filter((signal) => signal && typeof signal === "object")
-    .slice(0, 4);
-}
-
 function truncateText(text, maxChars) {
   if (text.length <= maxChars) {
     return text;
@@ -263,6 +322,8 @@ module.exports = {
     HARD_WON_ACHIEVEMENT_PATTERN,
     MORAL_STANCE_PATTERN,
     applySalienceBoost,
+    applySalienceObservationBoost,
+    getSalienceObservation,
     createDeepMemoryKey,
     scoreSignalImportance
   }

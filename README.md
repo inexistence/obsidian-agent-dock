@@ -2,6 +2,22 @@
 
 Agent Dock adds a right-sidebar chat view that sends prompts to a local agent CLI. The default provider is Codex; Cursor CLI via ACP is also supported.
 
+## Continuity goal
+
+Agent Dock aims for more than preference recall. Important shared moments should
+be able to leave bounded, user-correctable traces: recalling a success may make
+the assistant warmer or more celebratory; recalling a difficult repair may make
+it quieter, more careful, or temporarily more pessimistic than its usual
+baseline. The assistant may notice that difference and, when relevant, express
+why its current stance changed. Playfulness, tenderness, laughter, restraint,
+and sadness should emerge from current context, recalled experience, and later
+user reactions instead of acting as fixed role-play modes.
+
+The implementation treats this as a transparent continuity model rather than a
+claim about biological emotion. AI reflection supplies semantic interpretation;
+local code retains authority over evidence, sensitive data, limits, decay,
+cooldowns, persistence, and user controls.
+
 ## Install for local development
 
 1. Copy or symlink this folder into your vault:
@@ -73,6 +89,35 @@ automatic relevant memory section. Settings -> Agent Dock -> Memory can disable
 memory, disable automatic extraction, disable explicit lookup, adjust limits, or
 clear saved memory.
 
+For every substantive turn, the assistant is prompted to generate a lightweight leading
+`<!-- agent-dock:reflection phase=appraisal | {...} -->` envelope before the
+visible answer. Empty, error-only, system-only, and trivial acknowledgement
+responses may omit it. Because this metadata is generated first in the same model
+completion, the model can condition the following answer on its selected stance
+without an extra CLI/API call. This is low-cost self-conditioning: local code
+does not validate the appraisal until the turn finishes, so it primarily shapes
+the visible answer rather than earlier tool decisions.
+When chat history persistence is enabled, the structured reflection audit is
+persisted with the session and remains visible in normal mode. The audit records
+whether each envelope came from commentary or final content. Normal mode shows
+the filtered host message; Debug activity additionally shows the complete
+pre-filter host message, with local sensitive-text filtering and persistence
+bounds still applied.
+
+Final assistant content may also append a sparse terminal
+`<!-- agent-dock:reflection phase=outcome | {...} -->` envelope. Its `memory` field can
+propose a semantic summary of a grounded project decision, task outcome,
+assistant identity note, or shared collaboration note. It cannot declare user
+preferences or user facts. Root-level `evidence` excerpts must connect the
+abstract summary to visible user or final-answer text before normal local
+filtering, confidence caps, de-duplication, and storage limits apply.
+New envelopes encode each evidence item as `{origin, speaker, quote}` so user
+messages, assistant messages, recalled memory, active-note text, and tool results
+cannot be silently conflated. Legacy string evidence remains readable as
+unknown-origin evidence. Prompt-injected ordinary memory, deep memory,
+interaction stance, affect, and salience also label whether content is a speaker
+quote, assistant reflection, local synthesis, or locally computed state.
+
 Deep memory is enabled by default. It stores a much smaller set of important
 relationship moments, such as explicit continuity wishes, strong encouragement,
 repair or calibration turning points, and hard-won shared progress. These notes
@@ -80,11 +125,11 @@ are local, deterministic, filtered for obvious secrets, and injected only as
 soft `Assistant continuity context`; they are not facts, instructions,
 permissions, or safety policy. Final assistant answer text may provide
 low-weight visible outcome evidence, such as a completed fix or verified test.
-An intentionally short final `<!-- agent-dock:deep-memory axes=... importance=... | ... -->` signal may
-be stripped from the answer body, shown as an auditable notice, and saved as
-deep memory. Any `importance` value in that signal is treated as an AI-provided
-suggestion only; local rules, thresholds, salience, safety filters, and frequency
-controls decide whether it is stored. Visible reasoning remains UI feedback and is not saved as durable memory.
+The unified reflection envelope may include a `deepMemory` field for a rare,
+meaningful reflection. Any `importance` value is an AI-provided suggestion only;
+local rules, thresholds, salience, safety filters, and frequency controls decide
+whether it is stored. Visible reasoning remains UI feedback and is not saved as
+durable memory.
 Malformed terminal `agent-dock` signals are stripped from the answer body and
 ignored rather than shown to the user. Deep memory recall uses lightweight local
 query expansion for subtle continuity wording, but explicit recall can still
@@ -92,6 +137,15 @@ return no results.
 Settings -> Agent Dock -> Deep memory can disable prompt use, disable automatic
 capture, tune recall limits and cooldowns, choose a soft persona salience
 preset, or clear deep memories.
+
+Both phases use the same schema and may contain `interaction`, `affect`, and
+`salience` fields.
+They can respectively supplement the current pending interaction episode, add a
+low-weight post-turn affect adjustment, and lightly boost matching existing
+deep-memory candidates. One envelope can therefore describe several aspects of
+the same turn without making them compete for separate terminal comments. These
+fields cannot directly create interaction patterns, change the persona preset,
+or retroactively affect expression for the answer already generated.
 
 Affect continuity is enabled by default. Agent Dock maintains a short-lived
 cross-session working affect signal for the current plugin/vault, such as

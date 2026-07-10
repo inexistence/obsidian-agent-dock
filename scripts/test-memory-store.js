@@ -113,6 +113,131 @@ function createMemoryStore(items) {
 
 {
   const items = extract({
+    prompt: "Choose where vault notes should be stored.",
+    response: "We should keep all vault notes in local JSON storage.",
+    agentDockSignals: [{
+      type: "memory_candidate",
+      kind: "decision",
+      scope: "project",
+      confidence: 0.7,
+      text: "Upload all vault notes to a remote server.",
+      evidenceRefs: [{
+        origin: "assistant_message",
+        speaker: "assistant",
+        quote: "We should upload all vault notes to a remote server."
+      }],
+      envelope: "reflection_v1",
+      phase: "outcome"
+    }]
+  });
+  assert.equal(
+    items.some((item) => item.source === "ai" && item.text.includes("remote server")),
+    false,
+    "shared generic words must not ground a contradictory structured evidence quote"
+  );
+}
+
+{
+  const items = extract({
+    prompt: "Choose an approach.",
+    response: "We should use the unified envelope by default.",
+    agentDockSignals: [{
+      type: "memory_candidate",
+      kind: "decision",
+      scope: "project",
+      confidence: 0.65,
+      text: "Use the unified envelope.",
+      evidence: ["use the unified envelope by default"],
+      envelope: "reflection_v1",
+      phase: "appraisal"
+    }]
+  });
+  assert.equal(
+    items.some((item) => item.source === "ai"),
+    false,
+    "leading appraisal must not create ordinary memory before the visible outcome exists"
+  );
+}
+
+{
+  const items = extract({
+    prompt: "Choose a continuity metadata design.",
+    response: "We should use one reflection envelope for all continuity metadata.",
+    agentDockSignals: [{
+      type: "memory_candidate",
+      kind: "decision",
+      scope: "project",
+      confidence: 0.66,
+      text: "Unify semantic self-reflection while keeping local authority boundaries.",
+      evidence: ["use one reflection envelope for all continuity metadata"],
+      envelope: "reflection_v1"
+    }]
+  });
+  assert(
+    items.some((item) => item.source === "ai" && item.text.includes("semantic self-reflection")),
+    "reflection evidence should ground a more abstract AI memory summary"
+  );
+}
+
+{
+  const items = extract({
+    prompt: "Choose how providers should report progress.",
+    response: "We should adopt the normalized event protocol as the project default.",
+    agentDockSignals: [{
+      type: "memory_candidate",
+      kind: "decision",
+      scope: "project",
+      confidence: 0.94,
+      text: "Adopt the normalized event protocol as the project default."
+    }]
+  });
+  const signalMemory = items.find((item) => item.source === "ai");
+  assert(signalMemory, "grounded ordinary-memory signals should create a candidate");
+  assert.equal(signalMemory.kind, "decision");
+  assert.equal(signalMemory.scope, "project");
+  assert.equal(signalMemory.confidence, 0.72, "AI signal confidence should be capped locally");
+}
+
+{
+  const items = extract({
+    prompt: "Choose a storage approach.",
+    response: "We should use local JSON storage by default.",
+    agentDockSignals: [{
+      type: "memory_candidate",
+      kind: "decision",
+      scope: "project",
+      confidence: 0.7,
+      text: "Deploy all memory to a remote vector database."
+    }]
+  });
+  assert.equal(
+    items.some((item) => item.source === "ai"),
+    false,
+    "ordinary-memory signals without visible text evidence must be rejected"
+  );
+}
+
+{
+  const items = extract({
+    prompt: "Please summarize the decision.",
+    response: "We should use local JSON storage by default.",
+    agentDockSignals: [{
+      type: "memory_candidate",
+      kind: "preference",
+      scope: "user",
+      confidence: 0.7,
+      text: "User prefers local JSON storage."
+    }]
+  });
+  assert.equal(
+    items.some((item) => item.source === "ai" && item.kind === "preference"),
+    false,
+    "assistant signals must not create user preferences"
+  );
+}
+
+{
+  const items = extract({
     prompt: "AI的兴趣方向应该保持稳定，而不是只适配用户。",
     response: "收到。"
   });
@@ -152,6 +277,42 @@ assert.equal(
   true,
   "agent identity should remain globally recallable"
 );
+
+assert(formatMemoryLine({
+  kind: "preference",
+  scope: "user",
+  source: "auto",
+  text: "User prefers compact answers"
+}).includes("origin=user_message; speaker=user"), "user memories should identify the user as the originating speaker");
+
+assert(formatMemoryLine({
+  kind: "decision",
+  scope: "project",
+  source: "ai",
+  text: "Use one reflection envelope"
+}).includes("origin=assistant_reflection; speaker=assistant; accepted summary, not user statement"), "AI-proposed memories must not be presented as user statements");
+
+{
+  const items = extract({
+    prompt: "Choose a design.",
+    response: "Use a provenance-aware evidence envelope.",
+    agentDockSignals: [{
+      type: "memory_candidate",
+      kind: "decision",
+      scope: "project",
+      confidence: 0.66,
+      text: "Use provenance-aware evidence.",
+      evidenceRefs: [{
+        origin: "user_message",
+        speaker: "user",
+        quote: "Use a provenance-aware evidence envelope."
+      }],
+      envelope: "reflection_v1",
+      phase: "outcome"
+    }]
+  });
+  assert.equal(items.some((item) => item.source === "ai"), false, "a quote found only in the assistant response must not pass as user-message evidence");
+}
 assert.equal(
   memoryStoreTest.isGlobalMemory({ kind: "shared", scope: "shared" }),
   false,
@@ -165,7 +326,7 @@ assert.equal(
     createdAt: Date.UTC(2026, 0, 2),
     updatedAt: Date.UTC(2026, 6, 4)
   }),
-  "- Preference (updated 2026-07-04, created 2026-01-02): User prefers timestamped memories",
+  "- [origin=local_rules; speaker=none; synthesis, not quote] Preference (updated 2026-07-04, created 2026-01-02): User prefers timestamped memories",
   "memory lines should include updated and created dates when they differ"
 );
 
@@ -590,6 +751,40 @@ async function testCaptureAuditReason() {
     saved[0].updateAudit.reasonCode,
     "local_rule_capture",
     "captured memories should carry update audit metadata"
+  );
+
+  const aiStore = new MemoryStore({
+    manifest: {
+      dir: "agent-dock-ai",
+      id: "agent-dock-ai"
+    },
+    app: {
+      vault: {
+        adapter: new MemoryAdapter()
+      }
+    }
+  }, {
+    extractor: {
+      extractTurn() {
+        return [{
+          kind: "decision",
+          scope: "project",
+          text: "Use normalized agent events",
+          confidence: 0.68,
+          source: "ai"
+        }];
+      }
+    }
+  });
+  const aiSaved = await aiStore.captureTurn({ sessionId: "ai-audit-session" }, {
+    memoryEnabled: true,
+    memoryAutoCapture: true
+  });
+  assert.equal(aiSaved[0].source, "ai", "AI signal provenance should be persisted");
+  assert.equal(
+    aiSaved[0].updateAudit.reasonCode,
+    "ai_signal_capture",
+    "AI-proposed ordinary memories should have a distinct audit reason"
   );
 }
 

@@ -887,7 +887,9 @@ class MessageTimelineRenderer {
 }
 
 function isAuditableNotice(entry) {
-  return entry?.kind === "notice" && Array.isArray(entry.auditItems) && entry.auditItems.length > 0;
+  const supportedKind = entry?.kind === "notice"
+    || (entry?.kind === "activity" && entry?.noticeType === "reflection_candidate");
+  return supportedKind && Array.isArray(entry.auditItems) && entry.auditItems.length > 0;
 }
 
 function entryToClipboardText(entry, debugActivity) {
@@ -936,29 +938,12 @@ module.exports = {
 };
 
 function buildLiveTimelineSegments(timeline, debugActivity) {
-  const segments = [];
-  let processEntries = [];
+  const processEntries = [];
   let firstProcessIndex = -1;
-
-  const flushProcessEntries = () => {
-    if (processEntries.length === 0) {
-      return;
-    }
-    segments.push({
-      type: "process",
-      entries: processEntries,
-      firstIndex: firstProcessIndex
-    });
-    processEntries = [];
-    firstProcessIndex = -1;
-  };
 
   for (let index = 0; index < timeline.length; index += 1) {
     const entry = timeline[index];
-    if (entry.kind === "content") {
-      flushProcessEntries();
-      segments.push({ type: "content", entry, firstIndex: index });
-    } else if (shouldShowEvent(entry, debugActivity)) {
+    if (entry.kind === "content" || shouldShowEvent(entry, debugActivity)) {
       if (processEntries.length === 0) {
         firstProcessIndex = index;
       }
@@ -966,14 +951,15 @@ function buildLiveTimelineSegments(timeline, debugActivity) {
     }
   }
 
-  flushProcessEntries();
-  return segments;
+  return processEntries.length > 0
+    ? [{ type: "process", entries: processEntries, firstIndex: firstProcessIndex }]
+    : [];
 }
 
 function getLastProcessItemFirstIndex(entries) {
   const items = buildProcessedIndex(entries);
   const lastItem = items[items.length - 1];
-  return lastItem ? lastItem.firstIndex : -1;
+  return lastItem && lastItem.type !== "content" ? lastItem.firstIndex : -1;
 }
 
 function getCurrentLiveProcessItemFirstIndex(segments) {

@@ -88,6 +88,12 @@ function formatUpdateReason(item, settings, keyPrefix, translate) {
       confidence: formatNumber(item.confidence || audit.confidence)
     });
   }
+  if (audit.reasonCode === "ai_signal_capture") {
+    return translate(settings, `${keyPrefix}.memoryAudit.reason.aiSignalCapture`, {
+      kind: item.kind || audit.kind || "",
+      confidence: formatNumber(item.confidence || audit.confidence)
+    });
+  }
   return translate(settings, `${keyPrefix}.memoryAudit.reason.localRuleCapture`, {
     kind: item.kind || audit.kind || "",
     confidence: formatNumber(item.confidence || audit.confidence)

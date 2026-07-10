@@ -246,6 +246,254 @@ async function testReturnedFinalContentReplacesStreamedContent() {
   assert(!JSON.stringify(assistantMessage.timeline).includes("agent-dock:deep-memory"));
 }
 
+async function testAgentSignalMetadataReachesWorkingAffectUpdate() {
+  const session = {
+    id: "session-affect-signal",
+    messages: [],
+    currentRun: null
+  };
+  const turns = [];
+  const affectSignal = {
+    type: "affect_candidate",
+    tone: "focused",
+    confidence: 0.55,
+    text: "The final answer stayed focused."
+  };
+  const salienceSignal = {
+    type: "salience_observation",
+    axes: ["craft"],
+    confidence: 0.5,
+    text: "Implementation craft mattered."
+  };
+
+  await runChatTurn({
+    session,
+    prompt: "hello",
+    agentLabel: "Codex",
+    agentId: "codex",
+    runAgent: async (_prompt, onUpdate) => {
+      onUpdate({
+        kind: "activity",
+        noticeType: "reflection_candidate",
+        title: "Continuity reflection",
+        agentDockSignals: [affectSignal, salienceSignal]
+      });
+      onUpdate({ kind: "content", text: "done" });
+    },
+    translate,
+    touchSession: () => {},
+    onTurnStarted: () => {},
+    onTurnUpdate: () => {},
+    onTurnFinished: () => {},
+    onComposerChanged: () => {},
+    updateWorkingAffect: async (turn) => turns.push(turn),
+    persistChatSessions: async () => {},
+    notify: () => {}
+  });
+
+  assert.deepStrictEqual(
+    turns[0].agentDockSignals,
+    [affectSignal, salienceSignal],
+    "all structured signals from one reflection envelope should reach the durable affect update"
+  );
+}
+
+async function testCompleteReflectionSignalSetReachesWorkingAffectUpdate() {
+  const session = { id: "session-complete-reflection", messages: [], currentRun: null };
+  const signals = Array.from({ length: 10 }, (_, index) => ({
+    type: index === 8 ? "affect_candidate" : index === 9 ? "salience_observation" : "interaction_candidate",
+    phase: index < 5 ? "appraisal" : "outcome",
+    text: `signal-${index}`
+  }));
+  let affectTurn;
+
+  await runChatTurn({
+    session,
+    prompt: "hello",
+    agentLabel: "Codex",
+    agentId: "codex",
+    runAgent: async (_prompt, onUpdate) => {
+      onUpdate({
+        kind: "activity",
+        noticeType: "reflection_candidate",
+        agentDockSignals: signals,
+        signalEvidenceContext: { recalled_memory: "remembered evidence" }
+      });
+      onUpdate({ kind: "content", text: "done" });
+    },
+    translate,
+    touchSession: () => {},
+    onTurnStarted: () => {},
+    onTurnUpdate: () => {},
+    onTurnFinished: () => {},
+    onComposerChanged: () => {},
+    updateWorkingAffect: async (turn) => { affectTurn = turn; },
+    persistChatSessions: async () => {},
+    notify: () => {}
+  });
+
+  assert.equal(affectTurn.agentDockSignals.length, 10);
+  assert.equal(affectTurn.agentDockSignals[8].phase, "outcome");
+  assert.equal(affectTurn.agentDockSignals[9].type, "salience_observation");
+  assert(affectTurn.signalEvidenceContext.recalled_memory.includes("remembered evidence"));
+}
+
+async function testReflectionPhasesMergeIntoOneTimelineNotice() {
+  const session = {
+    id: "session-reflection-merge",
+    messages: [],
+    currentRun: null
+  };
+  const appraisalSignal = {
+    type: "affect_candidate",
+    phase: "appraisal",
+    text: "Start carefully."
+  };
+  const outcomeSignal = {
+    type: "salience_observation",
+    phase: "outcome",
+    text: "The result mattered."
+  };
+  let affectTurn;
+
+  await runChatTurn({
+    session,
+    prompt: "hello",
+    agentLabel: "Codex",
+    agentId: "codex",
+    runAgent: async (_prompt, onUpdate) => {
+      onUpdate({
+        kind: "activity",
+        noticeType: "reflection_candidate",
+        noticeGroupId: "agent_dock_reflection",
+        noticeItemCount: 1,
+        title: "Continuity reflection",
+        summary: "1 item",
+        auditItems: [{ title: "Appraisal" }],
+        agentDockSignals: [appraisalSignal]
+      });
+      onUpdate({ kind: "content", text: "Visible body before the outcome. " });
+      onUpdate({
+        kind: "activity",
+        noticeType: "reflection_candidate",
+        noticeGroupId: "agent_dock_reflection",
+        noticeItemCount: 2,
+        title: "Continuity reflection",
+        summary: "2 items",
+        auditItems: [{ title: "Appraisal" }, { title: "Outcome" }],
+        agentDockSignals: [outcomeSignal]
+      });
+      onUpdate({ kind: "content", text: "Final tail." });
+    },
+    translate,
+    touchSession: () => {},
+    onTurnStarted: () => {},
+    onTurnUpdate: () => {},
+    onTurnFinished: () => {},
+    onComposerChanged: () => {},
+    updateWorkingAffect: async (turn) => {
+      affectTurn = turn;
+    },
+    persistChatSessions: async () => {},
+    notify: () => {}
+  });
+
+  const assistant = session.messages.find((message) => message.role === "assistant");
+  const reflectionNotices = assistant.timeline.filter((entry) => entry.noticeGroupId === "agent_dock_reflection");
+  assert.equal(reflectionNotices.length, 1, "appraisal and outcome should update one timeline notice even across content");
+  assert.equal(reflectionNotices[0].noticeItemCount, 2);
+  assert.equal(reflectionNotices[0].auditItems.length, 2);
+  assert.deepStrictEqual(affectTurn.agentDockSignals, [appraisalSignal, outcomeSignal], "grouped display updates must retain both signal phases for affect continuity");
+}
+
+async function testOutcomeOnlyReflectionDoesNotSplitVisibleAnswer() {
+  const session = {
+    id: "session-outcome-only-reflection",
+    messages: [],
+    currentRun: null
+  };
+
+  await runChatTurn({
+    session,
+    prompt: "hello",
+    agentLabel: "Codex",
+    agentId: "codex",
+    runAgent: async (_prompt, onUpdate) => {
+      onUpdate({ kind: "content", text: "The main answer appeared before the outcome. " });
+      onUpdate({
+        kind: "activity",
+        noticeType: "reflection_candidate",
+        noticeGroupId: "agent_dock_reflection",
+        noticeItemCount: 1,
+        insertBeforeLastContent: true,
+        title: "Continuity reflection",
+        summary: "1 item",
+        auditItems: [{ title: "Outcome" }],
+        agentDockSignals: [{ type: "affect_candidate", phase: "outcome", text: "Done." }]
+      });
+      onUpdate({ kind: "content", text: "Final tail." });
+      return "The main answer appeared before the outcome. Final tail.";
+    },
+    translate,
+    touchSession: () => {},
+    onTurnStarted: () => {},
+    onTurnUpdate: () => {},
+    onTurnFinished: () => {},
+    onComposerChanged: () => {},
+    updateWorkingAffect: async () => {},
+    persistChatSessions: async () => {},
+    notify: () => {}
+  });
+
+  const assistant = session.messages.find((message) => message.role === "assistant");
+  const contents = assistant.timeline.filter((entry) => entry.kind === "content");
+  assert.equal(contents.length, 1, "an outcome-only reflection should not split streamed answer content");
+  assert.equal(contents[0].text, "The main answer appeared before the outcome. Final tail.");
+  assert.equal(assistant.content, contents[0].text, "the completed visible answer should remain intact");
+}
+
+async function testPostTurnMemoryNoticeDoesNotSplitCursorStream() {
+  const session = {
+    id: "session-cursor-memory-notice",
+    messages: [],
+    currentRun: null
+  };
+
+  await runChatTurn({
+    session,
+    prompt: "recall today",
+    agentLabel: "Cursor",
+    agentId: "cursor",
+    runAgent: async (_prompt, onUpdate) => {
+      onUpdate({ kind: "content", text: "First streamed paragraph. " });
+      onUpdate({
+        kind: "notice",
+        noticeType: "memory_updated",
+        insertBeforeLastContent: true,
+        title: "Memory updated",
+        summary: "1 item"
+      });
+      onUpdate({ kind: "content", text: "Second streamed paragraph." });
+      return "First streamed paragraph. Second streamed paragraph.";
+    },
+    translate,
+    touchSession: () => {},
+    onTurnStarted: () => {},
+    onTurnUpdate: () => {},
+    onTurnFinished: () => {},
+    onComposerChanged: () => {},
+    updateWorkingAffect: async () => {},
+    persistChatSessions: async () => {},
+    notify: () => {}
+  });
+
+  const assistant = session.messages.find((message) => message.role === "assistant");
+  const contents = assistant.timeline.filter((entry) => entry.kind === "content");
+  assert.equal(contents.length, 1, "post-turn memory notices must not split one streamed Cursor answer");
+  assert.equal(contents[0].text, "First streamed paragraph. Second streamed paragraph.");
+  assert.equal(assistant.timeline[assistant.timeline.length - 1], contents[0], "the complete answer should remain the final timeline entry");
+}
+
 async function testFinalStatusHoldIsEmittedBeforeAffectUpdate() {
   const session = {
     id: "session-hold",
@@ -348,6 +596,11 @@ testAffectFailureDoesNotFailSuccessfulTurn()
   .then(() => testBeforeAgentRunFailureClearsCurrentRun())
   .then(() => testWorkingAffectReceivesTurnContext())
   .then(() => testReturnedFinalContentReplacesStreamedContent())
+  .then(() => testAgentSignalMetadataReachesWorkingAffectUpdate())
+  .then(() => testCompleteReflectionSignalSetReachesWorkingAffectUpdate())
+  .then(() => testReflectionPhasesMergeIntoOneTimelineNotice())
+  .then(() => testOutcomeOnlyReflectionDoesNotSplitVisibleAnswer())
+  .then(() => testPostTurnMemoryNoticeDoesNotSplitCursorStream())
   .then(() => testFinalStatusHoldIsEmittedBeforeAffectUpdate())
   .then(() => testStoppedTurnSettlesAffectDisplayWithoutUpdatingWorkingAffect())
   .then(() => {

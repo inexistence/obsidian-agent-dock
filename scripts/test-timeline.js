@@ -71,16 +71,19 @@ class FakeElement {
   }
 }
 
-const { MemoryNoticeModal } = require("../src/view/timeline/MemoryNoticeModal");
+const {
+  MemoryNoticeModal,
+  _test: memoryNoticeModalTest
+} = require("../src/view/timeline/MemoryNoticeModal");
 const { toRestrictedMarkdown } = require("../src/view/utils/restrictedMarkdown");
 
 function hasClass(element, cls) {
   return String(element.cls || "").split(/\s+/).includes(cls);
 }
 
-function createRenderer(iconCalls = []) {
+function createRenderer(iconCalls = [], debugActivity = false) {
   return new MessageTimelineRenderer({
-    getDebugActivity: () => false,
+    getDebugActivity: () => debugActivity,
     translate: (key) => key,
     renderMarkdownContent: () => {},
     copyText: null,
@@ -251,12 +254,15 @@ function reasoningEntries(message) {
   ], false);
   assert.deepStrictEqual(
     segments.map((segment) => segment.type),
-    ["process", "content", "process", "content", "process"],
-    "live rendering should preserve stream order around content entries"
+    ["process"],
+    "all live entries should stay inside one continuous processing group"
   );
   assert.strictEqual(segments[0].firstIndex, 0);
-  assert.strictEqual(segments[2].firstIndex, 2);
-  assert.strictEqual(segments[4].firstIndex, 4);
+  assert.deepStrictEqual(
+    segments[0].entries.map((entry) => entry.kind),
+    ["reasoning", "content", "tool", "content", "notice"],
+    "content should keep its stream position without ending the processing group"
+  );
 }
 
 {
@@ -279,7 +285,7 @@ function reasoningEntries(message) {
   ], false);
   assert.strictEqual(
     timelineRendererTest.getCurrentLiveProcessItemFirstIndex(segments),
-    0,
+    1,
     "live process animation should target the latest item only while processing is latest"
   );
 }
@@ -351,6 +357,45 @@ function reasoningEntries(message) {
   assert(container.findByClass("codex-dock__notice-details-icon"), "auditable notice should render the audit marker");
   assert(!iconCalls.some((call) => call.iconName === "clipboard-list"), "auditable notice should not use a heavy icon");
   assert(!iconCalls.some((call) => call.iconName === "chevron-right"), "auditable notice should not use a disclosure chevron");
+}
+
+{
+  const reflection = {
+    kind: "activity",
+    noticeType: "reflection_candidate",
+    title: "AI 连续性反思",
+    summary: "提取了 2 项候选补充。",
+    auditItems: [{
+      title: "回答前评估 · 情绪",
+      summary: "当前回答更谨慎。",
+      fields: [{ label: "可见依据", value: "用户要求检查详情" }]
+    }]
+  };
+  const ordinaryContainer = new FakeElement();
+  createRenderer([], false).renderTimelineEntry(ordinaryContainer, reflection);
+  assert(ordinaryContainer.findByClass("codex-dock__notice-details-trigger"), "reflection audit should be visible outside debug mode");
+
+  const debugContainer = new FakeElement();
+  createRenderer([], true).renderTimelineEntry(debugContainer, reflection);
+  assert(debugContainer.findByClass("codex-dock__notice-details-trigger"), "debug reflection activity should open structured audit details");
+  assert(debugContainer.findByClass("codex-dock__notice-details-icon"), "debug reflection activity should show the details marker");
+}
+
+{
+  const fields = [
+    { label: "Filtered", value: "Visible answer", preformatted: true },
+    { label: "Raw", value: "<!-- hidden -->Visible answer", preformatted: true, debugOnly: true }
+  ];
+  assert.deepStrictEqual(
+    memoryNoticeModalTest.getVisibleAuditFields(fields, false),
+    [fields[0]],
+    "ordinary mode should expose only the filtered reflection source"
+  );
+  assert.deepStrictEqual(
+    memoryNoticeModalTest.getVisibleAuditFields(fields, true),
+    fields,
+    "debug mode should also expose the complete pre-filter source"
+  );
 }
 
 {

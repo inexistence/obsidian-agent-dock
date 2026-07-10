@@ -192,6 +192,7 @@ async function testLocalContextBoundaryIsGlobalAndEmptySearchIsOmitted() {
   assert(result.prompt.includes("Explicit local memory search results"), "empty explicit memory search should still be included");
   assert(result.prompt.includes("No matching local memory was found"), "empty search should tell the agent no local memory matched");
   assert(result.prompt.includes("Relevant local memory:"), "non-empty automatic memory should still be included");
+  assert(result.prompt.includes("Every item is labeled with origin and speaker provenance"), "injected memories should explain provenance and quotation boundaries");
   assert(result.prompt.includes("Interpret relative date words inside a memory"), "memory prompt should anchor relative dates to memory dates");
   assert(result.prompt.includes("Interpret relative date words inside a result"), "explicit memory search prompt should anchor relative dates to result dates");
   assert(result.prompt.includes("Assistant continuity context:"), "non-empty continuity should still be included");
@@ -202,29 +203,65 @@ async function testAgentDockSignalPolicyFollowsDeepMemorySettings() {
     app,
     {
       assistantStyle: "collaborative",
-      contextLimitChars: 4000,
+      contextLimitChars: 6000,
       deepMemoryEnabled: true,
       deepMemoryAutoCapture: true
     },
     "Continue",
     []
   );
-  assert(enabled.prompt.includes("agent-dock:deep-memory"), "enabled deep memory should include agent-dock signal policy");
-  assert(enabled.prompt.includes("importance=0.76"), "agent-dock signal policy should ask for an AI suggested importance");
+  assert(enabled.prompt.includes("agent-dock:reflection"), "enabled continuity systems should use one reflection envelope");
+  assert(enabled.prompt.includes("phase=appraisal"), "reflection policy should include a leading appraisal phase");
+  assert(enabled.prompt.includes("phase=outcome"), "reflection policy should include a terminal outcome phase");
+  assert(enabled.prompt.includes("For every substantive response"), "substantive turns should request a default lightweight appraisal");
+  assert(enabled.prompt.includes("only when the completed turn contains a meaningful"), "terminal outcomes should remain sparse");
+  assert(!enabled.prompt.includes("Both envelopes are omitted by default"), "the prompt must not describe appraisal as omitted by default");
+  assert(enabled.prompt.includes('"selfAwareness"'), "appraisal example should describe baseline-aware stance selection");
+  assert(enabled.prompt.includes('"deepMemory"'), "enabled deep memory should include a deep-memory reflection field");
+  assert(enabled.prompt.includes('"memory"'), "enabled ordinary memory should include an ordinary-memory reflection field");
+  assert(enabled.prompt.includes('"interaction"'), "enabled interaction memory should include an interaction reflection field");
+  assert(enabled.prompt.includes('"affect"'), "enabled affect continuity should include an affect reflection field");
+  assert(enabled.prompt.includes('"salience"'), "enabled deep memory should include a salience reflection field");
+  assert(enabled.prompt.includes('"evidence"'), "reflection envelope should require visible evidence excerpts");
+  assert(enabled.prompt.includes('"origin":"user_message"'), "appraisal evidence example should identify the user-message origin");
+  assert(enabled.prompt.includes('"speaker":"assistant"'), "outcome evidence example should identify the assistant speaker");
+  assert(enabled.prompt.includes("cannot declare user preferences or facts"), "reflection policy should protect user facts and preferences");
   assert(enabled.prompt.includes("never hidden reasoning"), "signal policy should keep the hidden-reasoning boundary visible");
 
   const disabled = await buildPromptWithMetadata(
     app,
     {
       assistantStyle: "collaborative",
-      contextLimitChars: 4000,
+      contextLimitChars: 6000,
       deepMemoryEnabled: false,
       deepMemoryAutoCapture: true
     },
     "Continue",
     []
   );
-  assert(!disabled.prompt.includes("agent-dock:deep-memory"), "disabled deep memory should omit agent-dock signal policy");
+  assert(disabled.prompt.includes("agent-dock:reflection"), "other enabled continuity systems should retain the unified envelope");
+  assert(!disabled.prompt.includes('"deepMemory"'), "disabled deep memory should omit the deep-memory reflection field");
+  assert(!disabled.prompt.includes('"salience"'), "disabled deep memory should omit the salience reflection field");
+  assert(disabled.prompt.includes('"memory"'), "ordinary-memory reflection should remain enabled");
+
+  const allDisabled = await buildPromptWithMetadata(
+    app,
+    {
+      assistantStyle: "collaborative",
+      contextLimitChars: 4000,
+      deepMemoryEnabled: false,
+      deepMemoryAutoCapture: true,
+      memoryEnabled: false,
+      memoryAutoCapture: true,
+      interactionMemoryEnabled: false,
+      interactionMemoryAutoCapture: true,
+      affectEnabled: false,
+      affectCrossSessionEnabled: true
+    },
+    "Continue",
+    []
+  );
+  assert(!allDisabled.prompt.includes("agent-dock:reflection"), "disabling all continuity systems should omit the reflection envelope");
 }
 
 async function testTurnContextPromptUsesSameArbitration() {

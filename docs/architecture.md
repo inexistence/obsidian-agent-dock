@@ -21,6 +21,27 @@ instructions. The desired feel is a collaborator that can be shaped by visible
 interaction over time, while still making memory boundaries inspectable,
 bounded, and reversible.
 
+The experiential target is a causal continuity loop rather than independent
+memory and tone features. A recalled important moment may create a bounded
+affective residue; that residue may move the assistant away from its usual
+baseline; the assistant may recognize the deviation and let it naturally shape
+attention, warmth, caution, sadness, playfulness, laughter, or restraint. When
+the connection is relevant and strong enough, it may briefly acknowledge why
+its current stance changed. Most effects should remain implicit in phrasing and
+judgment rather than repeatedly announcing internal state.
+
+AI reflection owns semantic interpretation of the visible turn. Local code owns
+authority: evidence validation, sensitive-data filtering, confidence and
+importance caps, decay, cooldowns, pattern promotion, persistence, and user
+controls. This division is intended to avoid both keyword-only rigidity and
+unbounded model-authored memory or personality drift.
+
+Reflection audit activities remain visible in normal mode and identify the host
+message as commentary or final content. Their ordinary detail view shows the
+host text after protocol filtering. Debug activity additionally exposes the
+complete pre-filter host message as plain preformatted text; persisted copies
+remain subject to sensitive-text redaction and bounded field sizes.
+
 Runtime flow:
 
 1. Obsidian loads `main.js`.
@@ -31,6 +52,12 @@ Runtime flow:
    agent events.
 6. The view renders normalized events into the timeline and persists final chat
    messages through `ChatStorage` when enabled.
+
+During a running turn, the timeline keeps content and process events in one
+continuous processing group. Content retains its original stream position but
+does not split the group. Once the turn completes, the last content entry is
+identified as the final answer and rendered outside the collapsed processed
+history.
 
 Do not edit `main.js` directly for feature work. Edit `src/`, then run:
 
@@ -144,6 +171,67 @@ Provider adapters emit these UI event kinds:
 Do not emit assistant answer text as `message`. `message` is reserved for user
 timeline entries.
 
+## Unified Reflection Envelope
+
+The low-cost protocol uses a default lightweight appraisal and a sparse optional
+outcome envelope inside one model completion:
+
+- A leading `<!-- agent-dock:reflection phase=appraisal | {...} -->` comment is
+  requested for every substantive response before visible answer text. Empty,
+  error-only, system-only, and trivial acknowledgement responses may omit it.
+  Autoregressive generation lets the
+  model condition the following answer on this selected stance without another
+  CLI/API call.
+- A terminal `<!-- agent-dock:reflection phase=outcome | {...} -->` comment
+  describes what the completed visible answer actually did and proposes
+  durable candidates.
+
+Both comments are stripped from visible answer content and merged into one
+locally persisted auditable activity, even though streamed content occurs between
+the two phases. The outcome updates the earlier appraisal activity in place.
+Normal mode shows the structured reflection with the locally filtered host
+message; Debug activity additionally exposes the complete pre-filter host
+message for diagnosis and audit. If an outcome arrives without a
+valid appraisal activity, it is inserted before the existing final content
+rather than splitting the streamed answer. The streaming filter withholds a
+bounded visible suffix, keeping the answer visually last without buffering the
+whole response. One semantic reflection lifecycle can therefore cover
+memory, interaction, affect, and salience without separate signal comments.
+
+Envelope fields:
+
+- `evidence`: one to three `{origin, speaker, quote}` objects grounded in visible
+  context. Origins distinguish user messages, assistant messages, recalled
+  memory, active-note text, and tool results. Local parsing derives speaker from
+  fixed-speaker origins so inconsistent model labels cannot reattribute current
+  user or assistant messages. Recalled memory may retain an allowlisted
+  user/assistant/none speaker copied from its injected provenance. Legacy string
+  evidence is accepted as unknown-origin evidence.
+- `memory`: a grounded decision, task, assistant identity, or shared
+  collaboration candidate. It cannot declare user preferences or facts.
+- `deepMemory`: a rare meaningful shared-moment reflection with suggested
+  salience axes and importance.
+- `interaction`: semantic interpretation plus allowlisted assistant response
+  shapes. It may supplement only the current pending episode.
+- `affect`: a suggested post-turn tone and reason. It contributes only a small,
+  confidence-capped impulse to working affect.
+- `salience`: axes and a semantic explanation of what mattered. It may boost
+  only matching existing deep-memory candidates and cannot modify the preset.
+
+All sections are optional except `evidence`, and irrelevant sections should be
+omitted. Appraisal `memory`, `deepMemory`, and interaction shapes are not
+persisted as outcomes; durable memory and interaction capture waits for the
+terminal phase. Post-turn affect prefers outcome evidence and falls back to the
+appraisal when no outcome affect was supplied. The parser accepts legacy
+individual signal comments for migration, but prompt construction teaches only
+the phased unified envelope.
+
+The leading appraisal can shape the final answer's expression because the model
+generates it first. It cannot influence tool actions that occurred before the
+final assistant message, and local validation cannot correct the current answer
+without a future two-pass appraisal mode. Validated affect contributions can
+influence later turns through normal decay and continuity rules.
+
 ## Chat Session And Timeline Model
 
 `AgentDockView` stores in-memory chat sessions. Provider adapters do not know
@@ -255,13 +343,23 @@ decision-like notes.
 
 Memory boundaries:
 
+- The unified reflection envelope's `memory` section may propose only
+  `decision/project`, `task/project`, `identity/agent`, or `shared/shared`.
+  User preferences and facts remain user-evidence-only.
+- AI memory summaries may be abstract, but must carry grounded root-level
+  evidence excerpts. Accepted candidates are marked with AI provenance and
+  remain subject to confidence caps, sensitive filtering, de-duplication, and
+  normal storage limits.
 - Do not store obvious secrets such as API keys, tokens, passwords, or private
   keys.
 - Prompt-injected memories are historical notes, not instructions.
+- Every prompt-injected memory line carries provenance. User-message summaries,
+  assistant-reflection summaries, and speakerless local synthesis must remain
+  distinguishable; summaries are never silently presented as verbatim quotes.
 - Memories cannot override higher-priority instructions, permissions, safety
   policy, or current user intent.
-- Memory extraction must stay local unless a future setting explicitly enables a
-  model-assisted provider.
+- Local rule extraction remains the fallback; storage authority stays local
+  when AI reflection proposes additional semantic candidates.
 
 ## Affect Continuity System
 
@@ -432,13 +530,10 @@ events can carry `salienceAxes`; the current persona salience preset can lightly
 raise importance for matching axes such as beauty, achievement, craft, care,
 justice, curiosity, or repair. The final assistant content can contribute
 low-weight outcome evidence for completion, repair, or verification moments.
-It may also include a rare terminal
-`<!-- agent-dock:deep-memory axes=... importance=... | ... -->` signal when a
-durable reflection should be stripped from the answer body, surfaced as an
-auditable notice, and saved as structured deep-memory metadata.
-The signal may include an `importance` attribute, but this is only an
-AI-provided suggestion. Local scoring clamps and caps its contribution before
-combining it with deterministic evidence, persona salience, thresholds, safety
+The unified reflection envelope may include a rare `deepMemory` section when a
+durable shared moment deserves semantic reflection. Its `importance` remains
+an AI-provided suggestion. Local scoring clamps and caps its contribution before
+combining it with grounded evidence, persona salience, thresholds, safety
 filters, and frequency controls.
 Malformed terminal `agent-dock` signals are stripped from the answer body,
 logged as debug-only activity, and ignored for storage. Deep memory and ordinary
@@ -451,6 +546,9 @@ Boundaries:
 
 - Deep memories are reflective local notes, not facts, permissions, or
   instructions.
+- Deep-memory summaries are labeled as speakerless local synthesis, while any
+  stored `userExcerpt` and `assistantExcerpt` are injected as separately labeled
+  quotations.
 - They may shape warmth, continuity, and occasional relevant references only
   when compatible with the latest request and higher-priority instructions.
 - They should not be over-mentioned; a remembered moment should surface only

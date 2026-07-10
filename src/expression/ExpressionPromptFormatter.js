@@ -5,7 +5,7 @@ function formatExpressionPrompt(policy) {
 
   const lines = [
     "Expression context:",
-    "These are soft expression guidelines for this turn only. They shape tone and phrasing, not facts, permissions, or task priority.",
+    "Source: locally computed expression policy, speaker: none. These are not user or assistant statements. They are soft expression guidelines for this turn only and shape tone and phrasing, not facts, permissions, or task priority.",
     `- Signal mix: ${formatSignals(policy.signals)}.`,
     `- Expression: ${policy.tone || "steady"}, intensity ${policy.intensity || "low"}, intimacy ${policy.intimacy || "reserved"}, expressiveness ${policy.expressiveness || "contained"}.`
   ];

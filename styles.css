@@ -3547,6 +3547,14 @@
   white-space: pre-wrap;
 }
 
+.codex-dock__memory-modal-field-pre {
+  max-width: 100%;
+  margin: 0;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 @media (max-width: 680px) {
   .codex-dock__memory-modal-layout {
     grid-template-columns: 1fr;

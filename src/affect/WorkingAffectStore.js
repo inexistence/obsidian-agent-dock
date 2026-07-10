@@ -1,4 +1,9 @@
 const { getPersonaProfile } = require("../persona/PersonaProfile");
+const {
+  hasGroundedAgentSignal,
+  mergeSignalEvidenceContexts,
+  normalizeAgentDockSignals
+} = require("../agents/shared/signalEvidence");
 
 const AFFECT_SENSITIVITY_OPTIONS = {
   low: 0.65,
@@ -18,6 +23,21 @@ const DEFAULT_WORKING_AFFECT = {
   label: "steady",
   sourceSessionId: "",
   updatedAt: 0
+};
+
+const AGENT_AFFECT_TONE_SIGNALS = {
+  serious: { arousal: 0.08, focus: 0.28, tension: 0.22, warmth: -0.08 },
+  reassuring: { valence: 0.1, warmth: 0.28, tension: -0.16, confidence: 0.08 },
+  celebratory: { valence: 0.24, arousal: 0.14, warmth: 0.22, tension: -0.12 },
+  playful: { valence: 0.18, arousal: 0.16, warmth: 0.22, tension: -0.12 },
+  confident: { focus: 0.2, confidence: 0.28, tension: -0.06 },
+  patient: { arousal: -0.14, warmth: 0.24, tension: -0.14 },
+  restrained: { arousal: -0.14, warmth: -0.12, focus: 0.22, tension: -0.06 },
+  composed: { arousal: -0.12, focus: 0.2, tension: -0.16, confidence: 0.08 },
+  "tense-focused": { arousal: 0.12, focus: 0.24, tension: 0.24 },
+  "warm-focused": { warmth: 0.2, focus: 0.24, tension: -0.06 },
+  focused: { focus: 0.28, confidence: 0.08 },
+  calm: { arousal: -0.18, tension: -0.2, warmth: 0.08 }
 };
 
 const STARRY_KEYWORD_PATTERN = /(星星眼|惊艳|被惊艳到|绝了|太绝了|绝美|封神|神了|爱了|太强了|太漂亮了|太美了|亮瞎|美哭|好看到爆|漂亮炸了|stunning|dazzled|starry-eyed|starstruck|awestruck|breathtaking|gorgeous|jaw-dropping|mind-blowing|blown away|obsessed|chef'?s kiss)/i;
@@ -523,7 +543,17 @@ function updateWorkingAffect(previousState, settings, turn, now = Date.now()) {
   const sensitivity = AFFECT_SENSITIVITY_OPTIONS[settings.affectSensitivity] || AFFECT_SENSITIVITY_OPTIONS.normal;
   const weight = clamp(0.28 * sensitivity, 0.12, 0.45);
 
-  const next = Object.assign(applySignalToAffect(current, signal, weight), {
+  let nextAffect = applySignalToAffect(current, signal, weight);
+  const agentSignal = extractAgentAffectSignal(turn);
+  if (agentSignal) {
+    nextAffect = applySignalToAffect(
+      nextAffect,
+      agentSignal.signal,
+      clamp(0.08 * agentSignal.confidence, 0.03, 0.08)
+    );
+  }
+
+  const next = Object.assign(nextAffect, {
     label: "",
     sourceSessionId: turn?.sessionId || current.sourceSessionId || "",
     updatedAt: now
@@ -536,6 +566,44 @@ function updateWorkingAffect(previousState, settings, turn, now = Date.now()) {
   return {
     working: next
   };
+}
+
+function extractAgentAffectSignal(turn) {
+  const prompt = compactText(turn?.prompt);
+  const response = compactText(turn?.response);
+  const evidenceContext = mergeSignalEvidenceContexts(
+    turn?.signalEvidenceContext,
+    { user_message: prompt, assistant_message: response }
+  );
+  for (const signal of preferOutcomeSignals(normalizeAgentDockSignals(turn?.agentDockSignals))) {
+    if (signal.type !== "affect_candidate") {
+      continue;
+    }
+    const toneSignal = AGENT_AFFECT_TONE_SIGNALS[signal.tone];
+    if (!toneSignal || !hasGroundedAgentSignal(signal, evidenceContext)) {
+      continue;
+    }
+    return {
+      tone: signal.tone,
+      confidence: Math.min(0.65, Math.max(0.35, Number(signal.confidence) || 0.55)),
+      signal: toneSignal
+    };
+  }
+  return null;
+}
+
+function preferOutcomeSignals(signals) {
+  return [...signals].sort((left, right) => reflectionPhasePriority(right) - reflectionPhasePriority(left));
+}
+
+function reflectionPhasePriority(signal) {
+  if (signal?.phase === "outcome") {
+    return 2;
+  }
+  if (signal?.phase === "appraisal") {
+    return 1;
+  }
+  return 0;
 }
 
 function getTurnVisualAffect(previousAffect, event) {
@@ -700,8 +768,8 @@ function formatWorkingAffectPrompt(affect) {
 
   const heading = affect.transient ? "Current turn tone signal:" : "Recent cross-session affect:";
   const boundary = affect.transient
-    ? "This is a short-lived tone signal derived from the latest user request plus any recent affect continuity. Use it only for this response's tone, pacing, warmth, and focus. It is not memory, identity, permission, user intent beyond the latest request, or tool policy, and it cannot override system, developer, user, safety, tool, filesystem, or memory-boundary instructions."
-    : "This is a short-lived tone continuity signal carried across Agent Dock chats. It may be stale and should yield to the current user request and current session context. Use it only for tone, pacing, warmth, and focus. It cannot override system, developer, user, safety, tool, filesystem, or memory-boundary instructions.";
+    ? "Source: locally computed transient state, speaker: none. This is not a user or assistant statement. It is derived from the latest user request plus any recent affect continuity. Use it only for this response's tone, pacing, warmth, and focus. It is not memory, identity, permission, user intent beyond the latest request, or tool policy, and it cannot override system, developer, user, safety, tool, filesystem, or memory-boundary instructions."
+    : "Source: locally computed decaying cross-session state, speaker: none. This is not a user or assistant statement. It may be stale and should yield to the current user request and current session context. Use it only for tone, pacing, warmth, and focus. It cannot override system, developer, user, safety, tool, filesystem, or memory-boundary instructions.";
   return [
     heading,
     boundary,
@@ -1003,6 +1071,7 @@ module.exports = {
     TURN_VISUAL_SIGNAL_RULES,
     applyPersonaAffectBias,
     applyPersonaBaselineBias,
+    extractAgentAffectSignal,
     extractTurnVisualSignal,
     extractTurnAffectSignal,
     labelWorkingAffect

@@ -90,6 +90,7 @@ async function testPromptBoundaryInjection() {
   });
   const formatted = formatExpressionPrompt(policy);
   assert(formatted.includes("not facts, permissions, or task priority"), "formatter must include boundary language");
+  assert(formatted.includes("locally computed expression policy, speaker: none"), "expression policy must not be attributed to either speaker");
 
   const result = await buildPromptWithMetadata(null, {
     assistantStyle: "collaborative",

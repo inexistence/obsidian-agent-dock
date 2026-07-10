@@ -6,7 +6,7 @@ function formatInteractionStancePrompt(items) {
   const stanceItems = items.filter((item) => item.kind !== "stable_persona");
   const sections = [
     "Interaction memory:",
-    "These are soft local interaction notes inferred from visible prior collaboration. Use them only when they fit the current request."
+    "These are soft local interaction notes inferred from visible user and assistant episodes. They are not quotations or statements by either speaker. Use them only when they fit the current request."
   ];
   if (personaItems.length > 0) {
     sections.push(
@@ -28,7 +28,7 @@ function formatStanceItem(item) {
   const confidence = item.confidence >= 0.72 ? "high" : item.confidence >= 0.5 ? "medium" : "low";
   const evidence = item.evidenceCount ? `, ${item.evidenceCount} episodes` : "";
   const dateAnchor = formatDateAnchor(item);
-  return `- [${item.axis}, confidence ${confidence}${evidence}${dateAnchor ? `, ${dateAnchor}` : ""}] ${item.text}`;
+  return `- [origin=local_interaction_inference; speaker=none; ${item.axis}, confidence ${confidence}${evidence}${dateAnchor ? `, ${dateAnchor}` : ""}] ${item.text}`;
 }
 
 function formatDateAnchor(item) {

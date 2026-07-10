@@ -810,11 +810,92 @@ async function testPromptInjection() {
   });
   assert(result.prompt.includes("Assistant continuity context:"), "prompt should include assistant continuity");
   assert(result.prompt.includes("Current tone: warm-focused"), "prompt should include working affect inside continuity");
+  assert(result.prompt.includes("origin=locally_computed_affect; speaker=none"), "continuity affect should be labeled as local state rather than a speaker statement");
   assert(result.prompt.includes("User request:"), "prompt should still include the user request");
+}
+
+function testAssistantAffectSignalAddsBoundedPostTurnWeight() {
+  const base = updateWorkingAffect(resetAffectState(settings), settings, {
+    prompt: "Implement the change.",
+    response: "The final answer stayed focused on the implementation details.",
+    success: true,
+    sessionId: "affect-base"
+  }, Date.UTC(2026, 6, 10));
+  const supplemented = updateWorkingAffect(resetAffectState(settings), settings, {
+    prompt: "Implement the change.",
+    response: "The final answer stayed focused on the implementation details.",
+    agentDockSignals: [{
+      type: "affect_candidate",
+      tone: "focused",
+      confidence: 0.95,
+      text: "The assistant ended the turn more focused than its usual baseline.",
+      evidence: ["stayed focused on the implementation details"],
+      envelope: "reflection_v1"
+    }],
+    success: true,
+    sessionId: "affect-signal"
+  }, Date.UTC(2026, 6, 10));
+  const rejected = affectTest.extractAgentAffectSignal({
+    response: "The final answer stayed focused on the implementation details.",
+    agentDockSignals: [{
+      type: "affect_candidate",
+      tone: "playful",
+      confidence: 0.9,
+      text: "The assistant became playful.",
+      evidence: ["full of jokes and laughter"],
+      envelope: "reflection_v1"
+    }]
+  });
+  const outcomePreferred = affectTest.extractAgentAffectSignal({
+    prompt: "Keep this careful.",
+    response: "The completed answer was calm and careful.",
+    agentDockSignals: [{
+      type: "affect_candidate",
+      tone: "serious",
+      confidence: 0.6,
+      text: "The initial stance was serious.",
+      evidence: ["Keep this careful"],
+      envelope: "reflection_v1",
+      phase: "appraisal"
+    }].concat(Array.from({ length: 7 }, (_, index) => ({
+      type: "interaction_candidate",
+      text: `filler-${index}`,
+      phase: index < 4 ? "appraisal" : "outcome"
+    })), [{
+      type: "affect_candidate",
+      tone: "calm",
+      confidence: 0.6,
+      text: "The completed answer settled into calmness.",
+      evidence: ["completed answer was calm and careful"],
+      envelope: "reflection_v1",
+      phase: "outcome"
+    }, {
+      type: "salience_observation",
+      axes: ["craft"],
+      text: "Craft mattered.",
+      phase: "outcome"
+    }])
+  });
+
+  assert(supplemented.working.focus > base.working.focus, "grounded affect signals should add a small post-turn focus adjustment");
+  assert.equal(affectTest.extractAgentAffectSignal({
+    response: "The final answer stayed focused on the implementation details.",
+    agentDockSignals: [{
+      type: "affect_candidate",
+      tone: "focused",
+      confidence: 0.95,
+      text: "The assistant ended the turn more focused than its usual baseline.",
+      evidence: ["stayed focused on the implementation details"],
+      envelope: "reflection_v1"
+    }]
+  }).confidence, 0.65, "assistant affect confidence should be capped locally");
+  assert.equal(rejected, null, "ungrounded affect signals must be rejected");
+  assert.equal(outcomePreferred.tone, "calm", "post-turn affect should prefer outcome over the initial appraisal");
 }
 
 testPromptInjection()
   .then(() => {
+    testAssistantAffectSignalAddsBoundedPostTurnWeight();
     normalizeAffectState(null);
     console.log("Affect tests passed.");
   })

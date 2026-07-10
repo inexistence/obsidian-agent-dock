@@ -13,7 +13,8 @@ const { DEFAULT_SETTINGS } = require("../../settings");
 const {
   extractAgentDockSignals,
   formatInvalidAgentDockSignalActivity,
-  formatAgentDockSignalNotice
+  formatAgentDockSignalNotice,
+  formatAgentDockReflectionNotice
 } = require("../shared/agentSignals");
 const {
   buildDeepMemoryAuditItems,
@@ -24,6 +25,8 @@ const {
   formatMemoryUpdateSummary
 } = require("../shared/captureNotices");
 const { buildAgentTurnContext } = require("../shared/TurnContextBuilder");
+const { ReflectionContentFilter } = require("../shared/ReflectionContentFilter");
+const { mergeSignalEvidenceContexts } = require("../shared/signalEvidence");
 const { codexJsonEventToUpdates } = require("./jsonEvents");
 
 class CodexAgent {
@@ -50,6 +53,7 @@ class CodexAgent {
     });
     const finalPrompt = turnContext.promptResult.prompt;
     const activeFilePath = turnContext.activeFilePath;
+    const baseSignalEvidenceContext = turnContext.signalEvidenceContext;
     const outputPath = path.join(
       os.tmpdir(),
       `obsidian-agent-dock-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`
@@ -71,6 +75,34 @@ class CodexAgent {
       let stdoutBuffer = "";
       let settled = false;
       let aborted = false;
+      let toolResultEvidence = "";
+      const getSignalEvidenceContext = () => mergeSignalEvidenceContexts(
+        baseSignalEvidenceContext,
+        {
+          assistant_message: extractAgentDockSignals(finalOutput).visibleText,
+          tool_result: toolResultEvidence
+        }
+      );
+      const reflectionNoticeSignals = [];
+      const emitReflectionNotice = (signals) => {
+        reflectionNoticeSignals.push(...signals);
+        const notice = formatAgentDockReflectionNotice(
+          reflectionNoticeSignals,
+          settings,
+          "codex",
+          translate
+        );
+        if (notice) {
+          notice.agentDockSignals = signals;
+          notice.signalEvidenceContext = getSignalEvidenceContext();
+          onUpdate(notice);
+        }
+      };
+      const reflectionFilter = new ReflectionContentFilter({
+        onAppraisal: emitReflectionNotice,
+        onOutcome: emitReflectionNotice,
+        onSourceComplete: () => emitReflectionNotice([])
+      });
 
       const child = spawn(settings.codexPath, args, {
         cwd,
@@ -118,8 +150,15 @@ class CodexAgent {
           const event = JSON.parse(line);
           const updates = codexJsonEventToUpdates(event, translate);
           for (const update of updates) {
-            if (update.kind === "content") {
-              finalOutput += update.text;
+            if (update.kind === "tool") {
+              toolResultEvidence = appendToolResultEvidence(toolResultEvidence, update);
+            }
+            if (update.agentMessagePhase !== undefined) {
+              if (update.kind === "content") {
+                finalOutput += update.text;
+              }
+              emitFilteredAgentMessage(update, reflectionFilter, onUpdate);
+              continue;
             }
             onUpdate(update);
           }
@@ -150,11 +189,21 @@ class CodexAgent {
         if (stdoutBuffer.trim()) {
           handleJsonLine(stdoutBuffer);
         }
+        for (const visibleText of reflectionFilter.flush()) {
+          onUpdate({ kind: "content", text: visibleText });
+        }
 
         const fileOutput = await readOutputFile(outputPath);
         if (!finalOutput.trim() && fileOutput) {
           finalOutput = fileOutput;
-          onUpdate({ kind: "content", text: fileOutput });
+          reflectionFilter.beginSource("content");
+          for (const visibleText of reflectionFilter.push(fileOutput)) {
+            onUpdate({ kind: "content", text: visibleText });
+          }
+          for (const visibleText of reflectionFilter.flush()) {
+            onUpdate({ kind: "content", text: visibleText });
+          }
+          reflectionFilter.endSource();
         }
 
         if (aborted) {
@@ -164,12 +213,23 @@ class CodexAgent {
 
         if (code === 0) {
           const signalResult = extractAgentDockSignals(finalOutput.trim());
+          const signalEvidenceContext = getSignalEvidenceContext();
           emitInvalidAgentDockSignalActivity(signalResult, onUpdate);
-          emitAgentDockSignalNotices(signalResult.signals, settings, "codex", translate, onUpdate);
+          emitAgentDockSignalNotices(
+            signalResult.signals,
+            settings,
+            "codex",
+            translate,
+            onUpdate,
+            reflectionFilter,
+            signalEvidenceContext
+          );
           const visibleOutput = signalResult.visibleText.trim();
           await this.captureMemory({
             prompt,
             response: visibleOutput,
+            agentDockSignals: signalResult.signals,
+            signalEvidenceContext,
             previousAssistantResponse: getPreviousAssistantResponse(conversation),
             activeFilePath,
             sessionId: options.sessionId || ""
@@ -177,6 +237,8 @@ class CodexAgent {
           await this.captureInteractionMemory({
             prompt,
             response: visibleOutput,
+            agentDockSignals: signalResult.signals,
+            signalEvidenceContext,
             previousAssistantResponse: getPreviousAssistantResponse(conversation),
             activeFilePath,
             sessionId: options.sessionId || ""
@@ -185,6 +247,7 @@ class CodexAgent {
             prompt,
             response: visibleOutput,
             agentDockSignals: signalResult.signals,
+            signalEvidenceContext,
             previousAssistantResponse: getPreviousAssistantResponse(conversation),
             activeFilePath,
             sessionId: options.sessionId || ""
@@ -262,6 +325,7 @@ class CodexAgent {
         onUpdate({
           kind: "notice",
           noticeType: "memory_updated",
+          insertBeforeLastContent: true,
           title: t(settings, "codex.memoryUpdated.title"),
           summary: formatMemoryUpdateSummary(settings, "codex", t, saved),
           auditItems: buildMemoryUpdateAuditItems(saved, settings, "codex", t)
@@ -270,8 +334,9 @@ class CodexAgent {
     } catch (error) {
       console.warn("Agent Dock could not update memory:", error);
         onUpdate({
-          kind: "notice",
-          noticeType: "memory_skipped",
+        kind: "notice",
+        noticeType: "memory_skipped",
+        insertBeforeLastContent: true,
           title: t(settings, "codex.memorySkipped.title"),
           summary: t(settings, "codex.memorySkipped.summary")
       });
@@ -285,6 +350,7 @@ class CodexAgent {
         onUpdate({
           kind: "notice",
           noticeType: "interaction_memory_updated",
+          insertBeforeLastContent: true,
           title: t(settings, "codex.interactionMemoryUpdated.title"),
           summary: formatInteractionMemoryUpdateSummary(settings, "codex", t, result),
           auditItems: buildInteractionMemoryAuditItems(result, settings, "codex", t)
@@ -295,6 +361,7 @@ class CodexAgent {
       onUpdate({
         kind: "notice",
         noticeType: "interaction_memory_skipped",
+        insertBeforeLastContent: true,
         title: t(settings, "codex.interactionMemorySkipped.title"),
         summary: t(settings, "codex.interactionMemorySkipped.summary")
       });
@@ -308,6 +375,7 @@ class CodexAgent {
         onUpdate({
           kind: "notice",
           noticeType: "deep_memory_updated",
+          insertBeforeLastContent: true,
           title: t(settings, "codex.deepMemoryUpdated.title"),
           summary: formatDeepMemoryUpdateSummary(settings, "codex", t, saved),
           auditItems: buildDeepMemoryAuditItems(saved, settings, "codex", t)
@@ -318,6 +386,7 @@ class CodexAgent {
       onUpdate({
         kind: "notice",
         noticeType: "deep_memory_skipped",
+        insertBeforeLastContent: true,
         title: t(settings, "codex.deepMemorySkipped.title"),
         summary: t(settings, "codex.deepMemorySkipped.summary")
       });
@@ -325,13 +394,57 @@ class CodexAgent {
   }
 }
 
-function emitAgentDockSignalNotices(signals, settings, keyPrefix, translate, onUpdate) {
-  for (const signal of signals) {
+function emitAgentDockSignalNotices(
+  signals,
+  settings,
+  keyPrefix,
+  translate,
+  onUpdate,
+  reflectionFilter,
+  signalEvidenceContext
+) {
+  const reflectionNotice = formatAgentDockReflectionNotice(
+    signals.filter((signal) => !reflectionFilter?.hasEmitted(signal)),
+    settings,
+    keyPrefix,
+    translate
+  );
+  if (reflectionNotice) {
+    reflectionNotice.signalEvidenceContext = signalEvidenceContext;
+    onUpdate(reflectionNotice);
+  }
+  for (const signal of signals.filter((item) => item?.envelope !== "reflection_v1")) {
     const notice = formatAgentDockSignalNotice(signal, settings, keyPrefix, translate);
     if (notice) {
       onUpdate(notice);
     }
   }
+}
+
+function appendToolResultEvidence(existing, update) {
+  return mergeSignalEvidenceContexts(
+    { tool_result: existing },
+    { tool_result: [update?.title, update?.summary, update?.detail].filter(Boolean).join("\n") }
+  ).tool_result;
+}
+
+function emitFilteredAgentMessage(update, reflectionFilter, onUpdate) {
+  const rawText = update.kind === "content"
+    ? update.text
+    : update.detail;
+  reflectionFilter.beginSource(update.kind === "content" ? "content" : "commentary");
+  const visibleChunks = reflectionFilter.push(rawText).concat(reflectionFilter.flush());
+  for (const visibleText of visibleChunks) {
+    if (!visibleText) {
+      continue;
+    }
+    if (update.kind === "content") {
+      onUpdate(Object.assign({}, update, { text: visibleText }));
+    } else {
+      onUpdate(Object.assign({}, update, { detail: visibleText }));
+    }
+  }
+  reflectionFilter.endSource();
 }
 
 function emitInvalidAgentDockSignalActivity(signalResult, onUpdate) {

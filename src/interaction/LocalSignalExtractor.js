@@ -1,4 +1,9 @@
 const { containsSensitiveText, redactSensitiveText } = require("../storage/sensitiveText");
+const {
+  hasGroundedAgentSignal,
+  mergeSignalEvidenceContexts,
+  normalizeAgentDockSignals
+} = require("../agents/shared/signalEvidence");
 
 const MAX_EXCERPT_CHARS = 220;
 
@@ -184,15 +189,24 @@ function extractEpisodeDraft(turn, previousPending) {
     : null;
   const context = classifyContext(prompt);
   const userSignals = extractSignals(prompt, USER_SIGNAL_RULES);
-  const assistantShape = extractSignals(response, ASSISTANT_SHAPE_RULES);
+  const interactionHints = extractInteractionSignalHints(
+    turn?.agentDockSignals,
+    mergeSignalEvidenceContexts(
+      turn?.signalEvidenceContext,
+      { user_message: prompt, assistant_message: response }
+    )
+  );
+  const assistantShape = uniqueStrings(
+    extractSignals(response, ASSISTANT_SHAPE_RULES).concat(interactionHints.shapes)
+  );
   const repairPath = createRepairPath(userSignals, assistantShape, reaction);
-  const eventWeight = calculateEventWeight({
+  const eventWeight = Math.min(1, calculateEventWeight({
     context,
     userSignals,
     assistantShape,
     reaction,
     repairPath
-  });
+  }) + interactionHints.weight);
 
   return {
     context,
@@ -209,6 +223,31 @@ function extractEpisodeDraft(turn, previousPending) {
     sourceSessionId: turn?.sessionId || "",
     createdAt: Number(turn?.now) || Date.now()
   };
+}
+
+function extractInteractionSignalHints(signals, evidenceContextOrPrompt, response = "") {
+  const result = {
+    shapes: [],
+    weight: 0
+  };
+  for (const signal of normalizeAgentDockSignals(signals)) {
+    if (signal.type !== "interaction_candidate") {
+      continue;
+    }
+    if (signal.phase === "appraisal") {
+      continue;
+    }
+    if (!hasGroundedAgentSignal(signal, evidenceContextOrPrompt, response)) {
+      continue;
+    }
+    result.shapes.push(...normalizeStringArray(signal.shapes));
+    result.weight = Math.max(
+      result.weight,
+      Math.min(0.08, Math.max(0, Number(signal.confidence) || 0.6) * 0.08)
+    );
+  }
+  result.shapes = uniqueStrings(result.shapes).slice(0, 3);
+  return result;
 }
 
 function classifyPhase(context, userSignals, assistantShape, reaction, repairPath) {
@@ -450,6 +489,16 @@ function compactText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function normalizeStringArray(value) {
+  return (Array.isArray(value) ? value : [])
+    .map(compactText)
+    .filter(Boolean);
+}
+
+function uniqueStrings(value) {
+  return [...new Set((Array.isArray(value) ? value : []).filter(Boolean))];
+}
+
 function truncateText(text, maxLength) {
   if (text.length <= maxLength) {
     return text;
@@ -471,6 +520,7 @@ module.exports = {
     createRepairPath,
     updateRepairOutcome,
     calculateEventWeight,
+    extractInteractionSignalHints,
     CONTINUATION_PATTERNS,
     matchesRule,
     USER_SIGNAL_RULES,

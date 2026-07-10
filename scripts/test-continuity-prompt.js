@@ -23,6 +23,8 @@ function testContinuityMergesSignalsIntoOneSection() {
         summary: "User wants important moments remembered with natural continuity.",
         whyItMatters: "It makes continuity feel meaningful.",
         feltSense: "warm and grounded",
+        userExcerpt: "I want important moments to shape later conversations.",
+        assistantExcerpt: "I will preserve bounded emotional residue.",
         importance: 0.86,
         confidence: 0.78,
         createdAt: Date.UTC(2026, 6, 8),
@@ -69,13 +71,19 @@ function testContinuityMergesSignalsIntoOneSection() {
   assert(prompt.includes("Assistant continuity context"));
   assert(prompt.includes("These are soft local continuity notes"));
   assert(prompt.includes("Current tone: warm-focused"));
+  assert(prompt.includes("origin=locally_computed_affect; speaker=none"));
   assert(prompt.includes("important moments remembered"));
+  assert(prompt.includes("origin=local_memory_synthesis; speaker=none; not a quote"));
+  assert(prompt.includes("origin=user_message; speaker=user; quote"));
+  assert(prompt.includes("origin=assistant_message; speaker=assistant; quote"));
   assert(prompt.includes("date anchor: recorded 2026-07-08, updated 2026-07-09"));
   assert(prompt.includes("interpret relative words like tomorrow/yesterday relative to that recorded date"));
   assert(prompt.includes("Prefer warm, concrete engineering judgment"));
+  assert(prompt.includes("origin=local_episode_inference; speaker=none; not quote"));
   assert(prompt.includes("Keep explanations compact"));
   assert(prompt.includes("Salience hints: beauty and atmosphere high, care and being seen high, justice and principled boundaries high"));
   assert(prompt.includes("not an identity claim"));
+  assert(prompt.includes("origin=configured_persona_preset; speaker=none"));
   assert(!prompt.includes("second memory should not"));
   assert(!prompt.includes("third stance should not"));
 }

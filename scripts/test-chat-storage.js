@@ -157,7 +157,20 @@ async function testAssistantTimelinePersistsAcrossSaveLoad() {
               ]
             }]
           },
-          { kind: "activity", title: "Raw", detail: "debug-only provider output" },
+          {
+            kind: "activity",
+            title: "AI continuity reflection",
+            detail: "debug-only provider output",
+            noticeType: "reflection_candidate",
+            auditItems: [{
+              title: "Appraisal · Affect",
+              summary: "A bounded tone suggestion",
+              fields: [
+                { label: "Visible evidence", value: "Keep it calm" },
+                { label: "Raw source", value: "<!-- reflection -->\nKeep it calm", debugOnly: true, preformatted: true }
+              ]
+            }]
+          },
           { kind: "content", text: "final answer" }
         ]
       }]
@@ -190,6 +203,11 @@ async function testAssistantTimelinePersistsAcrossSaveLoad() {
   assert.strictEqual(restoredMessage.timeline[3].auditItems[0].title, "Pinned preference");
   assert.strictEqual(restoredMessage.timeline[3].auditItems[0].fields[1].value, "[Sensitive content omitted]");
   assert.strictEqual(restoredMessage.timeline[4].detail, "debug-only provider output");
+  assert.strictEqual(restoredMessage.timeline[4].noticeType, "reflection_candidate");
+  assert.strictEqual(restoredMessage.timeline[4].auditItems[0].title, "Appraisal · Affect");
+  assert.strictEqual(restoredMessage.timeline[4].auditItems[0].fields[1].debugOnly, true);
+  assert.strictEqual(restoredMessage.timeline[4].auditItems[0].fields[1].preformatted, true);
+  assert.strictEqual(restoredMessage.timeline[4].auditItems[0].fields[1].value, "<!-- reflection -->\nKeep it calm");
   assert.strictEqual(restoredMessage.timeline[5].text, "final answer");
 }
 

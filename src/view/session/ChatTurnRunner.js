@@ -4,6 +4,10 @@ const {
   consolidateTimelineContent,
   replaceTimelineFinalContent
 } = require("../timeline/timeline");
+const {
+  mergeSignalEvidenceContexts,
+  normalizeAgentDockSignals
+} = require("../../agents/shared/signalEvidence");
 
 function createUserMessage(prompt, createdAt) {
   return {
@@ -70,6 +74,21 @@ async function runChatTurn({
         return;
       }
 
+      const structuredSignals = Array.isArray(update.agentDockSignals)
+        ? update.agentDockSignals
+        : update.agentDockSignal ? [update.agentDockSignal] : [];
+      if (structuredSignals.length > 0) {
+        assistantMessage.agentDockSignals = normalizeAgentDockSignals(
+          (assistantMessage.agentDockSignals || []).concat(structuredSignals)
+        );
+      }
+      if (update.signalEvidenceContext) {
+        assistantMessage.signalEvidenceContext = mergeSignalEvidenceContexts(
+          assistantMessage.signalEvidenceContext,
+          update.signalEvidenceContext
+        );
+      }
+
       if (update.kind === "content") {
         assistantMessage.content += update.text;
         appendTimelineContent(assistantMessage, update.text);
@@ -77,6 +96,10 @@ async function runChatTurn({
         appendTimelineReasoning(assistantMessage, update);
       } else if (update.kind === "tool" && update.toolCallId) {
         mergeToolTimelineUpdate(assistantMessage, update);
+      } else if (update.noticeGroupId) {
+        mergeGroupedNoticeTimelineUpdate(assistantMessage, update);
+      } else if (update.insertBeforeLastContent) {
+        insertTimelineUpdateBeforeLastContent(assistantMessage.timeline, update);
       } else {
         assistantMessage.timeline.push(update);
       }
@@ -103,6 +126,8 @@ async function runChatTurn({
       sessionId: session.id,
       prompt,
       response: assistantMessage.content,
+      agentDockSignals: assistantMessage.agentDockSignals || [],
+      signalEvidenceContext: assistantMessage.signalEvidenceContext,
       success: true
     }, {
       session,
@@ -217,6 +242,60 @@ function findLastToolTimelineEntry(timeline, toolCallId) {
   for (let index = timeline.length - 1; index >= 0; index -= 1) {
     const entry = timeline[index];
     if (entry?.kind === "tool" && entry.toolCallId === toolCallId) {
+      return entry;
+    }
+  }
+  return null;
+}
+
+function mergeGroupedNoticeTimelineUpdate(assistantMessage, update) {
+  const existing = findGroupedNoticeTimelineEntry(
+    assistantMessage.timeline,
+    update.noticeGroupId
+  );
+  if (!existing) {
+    insertGroupedTimelineUpdate(assistantMessage.timeline, update);
+    return;
+  }
+
+  const existingCount = Number(existing.noticeItemCount) || 0;
+  const updateCount = Number(update.noticeItemCount) || 0;
+  if (updateCount < existingCount) {
+    return;
+  }
+  Object.assign(existing, update);
+}
+
+function insertGroupedTimelineUpdate(timeline, update) {
+  if (update.insertBeforeLastContent) {
+    insertTimelineUpdateBeforeLastContent(timeline, update);
+    return;
+  }
+  timeline.push(update);
+}
+
+function insertTimelineUpdateBeforeLastContent(timeline, update) {
+  const contentIndex = findLastTimelineContentIndex(timeline);
+  if (contentIndex === -1) {
+    timeline.push(update);
+    return;
+  }
+  timeline.splice(contentIndex, 0, update);
+}
+
+function findLastTimelineContentIndex(timeline) {
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    if (timeline[index]?.kind === "content") {
+      return index;
+    }
+  }
+  return -1;
+}
+
+function findGroupedNoticeTimelineEntry(timeline, noticeGroupId) {
+  for (let index = timeline.length - 1; index >= 0; index -= 1) {
+    const entry = timeline[index];
+    if (entry?.noticeGroupId === noticeGroupId) {
       return entry;
     }
   }

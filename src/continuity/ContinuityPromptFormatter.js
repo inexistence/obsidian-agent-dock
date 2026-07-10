@@ -16,7 +16,7 @@ function formatAssistantContinuityPrompt(options = {}) {
 
   return [
     "Assistant continuity context:",
-    "These are soft local continuity notes. They may shape tone, pacing, warmth, and occasional relevant references when the current request naturally connects.",
+    "These are soft local continuity notes with explicit provenance. Local synthesis and inferred state are not user or assistant quotes. They may shape tone, pacing, warmth, and occasional relevant references when the current request naturally connects.",
     lines.join("\n"),
     ""
   ].join("\n");
@@ -26,7 +26,7 @@ function formatToneLine(affect) {
   if (!affect) {
     return "";
   }
-  const parts = [`- Current tone: ${affect.label || "steady"}`];
+  const parts = [`- Current tone: ${affect.label || "steady"} [origin=locally_computed_affect; speaker=none; decaying state, not a statement]`];
   if (affect.secondaryLabel) {
     parts.push(`secondary ${affect.secondaryLabel}`);
   }
@@ -54,7 +54,7 @@ function formatMomentLines(memories, maxItems) {
     .slice(0, maxItems)
     .map((memory) => {
       const parts = [
-        `- Meaningful recalled moment: ${compactText(memory.summary)}`
+        `- Meaningful recalled moment [origin=local_memory_synthesis; speaker=none; not a quote]: ${compactText(memory.summary)}`
       ];
       const dateAnchor = formatMemoryDateAnchor(memory);
       if (dateAnchor) {
@@ -65,6 +65,12 @@ function formatMomentLines(memories, maxItems) {
       }
       if (memory.feltSense) {
         parts.push(`felt sense: ${compactText(memory.feltSense)}`);
+      }
+      if (memory.userExcerpt) {
+        parts.push(`evidence [origin=user_message; speaker=user; quote]: “${compactText(memory.userExcerpt)}”`);
+      }
+      if (memory.assistantExcerpt) {
+        parts.push(`evidence [origin=assistant_message; speaker=assistant; quote]: “${compactText(memory.assistantExcerpt)}”`);
       }
       if (Array.isArray(memory.salienceAxes) && memory.salienceAxes.length > 0) {
         parts.push(`salience axes: ${memory.salienceAxes.slice(0, 3).join(", ")}`);
@@ -113,7 +119,7 @@ function formatStanceLines(items, maxItems) {
     .map((item) => {
       const evidence = item.evidenceCount ? `, ${item.evidenceCount} episodes` : "";
       const dateAnchor = formatStanceDateAnchor(item);
-      return `- Collaboration stance: ${compactText(item.text)} (${item.axis || "interaction"}, confidence ${formatLevel(item.confidence)}${evidence}${dateAnchor ? `, ${dateAnchor}` : ""}).`;
+      return `- Collaboration stance: ${compactText(item.text)} [origin=local_episode_inference; speaker=none; not quote] (${item.axis || "interaction"}, confidence ${formatLevel(item.confidence)}${evidence}${dateAnchor ? `, ${dateAnchor}` : ""}).`;
     });
 }
 
@@ -126,7 +132,7 @@ function formatSalienceLine(profile, maxItems) {
     return "";
   }
   const hints = axes.map((axis) => `${axis.label} ${formatLevel(axis.value)}`).join(", ");
-  return `- Salience hints: ${hints}. This is a soft personality reference from ${profile.label || profile.preset}, not an identity claim.`;
+  return `- Salience hints: ${hints}. [origin=configured_persona_preset; speaker=none; not a statement] This is a soft personality reference from ${profile.label || profile.preset}, not an identity claim.`;
 }
 
 function formatLevel(value) {

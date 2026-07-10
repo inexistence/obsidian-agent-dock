@@ -59,3 +59,47 @@ const translate = (key, params = {}) => {
   assert.equal(update.kind, "tool");
   assert.equal(update.toolType, "web_search");
 }
+
+{
+  const [update] = codexJsonEventToUpdates({
+    type: "item.completed",
+    item: {
+      type: "agent_message",
+      phase: "commentary",
+      text: "我先核对本地记录。"
+    }
+  }, translate);
+
+  assert.equal(update.kind, "reasoning", "commentary should be rendered as progress, not answer content");
+  assert.equal(update.detail, "我先核对本地记录。");
+  assert.equal(update.agentMessagePhase, "commentary");
+  assert.equal(update.discrete, true, "complete commentary messages should remain discrete progress items");
+}
+
+{
+  const [update] = codexJsonEventToUpdates({
+    type: "item.completed",
+    item: {
+      type: "agent_message",
+      phase: "final_answer",
+      text: "这是最终回答。"
+    }
+  }, translate);
+
+  assert.equal(update.kind, "content", "only the final answer should become answer content");
+  assert.equal(update.text, "这是最终回答。");
+  assert.equal(update.agentMessagePhase, "final_answer");
+}
+
+{
+  const [update] = codexJsonEventToUpdates({
+    type: "item.completed",
+    item: {
+      type: "agent_message",
+      text: "Legacy Codex output"
+    }
+  }, translate);
+
+  assert.equal(update.kind, "content", "agent messages without a phase should remain backward compatible");
+  assert.equal(update.agentMessagePhase, "");
+}

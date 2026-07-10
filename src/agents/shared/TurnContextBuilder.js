@@ -11,6 +11,7 @@ const {
   emitContextCompressedNotice,
   emitMemoryNotice
 } = require("./memoryNotices");
+const { createSignalEvidenceContext } = require("./signalEvidence");
 
 async function buildAgentTurnContext({
   plugin,
@@ -23,7 +24,9 @@ async function buildAgentTurnContext({
   keyPrefix,
   useFullPrompt = true
 }) {
-  const activeFilePath = plugin.app.workspace.getActiveFile()?.path || "";
+  const activeFile = plugin.app.workspace.getActiveFile();
+  const activeFilePath = activeFile?.path || "";
+  const activeNoteEvidence = await readActiveNoteEvidence(plugin.app, activeFile);
   const memories = await plugin.memoryStore.getRelevantMemories(prompt, settings, {
     activeFilePath,
     workingDirectory: cwd
@@ -78,8 +81,38 @@ async function buildAgentTurnContext({
     activeFilePath,
     promptResult,
     promptSignals,
-    expressionPolicy
+    expressionPolicy,
+    signalEvidenceContext: createSignalEvidenceContext({
+      user_message: prompt,
+      recalled_memory: formatRecalledMemoryEvidence(promptSignals),
+      active_note: activeNoteEvidence
+    })
   };
+}
+
+async function readActiveNoteEvidence(app, activeFile) {
+  if (!activeFile || typeof app?.vault?.cachedRead !== "function") {
+    return "";
+  }
+  try {
+    return await app.vault.cachedRead(activeFile);
+  } catch {
+    return "";
+  }
+}
+
+function formatRecalledMemoryEvidence(promptSignals) {
+  const parts = [];
+  for (const item of promptSignals?.memories || []) {
+    parts.push(item?.text);
+  }
+  for (const item of promptSignals?.memorySearchResults || []) {
+    parts.push(item?.text);
+  }
+  for (const item of promptSignals?.deepMemories || []) {
+    parts.push(item?.summary, item?.userExcerpt, item?.assistantExcerpt);
+  }
+  return parts.filter(Boolean).join("\n");
 }
 
 async function buildPromptResultForTurnContext({
@@ -120,5 +153,9 @@ function emitPromptContextNotices(onUpdate, promptResult, promptSignals, transla
 module.exports = {
   buildAgentTurnContext,
   buildPromptResultForTurnContext,
-  emitPromptContextNotices
+  emitPromptContextNotices,
+  _test: {
+    formatRecalledMemoryEvidence,
+    readActiveNoteEvidence
+  }
 };
