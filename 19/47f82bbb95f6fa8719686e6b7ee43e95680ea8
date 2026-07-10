@@ -1,0 +1,45 @@
+src/view/AgentDockView.js
+  s_a0b004e7a0888b::t_98eef72da307a3 887,900-902
+  s_a0b004e7a0888b::t_d747087b5b423c 92,465-467,470-478
+  s_a0b004e7a0888b::t_f729428948d289 93,489,924-925
+main.js
+  s_a0b004e7a0888b::t_9b3d2cf3d51a5a 16560,16671,16712-16726,16728-16729,16731-16811,16815-16817,16822-16825,16827-16838,16908-16909,22100,22496,22931-22932
+  s_a0b004e7a0888b::t_7b44f03cb0fb66 16453,16455,16562-16564,16818,22099,22472-22474,22477-22479,22481-22486
+  s_a0b004e7a0888b::t_868ace8a20c2ea 22894,22907-22909
+  s_31912791dc244b::t_6d27aa7f83d1e9 22480
+src/view/composer/ComposerRenderer.js
+  s_a0b004e7a0888b::t_0f43b98f687e10 300-301,379,394-395
+  s_a0b004e7a0888b::t_f729428948d289 139,250,291,294-299,302-305,307-308,310-378,380-384,387-392,396,401-404,406-417,487-488
+  s_a0b004e7a0888b::t_d747087b5b423c 32,34,141-143,397
+  s_a0b004e7a0888b::t_70479339e6d69d 385-386
+styles.css
+  s_a0b004e7a0888b::t_d747087b5b423c 498,2522-2523
+scripts/test-composer-resize.js
+  s_a0b004e7a0888b::t_077b43b6771bdb 8-11,20,157-191
+  s_a0b004e7a0888b::t_698e7f5af21ffa 1-7,12-19,21-156,192-193
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "1947f82bbb95f6fa8719686e6b7ee43e95680ea8",
+  "prompts": {},
+  "logical_commit_id": "1947f82bbb95f6fa8719686e6b7ee43e95680ea8",
+  "sessions": {
+    "s_31912791dc244b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4c7e-a566-7060-9d2f-8c944a09eff5",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    },
+    "s_a0b004e7a0888b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4c63-44f7-7630-92d4-1ad980c85e63",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
