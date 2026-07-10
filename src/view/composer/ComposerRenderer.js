@@ -29,7 +29,9 @@ function renderComposerContent(composer, options) {
     submit,
     cancelActiveSession,
     inputHeight,
+    onInputResizeStart,
     onInputHeightChanged,
+    onInputResizeEnd,
     translate,
     addGlobalPointerListener,
     removeGlobalPointerListener
@@ -134,9 +136,11 @@ function renderComposerContent(composer, options) {
     dropTarget.addEventListener("dragleave", onReferenceDragLeave);
     dropTarget.addEventListener("drop", onReferenceDrop, true);
   }
-  setupInputResizeEdge(shell, inputWrap, {
+  const cleanupInputResize = setupInputResizeEdge(shell, inputWrap, {
     initialHeight: inputHeight,
-    onInputHeightChanged
+    onInputResizeStart,
+    onInputHeightChanged,
+    onInputResizeEnd
   });
 
   const composerBar = shell.createDiv({ cls: "codex-dock__composer-bar" });
@@ -243,6 +247,7 @@ function renderComposerContent(composer, options) {
     inputEl,
     mentionChipsEl,
     mentionMenuEl,
+    cleanupInputResize,
     refreshSendButtonState: updateSendButtonState
   };
 
@@ -283,44 +288,133 @@ const INPUT_RESIZE_EDGE_HEIGHT = 8;
 
 function setupInputResizeEdge(shell, inputWrap, options = {}) {
   if (!shell || !inputWrap) {
-    return;
+    return () => {};
   }
 
-  shell.addEventListener("pointermove", (event) => {
+  const documentTarget = options.documentTarget || document;
+  const requestFrame = options.requestAnimationFrame
+    || ((callback) => window.requestAnimationFrame(callback));
+  const cancelFrame = options.cancelAnimationFrame
+    || ((frameId) => window.cancelAnimationFrame(frameId));
+  let activePointerId = null;
+  let startY = 0;
+  let startHeight = DEFAULT_INPUT_HEIGHT;
+  let pendingFrame = null;
+  let pendingHeight = null;
+
+  const onShellPointerMove = (event) => {
     shell.toggleClass("is-input-resize-edge", isPointerOnInputResizeEdge(shell, event));
-  });
-  shell.addEventListener("pointerleave", () => {
+  };
+  const onShellPointerLeave = () => {
     shell.removeClass("is-input-resize-edge");
-  });
-  shell.addEventListener("pointerdown", (event) => {
-    if (event.button !== 0 || !isPointerOnInputResizeEdge(shell, event)) {
+  };
+  const applyPendingHeight = () => {
+    if (pendingFrame !== null) {
+      cancelFrame(pendingFrame);
+      pendingFrame = null;
+    }
+    if (pendingHeight === null) {
+      return;
+    }
+    const nextHeight = pendingHeight;
+    pendingHeight = null;
+    applyInputHeight(inputWrap, nextHeight);
+    options.onInputHeightChanged?.(nextHeight);
+  };
+  const discardPendingHeight = () => {
+    if (pendingFrame !== null) {
+      cancelFrame(pendingFrame);
+      pendingFrame = null;
+    }
+    pendingHeight = null;
+  };
+  const scheduleHeight = (height) => {
+    pendingHeight = height;
+    if (pendingFrame !== null) {
+      return;
+    }
+    pendingFrame = requestFrame(() => {
+      pendingFrame = null;
+      if (pendingHeight === null) {
+        return;
+      }
+      const nextHeight = pendingHeight;
+      pendingHeight = null;
+      applyInputHeight(inputWrap, nextHeight);
+      options.onInputHeightChanged?.(nextHeight);
+    });
+  };
+  const removeDocumentListeners = () => {
+    documentTarget.removeEventListener("pointermove", onPointerMove);
+    documentTarget.removeEventListener("pointerup", onPointerUp);
+    documentTarget.removeEventListener("pointercancel", onPointerUp);
+  };
+  const finishResize = (event, { applyPending = true } = {}) => {
+    if (activePointerId === null) {
+      if (!applyPending) {
+        discardPendingHeight();
+      }
+      return;
+    }
+    if (applyPending) {
+      applyPendingHeight();
+    } else {
+      discardPendingHeight();
+    }
+    const pointerId = activePointerId;
+    activePointerId = null;
+    inputWrap.removeClass("is-resizing-input");
+    shell.removeClass("is-resizing-input");
+    if (shell.hasPointerCapture?.(pointerId)) {
+      shell.releasePointerCapture(pointerId);
+    }
+    removeDocumentListeners();
+    options.onInputResizeEnd?.(event);
+  };
+  const onPointerMove = (moveEvent) => {
+    if (moveEvent.pointerId !== activePointerId) {
+      return;
+    }
+    const nextHeight = clampInputHeight(
+      startHeight + startY - moveEvent.clientY
+    );
+    scheduleHeight(nextHeight);
+  };
+  const onPointerUp = (event) => {
+    if (event.pointerId !== activePointerId) {
+      return;
+    }
+    finishResize(event);
+  };
+  const onShellPointerDown = (event) => {
+    if (activePointerId !== null || event.button !== 0 || !isPointerOnInputResizeEdge(shell, event)) {
       return;
     }
     event.preventDefault();
-    const startY = event.clientY;
-    const startHeight = getCurrentInputHeight(inputWrap, options.initialHeight);
+    startY = event.clientY;
+    startHeight = getCurrentInputHeight(inputWrap, options.initialHeight);
+    activePointerId = event.pointerId;
+    options.onInputResizeStart?.();
     inputWrap.addClass("is-resizing-input");
     shell.addClass("is-resizing-input");
     shell.setPointerCapture?.(event.pointerId);
+    documentTarget.addEventListener("pointermove", onPointerMove);
+    documentTarget.addEventListener("pointerup", onPointerUp);
+    documentTarget.addEventListener("pointercancel", onPointerUp);
+  };
 
-    const onPointerMove = (moveEvent) => {
-      const nextHeight = clampInputHeight(startHeight + startY - moveEvent.clientY);
-      applyInputHeight(inputWrap, nextHeight);
-      options.onInputHeightChanged?.(nextHeight);
-    };
-    const onPointerUp = (upEvent) => {
-      inputWrap.removeClass("is-resizing-input");
-      shell.removeClass("is-resizing-input");
-      shell.releasePointerCapture?.(upEvent.pointerId);
-      document.removeEventListener("pointermove", onPointerMove);
-      document.removeEventListener("pointerup", onPointerUp);
-      document.removeEventListener("pointercancel", onPointerUp);
-    };
+  shell.addEventListener("pointermove", onShellPointerMove);
+  shell.addEventListener("pointerleave", onShellPointerLeave);
+  shell.addEventListener("pointerdown", onShellPointerDown);
 
-    document.addEventListener("pointermove", onPointerMove);
-    document.addEventListener("pointerup", onPointerUp);
-    document.addEventListener("pointercancel", onPointerUp);
-  });
+  return () => {
+    finishResize(null, { applyPending: false });
+    removeDocumentListeners();
+    shell.removeEventListener("pointermove", onShellPointerMove);
+    shell.removeEventListener("pointerleave", onShellPointerLeave);
+    shell.removeEventListener("pointerdown", onShellPointerDown);
+    shell.removeClass("is-input-resize-edge");
+  };
 }
 
 function isPointerOnInputResizeEdge(shell, event) {
@@ -390,6 +484,7 @@ module.exports = {
   renderComposerContent,
   _test: {
     clampInputHeight,
-    hasFileDropPayload
+    hasFileDropPayload,
+    setupInputResizeEdge
   }
 };

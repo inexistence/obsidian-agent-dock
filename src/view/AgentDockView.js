@@ -89,6 +89,8 @@ class AgentDockView extends ItemView {
     this.pendingScrollBottomFrame = null;
     this.hasWarnedCodeMirrorUnavailable = false;
     this.composerInputHeight = null;
+    this.composerResizePinnedToBottom = false;
+    this.composerResizeCleanup = null;
     this.imagePreviewController = new ImagePreviewController({
       containerEl: this.containerEl,
       translate: (key, params) => this.translate(key, params)
@@ -460,8 +462,20 @@ class AgentDockView extends ItemView {
       submit: () => this.submit(),
       cancelActiveSession: () => this.cancelActiveSession(),
       inputHeight: this.composerInputHeight,
+      onInputResizeStart: () => {
+        this.composerResizePinnedToBottom = this.isMessageListNearBottom();
+      },
       onInputHeightChanged: (height) => {
         this.composerInputHeight = height;
+        if (this.composerResizePinnedToBottom) {
+          this.scrollMessagesToBottom();
+        }
+      },
+      onInputResizeEnd: () => {
+        if (this.composerResizePinnedToBottom) {
+          this.scrollMessagesToBottom();
+        }
+        this.composerResizePinnedToBottom = false;
       },
       translate: (key, params) => this.translate(key, params),
       addGlobalPointerListener: (listener) => this.addGlobalPointerListener(listener),
@@ -472,6 +486,7 @@ class AgentDockView extends ItemView {
     this.mentionMenuEl = refs.mentionMenuEl;
     this.contextStatusEl = refs.contextStatusEl;
     this.refreshComposerSendButtonState = refs.refreshSendButtonState;
+    this.composerResizeCleanup = refs.cleanupInputResize;
     this.referenceController.setElements({
       inputEl: this.inputEl,
       mentionChipsEl: this.mentionChipsEl,
@@ -869,6 +884,7 @@ class AgentDockView extends ItemView {
       return;
     }
 
+    const shouldPinMessagesToBottom = this.isMessageListNearBottom();
     const shouldRestoreFocus = Boolean(
       options.focusInput
       || (
@@ -881,6 +897,9 @@ class AgentDockView extends ItemView {
     this.destroyComposerInput();
     composer.empty();
     this.renderComposerContent(composer, draft);
+    if (shouldPinMessagesToBottom) {
+      this.scrollMessagesToBottom();
+    }
     if (shouldRestoreFocus && this.inputEl) {
       const inputToFocus = this.inputEl;
       window.requestAnimationFrame(() => {
@@ -902,6 +921,8 @@ class AgentDockView extends ItemView {
   }
 
   destroyComposerInput() {
+    this.composerResizeCleanup?.();
+    this.composerResizeCleanup = null;
     if (this.inputEl?.destroy) {
       this.inputEl.destroy();
     }
