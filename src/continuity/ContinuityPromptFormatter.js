@@ -1,6 +1,8 @@
 const DEFAULT_MAX_MOMENTS = 1;
 const DEFAULT_MAX_STANCE_ITEMS = 2;
 const DEFAULT_MAX_SALIENCE_HINTS = 3;
+const MAX_MOMENT_EVIDENCE_ITEMS = 2;
+const MAX_MOMENT_EVIDENCE_CHARS = 140;
 
 const { rankSalienceAxes } = require("../persona/PersonaProfile");
 
@@ -66,11 +68,9 @@ function formatMomentLines(memories, maxItems) {
       if (memory.feltSense) {
         parts.push(`felt sense: ${compactText(memory.feltSense)}`);
       }
-      if (memory.userExcerpt) {
-        parts.push(`evidence [origin=user_message; speaker=user; quote]: “${compactText(memory.userExcerpt)}”`);
-      }
-      if (memory.assistantExcerpt) {
-        parts.push(`evidence [origin=assistant_message; speaker=assistant; quote]: “${compactText(memory.assistantExcerpt)}”`);
+      const evidence = formatMomentEvidence(memory);
+      if (evidence.length > 0) {
+        parts.push(...evidence);
       }
       if (Array.isArray(memory.salienceAxes) && memory.salienceAxes.length > 0) {
         parts.push(`salience axes: ${memory.salienceAxes.slice(0, 3).join(", ")}`);
@@ -78,6 +78,44 @@ function formatMomentLines(memories, maxItems) {
       parts.push("use only if this turn naturally connects");
       return parts.join(" | ");
     });
+}
+
+function formatMomentEvidence(memory) {
+  return [
+    {
+      text: memory?.userExcerpt,
+      origin: "user_message",
+      speaker: "user"
+    },
+    {
+      text: memory?.assistantExcerpt,
+      origin: "assistant_message",
+      speaker: "assistant"
+    }
+  ]
+    .filter((item) => compactText(item.text))
+    .slice(0, MAX_MOMENT_EVIDENCE_ITEMS)
+    .map((item) => (
+      `evidence [origin=${item.origin}; speaker=${item.speaker}; quote]: “${compactEvidenceExcerpt(item.text)}”`
+    ));
+}
+
+function compactEvidenceExcerpt(value) {
+  const text = compactText(value);
+  const sentenceEnds = [...text.matchAll(/[。！？!?](?:[”’"']+)?|[.](?:[”’"']+)?(?=\s|$)/g)]
+    .map((match) => match.index + match[0].length)
+    .filter((end) => end <= MAX_MOMENT_EVIDENCE_CHARS)
+    .slice(0, 2);
+  if (sentenceEnds.length >= 2) {
+    return text.slice(0, sentenceEnds[1]).trim();
+  }
+  if (text.length <= MAX_MOMENT_EVIDENCE_CHARS) {
+    return text;
+  }
+  if (sentenceEnds.length === 1) {
+    return text.slice(0, sentenceEnds[0]).trim();
+  }
+  return `${text.slice(0, MAX_MOMENT_EVIDENCE_CHARS - 1).trim()}…`;
 }
 
 function formatMemoryDateAnchor(memory) {
@@ -178,6 +216,8 @@ module.exports = {
   formatAssistantContinuityPrompt,
   _test: {
     formatMemoryDateAnchor,
+    compactEvidenceExcerpt,
+    formatMomentEvidence,
     formatStanceDateAnchor,
     formatMomentLines,
     formatSalienceLine,

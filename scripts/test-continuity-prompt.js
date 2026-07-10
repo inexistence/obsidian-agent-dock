@@ -88,9 +88,56 @@ function testContinuityMergesSignalsIntoOneSection() {
   assert(!prompt.includes("third stance should not"));
 }
 
+function testDeepMemoryEvidenceStaysCompact() {
+  const longUserExcerpt = `第一句保留关键要求。${"无关的后续说明".repeat(40)}`;
+  const longAssistantExcerpt = `已完成关键修复。${"冗长的验证过程".repeat(40)}`;
+  const prompt = formatAssistantContinuityPrompt({
+    deepMemories: [{
+      summary: "A prior repair matters for continuity.",
+      userExcerpt: longUserExcerpt,
+      assistantExcerpt: longAssistantExcerpt,
+      importance: 0.9,
+      confidence: 0.8
+    }]
+  });
+
+  assert(prompt.includes("第一句保留关键要求。"));
+  assert(prompt.includes("已完成关键修复。"));
+  assert(!prompt.includes("无关的后续说明无关的后续说明无关的后续说明"));
+  assert(!prompt.includes("冗长的验证过程冗长的验证过程冗长的验证过程"));
+  assert.equal(
+    (prompt.match(/evidence \[origin=/g) || []).length,
+    2,
+    "a recalled moment should include at most two compact evidence excerpts"
+  );
+
+  const shortManySentencesPrompt = formatAssistantContinuityPrompt({
+    deepMemories: [{
+      summary: "Short evidence can still contain too many sentences.",
+      userExcerpt: "One. Two. Three. Four.",
+      importance: 0.9,
+      confidence: 0.8
+    }]
+  });
+  assert(shortManySentencesPrompt.includes("“One. Two.”"));
+  assert(!shortManySentencesPrompt.includes("Three."));
+
+  const quotedPrompt = formatAssistantContinuityPrompt({
+    deepMemories: [{
+      summary: "Quoted English evidence should keep sentence boundaries.",
+      userExcerpt: '"First quoted sentence." Second sentence. Third sentence. '.repeat(5),
+      importance: 0.9,
+      confidence: 0.8
+    }]
+  });
+  assert(quotedPrompt.includes('“"First quoted sentence." Second sentence.”'));
+  assert(!quotedPrompt.includes("Third sentence."));
+}
+
 Promise.resolve()
   .then(testEmptyContinuityIsOmitted)
   .then(testContinuityMergesSignalsIntoOneSection)
+  .then(testDeepMemoryEvidenceStaysCompact)
   .then(() => {
     console.log("Continuity prompt tests passed.");
   })

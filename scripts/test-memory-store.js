@@ -614,6 +614,37 @@ async function testSearchMemories() {
     true,
     "reference audit should identify matches that came from the active file path"
   );
+
+  const projectStatusStore = createMemoryStore([
+    {
+      id: "mem-provider-check",
+      key: "task:provider-check",
+      kind: "task",
+      scope: "project",
+      text: "Agent Dock prompt provider validation is still pending.",
+      confidence: 0.8,
+      createdAt: Date.UTC(2026, 0, 8),
+      updatedAt: Date.UTC(2026, 6, 4)
+    },
+    {
+      id: "mem-prompt-check",
+      key: "decision:prompt-check",
+      kind: "decision",
+      scope: "project",
+      text: "检查 prompt 的最终内容时应报告最终构造区段。",
+      confidence: 0.8,
+      createdAt: Date.UTC(2026, 0, 9),
+      updatedAt: Date.UTC(2026, 6, 4)
+    }
+  ]);
+  const promptResults = await projectStatusStore.getRelevantMemories("检查 prompt 的最终内容", settings, {
+    workingDirectory: "/Users/example/Agent Dock"
+  });
+  assert.deepEqual(
+    promptResults.map((memory) => memory.id),
+    ["mem-prompt-check"],
+    "working-directory matches alone should not inject unrelated project status"
+  );
 }
 
 async function testExplicitMemorySearchSurvivesCompression() {

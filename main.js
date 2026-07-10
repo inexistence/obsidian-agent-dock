@@ -5516,6 +5516,8 @@ const MEMORY_FILE_NAME = "memory.json";
 const MAX_EXTRACTED_ITEMS_PER_TURN = 4;
 const DEFAULT_SEARCH_LIMIT = 5;
 const DEFAULT_SEARCH_MAX_CHARS = 3000;
+const MIN_AUTOMATIC_PROMPT_MATCH_SCORE = 2;
+const WORKING_DIRECTORY_SCORE_WEIGHT = 0.1;
 const STOP_WORDS = new Set([
   "about",
   "after",
@@ -5574,8 +5576,8 @@ class MemoryStore {
     ]);
     const scored = items
       .map((item) => scoreMemory(item, queryTokenInfo.tokens, queryTokenInfo.sources))
-      .filter((entry) => entry.matchScore > 0 || isGlobalMemory(entry.item))
-      .sort(compareScoredMemories);
+      .filter((entry) => isAutomaticallyRelevant(entry))
+      .sort(compareAutomaticallyRelevantMemories);
 
     const maxChars = Number(settings.memoryMaxPromptChars) || 8000;
     const maxItems = Math.min(Number(settings.memoryMaxPromptItems) || 12, scored.length);
@@ -5762,26 +5764,49 @@ function limitMemoryItems(items, settings) {
 function scoreMemory(item, queryTokens, queryTokenSources = new Map()) {
   const itemTokens = tokenize(item.text);
   let matchScore = 0;
+  let promptMatchScore = 0;
+  let activeFilePathMatchScore = 0;
+  let workingDirectoryMatchScore = 0;
   const matchedTokens = [];
   const matchedTokenSources = [];
   for (const token of itemTokens) {
     if (queryTokens.has(token)) {
-      matchScore += token.length > 8 ? 3 : 1;
+      const tokenScore = token.length > 8 ? 3 : 1;
+      const sources = Array.from(queryTokenSources.get(token) || []);
+      matchScore += tokenScore;
+      if (sources.some((source) => source === "prompt" || source === "promptExpansion")) {
+        promptMatchScore += tokenScore;
+      }
+      if (sources.some((source) => source === "activeFilePath" || source === "activeFilePathExpansion")) {
+        activeFilePathMatchScore += tokenScore;
+      }
+      if (sources.some((source) => source === "workingDirectory" || source === "workingDirectoryExpansion")) {
+        workingDirectoryMatchScore += tokenScore;
+      }
       matchedTokens.push(token);
       matchedTokenSources.push({
         token,
-        sources: Array.from(queryTokenSources.get(token) || [])
+        sources
       });
     }
   }
-  let totalScore = matchScore;
-  totalScore += kindPriority(item.kind);
+  const priorityScore = kindPriority(item.kind);
   const ageDays = Math.max(0, (Date.now() - normalizeTimestamp(item.updatedAt, Date.now())) / 86400000);
-  totalScore += Math.max(0, 2 - ageDays / 30);
+  const recencyScore = Math.max(0, 2 - ageDays / 30);
+  const totalScore = matchScore + priorityScore + recencyScore;
+  const automaticScore = promptMatchScore
+    + activeFilePathMatchScore
+    + workingDirectoryMatchScore * WORKING_DIRECTORY_SCORE_WEIGHT
+    + priorityScore
+    + recencyScore;
   return {
     item,
     matchScore,
     totalScore,
+    automaticScore,
+    promptMatchScore,
+    activeFilePathMatchScore,
+    workingDirectoryMatchScore,
     matchedTokens,
     matchedTokenSources
   };
@@ -5797,7 +5822,7 @@ function createReferenceAudit(entry) {
   return {
     reasonCode: entry.matchScore > 0 ? "matched_terms" : "global_memory",
     matchScore: entry.matchScore,
-    score: entry.totalScore,
+    score: entry.automaticScore ?? entry.totalScore,
     matchedTokens,
     matchedTokenSources
   };
@@ -5822,9 +5847,24 @@ function compareScoredMemories(left, right) {
   return normalizeTimestamp(right.item.updatedAt, 0) - normalizeTimestamp(left.item.updatedAt, 0);
 }
 
+function compareAutomaticallyRelevantMemories(left, right) {
+  if (right.automaticScore !== left.automaticScore) {
+    return right.automaticScore - left.automaticScore;
+  }
+  return compareScoredMemories(left, right);
+}
+
 function isGlobalMemory(item) {
   return (item.kind === "preference" && item.scope === "user")
     || item.kind === "identity";
+}
+
+function isAutomaticallyRelevant(entry) {
+  if (isGlobalMemory(entry.item)) {
+    return true;
+  }
+  return entry.promptMatchScore >= MIN_AUTOMATIC_PROMPT_MATCH_SCORE
+    || entry.activeFilePathMatchScore > 0;
 }
 
 function kindPriority(kind) {
@@ -6019,6 +6059,8 @@ module.exports = {
   formatMemoryLine,
   _test: {
     createEmptyMemory,
+    compareAutomaticallyRelevantMemories,
+    isAutomaticallyRelevant,
     isPromptSafeMemory,
     isGlobalMemory,
     scoreMemory,
@@ -6031,6 +6073,8 @@ module.exports = {
 const DEFAULT_MAX_MOMENTS = 1;
 const DEFAULT_MAX_STANCE_ITEMS = 2;
 const DEFAULT_MAX_SALIENCE_HINTS = 3;
+const MAX_MOMENT_EVIDENCE_ITEMS = 2;
+const MAX_MOMENT_EVIDENCE_CHARS = 140;
 
 const { rankSalienceAxes } = __require("src/persona/PersonaProfile.js");
 
@@ -6096,11 +6140,9 @@ function formatMomentLines(memories, maxItems) {
       if (memory.feltSense) {
         parts.push(`felt sense: ${compactText(memory.feltSense)}`);
       }
-      if (memory.userExcerpt) {
-        parts.push(`evidence [origin=user_message; speaker=user; quote]: “${compactText(memory.userExcerpt)}”`);
-      }
-      if (memory.assistantExcerpt) {
-        parts.push(`evidence [origin=assistant_message; speaker=assistant; quote]: “${compactText(memory.assistantExcerpt)}”`);
+      const evidence = formatMomentEvidence(memory);
+      if (evidence.length > 0) {
+        parts.push(...evidence);
       }
       if (Array.isArray(memory.salienceAxes) && memory.salienceAxes.length > 0) {
         parts.push(`salience axes: ${memory.salienceAxes.slice(0, 3).join(", ")}`);
@@ -6108,6 +6150,44 @@ function formatMomentLines(memories, maxItems) {
       parts.push("use only if this turn naturally connects");
       return parts.join(" | ");
     });
+}
+
+function formatMomentEvidence(memory) {
+  return [
+    {
+      text: memory?.userExcerpt,
+      origin: "user_message",
+      speaker: "user"
+    },
+    {
+      text: memory?.assistantExcerpt,
+      origin: "assistant_message",
+      speaker: "assistant"
+    }
+  ]
+    .filter((item) => compactText(item.text))
+    .slice(0, MAX_MOMENT_EVIDENCE_ITEMS)
+    .map((item) => (
+      `evidence [origin=${item.origin}; speaker=${item.speaker}; quote]: “${compactEvidenceExcerpt(item.text)}”`
+    ));
+}
+
+function compactEvidenceExcerpt(value) {
+  const text = compactText(value);
+  const sentenceEnds = [...text.matchAll(/[。！？!?](?:[”’"']+)?|[.](?:[”’"']+)?(?=\s|$)/g)]
+    .map((match) => match.index + match[0].length)
+    .filter((end) => end <= MAX_MOMENT_EVIDENCE_CHARS)
+    .slice(0, 2);
+  if (sentenceEnds.length >= 2) {
+    return text.slice(0, sentenceEnds[1]).trim();
+  }
+  if (text.length <= MAX_MOMENT_EVIDENCE_CHARS) {
+    return text;
+  }
+  if (sentenceEnds.length === 1) {
+    return text.slice(0, sentenceEnds[0]).trim();
+  }
+  return `${text.slice(0, MAX_MOMENT_EVIDENCE_CHARS - 1).trim()}…`;
 }
 
 function formatMemoryDateAnchor(memory) {
@@ -6208,6 +6288,8 @@ module.exports = {
   formatAssistantContinuityPrompt,
   _test: {
     formatMemoryDateAnchor,
+    compactEvidenceExcerpt,
+    formatMomentEvidence,
     formatStanceDateAnchor,
     formatMomentLines,
     formatSalienceLine,
