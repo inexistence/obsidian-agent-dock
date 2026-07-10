@@ -1,0 +1,38 @@
+src/continuity/ContinuityPromptFormatter.js
+  s_bfa6c62332b317::t_a01b1be757ab35 106-108
+  s_bfa6c62332b317::t_07b84412aa1a45 105,109-116
+  s_bfa6c62332b317::t_f1d280434bb761 4-5,71-73,81-104,117-118,120,219-220
+  s_bfa6c62332b317::t_eef52f4b2afa88 119
+scripts/test-memory-store.js
+  s_bfa6c62332b317::t_07b84412aa1a45 624,634
+  s_bfa6c62332b317::t_f1d280434bb761 617-623,625-633,635-647
+src/storage/MemoryStore.js
+  s_bfa6c62332b317::t_f1d280434bb761 74,357-360,364,558
+  s_bfa6c62332b317::t_07b84412aa1a45 14-15,75,262-264,269-280,284,288,290-296,301-304,320,343-349,355,361-362,557
+  s_bfa6c62332b317::t_0c41869f8c8701 350-351
+  s_bfa6c62332b317::t_c71d0565465622 363
+scripts/test-continuity-prompt.js
+  s_bfa6c62332b317::t_07b84412aa1a45 113-134
+  s_bfa6c62332b317::t_f1d280434bb761 91-112,135-136,140
+main.js
+  s_bfa6c62332b317::t_aee97486a80145 5519-5520,5580,5767-5769,5774-5785,5789,5793,5795-5801,5806-5809,5825,5848-5854,5866-5867,6062,6177,6181-6188
+  s_bfa6c62332b317::t_6d861172aadb8b 5579,5860,5862-5865,5869,6063,6076-6077,6143-6145,6153-6176,6178-6180,6189-6190,6192,6291-6292
+  s_bfa6c62332b317::t_b9acaf719d887c 5855-5856,5868,6191
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "1da8464105c2ced77d35350fd7552c780d43118e",
+  "prompts": {},
+  "logical_commit_id": "1da8464105c2ced77d35350fd7552c780d43118e",
+  "sessions": {
+    "s_bfa6c62332b317": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4b4a-102c-7b31-a725-0b4b427fe2e5",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
