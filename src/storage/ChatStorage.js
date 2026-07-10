@@ -1,6 +1,7 @@
 const { normalizePath } = require("obsidian");
 const { normalizeProviderState, serializeProviderState } = require("./providerState");
 const { redactSensitiveText } = require("./sensitiveText");
+const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = require("./localDataPath");
 
 const CHAT_STATE_VERSION = 1;
 const SESSION_DIR_NAME = "sessions";
@@ -20,8 +21,8 @@ class ChatStorage {
   constructor(plugin) {
     this.plugin = plugin;
     this.adapter = plugin.app.vault.adapter;
-    const pluginDir = plugin.manifest.dir || `.obsidian/plugins/${plugin.manifest.id}`;
-    this.baseDir = normalizePath(`${pluginDir}/${SESSION_DIR_NAME}`);
+    this.baseDir = getLocalDataPath(plugin, SESSION_DIR_NAME);
+    this.legacyBaseDir = getLegacyPluginPath(plugin, SESSION_DIR_NAME);
   }
 
   async loadSessions(chatState, settings) {
@@ -80,23 +81,29 @@ class ChatStorage {
   }
 
   async deleteSession(sessionId) {
-    const path = this.getSessionPath(sessionId);
-    try {
-      if (await this.adapter.exists(path)) {
-        await this.adapter.remove(path);
+    const paths = [
+      this.getSessionPath(sessionId),
+      this.getLegacySessionPath(sessionId)
+    ];
+    for (const path of paths) {
+      try {
+        if (await this.adapter.exists(path)) {
+          await this.adapter.remove(path);
+        }
+      } catch (error) {
+        console.warn(`Agent Dock could not delete persisted session ${sessionId}:`, error);
       }
-    } catch (error) {
-      console.warn(`Agent Dock could not delete persisted session ${sessionId}:`, error);
     }
   }
 
   async deleteAllSessions() {
     await this.pruneSessionFiles(new Set());
+    await this.pruneSessionFiles(new Set(), this.legacyBaseDir);
   }
 
   async loadSession(sessionId, indexEntry) {
     try {
-      const raw = await this.adapter.read(this.getSessionPath(sessionId));
+      const raw = await this.readSessionFile(sessionId);
       return normalizePersistedSession(JSON.parse(raw), indexEntry);
     } catch (error) {
       console.warn(`Agent Dock could not load persisted session ${sessionId}:`, error);
@@ -105,19 +112,16 @@ class ChatStorage {
   }
 
   async ensureSessionDir() {
-    if (await this.adapter.exists(this.baseDir)) {
-      return;
-    }
-    await this.adapter.mkdir(this.baseDir);
+    await ensureLocalDataPath(this.plugin, this.adapter, this.baseDir);
   }
 
-  async pruneSessionFiles(keepFileNames) {
+  async pruneSessionFiles(keepFileNames, baseDir = this.baseDir) {
     let listing;
     try {
-      if (!await this.adapter.exists(this.baseDir)) {
+      if (!await this.adapter.exists(baseDir)) {
         return;
       }
-      listing = await this.adapter.list(this.baseDir);
+      listing = await this.adapter.list(baseDir);
     } catch (error) {
       console.warn("Agent Dock could not list persisted sessions:", error);
       return;
@@ -160,6 +164,18 @@ class ChatStorage {
 
   getSessionPath(sessionId) {
     return normalizePath(`${this.baseDir}/${safeFileName(sessionId)}.json`);
+  }
+
+  getLegacySessionPath(sessionId) {
+    return normalizePath(`${this.legacyBaseDir}/${safeFileName(sessionId)}.json`);
+  }
+
+  async readSessionFile(sessionId) {
+    const path = this.getSessionPath(sessionId);
+    if (await this.adapter.exists(path)) {
+      return this.adapter.read(path);
+    }
+    return this.adapter.read(this.getLegacySessionPath(sessionId));
   }
 }
 

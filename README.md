@@ -42,11 +42,11 @@ the language packs in `src/i18n/`.
 Chat history uses the plugin data folder:
 
 - `data.json` stores settings, the active session id, and a lightweight session index.
-- `sessions/<session-id>.json` stores each conversation's user and assistant message bodies, assistant timeline details, plus local pasted-image cache references for cleanup.
+- `.agent-dock-local/sessions/<session-id>.json` stores each conversation's user and assistant message bodies, assistant timeline details, plus local pasted-image cache references for cleanup.
 - `.agent-dock-cache/pasted-images/` stores temporary images pasted into the composer. Agent Dock prunes old files on startup and before new image pastes, and removes a session's tracked images when that session is deleted.
-- `memory/memory.json` stores automatically extracted local memories when memory is enabled.
-- `interaction/interaction-memory.json` stores bounded local interaction episodes, patterns, tensions, and long-term persona impressions when interaction memory is enabled.
-- `deep-memory/deep-memory.json` stores high-importance relationship moments when deep memory is enabled.
+- `.agent-dock-local/memory/memory.json` stores automatically extracted local memories when memory is enabled.
+- `.agent-dock-local/interaction/interaction-memory.json` stores bounded local interaction episodes, patterns, tensions, and long-term persona impressions when interaction memory is enabled.
+- `.agent-dock-local/deep-memory/deep-memory.json` stores high-importance relationship moments when deep memory is enabled.
 
 Assistant timeline details are persisted so restored conversations can show the
 processed reasoning/tool/error/notice history. Debug-only raw activity is also
@@ -228,7 +228,7 @@ Cursor mode mapping from the composer mode pill:
 - Read only -> Cursor `ask`
 - Workspace write / Full access -> Cursor `agent`
 
-Within one Agent Dock conversation, Cursor ACP sessions are reused across turns. The ACP session id is persisted in `sessions/<session-id>.json` when chat history persistence is enabled. Idle ACP subprocesses are closed after 30 minutes without use. Tool permission requests default to `allow-once`; change this in Settings -> Agent Dock -> Cursor permission policy.
+Within one Agent Dock conversation, Cursor ACP sessions are reused across turns. The ACP session id is persisted in `.agent-dock-local/sessions/<session-id>.json` when chat history persistence is enabled. Idle ACP subprocesses are closed after 30 minutes without use. Tool permission requests default to `allow-once`; change this in Settings -> Agent Dock -> Cursor permission policy.
 
 See the [Cursor ACP docs](https://cursor.com/cn/docs/cli/acp) for protocol details.
 

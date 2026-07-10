@@ -6,6 +6,7 @@ const {
   getPromptStance,
   normalizeInteractionMemory
 } = require("./PatternReducer");
+const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = require("../storage/localDataPath");
 
 const INTERACTION_DIR_NAME = "interaction";
 const INTERACTION_FILE_NAME = "interaction-memory.json";
@@ -17,10 +18,10 @@ class InteractionMemoryStore {
   constructor(plugin) {
     this.plugin = plugin;
     this.adapter = plugin.app.vault.adapter;
-    const pluginDir = plugin.manifest.dir || `.obsidian/plugins/${plugin.manifest.id}`;
-    this.baseDir = normalizePath(`${pluginDir}/${INTERACTION_DIR_NAME}`);
+    this.baseDir = getLocalDataPath(plugin, INTERACTION_DIR_NAME);
     this.memoryPath = normalizePath(`${this.baseDir}/${INTERACTION_FILE_NAME}`);
-    this.legacyProfilePath = normalizePath(`${pluginDir}/${LEGACY_PROFILE_DIR_NAME}/${LEGACY_PROFILE_FILE_NAME}`);
+    this.legacyMemoryPath = getLegacyPluginPath(plugin, INTERACTION_DIR_NAME, INTERACTION_FILE_NAME);
+    this.legacyProfilePath = getLegacyPluginPath(plugin, LEGACY_PROFILE_DIR_NAME, LEGACY_PROFILE_FILE_NAME);
     this.cache = null;
     this.writeQueue = Promise.resolve();
   }
@@ -85,6 +86,9 @@ class InteractionMemoryStore {
         if (await this.adapter.exists(this.memoryPath)) {
           await this.adapter.remove(this.memoryPath);
         }
+        if (await this.adapter.exists(this.legacyMemoryPath)) {
+          await this.adapter.remove(this.legacyMemoryPath);
+        }
         if (await this.adapter.exists(this.legacyProfilePath)) {
           await this.adapter.remove(this.legacyProfilePath);
         }
@@ -99,7 +103,7 @@ class InteractionMemoryStore {
       return this.cache;
     }
     try {
-      const raw = await this.adapter.read(this.memoryPath);
+      const raw = await this.readMemoryFile();
       this.cache = normalizeInteractionMemory(JSON.parse(raw));
       this.cache.pendingEpisodes = limitPendingEpisodes(this.cache.pendingEpisodes);
       return this.cache;
@@ -117,10 +121,14 @@ class InteractionMemoryStore {
   }
 
   async ensureInteractionDir() {
-    if (await this.adapter.exists(this.baseDir)) {
-      return;
+    await ensureLocalDataPath(this.plugin, this.adapter, this.baseDir);
+  }
+
+  async readMemoryFile() {
+    if (await this.adapter.exists(this.memoryPath)) {
+      return this.adapter.read(this.memoryPath);
     }
-    await this.adapter.mkdir(this.baseDir);
+    return this.adapter.read(this.legacyMemoryPath);
   }
 
   enqueueWrite(operation) {

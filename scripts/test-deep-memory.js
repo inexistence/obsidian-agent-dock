@@ -122,7 +122,7 @@ function testExtractorDoesNotTreatOrdinaryAssistantContentAsSignal() {
 }
 
 async function testStoreCapturesAndRecallsWithCooldown() {
-  const { store } = createStore();
+  const { adapter, store } = createStore();
   const settings = createSettings();
   const saved = await store.captureTurn({
     prompt: "我希望能够有它真的记得一些重要时刻的感觉",
@@ -132,6 +132,7 @@ async function testStoreCapturesAndRecallsWithCooldown() {
   }, settings);
 
   assert.equal(saved.length, 1, "store should save a deep memory");
+  assert(adapter.files.has(".obsidian/plugins/agent-dock/.agent-dock-local/deep-memory/deep-memory.json"), "deep memory should be written under local data dir");
 
   const recalled = await store.getPromptMemories(
     "Let's continue the continuity and relationship design.",

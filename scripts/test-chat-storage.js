@@ -21,17 +21,17 @@ async function testPruneDeletesAssociatedPastedImages() {
       return true;
     },
     async list(path) {
-      assert.strictEqual(path, ".obsidian/plugins/agent-dock/sessions");
+      assert.strictEqual(path, ".obsidian/plugins/agent-dock/.agent-dock-local/sessions");
       return {
         files: [
-          ".obsidian/plugins/agent-dock/sessions/keep.json",
-          ".obsidian/plugins/agent-dock/sessions/delete.json"
+          ".obsidian/plugins/agent-dock/.agent-dock-local/sessions/keep.json",
+          ".obsidian/plugins/agent-dock/.agent-dock-local/sessions/delete.json"
         ],
         folders: []
       };
     },
     async read(path) {
-      assert.strictEqual(path, ".obsidian/plugins/agent-dock/sessions/delete.json");
+      assert.strictEqual(path, ".obsidian/plugins/agent-dock/.agent-dock-local/sessions/delete.json");
       return JSON.stringify({
         pastedImagePaths: [
           ".agent-dock-cache/pasted-images/a.png",
@@ -62,7 +62,7 @@ async function testPruneDeletesAssociatedPastedImages() {
 
   await storage.pruneSessionFiles(new Set(["keep.json"]));
 
-  assert.deepStrictEqual(removedFiles, [".obsidian/plugins/agent-dock/sessions/delete.json"]);
+  assert.deepStrictEqual(removedFiles, [".obsidian/plugins/agent-dock/.agent-dock-local/sessions/delete.json"]);
   assert.deepStrictEqual(deletedImagePaths, [[
     ".agent-dock-cache/pasted-images/a.png",
     "Attachments/not-cache.png"
@@ -73,13 +73,18 @@ async function testAssistantTimelinePersistsAcrossSaveLoad() {
   const files = new Map();
   const adapter = {
     async exists(path) {
-      return path === ".obsidian/plugins/agent-dock/sessions" || files.has(path);
+      return path === ".obsidian/plugins/agent-dock/.agent-dock-local"
+        || path === ".obsidian/plugins/agent-dock/.agent-dock-local/sessions"
+        || files.has(path);
     },
     async mkdir(path) {
-      assert.strictEqual(path, ".obsidian/plugins/agent-dock/sessions");
+      assert([
+        ".obsidian/plugins/agent-dock/.agent-dock-local",
+        ".obsidian/plugins/agent-dock/.agent-dock-local/sessions"
+      ].includes(path));
     },
     async list(path) {
-      assert.strictEqual(path, ".obsidian/plugins/agent-dock/sessions");
+      assert.strictEqual(path, ".obsidian/plugins/agent-dock/.agent-dock-local/sessions");
       return {
         files: [...files.keys()].filter((filePath) => filePath.startsWith(`${path}/`)),
         folders: []
@@ -143,7 +148,7 @@ async function testAssistantTimelinePersistsAcrossSaveLoad() {
     }]
   }, settings);
 
-  const raw = JSON.parse(files.get(".obsidian/plugins/agent-dock/sessions/session-a.json"));
+  const raw = JSON.parse(files.get(".obsidian/plugins/agent-dock/.agent-dock-local/sessions/session-a.json"));
   const persistedMessage = raw.messages[0];
   assert.strictEqual(persistedMessage.agentLabel, "Codex");
   assert.strictEqual(persistedMessage.timeline.length, 6);
@@ -169,7 +174,9 @@ async function testAssistantTimelineRedactsAndTruncatesDetails() {
   const files = new Map();
   const adapter = {
     async exists(path) {
-      return path === ".obsidian/plugins/agent-dock/sessions" || files.has(path);
+      return path === ".obsidian/plugins/agent-dock/.agent-dock-local"
+        || path === ".obsidian/plugins/agent-dock/.agent-dock-local/sessions"
+        || files.has(path);
     },
     async mkdir() {},
     async list(path) {
@@ -227,17 +234,57 @@ async function testAssistantTimelineRedactsAndTruncatesDetails() {
     }]
   }, settings);
 
-  const raw = JSON.parse(files.get(".obsidian/plugins/agent-dock/sessions/session-b.json"));
+  const raw = JSON.parse(files.get(".obsidian/plugins/agent-dock/.agent-dock-local/sessions/session-b.json"));
   const toolEntry = raw.messages[0].timeline[0];
   assert.strictEqual(toolEntry.summary, "[Sensitive content omitted]");
   assert(toolEntry.detail.length < 12100, "tool detail should be bounded");
   assert(toolEntry.detail.includes("[Persisted timeline detail truncated]"));
 }
 
+async function testLegacySessionPathFallback() {
+  const files = new Map([
+    [".obsidian/plugins/agent-dock/sessions/legacy-session.json", JSON.stringify({
+      id: "legacy-session",
+      title: "Legacy",
+      messages: [{ role: "assistant", content: "restored from old path" }]
+    })]
+  ]);
+  const adapter = {
+    async exists(path) {
+      return files.has(path);
+    },
+    async read(path) {
+      if (!files.has(path)) {
+        throw new Error(`missing file: ${path}`);
+      }
+      return files.get(path);
+    }
+  };
+  const plugin = {
+    manifest: {
+      id: "agent-dock",
+      dir: ".obsidian/plugins/agent-dock"
+    },
+    app: {
+      vault: {
+        adapter
+      }
+    }
+  };
+  const storage = new ChatStorage(plugin);
+  const restored = await storage.loadSessions({
+    activeSessionId: "legacy-session",
+    sessionIndex: [{ id: "legacy-session", title: "Legacy" }]
+  }, { persistChatHistory: true });
+
+  assert.strictEqual(restored.sessions[0].messages[0].content, "restored from old path");
+}
+
 Promise.resolve()
   .then(testPruneDeletesAssociatedPastedImages)
   .then(testAssistantTimelinePersistsAcrossSaveLoad)
   .then(testAssistantTimelineRedactsAndTruncatesDetails)
+  .then(testLegacySessionPathFallback)
   .then(() => {
     console.log("chat storage tests passed");
   })

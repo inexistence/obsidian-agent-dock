@@ -4,6 +4,7 @@ const { extractDeepMemoryCandidates } = require("./DeepMemoryExtractor");
 const { getPersonaProfile } = require("../persona/PersonaProfile");
 const { expandSearchText } = require("../storage/searchQuery");
 const { containsSensitiveText } = require("../storage/sensitiveText");
+const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = require("../storage/localDataPath");
 
 const DEEP_MEMORY_VERSION = 1;
 const DEEP_MEMORY_DIR_NAME = "deep-memory";
@@ -39,9 +40,9 @@ class DeepMemoryStore {
   constructor(plugin, options = {}) {
     this.plugin = plugin;
     this.adapter = plugin.app.vault.adapter;
-    const pluginDir = plugin.manifest.dir || `.obsidian/plugins/${plugin.manifest.id}`;
-    this.baseDir = normalizePath(`${pluginDir}/${DEEP_MEMORY_DIR_NAME}`);
+    this.baseDir = getLocalDataPath(plugin, DEEP_MEMORY_DIR_NAME);
     this.memoryPath = normalizePath(`${this.baseDir}/${DEEP_MEMORY_FILE_NAME}`);
+    this.legacyMemoryPath = getLegacyPluginPath(plugin, DEEP_MEMORY_DIR_NAME, DEEP_MEMORY_FILE_NAME);
     this.cache = null;
     this.extractor = options.extractor || { extractTurn: extractDeepMemoryCandidates };
     this.writeQueue = Promise.resolve();
@@ -152,6 +153,9 @@ class DeepMemoryStore {
         if (await this.adapter.exists(this.memoryPath)) {
           await this.adapter.remove(this.memoryPath);
         }
+        if (await this.adapter.exists(this.legacyMemoryPath)) {
+          await this.adapter.remove(this.legacyMemoryPath);
+        }
       } catch (error) {
         console.warn("Agent Dock could not clear deep memory:", error);
       }
@@ -163,7 +167,7 @@ class DeepMemoryStore {
       return this.cache;
     }
     try {
-      const raw = await this.adapter.read(this.memoryPath);
+      const raw = await this.readMemoryFile();
       this.cache = normalizeDeepMemory(JSON.parse(raw));
       return this.cache;
     } catch {
@@ -179,10 +183,14 @@ class DeepMemoryStore {
   }
 
   async ensureDeepMemoryDir() {
-    if (await this.adapter.exists(this.baseDir)) {
-      return;
+    await ensureLocalDataPath(this.plugin, this.adapter, this.baseDir);
+  }
+
+  async readMemoryFile() {
+    if (await this.adapter.exists(this.memoryPath)) {
+      return this.adapter.read(this.memoryPath);
     }
-    await this.adapter.mkdir(this.baseDir);
+    return this.adapter.read(this.legacyMemoryPath);
   }
 
   async markRecalled(items, now) {

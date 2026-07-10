@@ -3291,12 +3291,53 @@ module.exports = {
 };
 
 },
+"src/storage/localDataPath.js": function(module, exports, __require) {
+const { normalizePath } = require("obsidian");
+
+const LOCAL_DATA_DIR_NAME = ".agent-dock-local";
+
+function getPluginDir(plugin) {
+  return plugin.manifest.dir || `.obsidian/plugins/${plugin.manifest.id}`;
+}
+
+function getLocalDataDir(plugin) {
+  return normalizePath(`${getPluginDir(plugin)}/${LOCAL_DATA_DIR_NAME}`);
+}
+
+function getLocalDataPath(plugin, ...segments) {
+  return normalizePath([getLocalDataDir(plugin)].concat(segments).join("/"));
+}
+
+function getLegacyPluginPath(plugin, ...segments) {
+  return normalizePath([getPluginDir(plugin)].concat(segments).join("/"));
+}
+
+async function ensureLocalDataPath(plugin, adapter, path) {
+  const localDataDir = getLocalDataDir(plugin);
+  if (!await adapter.exists(localDataDir)) {
+    await adapter.mkdir(localDataDir);
+  }
+  if (!await adapter.exists(path)) {
+    await adapter.mkdir(path);
+  }
+}
+
+module.exports = {
+  LOCAL_DATA_DIR_NAME,
+  getLocalDataDir,
+  getLocalDataPath,
+  getLegacyPluginPath,
+  ensureLocalDataPath
+};
+
+},
 "src/storage/MemoryStore.js": function(module, exports, __require) {
 const { normalizePath } = require("obsidian");
 
 const { RuleBasedMemoryExtractor } = __require("src/storage/memoryExtraction/RuleBasedMemoryExtractor.js");
 const { expandSearchText } = __require("src/storage/searchQuery.js");
 const { containsSensitiveText } = __require("src/storage/sensitiveText.js");
+const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = __require("src/storage/localDataPath.js");
 
 const MEMORY_VERSION = 1;
 const MEMORY_DIR_NAME = "memory";
@@ -3337,9 +3378,9 @@ class MemoryStore {
   constructor(plugin, options = {}) {
     this.plugin = plugin;
     this.adapter = plugin.app.vault.adapter;
-    const pluginDir = plugin.manifest.dir || `.obsidian/plugins/${plugin.manifest.id}`;
-    this.baseDir = normalizePath(`${pluginDir}/${MEMORY_DIR_NAME}`);
+    this.baseDir = getLocalDataPath(plugin, MEMORY_DIR_NAME);
     this.memoryPath = normalizePath(`${this.baseDir}/${MEMORY_FILE_NAME}`);
+    this.legacyMemoryPath = getLegacyPluginPath(plugin, MEMORY_DIR_NAME, MEMORY_FILE_NAME);
     this.cache = null;
     this.extractor = options.extractor || new RuleBasedMemoryExtractor();
   }
@@ -3488,6 +3529,9 @@ class MemoryStore {
       if (await this.adapter.exists(this.memoryPath)) {
         await this.adapter.remove(this.memoryPath);
       }
+      if (await this.adapter.exists(this.legacyMemoryPath)) {
+        await this.adapter.remove(this.legacyMemoryPath);
+      }
     } catch (error) {
       console.warn("Agent Dock could not clear memory:", error);
     }
@@ -3499,7 +3543,7 @@ class MemoryStore {
     }
 
     try {
-      const raw = await this.adapter.read(this.memoryPath);
+      const raw = await this.readMemoryFile();
       this.cache = normalizeMemory(JSON.parse(raw));
       return this.cache;
     } catch {
@@ -3515,10 +3559,14 @@ class MemoryStore {
   }
 
   async ensureMemoryDir() {
-    if (await this.adapter.exists(this.baseDir)) {
-      return;
+    await ensureLocalDataPath(this.plugin, this.adapter, this.baseDir);
+  }
+
+  async readMemoryFile() {
+    if (await this.adapter.exists(this.memoryPath)) {
+      return this.adapter.read(this.memoryPath);
     }
-    await this.adapter.mkdir(this.baseDir);
+    return this.adapter.read(this.legacyMemoryPath);
   }
 }
 
@@ -7434,6 +7482,7 @@ const { extractDeepMemoryCandidates } = __require("src/deepMemory/DeepMemoryExtr
 const { getPersonaProfile } = __require("src/persona/PersonaProfile.js");
 const { expandSearchText } = __require("src/storage/searchQuery.js");
 const { containsSensitiveText } = __require("src/storage/sensitiveText.js");
+const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = __require("src/storage/localDataPath.js");
 
 const DEEP_MEMORY_VERSION = 1;
 const DEEP_MEMORY_DIR_NAME = "deep-memory";
@@ -7469,9 +7518,9 @@ class DeepMemoryStore {
   constructor(plugin, options = {}) {
     this.plugin = plugin;
     this.adapter = plugin.app.vault.adapter;
-    const pluginDir = plugin.manifest.dir || `.obsidian/plugins/${plugin.manifest.id}`;
-    this.baseDir = normalizePath(`${pluginDir}/${DEEP_MEMORY_DIR_NAME}`);
+    this.baseDir = getLocalDataPath(plugin, DEEP_MEMORY_DIR_NAME);
     this.memoryPath = normalizePath(`${this.baseDir}/${DEEP_MEMORY_FILE_NAME}`);
+    this.legacyMemoryPath = getLegacyPluginPath(plugin, DEEP_MEMORY_DIR_NAME, DEEP_MEMORY_FILE_NAME);
     this.cache = null;
     this.extractor = options.extractor || { extractTurn: extractDeepMemoryCandidates };
     this.writeQueue = Promise.resolve();
@@ -7582,6 +7631,9 @@ class DeepMemoryStore {
         if (await this.adapter.exists(this.memoryPath)) {
           await this.adapter.remove(this.memoryPath);
         }
+        if (await this.adapter.exists(this.legacyMemoryPath)) {
+          await this.adapter.remove(this.legacyMemoryPath);
+        }
       } catch (error) {
         console.warn("Agent Dock could not clear deep memory:", error);
       }
@@ -7593,7 +7645,7 @@ class DeepMemoryStore {
       return this.cache;
     }
     try {
-      const raw = await this.adapter.read(this.memoryPath);
+      const raw = await this.readMemoryFile();
       this.cache = normalizeDeepMemory(JSON.parse(raw));
       return this.cache;
     } catch {
@@ -7609,10 +7661,14 @@ class DeepMemoryStore {
   }
 
   async ensureDeepMemoryDir() {
-    if (await this.adapter.exists(this.baseDir)) {
-      return;
+    await ensureLocalDataPath(this.plugin, this.adapter, this.baseDir);
+  }
+
+  async readMemoryFile() {
+    if (await this.adapter.exists(this.memoryPath)) {
+      return this.adapter.read(this.memoryPath);
     }
-    await this.adapter.mkdir(this.baseDir);
+    return this.adapter.read(this.legacyMemoryPath);
   }
 
   async markRecalled(items, now) {
@@ -8742,6 +8798,7 @@ const {
   getPromptStance,
   normalizeInteractionMemory
 } = __require("src/interaction/PatternReducer.js");
+const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = __require("src/storage/localDataPath.js");
 
 const INTERACTION_DIR_NAME = "interaction";
 const INTERACTION_FILE_NAME = "interaction-memory.json";
@@ -8753,10 +8810,10 @@ class InteractionMemoryStore {
   constructor(plugin) {
     this.plugin = plugin;
     this.adapter = plugin.app.vault.adapter;
-    const pluginDir = plugin.manifest.dir || `.obsidian/plugins/${plugin.manifest.id}`;
-    this.baseDir = normalizePath(`${pluginDir}/${INTERACTION_DIR_NAME}`);
+    this.baseDir = getLocalDataPath(plugin, INTERACTION_DIR_NAME);
     this.memoryPath = normalizePath(`${this.baseDir}/${INTERACTION_FILE_NAME}`);
-    this.legacyProfilePath = normalizePath(`${pluginDir}/${LEGACY_PROFILE_DIR_NAME}/${LEGACY_PROFILE_FILE_NAME}`);
+    this.legacyMemoryPath = getLegacyPluginPath(plugin, INTERACTION_DIR_NAME, INTERACTION_FILE_NAME);
+    this.legacyProfilePath = getLegacyPluginPath(plugin, LEGACY_PROFILE_DIR_NAME, LEGACY_PROFILE_FILE_NAME);
     this.cache = null;
     this.writeQueue = Promise.resolve();
   }
@@ -8821,6 +8878,9 @@ class InteractionMemoryStore {
         if (await this.adapter.exists(this.memoryPath)) {
           await this.adapter.remove(this.memoryPath);
         }
+        if (await this.adapter.exists(this.legacyMemoryPath)) {
+          await this.adapter.remove(this.legacyMemoryPath);
+        }
         if (await this.adapter.exists(this.legacyProfilePath)) {
           await this.adapter.remove(this.legacyProfilePath);
         }
@@ -8835,7 +8895,7 @@ class InteractionMemoryStore {
       return this.cache;
     }
     try {
-      const raw = await this.adapter.read(this.memoryPath);
+      const raw = await this.readMemoryFile();
       this.cache = normalizeInteractionMemory(JSON.parse(raw));
       this.cache.pendingEpisodes = limitPendingEpisodes(this.cache.pendingEpisodes);
       return this.cache;
@@ -8853,10 +8913,14 @@ class InteractionMemoryStore {
   }
 
   async ensureInteractionDir() {
-    if (await this.adapter.exists(this.baseDir)) {
-      return;
+    await ensureLocalDataPath(this.plugin, this.adapter, this.baseDir);
+  }
+
+  async readMemoryFile() {
+    if (await this.adapter.exists(this.memoryPath)) {
+      return this.adapter.read(this.memoryPath);
     }
-    await this.adapter.mkdir(this.baseDir);
+    return this.adapter.read(this.legacyMemoryPath);
   }
 
   enqueueWrite(operation) {
@@ -9616,6 +9680,7 @@ module.exports = {
 const { normalizePath } = require("obsidian");
 const { normalizeProviderState, serializeProviderState } = __require("src/storage/providerState.js");
 const { redactSensitiveText } = __require("src/storage/sensitiveText.js");
+const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = __require("src/storage/localDataPath.js");
 
 const CHAT_STATE_VERSION = 1;
 const SESSION_DIR_NAME = "sessions";
@@ -9635,8 +9700,8 @@ class ChatStorage {
   constructor(plugin) {
     this.plugin = plugin;
     this.adapter = plugin.app.vault.adapter;
-    const pluginDir = plugin.manifest.dir || `.obsidian/plugins/${plugin.manifest.id}`;
-    this.baseDir = normalizePath(`${pluginDir}/${SESSION_DIR_NAME}`);
+    this.baseDir = getLocalDataPath(plugin, SESSION_DIR_NAME);
+    this.legacyBaseDir = getLegacyPluginPath(plugin, SESSION_DIR_NAME);
   }
 
   async loadSessions(chatState, settings) {
@@ -9695,23 +9760,29 @@ class ChatStorage {
   }
 
   async deleteSession(sessionId) {
-    const path = this.getSessionPath(sessionId);
-    try {
-      if (await this.adapter.exists(path)) {
-        await this.adapter.remove(path);
+    const paths = [
+      this.getSessionPath(sessionId),
+      this.getLegacySessionPath(sessionId)
+    ];
+    for (const path of paths) {
+      try {
+        if (await this.adapter.exists(path)) {
+          await this.adapter.remove(path);
+        }
+      } catch (error) {
+        console.warn(`Agent Dock could not delete persisted session ${sessionId}:`, error);
       }
-    } catch (error) {
-      console.warn(`Agent Dock could not delete persisted session ${sessionId}:`, error);
     }
   }
 
   async deleteAllSessions() {
     await this.pruneSessionFiles(new Set());
+    await this.pruneSessionFiles(new Set(), this.legacyBaseDir);
   }
 
   async loadSession(sessionId, indexEntry) {
     try {
-      const raw = await this.adapter.read(this.getSessionPath(sessionId));
+      const raw = await this.readSessionFile(sessionId);
       return normalizePersistedSession(JSON.parse(raw), indexEntry);
     } catch (error) {
       console.warn(`Agent Dock could not load persisted session ${sessionId}:`, error);
@@ -9720,19 +9791,16 @@ class ChatStorage {
   }
 
   async ensureSessionDir() {
-    if (await this.adapter.exists(this.baseDir)) {
-      return;
-    }
-    await this.adapter.mkdir(this.baseDir);
+    await ensureLocalDataPath(this.plugin, this.adapter, this.baseDir);
   }
 
-  async pruneSessionFiles(keepFileNames) {
+  async pruneSessionFiles(keepFileNames, baseDir = this.baseDir) {
     let listing;
     try {
-      if (!await this.adapter.exists(this.baseDir)) {
+      if (!await this.adapter.exists(baseDir)) {
         return;
       }
-      listing = await this.adapter.list(this.baseDir);
+      listing = await this.adapter.list(baseDir);
     } catch (error) {
       console.warn("Agent Dock could not list persisted sessions:", error);
       return;
@@ -9775,6 +9843,18 @@ class ChatStorage {
 
   getSessionPath(sessionId) {
     return normalizePath(`${this.baseDir}/${safeFileName(sessionId)}.json`);
+  }
+
+  getLegacySessionPath(sessionId) {
+    return normalizePath(`${this.legacyBaseDir}/${safeFileName(sessionId)}.json`);
+  }
+
+  async readSessionFile(sessionId) {
+    const path = this.getSessionPath(sessionId);
+    if (await this.adapter.exists(path)) {
+      return this.adapter.read(path);
+    }
+    return this.adapter.read(this.getLegacySessionPath(sessionId));
   }
 }
 

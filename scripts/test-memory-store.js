@@ -74,7 +74,7 @@ class MemoryAdapter {
 
 function createMemoryStore(items) {
   const adapter = new MemoryAdapter({
-    "agent-dock/memory/memory.json": JSON.stringify({
+    "agent-dock/.agent-dock-local/memory/memory.json": JSON.stringify({
       version: 1,
       items,
       updatedAt: Date.UTC(2026, 6, 4)
@@ -477,8 +477,46 @@ async function testExplicitMemorySearchSurvivesCompression() {
   );
 }
 
+async function testLegacyMemoryPathFallback() {
+  const adapter = new MemoryAdapter({
+    "agent-dock/memory/memory.json": JSON.stringify({
+      version: 1,
+      items: [{
+        id: "legacy-memory",
+        kind: "fact",
+        scope: "project",
+        text: "Legacy storage still loads",
+        createdAt: Date.UTC(2026, 6, 4),
+        updatedAt: Date.UTC(2026, 6, 4)
+      }],
+      updatedAt: Date.UTC(2026, 6, 4)
+    })
+  });
+  const store = new MemoryStore({
+    manifest: {
+      dir: "agent-dock",
+      id: "agent-dock"
+    },
+    app: {
+      vault: {
+        adapter
+      }
+    }
+  });
+
+  const matches = await store.getRelevantMemories("legacy storage", {
+    memoryEnabled: true,
+    memoryPromptMaxItems: 5,
+    memoryPromptMaxChars: 1000
+  });
+
+  assert.equal(matches[0].id, "legacy-memory", "legacy memory file should be used when local data path is absent");
+}
+
 testSearchMemories().then(() => {
   return testExplicitMemorySearchSurvivesCompression();
+}).then(() => {
+  return testLegacyMemoryPathFallback();
 }).then(() => {
   console.log("MemoryStore tests passed");
 }).catch((error) => {

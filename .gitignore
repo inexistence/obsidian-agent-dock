@@ -1,4 +1,6 @@
 data.json
+/.agent-dock-local/
+/.agent-dock-cache/
 /sessions/
 /memory/
 /deep-memory/

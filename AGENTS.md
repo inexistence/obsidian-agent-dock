@@ -142,7 +142,7 @@ Users can change this in plugin settings.
   relationship continuity rather than hidden profiling, role-play identity, or
   authority over current instructions.
 - `memoryEnabled` and `memoryAutoCapture` default to enabled.
-- Automatic memories are stored under `memory/memory.json` in the plugin data folder.
+- Automatic memories are stored under `.agent-dock-local/memory/memory.json` in the plugin data folder.
 - Memory extraction must stay local and deterministic unless a future setting
   explicitly adds a model-assisted memory provider.
 - Do not store obvious secrets such as API keys, tokens, passwords, or private keys.
@@ -159,7 +159,7 @@ Users can change this in plugin settings.
 
 - `deepMemoryEnabled` and `deepMemoryAutoCapture` default to enabled.
 - Agent Dock stores a bounded set of high-importance relationship moments under
-  `deep-memory/deep-memory.json` in the plugin data folder.
+  `.agent-dock-local/deep-memory/deep-memory.json` in the plugin data folder.
 - Deep memory extraction must stay local and deterministic unless a future
   setting explicitly adds a model-assisted reflection provider.
 - Capture explicit continuity preferences, strong encouragement, meaningful
@@ -231,7 +231,7 @@ Users can change this in plugin settings.
 
 - `interactionMemoryEnabled` and `interactionMemoryAutoCapture` default to enabled.
 - Agent Dock stores bounded local interaction episodes, patterns, tensions, and
-  stable persona impressions under `interaction/interaction-memory.json` in the
+  stable persona impressions under `.agent-dock-local/interaction/interaction-memory.json` in the
   plugin data folder.
 - Interaction extraction must stay local and deterministic unless a future
   setting explicitly adds a model-assisted reflection provider.
@@ -278,7 +278,7 @@ adapters must stay unaware of this UI session model.
 When chat history persistence is enabled, `data.json` stores settings, the
 active session id, and a lightweight session index. Full user and assistant
 message bodies are stored separately under the plugin folder in
-`sessions/<session-id>.json`. Persisted sessions restore user/assistant Markdown
+`.agent-dock-local/sessions/<session-id>.json`. Persisted sessions restore user/assistant Markdown
 message content plus bounded assistant timeline details for processed reasoning,
 tool, error, notice, and debug-only `activity` entries. Restored `activity`
 entries remain hidden unless Debug activity is enabled.
@@ -392,7 +392,7 @@ Cursor ACP mode mapping from the composer pill:
 
 Permission requests default to `allow-once` via `cursorPermissionPolicy`.
 
-Within one Agent Dock chat session, reuse the same ACP session across turns. Persist only `providerState.cursor.acpSessionId` in `sessions/<session-id>.json`; do not persist process handles. Idle ACP subprocesses are closed after 30 minutes without use.
+Within one Agent Dock chat session, reuse the same ACP session across turns. Persist only `providerState.cursor.acpSessionId` in `.agent-dock-local/sessions/<session-id>.json`; do not persist process handles. Idle ACP subprocesses are closed after 30 minutes without use.
 
 Cursor extension methods such as `cursor/ask_question` and `cursor/create_plan` must be answered promptly so the agent does not block. v1 auto-skips questions and auto-accepts plans, emitting `notice` events when useful.
 
@@ -414,8 +414,9 @@ Do not put provider-specific parsing logic in `AgentDockView.js`.
 - Project backlog lives in `TODO.md`.
 - It is symlinked during local development into an Obsidian vault plugin folder.
 - `data.json` is local Obsidian plugin data and should stay untracked.
-- `sessions/*.json` contains local persisted chat history and should stay untracked.
-- `memory/*.json` contains local automatically extracted memories and should stay untracked.
+- `.agent-dock-local/` contains local persisted chat history, memory, deep memory, and interaction memory, and should stay untracked.
+- `sessions/*.json`, `memory/*.json`, `deep-memory/*.json`, and `interaction/*.json` are legacy local data paths and should stay untracked.
+- `profile/*.json` contains legacy local profile data and should stay untracked.
 - macOS Gatekeeper can block the Codex executable; users can fix this by installing
   Codex from its official source and configuring the executable path.
 

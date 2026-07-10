@@ -3,6 +3,7 @@ const { normalizePath } = require("obsidian");
 const { RuleBasedMemoryExtractor } = require("./memoryExtraction/RuleBasedMemoryExtractor");
 const { expandSearchText } = require("./searchQuery");
 const { containsSensitiveText } = require("./sensitiveText");
+const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = require("./localDataPath");
 
 const MEMORY_VERSION = 1;
 const MEMORY_DIR_NAME = "memory";
@@ -43,9 +44,9 @@ class MemoryStore {
   constructor(plugin, options = {}) {
     this.plugin = plugin;
     this.adapter = plugin.app.vault.adapter;
-    const pluginDir = plugin.manifest.dir || `.obsidian/plugins/${plugin.manifest.id}`;
-    this.baseDir = normalizePath(`${pluginDir}/${MEMORY_DIR_NAME}`);
+    this.baseDir = getLocalDataPath(plugin, MEMORY_DIR_NAME);
     this.memoryPath = normalizePath(`${this.baseDir}/${MEMORY_FILE_NAME}`);
+    this.legacyMemoryPath = getLegacyPluginPath(plugin, MEMORY_DIR_NAME, MEMORY_FILE_NAME);
     this.cache = null;
     this.extractor = options.extractor || new RuleBasedMemoryExtractor();
   }
@@ -194,6 +195,9 @@ class MemoryStore {
       if (await this.adapter.exists(this.memoryPath)) {
         await this.adapter.remove(this.memoryPath);
       }
+      if (await this.adapter.exists(this.legacyMemoryPath)) {
+        await this.adapter.remove(this.legacyMemoryPath);
+      }
     } catch (error) {
       console.warn("Agent Dock could not clear memory:", error);
     }
@@ -205,7 +209,7 @@ class MemoryStore {
     }
 
     try {
-      const raw = await this.adapter.read(this.memoryPath);
+      const raw = await this.readMemoryFile();
       this.cache = normalizeMemory(JSON.parse(raw));
       return this.cache;
     } catch {
@@ -221,10 +225,14 @@ class MemoryStore {
   }
 
   async ensureMemoryDir() {
-    if (await this.adapter.exists(this.baseDir)) {
-      return;
+    await ensureLocalDataPath(this.plugin, this.adapter, this.baseDir);
+  }
+
+  async readMemoryFile() {
+    if (await this.adapter.exists(this.memoryPath)) {
+      return this.adapter.read(this.memoryPath);
     }
-    await this.adapter.mkdir(this.baseDir);
+    return this.adapter.read(this.legacyMemoryPath);
   }
 }
 

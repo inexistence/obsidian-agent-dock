@@ -327,6 +327,7 @@ async function testPendingEpisodesAreBoundedAndLegacyProfileClears() {
   await store.clearMemory();
   assert.equal(await adapter.exists("agent-dock/interaction/interaction-memory.json"), false, "interaction memory file should be removed");
   assert.equal(await adapter.exists("agent-dock/profile/agent-profile.json"), false, "legacy profile file should be removed with interaction memory");
+  assert.equal(await adapter.exists("agent-dock/.agent-dock-local/interaction/interaction-memory.json"), false, "local interaction memory file should be removed");
 }
 
 function testTensionSignalBoostUsesSignals() {

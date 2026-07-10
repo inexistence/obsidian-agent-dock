@@ -152,7 +152,7 @@ Persistence model:
 
 - `data.json` stores settings, active session id, and a lightweight session
   index.
-- `sessions/<session-id>.json` stores persisted user and assistant Markdown
+- `.agent-dock-local/sessions/<session-id>.json` stores persisted user and assistant Markdown
   message bodies, persisted assistant timeline details, and per-session pasted
   image cache paths used for cleanup.
 - `.agent-dock-cache/pasted-images/` stores temporary composer-pasted images.
@@ -234,7 +234,7 @@ Main files:
 Stored file:
 
 ```text
-memory/memory.json
+.agent-dock-local/memory/memory.json
 ```
 
 Memory categories include user preferences, explicit remember requests, agent
@@ -341,7 +341,7 @@ Main files:
 Stored files:
 
 ```text
-interaction/interaction-memory.json
+.agent-dock-local/interaction/interaction-memory.json
 ```
 
 After a successful reply, Agent Dock saves a pending episode from the current
@@ -392,7 +392,7 @@ Main files:
 Stored files:
 
 ```text
-deep-memory/deep-memory.json
+.agent-dock-local/deep-memory/deep-memory.json
 ```
 
 After a successful provider reply, Agent Dock extracts deep memory candidates
@@ -461,11 +461,11 @@ Obsidian plugin data may include:
 
 ```text
 data.json                         settings, active session id, session index
-sessions/<session-id>.json         persisted chat message bodies and pasted image refs
+.agent-dock-local/sessions/<session-id>.json persisted chat message bodies and pasted image refs
 .agent-dock-cache/pasted-images/   temporary composer-pasted images
-memory/memory.json                 local automatic memories
-interaction/interaction-memory.json local interaction episodes, patterns, persona impressions
-deep-memory/deep-memory.json       local high-importance relationship moments
+.agent-dock-local/memory/memory.json local automatic memories
+.agent-dock-local/interaction/interaction-memory.json local interaction episodes, patterns, persona impressions
+.agent-dock-local/deep-memory/deep-memory.json local high-importance relationship moments
 ```
 
 These files are local runtime data and should remain untracked.
