@@ -1,0 +1,30 @@
+main.js
+  s_d51994cb10d721::t_d817fd3c63de6a 4093-4096,4471,8727,9060,9937,10506
+src/agents/cursor/CursorAgent.js
+  s_d51994cb10d721::t_faa563c31ff9fe 595
+  s_d51994cb10d721::t_1dfcda41960d7a 26
+src/agents/codex/CodexAgent.js
+  s_d51994cb10d721::t_faa563c31ff9fe 357
+  s_d51994cb10d721::t_1dfcda41960d7a 24
+src/agents/shared/captureNotices.js
+  s_d51994cb10d721::t_1dfcda41960d7a 71-74,449
+scripts/test-memory-store.js
+  s_d51994cb10d721::t_1dfcda41960d7a 27,958-975
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "b03d7909d834f757e3dbaac2f487f45d7fe61318",
+  "prompts": {},
+  "logical_commit_id": "b03d7909d834f757e3dbaac2f487f45d7fe61318",
+  "sessions": {
+    "s_d51994cb10d721": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4b47-b4ee-7b91-85af-183cd81b0a18",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
