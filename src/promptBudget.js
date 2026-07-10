@@ -49,7 +49,7 @@ function planPromptSections(sections, contextLimit, options = {}) {
     sections: includedSections,
     sectionText: includedSections.map((section) => section.text).filter(Boolean).join("\n"),
     conversationBudget: limit
-      ? Math.max(minConversationChars, limit - usedChars)
+      ? Math.max(0, limit - usedChars)
       : 0,
     droppedSections,
     truncatedSections,
@@ -77,6 +77,7 @@ function normalizeSections(sections) {
       protected: section.protected === true,
       truncatable: section.truncatable === true,
       minChars: normalizeMinChars(section.minChars, 400),
+      placement: section.placement === "stable" ? "stable" : "dynamic",
       order: index
     }));
 }

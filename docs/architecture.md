@@ -338,6 +338,20 @@ exceeds the remaining budget, older messages are compressed into a deterministic
 local transcript summary. The newest user message has highest priority and is
 preserved.
 
+The rendered prompt is ordered for provider prefix-cache reuse: stable assistant
+style, local-context boundaries, and the reflection protocol come first; prior
+conversation history follows; turn-specific referenced paths, continuity,
+expression, recalled memory, interaction-candidate metadata, and explicit memory
+search follow the history; the current user request is always last. The current
+request is removed from the transcript before that final append. This keeps
+frequently changing affect and memory context from invalidating the stable prefix
+or the reusable portion of conversation history. Dynamic interaction-candidate
+registry entries stay outside the otherwise stable reflection protocol.
+If the current request alone exceeds its remaining budget, prompt construction
+keeps both its opening instructions and trailing context with an explicit middle-
+omission marker; optional sections are omitted or truncated through the section
+planner rather than by slicing the assembled prompt.
+
 Do not call an agent recursively just to summarize history unless the project
 adds an explicit summarization provider later.
 

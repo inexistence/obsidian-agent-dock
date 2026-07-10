@@ -92,6 +92,20 @@ function testTruncatableSectionsShrinkBeforeDropping() {
   assert(result.conversationBudget >= 1000, "reserved conversation budget should be preserved");
 }
 
+function testConversationBudgetDoesNotExceedRemainingLimit() {
+  const result = planPromptSections(
+    [{ name: "protected", text: "P".repeat(1200), protected: true }],
+    1400,
+    { minConversationChars: 1000 }
+  );
+
+  assert.equal(result.conversationBudget, 200, "conversation budget should reflect actual remaining capacity");
+  assert(
+    result.sectionText.length + result.conversationBudget <= 1400,
+    "planned sections and conversation budget should not exceed the configured limit"
+  );
+}
+
 async function testExplicitSearchBeatsSoftSections() {
   const result = await buildPromptWithMetadata(
     app,
@@ -337,6 +351,117 @@ async function testAgentDockSignalPolicyFollowsDeepMemorySettings() {
   }
 }
 
+async function testCacheFriendlyPromptOrdering() {
+  const conversation = [
+    { role: "user", content: "Earlier question" },
+    { role: "assistant", content: "Earlier answer" },
+    { role: "user", content: "CURRENT_CACHE_TEST_REQUEST" }
+  ];
+  const baseOptions = {
+    workingAffect: {
+      label: "focused",
+      strength: 0.7,
+      ageMinutes: 2,
+      focus: 0.8
+    },
+    memories: [createMemory("CACHE_TEST_MEMORY", "project")],
+    memorySearchPerformed: true,
+    memorySearchResults: [createMemory("CACHE_TEST_SEARCH_RESULT", "project")],
+    interactionPatternCandidates: [{
+      key: "cache_test_candidate",
+      axis: "response_depth",
+      summary: "Keep the response compact and technically grounded.",
+      evidenceCount: 1,
+      minEvidence: 2
+    }]
+  };
+  const result = await buildPromptWithMetadata(
+    app,
+    { assistantStyle: "collaborative", contextLimitChars: 12000 },
+    "CURRENT_CACHE_TEST_REQUEST",
+    conversation,
+    baseOptions
+  );
+
+  const signalIndex = result.prompt.indexOf("Agent Dock continuity reflection:");
+  const conversationIndex = result.prompt.indexOf("Conversation so far:");
+  const continuityIndex = result.prompt.indexOf("Assistant continuity context:");
+  const registryIndex = result.prompt.indexOf("Existing unpromoted interaction pattern candidate registry:");
+  const searchIndex = result.prompt.indexOf("Explicit local memory search results:");
+  const requestIndex = result.prompt.indexOf("User request:\nCURRENT_CACHE_TEST_REQUEST");
+
+  assert(signalIndex >= 0 && signalIndex < conversationIndex, "stable reflection protocol should precede conversation history");
+  assert(conversationIndex < continuityIndex, "conversation history should precede per-turn continuity context");
+  assert(continuityIndex < registryIndex, "dynamic candidate registry should remain outside the stable protocol prefix");
+  assert(registryIndex < searchIndex, "explicit memory search should be the last dynamic section");
+  assert(searchIndex < requestIndex, "current request should remain visually and semantically last");
+  assert.equal(
+    (result.prompt.match(/CURRENT_CACHE_TEST_REQUEST/g) || []).length,
+    1,
+    "current request should be removed from history before being appended at the end"
+  );
+
+  const changed = await buildPromptWithMetadata(
+    app,
+    { assistantStyle: "collaborative", contextLimitChars: 12000 },
+    "CURRENT_CACHE_TEST_REQUEST",
+    conversation,
+    Object.assign({}, baseOptions, {
+      workingAffect: {
+        label: "warm",
+        strength: 0.4,
+        ageMinutes: 9,
+        warmth: 0.8
+      },
+      memories: [createMemory("A DIFFERENT DYNAMIC MEMORY", "shared")]
+    })
+  );
+  const firstDynamicIndex = result.prompt.indexOf("Assistant continuity context:");
+  const changedDynamicIndex = changed.prompt.indexOf("Assistant continuity context:");
+  assert.equal(
+    result.prompt.slice(0, firstDynamicIndex),
+    changed.prompt.slice(0, changedDynamicIndex),
+    "changing affect or recalled memory should not invalidate the stable prefix and conversation history"
+  );
+}
+
+async function testLongCurrentRequestUsesStructuredCompression() {
+  const currentRequest = `BEGIN_CURRENT_INSTRUCTION ${"x".repeat(16000)} END_CURRENT_PAYLOAD`;
+  const result = await buildPromptWithMetadata(
+    app,
+    { assistantStyle: "collaborative", contextLimitChars: 8000 },
+    currentRequest,
+    [
+      { role: "user", content: "Earlier question" },
+      { role: "assistant", content: "Earlier answer" },
+      { role: "user", content: currentRequest }
+    ],
+    {
+      workingAffect: {
+        label: "focused",
+        strength: 0.7,
+        focus: 0.8
+      },
+      memorySearchPerformed: true,
+      memorySearchResults: [createMemory("STRUCTURED_COMPRESSION_SEARCH_RESULT")]
+    }
+  );
+
+  assert(result.prompt.length <= 8000, "structured compression should respect the configured limit");
+  assert(result.prompt.includes("BEGIN_CURRENT_INSTRUCTION"), "long requests should preserve their opening instruction");
+  assert(result.prompt.includes("END_CURRENT_PAYLOAD"), "long requests should preserve useful trailing payload context");
+  assert(result.prompt.includes("Middle of the current request omitted"), "long requests should disclose middle truncation");
+  assert(result.prompt.includes("STRUCTURED_COMPRESSION_SEARCH_RESULT"), "protected explicit search should survive compression");
+  assert(result.context.compressed, "long current request truncation should be reported as compression");
+  if (!result.prompt.includes("Agent Dock continuity reflection:")) {
+    assert(
+      result.context.omittedSections.includes("agent_signals")
+        || result.context.truncatedSections.includes("agent_signals"),
+      "removed reflection instructions should be represented in section metadata"
+    );
+  }
+}
+
 function assertPromptListsAllowedValues(prompt) {
   for (const [kind, scope] of Object.entries(MEMORY_SIGNAL_SCOPES)) {
     assert(prompt.includes(`${kind}/${scope}`), `prompt should list the accepted ${kind} memory scope`);
@@ -385,10 +510,13 @@ async function testTurnContextPromptUsesSameArbitration() {
 
 Promise.resolve()
   .then(testTruncatableSectionsShrinkBeforeDropping)
+  .then(testConversationBudgetDoesNotExceedRemainingLimit)
   .then(testExplicitSearchBeatsSoftSections)
   .then(testAutomaticMemoryDoesNotCrowdOutCurrentTurn)
   .then(testLocalContextBoundaryIsGlobalAndEmptySearchIsOmitted)
   .then(testAgentDockSignalPolicyFollowsDeepMemorySettings)
+  .then(testCacheFriendlyPromptOrdering)
+  .then(testLongCurrentRequestUsesStructuredCompression)
   .then(testTurnContextPromptUsesSameArbitration)
   .then(() => {
     console.log("Prompt budget tests passed.");

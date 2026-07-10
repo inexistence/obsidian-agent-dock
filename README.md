@@ -340,6 +340,14 @@ explicit memory search and user-referenced paths take priority, while automatic
 memory and assistant continuity context can be filtered, omitted, or truncated
 so they do not crowd out the current request.
 
+Prompts keep stable style, safety-boundary, and reflection instructions ahead of
+conversation history, then append turn-specific memory, affect, and interaction
+context before the current request. This ordering allows provider-side prefix
+caches to reuse stable instructions and prior conversation even when local
+continuity signals change between turns.
+If one current request is itself too large, Agent Dock preserves its opening and
+trailing context and marks the omitted middle explicitly.
+
 The composer shows an estimated context usage percentage below the prompt box.
 If a send actually triggers compression, the response timeline includes a
 `Context compressed` notice.

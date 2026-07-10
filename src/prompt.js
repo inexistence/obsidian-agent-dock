@@ -19,7 +19,10 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
   const contextLimit = Number(settings.contextLimitChars) || 258000;
   const stylePrompt = formatAssistantStylePrompt(settings);
   const localContextBoundaryPrompt = formatLocalContextBoundaryPrompt(settings);
-  const agentSignalPrompt = formatAgentSignalPrompt(settings, options.interactionPatternCandidates);
+  const agentSignalPrompt = formatAgentSignalPrompt(settings);
+  const interactionPatternRegistryPrompt = formatPatternCandidateRegistry(
+    options.interactionPatternCandidates
+  );
   const continuityPrompt = formatAssistantContinuityPrompt({
     workingAffect: options.workingAffect,
     deepMemories: options.deepMemories || [],
@@ -33,26 +36,47 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
     options.memorySearchResults || [],
     options.memorySearchPerformed
   );
+  const currentRequestPrompt = formatCurrentRequestPrompt(prompt);
   const sectionPlan = planPromptSections(
     [
-      createPromptSection("assistant_style", stylePrompt, { protected: true }),
-      createPromptSection("local_context_boundary", localContextBoundaryPrompt, { protected: true }),
+      createPromptSection("assistant_style", stylePrompt, { protected: true, placement: "stable" }),
+      createPromptSection("local_context_boundary", localContextBoundaryPrompt, { protected: true, placement: "stable" }),
+      createPromptSection("agent_signals", agentSignalPrompt, { optional: true, priority: 25, truncatable: true, minChars: 1400, placement: "stable" }),
       createPromptSection("memory_search", memorySearchPrompt, { optional: true, priority: 80, protected: true }),
       createPromptSection("referenced_paths", referencedPrompt, { optional: true, priority: 70, truncatable: true, minChars: 400 }),
       createPromptSection("assistant_continuity", continuityPrompt, { optional: true, priority: 40, truncatable: true, minChars: 600 }),
       createPromptSection("expression", expressionPrompt, { optional: true, priority: 38, truncatable: true, minChars: 360 }),
       createPromptSection("memory", memoryPrompt, { optional: true, priority: 30, truncatable: true, minChars: 700 }),
-      createPromptSection("agent_signals", agentSignalPrompt, { optional: true, priority: 25, truncatable: true, minChars: 1400 })
+      createPromptSection("interaction_pattern_registry", interactionPatternRegistryPrompt, { optional: true, priority: 24, truncatable: true, minChars: 400 })
     ],
-    contextLimit
+    contextLimit,
+    { minConversationChars: getMinimumTurnBudget(contextLimit, currentRequestPrompt) }
   );
-  const conversationPrompt = formatConversationPrompt(prompt, conversation, sectionPlan.conversationBudget);
+  const stableSectionText = formatPlannedSections(sectionPlan.sections, "stable");
+  const dynamicSectionText = formatPlannedSections(sectionPlan.sections, "dynamic", {
+    last: ["memory_search"]
+  });
+  const turnTextBudget = Math.max(0, sectionPlan.conversationBudget - 2);
+  const limitedCurrentRequestPrompt = limitCurrentRequest(
+    currentRequestPrompt,
+    turnTextBudget
+  );
+  const conversationBudget = limitedCurrentRequestPrompt.length < currentRequestPrompt.length
+    ? 0
+    : Math.max(0, turnTextBudget - limitedCurrentRequestPrompt.length);
+  const conversationPrompt = formatConversationHistoryPrompt(
+    prompt,
+    conversation,
+    conversationBudget
+  );
   const promptParts = [
-    sectionPlan.sectionText,
-    conversationPrompt
+    stableSectionText,
+    conversationPrompt,
+    dynamicSectionText,
+    limitedCurrentRequestPrompt
   ].filter(Boolean);
   const protectedPrefix = sectionPlan.sections
-    .filter((section) => section.protected)
+    .filter((section) => section.placement === "stable" && section.protected)
     .map((section) => section.text)
     .join("\n");
   return buildPromptResult(
@@ -60,7 +84,8 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
     contextLimit,
     options.memories || [],
     protectedPrefix,
-    sectionPlan
+    sectionPlan,
+    currentRequestPrompt.length - limitedCurrentRequestPrompt.length
   );
 }
 
@@ -85,7 +110,7 @@ function formatLocalContextBoundaryPrompt() {
   ].join("\n");
 }
 
-function formatAgentSignalPrompt(settings, interactionPatternCandidates = []) {
+function formatAgentSignalPrompt(settings) {
   const lines = [];
   const deepMemorySignalsEnabled = settings?.deepMemoryEnabled !== false
     && settings?.deepMemoryAutoCapture !== false;
@@ -192,10 +217,6 @@ function formatAgentSignalPrompt(settings, interactionPatternCandidates = []) {
     lines.push("Omit unused fields. Local validation controls persistence and may reject or cap every proposal. Reflection cannot declare user preferences or facts, directly create interaction patterns, modify the persona preset, or override task accuracy, permissions, or safety.");
     if (interactionSignalsEnabled) {
       lines.push(`An outcome interaction may nominate one tentative \`patternCandidate\`: {key:stable_snake_case,axis:${[...AI_PATTERN_AXES].join("/")},confidence,evidenceQuote,summary}. Copy \`evidenceQuote\` exactly from the current user message; it must support the nomination. The summary is a revisable assistant strategy, not a user fact. Promotion requires repeated positive closed-episode evidence.`);
-    }
-    const registryPrompt = formatPatternCandidateRegistry(interactionPatternCandidates);
-    if (registryPrompt) {
-      lines.push(registryPrompt);
     }
     lines.push(`Minimal leading example: \`<!-- agent-dock:reflection phase=appraisal | ${JSON.stringify(appraisalExample)} -->\``);
     lines.push(`Minimal terminal example: \`<!-- agent-dock:reflection phase=outcome | ${JSON.stringify(outcomeExample)} -->\``);
@@ -352,8 +373,8 @@ function formatMemorySearchPrompt(results, performed) {
 
   return [
     "Explicit local memory search results:",
-    "Historical local notes that may be outdated or incomplete. Each result labels whether it came from a user message, assistant reflection, or local synthesis; do not attribute a synthesis to either speaker. Interpret relative date words inside a result relative to that result's updated/created date unless the current turn says otherwise. If they do not answer the user's question, say that instead of inventing a memory.",
     resultText,
+    "Historical local notes that may be outdated or incomplete. Each result labels whether it came from a user message, assistant reflection, or local synthesis; do not attribute a synthesis to either speaker. Interpret relative date words inside a result relative to that result's updated/created date unless the current turn says otherwise. If they do not answer the user's question, say that instead of inventing a memory.",
     ""
   ].join("\n");
 }
@@ -381,20 +402,47 @@ const ASSISTANT_STYLE_PROFILES = {
   ].join("\n")
 };
 
-function formatConversationPrompt(prompt, conversation, maxChars) {
+function formatConversationHistoryPrompt(prompt, conversation, maxChars) {
   const promptConversation = filterPromptConversation(conversation);
-  if (!promptConversation || promptConversation.length <= 1) {
-    return ["User request:", prompt].join("\n");
+  if (
+    promptConversation.length > 0
+    && promptConversation[promptConversation.length - 1]?.role === "user"
+    && String(promptConversation[promptConversation.length - 1]?.content || "") === String(prompt || "")
+  ) {
+    promptConversation.pop();
+  }
+  const header = "Conversation so far:\n";
+  if (promptConversation.length === 0 || maxChars <= header.length) {
+    return "";
   }
 
-  const transcript = formatConversationTranscript(promptConversation, maxChars);
+  const transcript = formatConversationTranscript(
+    promptConversation,
+    maxChars - header.length
+  );
+  return `${header}${transcript}`;
+}
 
-  return [
-    "Conversation so far:",
-    transcript,
-    "",
-    "Respond to the latest user request."
-  ].join("\n");
+function formatCurrentRequestPrompt(prompt) {
+  return ["User request:", prompt].join("\n");
+}
+
+function getMinimumTurnBudget(contextLimit, currentRequestPrompt) {
+  const limit = Number(contextLimit) || 0;
+  if (!limit) {
+    return Math.max(1000, currentRequestPrompt.length);
+  }
+  return Math.min(limit, Math.max(1000, currentRequestPrompt.length));
+}
+
+function formatPlannedSections(sections, placement, options = {}) {
+  const lastNames = new Set(options.last || []);
+  const selected = (Array.isArray(sections) ? sections : [])
+    .filter((section) => section.placement === placement);
+  const ordered = selected
+    .filter((section) => !lastNames.has(section.name))
+    .concat(selected.filter((section) => lastNames.has(section.name)));
+  return ordered.map((section) => section.text).filter(Boolean).join("\n");
 }
 
 function filterPromptConversation(conversation) {
@@ -700,11 +748,37 @@ function limitPrompt(prompt, maxChars, protectedPrefix = "") {
   return `${notice}${prompt.slice(prompt.length - available)}`;
 }
 
-function buildPromptResult(rawPrompt, contextLimit, memories = [], protectedPrefix = "", sectionPlan = null) {
+function limitCurrentRequest(currentRequest, maxChars) {
+  if (currentRequest.length <= maxChars) {
+    return currentRequest;
+  }
+  if (maxChars <= 0) {
+    return "";
+  }
+  const marker = "\n[Middle of the current request omitted.]\n";
+  if (maxChars <= marker.length + 8) {
+    return truncateText(currentRequest, maxChars);
+  }
+  const contentBudget = maxChars - marker.length;
+  const headBudget = Math.ceil(contentBudget * 0.65);
+  const tailBudget = contentBudget - headBudget;
+  return `${currentRequest.slice(0, headBudget)}${marker}${currentRequest.slice(-tailBudget)}`;
+}
+
+function buildPromptResult(
+  rawPrompt,
+  contextLimit,
+  memories = [],
+  protectedPrefix = "",
+  sectionPlan = null,
+  additionalRemovedChars = 0
+) {
   const prompt = limitPrompt(rawPrompt, contextLimit, protectedPrefix);
   const omittedSections = sectionPlan?.droppedSections || [];
   const truncatedSections = sectionPlan?.truncatedSections || [];
-  const originalChars = rawPrompt.length + (sectionPlan?.removedChars || 0);
+  const originalChars = rawPrompt.length
+    + (sectionPlan?.removedChars || 0)
+    + Math.max(0, Number(additionalRemovedChars) || 0);
   return {
     prompt,
     context: {
@@ -728,7 +802,10 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
   const contextLimit = Number(settings.contextLimitChars) || 258000;
   const stylePrompt = formatAssistantStylePrompt(settings);
   const localContextBoundaryPrompt = formatLocalContextBoundaryPrompt(settings);
-  const agentSignalPrompt = formatAgentSignalPrompt(settings, options.interactionPatternCandidates);
+  const agentSignalPrompt = formatAgentSignalPrompt(settings);
+  const interactionPatternRegistryPrompt = formatPatternCandidateRegistry(
+    options.interactionPatternCandidates
+  );
   const continuityPrompt = formatAssistantContinuityPrompt({
     workingAffect: options.workingAffect,
     deepMemories: options.deepMemories || [],
@@ -742,33 +819,47 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
     options.memorySearchResults || [],
     options.memorySearchPerformed
   );
+  const currentRequestPrompt = formatCurrentRequestPrompt(prompt);
   const sectionPlan = planPromptSections(
     [
-      createPromptSection("assistant_style", stylePrompt, { protected: true }),
-      createPromptSection("local_context_boundary", localContextBoundaryPrompt, { protected: true }),
+      createPromptSection("assistant_style", stylePrompt, { protected: true, placement: "stable" }),
+      createPromptSection("local_context_boundary", localContextBoundaryPrompt, { protected: true, placement: "stable" }),
+      createPromptSection("agent_signals", agentSignalPrompt, { optional: true, priority: 25, truncatable: true, minChars: 1400, placement: "stable" }),
       createPromptSection("memory_search", memorySearchPrompt, { optional: true, priority: 80, protected: true }),
       createPromptSection("referenced_paths", referencedPrompt, { optional: true, priority: 70, truncatable: true, minChars: 400 }),
       createPromptSection("assistant_continuity", continuityPrompt, { optional: true, priority: 40, truncatable: true, minChars: 600 }),
       createPromptSection("expression", expressionPrompt, { optional: true, priority: 38, truncatable: true, minChars: 360 }),
       createPromptSection("memory", memoryPrompt, { optional: true, priority: 30, truncatable: true, minChars: 700 }),
-      createPromptSection("agent_signals", agentSignalPrompt, { optional: true, priority: 25, truncatable: true, minChars: 1400 })
+      createPromptSection("interaction_pattern_registry", interactionPatternRegistryPrompt, { optional: true, priority: 24, truncatable: true, minChars: 400 })
     ],
-    contextLimit
+    contextLimit,
+    { minConversationChars: getMinimumTurnBudget(contextLimit, currentRequestPrompt) }
+  );
+  const stableSectionText = formatPlannedSections(sectionPlan.sections, "stable");
+  const dynamicSectionText = formatPlannedSections(sectionPlan.sections, "dynamic", {
+    last: ["memory_search"]
+  });
+  const limitedCurrentRequestPrompt = limitCurrentRequest(
+    currentRequestPrompt,
+    Math.max(0, sectionPlan.conversationBudget - 1)
   );
   const promptParts = [
-    sectionPlan.sectionText,
-    ["User request:", prompt].join("\n")
+    stableSectionText,
+    dynamicSectionText,
+    limitedCurrentRequestPrompt
   ];
+  const protectedPrefix = sectionPlan.sections
+    .filter((section) => section.placement === "stable" && section.protected)
+    .map((section) => section.text)
+    .join("\n");
 
   return buildPromptResult(
     promptParts.filter(Boolean).join("\n"),
     contextLimit,
     options.memories || [],
-    sectionPlan.sections
-      .filter((section) => section.protected)
-      .map((section) => section.text)
-      .join("\n"),
-    sectionPlan
+    protectedPrefix,
+    sectionPlan,
+    currentRequestPrompt.length - limitedCurrentRequestPrompt.length
   );
 }
 
