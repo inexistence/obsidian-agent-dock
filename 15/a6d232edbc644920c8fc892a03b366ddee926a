@@ -1,0 +1,49 @@
+src/agents/shared/TurnContextBuilder.js
+  s_a131b7573d51de::t_4ef5e90788ecaa 2-5,171-174,178
+  s_a131b7573d51de::t_d15123d8cbc33c 16,160-163,166-170,175,204
+  s_a131b7573d51de::t_732d7a4aa9e18c 177
+  s_a131b7573d51de::t_c8b7d29ddfabef 176
+  s_a131b7573d51de::t_f2b30bb0dc8963 179-180
+scripts/test-turn-context-builder.js
+  s_a131b7573d51de::t_4ef5e90788ecaa 186-189,191,198-203,215-222
+  s_a131b7573d51de::t_732d7a4aa9e18c 211-214,223-227
+  s_a131b7573d51de::t_d15123d8cbc33c 17-19,167-170,172-185,190,192-197,204-210,228-229,284
+  s_a131b7573d51de::t_8ef3189c8f70cc 171
+src/continuity/ContinuityPromptFormatter.js
+  s_a131b7573d51de::t_4ef5e90788ecaa 58,82-85,224
+  s_a131b7573d51de::t_732d7a4aa9e18c 55,80-81,86-87,225
+  s_a131b7573d51de::t_4e865824a8bd2c 88-89
+src/i18n/en.js
+  s_a131b7573d51de::t_d15123d8cbc33c 346-347,399,485-486,538
+README.md
+  s_a131b7573d51de::t_732d7a4aa9e18c 136-138
+main.js
+  s_a131b7573d51de::t_612778d67bda06 5089,5116,5122-5302,7923-7939,7942,7983-8012,8017-8027,8029,8146,8148,8157-8160,8171,8315-8318,8321-8330,8332-8333
+  s_a131b7573d51de::t_d3def944d0256b 469-470,522,608-609,661,1076-1077,1129,1215-1216,1268,5063-5088,5090-5115,5117-5121,7940-7941,8013-8016,8028,8331,8334-8335,8359
+src/i18n/zh.js
+  s_a131b7573d51de::t_d15123d8cbc33c 346-347,399,485-486,538
+src/agents/shared/memoryNotices.js
+  s_a131b7573d51de::t_732d7a4aa9e18c 84-86,91-92,98,109-113
+  s_a131b7573d51de::t_d15123d8cbc33c 18-34,75-83,87-90,93-97,99-104,114-119,121,238,240
+  s_a131b7573d51de::t_c04a9071c27751 105-108
+  s_a131b7573d51de::t_99a88a902706a9 120
+docs/architecture.md
+  s_a131b7573d51de::t_732d7a4aa9e18c 320-322
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "15a6d232edbc644920c8fc892a03b366ddee926a",
+  "prompts": {},
+  "logical_commit_id": "15a6d232edbc644920c8fc892a03b366ddee926a",
+  "sessions": {
+    "s_a131b7573d51de": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4b5c-e8b4-74f3-94be-86858b524ae9",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
