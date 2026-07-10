@@ -156,6 +156,7 @@ module.exports = {
   MAX_AGENT_DOCK_SIGNALS,
   createSignalEvidenceContext,
   hasGroundedAgentSignal,
+  hasExactVisibleSignalEvidence,
   hasVisibleSignalEvidence,
   mergeSignalEvidenceContexts,
   normalizeAgentDockSignals,

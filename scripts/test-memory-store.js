@@ -24,7 +24,8 @@ const {
 const {
   buildDeepMemoryAuditItems,
   buildInteractionMemoryAuditItems,
-  formatInteractionMemoryUpdateSummary
+  formatInteractionMemoryUpdateSummary,
+  formatInteractionMemoryUpdateTitle
 } = require("../src/agents/shared/captureNotices");
 const { t } = require("../src/i18n");
 const { buildPromptWithMetadata } = require("../src/prompt");
@@ -863,6 +864,68 @@ testSearchMemories().then(() => {
   assert.equal(interactionItems[1].fields[0].label, "原因", "interaction change audit should lead with reason");
   assert.equal(interactionItems[1].fields[1].label, "来源", "interaction change audit should show source after reason");
 
+  const topicShiftItems = buildInteractionMemoryAuditItems({
+    closedEpisodes: [{
+      id: "episode-topic-shift",
+      context: "general",
+      phase: "implementation",
+      userExcerpt: "我今天都和你聊了什么？",
+      assistantExcerpt: "正在查今天的对话记录。",
+      reaction: {
+        kind: "topic_shift",
+        outcomeHint: "topic_shift",
+        excerpt: "hello",
+        signals: []
+      },
+      outcomeHint: "topic_shift",
+      aiReflectionContribution: {
+        source: "ai_outcome_reflection",
+        summary: "助手采用了独立判断并解释依据。",
+        shapes: ["independent_judgment"],
+        confidence: 0.6,
+        weight: 0.048,
+        validation: "grounded_visible_evidence",
+        patternCandidate: {
+          key: "decide_with_visible_tradeoffs",
+          axis: "decision_style",
+          evidenceQuote: "我今天都和你聊了什么？",
+          summary: "相似决策中先给建议，再公开取舍。",
+          confidence: 0.6,
+          evidenceOrigin: "user_message"
+        }
+      },
+      memoryRole: "short_term_episode",
+      eventWeight: 0.12
+    }],
+    updatedPatterns: [],
+    updatedTensions: [],
+    updatedStableImpressions: [],
+    patternCandidateUpdates: [{
+      episodeId: "episode-topic-shift",
+      key: "decide_with_visible_tradeoffs",
+      axis: "decision_style",
+      summary: "相似决策中先给建议，再公开取舍。",
+      evidenceQuote: "我今天都和你聊了什么？",
+      evidenceCount: 0,
+      minEvidence: 2,
+      status: "rejected",
+      reason: "follow_up_not_supportive"
+    }]
+  }, settings, "codex", t);
+  const topicShiftFields = Object.fromEntries(topicShiftItems[0].fields.map((field) => [field.label, field.value]));
+  assert.match(topicShiftFields["原因"], /下一条用户消息/, "episode audit should explain why the later message closed the previous turn");
+  assert.match(topicShiftFields["原因"], /被关闭的上一轮/, "episode audit should clarify what context and phase describe");
+  assert.match(topicShiftFields["反应判定"], /topic_shift/, "episode audit should expose the local reaction classification");
+  assert.match(topicShiftFields["反应判定"], /没有识别到明确反馈/, "episode audit should explain the reaction classification");
+  assert.match(topicShiftFields["AI 反思贡献"], /通过可见证据校验/, "episode audit should show that the AI outcome contribution passed local validation");
+  assert.match(topicShiftFields["AI 反思贡献"], /independent_judgment/, "episode audit should show contributed assistant shapes");
+  assert.match(topicShiftFields["AI 反思贡献"], /\+0\.05/, "episode audit should show the bounded AI weight contribution");
+  assert.match(topicShiftFields["长期模式候选状态"], /未提供支持证据/, "episode audit should explain why an AI pattern nomination was rejected");
+  assert.match(topicShiftFields["长期模式候选状态"], /decide_with_visible_tradeoffs/, "episode audit should identify the nominated candidate key");
+  assert.match(topicShiftItems[0].source, /AI outcome 反思/, "episode audit source should include validated AI reflection provenance");
+  assert.match(topicShiftFields["实际影响"], /没有更新模式、张力或稳定印象/, "low-weight episode audit should state that no derived memory changed");
+  assert.match(topicShiftFields["实际影响"], /不会直接注入后续提示词/, "low-weight episode audit should state that the episode is not directly prompted");
+
   const interactionSummary = formatInteractionMemoryUpdateSummary(settings, "codex", t, {
     closedEpisodes: [{
       context: "review",
@@ -883,4 +946,30 @@ testSearchMemories().then(() => {
   assert.match(interactionSummary, /好了/, "interaction summary should include the closed episode reaction");
   assert.match(interactionSummary, /用户希望先看风险/, "interaction summary should include the affected experience content");
   assert.match(interactionSummary, /2 条证据/, "interaction summary should include the affected experience evidence count");
+
+  const unchangedInteractionSummary = formatInteractionMemoryUpdateSummary(settings, "codex", t, {
+    closedEpisodes: [{ userExcerpt: "上一轮", reaction: { excerpt: "hello" } }],
+    updatedPatterns: [],
+    updatedTensions: [],
+    updatedStableImpressions: []
+  });
+  assert.match(unchangedInteractionSummary, /没有更新模式、张力或稳定印象/, "interaction summary should distinguish episode storage from derived-memory changes");
+  assert.equal(
+    formatInteractionMemoryUpdateTitle(settings, "codex", t, {
+      updatedPatterns: [],
+      updatedTensions: [],
+      updatedStableImpressions: []
+    }),
+    "互动 episode 已处理",
+    "interaction notice title should not claim derived memory changed when only an episode closed"
+  );
+  assert.equal(
+    formatInteractionMemoryUpdateTitle(settings, "codex", t, {
+      updatedPatterns: [{ id: "pattern-1" }],
+      updatedTensions: [],
+      updatedStableImpressions: []
+    }),
+    "互动经验已更新",
+    "interaction notice title should identify real derived-memory changes"
+  );
 }

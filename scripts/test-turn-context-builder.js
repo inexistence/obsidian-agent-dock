@@ -13,7 +13,8 @@ Module._load = function patchedLoad(request, parent, isMain) {
 
 const {
   buildAgentTurnContext,
-  buildPromptResultForTurnContext
+  buildPromptResultForTurnContext,
+  emitDebugPromptActivity
 } = require("../src/agents/shared/TurnContextBuilder");
 
 const now = Date.UTC(2026, 6, 9);
@@ -56,6 +57,15 @@ function createPlugin() {
       }
     },
     interactionMemoryStore: {
+      async getPatternCandidateRegistry() {
+        return [{
+          key: "concise_implementation_notes",
+          axis: "communication_pacing",
+          summary: "When implementation work recurs, keep progress notes concise.",
+          evidenceCount: 1,
+          minEvidence: 2
+        }];
+      },
       async getPromptStance() {
         return [
           {
@@ -138,6 +148,7 @@ async function testBuildAgentTurnContext() {
   assert(result.promptResult.prompt.includes("beauty and atmosphere"));
   assert(!result.promptResult.prompt.includes("Low confidence stance should be filtered"));
   assert(result.promptResult.prompt.includes("Prefer concise implementation notes"));
+  assert.equal(result.interactionPatternCandidates[0].key, "concise_implementation_notes");
   assert(!result.promptResult.prompt.includes("Current turn tone signal"));
   assert(result.promptResult.prompt.includes("Meaningful recalled moment"));
   assert.deepEqual(
@@ -179,9 +190,36 @@ async function testBuildPromptResultForTurnContextUsesSessionPrompt() {
   assert(!result.prompt.includes("Conversation so far:"));
 }
 
+function testEmitDebugPromptActivity() {
+  const updates = [];
+  const promptResult = { prompt: "System context\n\nUser request:\nhello" };
+  emitDebugPromptActivity(
+    (update) => updates.push(update),
+    promptResult,
+    { debugActivity: true },
+    translate
+  );
+
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0].kind, "activity");
+  assert.equal(updates[0].title, "timeline.turnPrompt.title");
+  assert.equal(updates[0].detail, promptResult.prompt);
+  assert.equal(updates[0].persist, false, "complete prompt debug activity should not be persisted into chat history");
+  assert(updates[0].summary.includes(String(promptResult.prompt.length)));
+
+  emitDebugPromptActivity(
+    (update) => updates.push(update),
+    promptResult,
+    { debugActivity: false },
+    translate
+  );
+  assert.equal(updates.length, 1, "prompt activity should stay disabled outside debug mode");
+}
+
 Promise.resolve()
   .then(testBuildAgentTurnContext)
   .then(testBuildPromptResultForTurnContextUsesSessionPrompt)
+  .then(testEmitDebugPromptActivity)
   .then(() => {
     console.log("Turn context builder tests passed.");
   })

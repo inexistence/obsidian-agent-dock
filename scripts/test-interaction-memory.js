@@ -667,8 +667,19 @@ function testAssistantInteractionSignalOnlySupplementsPendingEpisode() {
         origin: "assistant_message",
         speaker: "assistant",
         quote: "chose the safer design and explained the tradeoff"
+      }, {
+        origin: "user_message",
+        speaker: "user",
+        quote: "Choose the safer design."
       }],
       shapes: ["independent_judgment"],
+      patternCandidate: {
+        key: "decide_with_visible_tradeoffs",
+        axis: "decision_style",
+        evidenceQuote: "Choose the safer design.",
+        summary: "When a similar decision recurs, make a recommendation and expose the tradeoff.",
+        confidence: 0.6
+      },
       confidence: 0.6,
       envelope: "reflection_v1"
     }],
@@ -705,12 +716,136 @@ function testAssistantInteractionSignalOnlySupplementsPendingEpisode() {
     }],
     sessionId: "interaction-appraisal-only"
   });
+  const fabricatedUserEvidence = extractEpisodeDraft({
+    prompt: "Choose the safer design.",
+    response: "The final answer chose the safer design and explained the tradeoff.",
+    agentDockSignals: [{
+      type: "interaction_candidate",
+      text: "The assistant exercised independent judgment instead of listing options.",
+      evidenceRefs: [{
+        origin: "assistant_message",
+        speaker: "assistant",
+        quote: "chose the safer design and explained the tradeoff"
+      }, {
+        origin: "user_message",
+        speaker: "user",
+        quote: "I always want independent recommendations."
+      }],
+      shapes: ["independent_judgment"],
+      patternCandidate: {
+        key: "decide_with_visible_tradeoffs",
+        axis: "decision_style",
+        evidenceQuote: "I always want independent recommendations.",
+        summary: "When a similar decision recurs, make a recommendation and expose the tradeoff.",
+        confidence: 0.6
+      },
+      confidence: 0.6,
+      envelope: "reflection_v1"
+    }],
+    sessionId: "interaction-fabricated-user-evidence"
+  });
 
   assert(!baseline.assistantShape.includes("independent_judgment"), "the local rule should not already infer the proposed shape");
   assert(supplemented.assistantShape.includes("independent_judgment"), "a grounded assistant signal should supplement pending episode shape");
   assert(supplemented.eventWeight > baseline.eventWeight, "grounded interaction hints should add only a bounded episode weight");
+  assert.equal(supplemented.aiReflectionContribution.source, "ai_outcome_reflection", "accepted outcome reflection should retain bounded provenance");
+  assert.deepEqual(supplemented.aiReflectionContribution.shapes, ["independent_judgment"], "accepted outcome reflection should record contributed shapes");
+  assert.equal(supplemented.aiReflectionContribution.validation, "grounded_visible_evidence", "accepted outcome reflection should record local evidence validation");
+  assert(supplemented.aiReflectionContribution.weight > 0, "accepted outcome reflection should record its bounded weight contribution");
+  assert.equal(supplemented.aiReflectionContribution.patternCandidate.key, "decide_with_visible_tradeoffs", "grounded user evidence should retain an AI long-term pattern nomination on the episode");
   assert(!rejected.assistantShape.includes("softened_tone"), "ungrounded interaction hints must be ignored");
+  assert.equal(rejected.aiReflectionContribution, null, "ungrounded interaction hints should not retain contribution provenance");
   assert(!appraisalOnly.assistantShape.includes("independent_judgment"), "interaction memory must wait for outcome rather than persist intended appraisal shape");
+  assert.equal(appraisalOnly.aiReflectionContribution, null, "appraisal reflection should not persist as interaction evidence");
+  assert.equal(fabricatedUserEvidence.aiReflectionContribution.patternCandidate, null, "AI pattern nominations should require an exact visible current-user evidence quote");
+}
+
+function testAiPatternCandidatesRequireRepeatedPositiveEvidence() {
+  const now = Date.UTC(2026, 6, 10);
+  const createEpisode = (id, offset, outcomeHint = "productive_deepening") => ({
+    id,
+    status: "closed",
+    context: "planning",
+    phase: "concept",
+    userSignals: [],
+    assistantShape: ["independent_judgment"],
+    aiReflectionContribution: {
+      source: "ai_outcome_reflection",
+      summary: "The assistant made a recommendation and exposed the tradeoff.",
+      shapes: ["independent_judgment"],
+      confidence: 0.62,
+      weight: 0.05,
+      validation: "grounded_visible_evidence",
+      patternCandidate: {
+        key: "decide_with_visible_tradeoffs",
+        axis: "decision_style",
+        evidenceQuote: "Choose the safer design.",
+        summary: "When a similar decision recurs, make a recommendation and expose the tradeoff.",
+        confidence: 0.62,
+        evidenceOrigin: "user_message"
+      }
+    },
+    eventWeight: 0.45,
+    memoryRole: "pattern_evidence",
+    outcomeHint,
+    createdAt: now + offset,
+    updatedAt: now + offset
+  });
+
+  const one = applyEpisodes({}, [createEpisode("ai-candidate-1", 0)], settings, now);
+  assert(!one.patterns.some((pattern) => pattern.generatedBy === "ai"), "one AI nomination must not create a long-term pattern");
+
+  const rejectedSecond = applyEpisodes(one, [createEpisode("ai-candidate-rejected", 500, "topic_shift")], settings, now + 500);
+  assert(!rejectedSecond.patterns.some((pattern) => pattern.generatedBy === "ai"), "topic shifts must not support AI pattern promotion");
+
+  const promoted = applyEpisodes(rejectedSecond, [createEpisode("ai-candidate-2", 1000)], settings, now + 1000);
+  const pattern = promoted.patterns.find((item) => item.generatedBy === "ai");
+  assert(pattern, "repeated positive closed-episode evidence should promote an AI-nominated pattern locally");
+  assert.equal(pattern.candidateKey, "decide_with_visible_tradeoffs");
+  assert.equal(pattern.reviewStatus, "auto", "locally promoted AI patterns should not claim a review workflow that does not exist");
+  assert.equal(pattern.evidenceCount, 2, "rejected follow-ups should not count toward AI pattern evidence");
+  assert(pattern.evidenceEpisodeIds.includes("ai-candidate-1"));
+  assert(pattern.evidenceEpisodeIds.includes("ai-candidate-2"));
+
+  const stance = getPromptStance(promoted, settings, {
+    context: "planning",
+    signals: [],
+    conversationText: ""
+  }, now + 1000);
+  assert(stance.some((item) => /make a recommendation/.test(item.text)), "locally promoted AI patterns should enter prompts only when turn-relevant");
+
+  const conflicting = applyEpisodes(promoted, [{
+    ...createEpisode("ai-candidate-conflict", 1500),
+    aiReflectionContribution: {
+      ...createEpisode("ai-candidate-conflict", 1500).aiReflectionContribution,
+      patternCandidate: {
+        ...createEpisode("ai-candidate-conflict", 1500).aiReflectionContribution.patternCandidate,
+        summary: "Use the same key for a different collaboration strategy."
+      }
+    }
+  }], settings, now + 1500);
+  const unchangedPattern = conflicting.patterns.find((item) => item.generatedBy === "ai");
+  assert.equal(unchangedPattern.evidenceCount, 2, "conflicting reuse of a registered key must not add evidence");
+  assert.equal(unchangedPattern.summary, pattern.summary, "conflicting reuse must not replace the canonical candidate summary");
+
+  const candidateOnly = require("../src/interaction/PatternReducer").normalizeInteractionMemory({
+    pendingEpisodes: [{
+      id: "candidate-only",
+      status: "pending",
+      aiReflectionContribution: {
+        source: "ai_outcome_reflection",
+        summary: "A candidate without an assistant shape.",
+        shapes: [],
+        confidence: 0.6,
+        weight: 0.04,
+        validation: "grounded_visible_evidence",
+        patternCandidate: createEpisode("candidate-only", 2000).aiReflectionContribution.patternCandidate
+      },
+      createdAt: now + 2000,
+      updatedAt: now + 2000
+    }]
+  });
+  assert(candidateOnly.pendingEpisodes[0].aiReflectionContribution, "a valid pattern candidate must survive normalization without assistant shapes");
 }
 
 function testOldInteractionMemoryNormalizesNewFields() {
@@ -732,6 +867,7 @@ function testOldInteractionMemoryNormalizesNewFields() {
   assert.equal(normalized.episodes[0].repairPath, null, "old episodes should not invent repair paths");
   assert.equal(normalized.episodes[0].memoryRole, "short_term_episode", "old episodes should get default memory role");
   assert.equal(normalized.episodes[0].eventWeight, 0.2, "old episodes should get a low default event weight");
+  assert.equal(normalized.episodes[0].aiReflectionContribution, null, "old episodes should not invent AI reflection provenance");
 }
 
 testEpisodeClosureAndStance()
@@ -748,6 +884,7 @@ testEpisodeClosureAndStance()
   .then(testRepairPhaseDoesNotCrossMatchUnrelatedPatterns)
   .then(testPositiveHighWeightCanBecomeDeepCandidate)
   .then(testAssistantInteractionSignalOnlySupplementsPendingEpisode)
+  .then(testAiPatternCandidatesRequireRepeatedPositiveEvidence)
   .then(testOldInteractionMemoryNormalizesNewFields)
   .then(() => {
     console.log("Interaction memory tests passed.");

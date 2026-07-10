@@ -255,15 +255,29 @@ function testExtractsLeadingAppraisalAndTerminalOutcome() {
     }
   };
   const outcome = {
-    evidence: [{
-      origin: "assistant_message",
-      speaker: "assistant",
-      quote: "The answer responded carefully."
-    }],
+    evidence: [
+      {
+        origin: "user_message",
+        speaker: "user",
+        quote: "Please handle the repair carefully."
+      },
+      {
+        origin: "assistant_message",
+        speaker: "assistant",
+        quote: "The answer responded carefully."
+      }
+    ],
     interaction: {
       shapes: ["softened_tone"],
       confidence: 0.62,
-      summary: "The answer handled the repair carefully."
+      summary: "The answer handled the repair carefully.",
+      patternCandidate: {
+        key: "calm_repair_after_correction",
+        axis: "repair_style",
+        confidence: 0.61,
+        evidenceQuote: "Please handle the repair carefully.",
+        summary: "When a similar correction recurs, revise calmly and keep the next move useful."
+      }
     },
     affect: {
       tone: "reassuring",
@@ -290,6 +304,10 @@ function testExtractsLeadingAppraisalAndTerminalOutcome() {
     "interaction_candidate",
     "affect_candidate"
   ]);
+  const interaction = result.signals.find((signal) => signal.phase === "outcome" && signal.type === "interaction_candidate");
+  assert.equal(interaction.patternCandidate.key, "calm_repair_after_correction");
+  assert.equal(interaction.patternCandidate.axis, "repair_style");
+  assert(interaction.patternCandidate.confidence <= 0.72, "AI pattern candidate confidence should be locally capped");
 }
 
 function testInvalidTypeIsStrippedWithoutSignal() {
@@ -298,6 +316,31 @@ function testInvalidTypeIsStrippedWithoutSignal() {
   assert.equal(result.visibleText, "Done.");
   assert.equal(result.signals.length, 0);
   assert.equal(result.invalidSignal, true);
+}
+
+function testPatternCandidateDoesNotRequireAssistantShapes() {
+  const envelope = {
+    evidence: [{
+      origin: "user_message",
+      speaker: "user",
+      quote: "Please show the tradeoff."
+    }],
+    interaction: {
+      confidence: 0.6,
+      summary: "The turn suggests a reusable decision strategy.",
+      patternCandidate: {
+        key: "show_tradeoffs_with_recommendation",
+        axis: "decision_style",
+        confidence: 0.6,
+        evidenceQuote: "Please show the tradeoff.",
+        summary: "When a similar decision recurs, recommend one option and show the tradeoff."
+      }
+    }
+  };
+  const result = extractAgentDockSignals(`Done.\n<!-- agent-dock:reflection phase=outcome | ${JSON.stringify(envelope)} -->`);
+  assert.equal(result.signals.length, 1);
+  assert.deepEqual(result.signals[0].shapes, []);
+  assert.equal(result.signals[0].patternCandidate.key, "show_tradeoffs_with_recommendation");
 }
 
 function testMalformedTerminalSignalIsStripped() {
@@ -586,6 +629,7 @@ testExtractsUnifiedReflectionEnvelope();
 testRejectsReflectionWithoutEvidenceOrValidSections();
 testEvidenceSpeakerIsNormalizedAgainstOrigin();
 testExtractsLeadingAppraisalAndTerminalOutcome();
+testPatternCandidateDoesNotRequireAssistantShapes();
 testInvalidTypeIsStrippedWithoutSignal();
 testMalformedTerminalSignalIsStripped();
 testFormatsNotice();

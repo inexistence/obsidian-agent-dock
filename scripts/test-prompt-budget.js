@@ -208,7 +208,16 @@ async function testAgentDockSignalPolicyFollowsDeepMemorySettings() {
       deepMemoryAutoCapture: true
     },
     "Continue",
-    []
+    [],
+    {
+      interactionPatternCandidates: [{
+        key: "calm_repair_after_correction",
+        axis: "repair_style",
+        summary: "When corrected, revise calmly and keep the next move useful.",
+        evidenceCount: 1,
+        minEvidence: 2
+      }]
+    }
   );
   assert(enabled.prompt.includes("agent-dock:reflection"), "enabled continuity systems should use one reflection envelope");
   assert(enabled.prompt.includes("phase=appraisal"), "reflection policy should include a leading appraisal phase");
@@ -220,6 +229,11 @@ async function testAgentDockSignalPolicyFollowsDeepMemorySettings() {
   assert(enabled.prompt.includes('"deepMemory"'), "enabled deep memory should include a deep-memory reflection field");
   assert(enabled.prompt.includes('"memory"'), "enabled ordinary memory should include an ordinary-memory reflection field");
   assert(enabled.prompt.includes('"interaction"'), "enabled interaction memory should include an interaction reflection field");
+  assert(enabled.prompt.includes('"patternCandidate"'), "interaction outcome example should allow a bounded long-term pattern nomination");
+  assert(enabled.prompt.includes("repeated positive closed-episode evidence"), "reflection policy should explain that local evidence controls candidate promotion");
+  assert(enabled.prompt.includes("Existing unpromoted interaction pattern candidate registry"), "prompt should expose a bounded local registry so later reflections can reuse candidate keys");
+  assert(enabled.prompt.includes("calm_repair_after_correction"), "prompt registry should retain the canonical candidate key");
+  assert(enabled.prompt.includes("not an instruction for the current answer"), "candidate registry should be explicitly isolated from answer behavior");
   assert(enabled.prompt.includes('"affect"'), "enabled affect continuity should include an affect reflection field");
   assert(enabled.prompt.includes('"salience"'), "enabled deep memory should include a salience reflection field");
   assert(enabled.prompt.includes('"evidence"'), "reflection envelope should require visible evidence excerpts");

@@ -6,6 +6,10 @@ const MAX_STABLE_IMPRESSIONS = 16;
 
 const { formatInteractionStancePrompt } = require("./InteractionPromptFormatter");
 const { PATTERN_RULES, TENSION_RULES, STABLE_PERSONA_RULES } = require("./InteractionRules");
+const {
+  buildAiPatternCandidateRegistry,
+  normalizeAiPatternCandidate
+} = require("./InteractionPatternCandidates");
 
 function applyEpisodes(profile, newEpisodes, settings, now = Date.now()) {
   const next = normalizeInteractionMemory(profile);
@@ -14,7 +18,10 @@ function applyEpisodes(profile, newEpisodes, settings, now = Date.now()) {
     : [];
 
   next.episodes = limitEpisodes(next.episodes.concat(episodes));
-  next.patterns = reducePatterns(next.episodes, settings, now);
+  next.patterns = reducePatterns(next.episodes, settings, now)
+    .concat(reduceAiPatternCandidates(next.episodes, settings, now))
+    .sort(comparePromptItems)
+    .slice(0, MAX_PATTERNS);
   next.tensions = reduceTensions(next.episodes, settings, now);
   next.stableImpressions = reduceStableImpressions(next.patterns, next.tensions, next.stableImpressions, settings, now);
   next.updatedAt = now;
@@ -166,6 +173,40 @@ function reducePatterns(episodes, settings, now) {
     .filter((pattern) => pattern.strength >= 0.08 && pattern.confidence >= 0.2)
     .sort(comparePromptItems)
     .slice(0, MAX_PATTERNS);
+}
+
+function reduceAiPatternCandidates(episodes, settings, now) {
+  return buildAiPatternCandidateRegistry(episodes, settings).map((group) => {
+    if (group.evidenceCount < group.minEvidence) {
+      return null;
+    }
+    const matches = group.evidenceEpisodes;
+    const latest = matches[matches.length - 1];
+    return decayPattern({
+      id: `pattern_ai_${normalizeKeyText(group.key)}`,
+      key: `ai_${group.key}`,
+      candidateKey: group.key,
+      axis: group.axis,
+      summary: group.summary,
+      contexts: countBy(matches.map((episode) => episode.context)),
+      signals: uniqueStrings(matches.flatMap((episode) => episode.userSignals || [])),
+      assistantShapes: uniqueStrings(matches.flatMap((episode) => episode.assistantShape || [])),
+      outcomeHints: uniqueStrings(matches.map((episode) => episode.outcomeHint)),
+      phases: uniqueStrings(matches.map((episode) => episode.phase)),
+      repairTriggers: [],
+      repairAdjustments: [],
+      repairOutcomes: [],
+      negativeEvidenceCount: 0,
+      evidenceEpisodeIds: group.evidenceEpisodeIds,
+      evidenceCount: group.evidenceCount,
+      strength: clampUnit(0.18 + group.evidenceCount * 0.12 + group.averageConfidence * 0.25),
+      confidence: clampUnit(0.28 + group.evidenceCount * 0.06 + group.averageConfidence * 0.45),
+      generatedBy: "ai",
+      reviewStatus: "auto",
+      createdAt: group.createdAt,
+      updatedAt: latest.updatedAt || latest.createdAt || now
+    }, settings, now);
+  }).filter(Boolean);
 }
 
 function reduceTensions(episodes, settings, now) {
@@ -456,6 +497,7 @@ function normalizeEpisode(item) {
     assistantExcerpt: compactText(item.assistantExcerpt),
     userSignals: normalizeStringArray(item.userSignals),
     assistantShape: normalizeStringArray(item.assistantShape),
+    aiReflectionContribution: normalizeAiReflectionContribution(item.aiReflectionContribution),
     repairPath: normalizeRepairPath(item.repairPath),
     eventWeight: clampUnit(Number.isFinite(Number(item.eventWeight)) ? Number(item.eventWeight) : 0.2),
     memoryRole: normalizeMemoryRole(item.memoryRole),
@@ -464,6 +506,28 @@ function normalizeEpisode(item) {
     sourceSessionId: compactText(item.sourceSessionId),
     createdAt: normalizeTimestamp(item.createdAt, Date.now()),
     updatedAt: normalizeTimestamp(item.updatedAt, item.createdAt || Date.now())
+  };
+}
+
+function normalizeAiReflectionContribution(item) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    return null;
+  }
+  const shapes = normalizeStringArray(item.shapes).slice(0, 3);
+  const patternCandidate = normalizeAiPatternCandidate(item.patternCandidate);
+  if (shapes.length === 0 && !patternCandidate) {
+    return null;
+  }
+  return {
+    source: item.source === "ai_outcome_reflection" ? item.source : "ai_outcome_reflection",
+    summary: compactText(item.summary).slice(0, 440),
+    shapes,
+    confidence: clampUnit(Number(item.confidence) || 0),
+    weight: Math.min(0.08, clampUnit(Number(item.weight) || 0)),
+    validation: item.validation === "grounded_visible_evidence"
+      ? item.validation
+      : "grounded_visible_evidence",
+    patternCandidate
   };
 }
 
@@ -526,6 +590,9 @@ function normalizePattern(item) {
     repairAdjustments: normalizeStringArray(item.repairAdjustments),
     repairOutcomes: normalizeStringArray(item.repairOutcomes),
     negativeEvidenceCount: Math.max(0, Number.parseInt(item.negativeEvidenceCount, 10) || 0),
+    candidateKey: compactText(item.candidateKey),
+    generatedBy: normalizeGeneratedBy(item.generatedBy),
+    reviewStatus: normalizeReviewStatus(item.reviewStatus),
     evidenceEpisodeIds: normalizeStringArray(item.evidenceEpisodeIds),
     evidenceCount: Math.max(0, Number.parseInt(item.evidenceCount, 10) || 0),
     strength: clampUnit(Number(item.strength) || 0),

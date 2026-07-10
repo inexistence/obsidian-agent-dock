@@ -24,7 +24,9 @@ function formatInteractionMemoryUpdateSummary(settings, keyPrefix, translate, re
   const closedEpisodes = Array.isArray(result?.closedEpisodes) ? result.closedEpisodes : [];
   const changed = []
     .concat((Array.isArray(result?.updatedPatterns) ? result.updatedPatterns : []).map((item) => ({
-      type: translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`),
+      type: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiPatternLabel`)
+        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`),
       text: item.summary,
       evidenceCount: item.evidenceCount
     })))
@@ -54,8 +56,16 @@ function formatInteractionMemoryUpdateSummary(settings, keyPrefix, translate, re
     sections.push(translate(settings, `${keyPrefix}.interactionMemoryUpdated.changed`, {
       items: formatItemList(changed, (item) => formatInteractionChange(settings, keyPrefix, translate, item))
     }));
+  } else if (closedEpisodes.length > 0) {
+    sections.push(translate(settings, `${keyPrefix}.interactionMemoryUpdated.unchanged`));
   }
   return [base].concat(sections).filter(Boolean).join("\n");
+}
+
+function formatInteractionMemoryUpdateTitle(settings, keyPrefix, translate, result) {
+  return translate(settings, hasInteractionDerivedChanges(result)
+    ? `${keyPrefix}.interactionMemoryUpdated.title`
+    : `${keyPrefix}.interactionMemoryUpdated.episodeTitle`);
 }
 
 function buildMemoryUpdateAuditItems(saved, settings, keyPrefix, translate) {
@@ -131,7 +141,12 @@ function buildInteractionMemoryAuditItems(result, settings, keyPrefix, translate
   const closedEpisodes = Array.isArray(result?.closedEpisodes) ? result.closedEpisodes : [];
   const items = closedEpisodes.map((item, index) => {
     const type = translate(settings, `${keyPrefix}.memoryAudit.type.interactionEpisode`);
-    const source = translate(settings, `${keyPrefix}.memoryAudit.source.localRules`);
+    const source = item.aiReflectionContribution
+      ? translate(settings, `${keyPrefix}.memoryAudit.source.localRulesAndAiReflection`)
+      : translate(settings, `${keyPrefix}.memoryAudit.source.localRules`);
+    const affectedItems = getInteractionChangesForEpisode(result, item, settings, keyPrefix, translate);
+    const patternCandidateUpdate = (Array.isArray(result?.patternCandidateUpdates) ? result.patternCandidateUpdates : [])
+      .find((entry) => entry.episodeId === item.id);
     return {
       title: formatAuditItemTitle(type, index),
       summary: truncateNoticeText([item.userExcerpt, item.reaction?.excerpt || item.outcomeHint].filter(Boolean).join(" -> ")),
@@ -144,6 +159,10 @@ function buildInteractionMemoryAuditItems(result, settings, keyPrefix, translate
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.userExcerpt`), item.userExcerpt),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.assistantExcerpt`), item.assistantExcerpt),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.reaction`), item.reaction?.excerpt || item.outcomeHint),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reactionType`), formatInteractionReaction(item, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.aiReflection`), formatAiReflectionContribution(item.aiReflectionContribution, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.patternCandidate`), formatPatternCandidateUpdate(patternCandidateUpdate, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.effect`), formatInteractionEpisodeEffect(item, affectedItems, settings, keyPrefix, translate)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.role`), item.memoryRole),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.weight`), formatNumber(item.eventWeight))
       ].filter(Boolean)
@@ -153,8 +172,13 @@ function buildInteractionMemoryAuditItems(result, settings, keyPrefix, translate
   const changed = []
     .concat((Array.isArray(result?.updatedPatterns) ? result.updatedPatterns : []).map((item) => ({
       item,
-      type: translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`),
-      text: item.summary
+      type: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiPatternLabel`)
+        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`),
+      text: item.summary,
+      source: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.memoryAudit.source.aiReflectionPromotedLocally`)
+        : translate(settings, `${keyPrefix}.memoryAudit.source.localRules`)
     })))
     .concat((Array.isArray(result?.updatedTensions) ? result.updatedTensions : []).map((item) => ({
       item,
@@ -199,6 +223,38 @@ function buildInteractionMemoryAuditItems(result, settings, keyPrefix, translate
   return items;
 }
 
+function formatAiReflectionContribution(contribution, settings, keyPrefix, translate) {
+  if (!contribution) {
+    return "";
+  }
+  return translate(settings, `${keyPrefix}.memoryAudit.effect.aiReflectionContribution`, {
+    summary: contribution.summary || "",
+    shapes: (Array.isArray(contribution.shapes) ? contribution.shapes : []).join(", "),
+    confidence: formatNumber(contribution.confidence),
+    weight: formatNumber(contribution.weight)
+  });
+}
+
+function formatPatternCandidateUpdate(update, settings, keyPrefix, translate) {
+  if (!update) {
+    return "";
+  }
+  return translate(settings, `${keyPrefix}.memoryAudit.patternCandidate.${update.status}`, {
+    key: update.key,
+    axis: update.axis,
+    summary: update.summary,
+    canonicalSummary: update.canonicalSummary,
+    evidenceQuote: update.evidenceQuote,
+    evidenceCount: update.evidenceCount,
+    minEvidence: update.minEvidence
+  });
+}
+
+function hasInteractionDerivedChanges(result) {
+  return [result?.updatedPatterns, result?.updatedTensions, result?.updatedStableImpressions]
+    .some((items) => Array.isArray(items) && items.length > 0);
+}
+
 function formatDeepMemoryReason(item, source, settings, keyPrefix, translate) {
   if (item?.whyItMatters) {
     return item.whyItMatters;
@@ -228,6 +284,54 @@ function formatInteractionEpisodeReason(item, settings, keyPrefix, translate) {
     role: item?.memoryRole || "",
     weight: formatNumber(item?.eventWeight)
   });
+}
+
+function formatInteractionReaction(item, settings, keyPrefix, translate) {
+  const code = item?.reaction?.outcomeHint || item?.outcomeHint || item?.reaction?.kind || "";
+  if (!code) {
+    return "";
+  }
+  const label = translate(settings, `${keyPrefix}.memoryAudit.reaction.${code}`);
+  return label && label !== `${keyPrefix}.memoryAudit.reaction.${code}`
+    ? `${code} — ${label}`
+    : code;
+}
+
+function formatInteractionEpisodeEffect(item, affectedItems, settings, keyPrefix, translate) {
+  if (!Array.isArray(affectedItems) || affectedItems.length === 0) {
+    return translate(settings, `${keyPrefix}.memoryAudit.effect.interactionEpisodeOnly`, {
+      role: item?.memoryRole || "short_term_episode"
+    });
+  }
+  const labels = affectedItems.map((entry) => entry.type).filter(Boolean).join("、");
+  return translate(settings, `${keyPrefix}.memoryAudit.effect.interactionDerivedChanged`, {
+    count: affectedItems.length,
+    items: labels
+  });
+}
+
+function getInteractionChangesForEpisode(result, episode, settings, keyPrefix, translate) {
+  const entries = []
+    .concat((Array.isArray(result?.updatedPatterns) ? result.updatedPatterns : []).map((item) => ({
+      item,
+      type: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiPatternLabel`)
+        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`)
+    })))
+    .concat((Array.isArray(result?.updatedTensions) ? result.updatedTensions : []).map((item) => ({
+      item,
+      type: translate(settings, `${keyPrefix}.interactionMemoryUpdated.tensionLabel`)
+    })))
+    .concat((Array.isArray(result?.updatedStableImpressions) ? result.updatedStableImpressions : []).map((item) => ({
+      item,
+      type: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiImpressionLabel`)
+        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.impressionLabel`)
+    })));
+  return entries.filter((entry) => (
+    Array.isArray(entry.item?.evidenceEpisodeIds)
+    && entry.item.evidenceEpisodeIds.includes(episode?.id)
+  ));
 }
 
 function formatInteractionChangeReason(entry, settings, keyPrefix, translate) {
@@ -339,5 +443,6 @@ module.exports = {
   buildMemoryUpdateAuditItems,
   formatDeepMemoryUpdateSummary,
   formatInteractionMemoryUpdateSummary,
+  formatInteractionMemoryUpdateTitle,
   formatMemoryUpdateSummary
 };

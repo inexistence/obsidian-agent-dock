@@ -22,9 +22,13 @@ const {
   buildMemoryUpdateAuditItems,
   formatDeepMemoryUpdateSummary,
   formatInteractionMemoryUpdateSummary,
+  formatInteractionMemoryUpdateTitle,
   formatMemoryUpdateSummary
 } = require("../shared/captureNotices");
-const { buildAgentTurnContext } = require("../shared/TurnContextBuilder");
+const {
+  buildAgentTurnContext,
+  emitDebugPromptActivity
+} = require("../shared/TurnContextBuilder");
 const { ReflectionContentFilter } = require("../shared/ReflectionContentFilter");
 const { mergeSignalEvidenceContexts } = require("../shared/signalEvidence");
 const { codexJsonEventToUpdates } = require("./jsonEvents");
@@ -68,6 +72,7 @@ class CodexAgent {
         outputPath
       )
     );
+    emitDebugPromptActivity(onUpdate, turnContext.promptResult, settings, translate);
 
     return new Promise((resolve, reject) => {
       let finalOutput = "";
@@ -351,7 +356,7 @@ class CodexAgent {
           kind: "notice",
           noticeType: "interaction_memory_updated",
           insertBeforeLastContent: true,
-          title: t(settings, "codex.interactionMemoryUpdated.title"),
+          title: formatInteractionMemoryUpdateTitle(settings, "codex", t, result),
           summary: formatInteractionMemoryUpdateSummary(settings, "codex", t, result),
           auditItems: buildInteractionMemoryAuditItems(result, settings, "codex", t)
         });

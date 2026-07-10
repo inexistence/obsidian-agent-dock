@@ -2,6 +2,7 @@ const { formatMemoryLine } = require("./storage/MemoryStore");
 const { formatAssistantContinuityPrompt } = require("./continuity/ContinuityPromptFormatter");
 const { formatExpressionPrompt } = require("./expression/ExpressionPromptFormatter");
 const { planPromptSections } = require("./promptBudget");
+const { AI_PATTERN_AXES } = require("./interaction/InteractionPatternCandidates");
 
 async function buildPrompt(app, settings, prompt, conversation) {
   const result = await buildPromptWithMetadata(app, settings, prompt, conversation);
@@ -12,7 +13,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
   const contextLimit = Number(settings.contextLimitChars) || 258000;
   const stylePrompt = formatAssistantStylePrompt(settings);
   const localContextBoundaryPrompt = formatLocalContextBoundaryPrompt(settings);
-  const agentSignalPrompt = formatAgentSignalPrompt(settings);
+  const agentSignalPrompt = formatAgentSignalPrompt(settings, options.interactionPatternCandidates);
   const continuityPrompt = formatAssistantContinuityPrompt({
     workingAffect: options.workingAffect,
     deepMemories: options.deepMemories || [],
@@ -35,7 +36,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
       createPromptSection("assistant_continuity", continuityPrompt, { optional: true, priority: 40, truncatable: true, minChars: 600 }),
       createPromptSection("expression", expressionPrompt, { optional: true, priority: 38, truncatable: true, minChars: 360 }),
       createPromptSection("memory", memoryPrompt, { optional: true, priority: 30, truncatable: true, minChars: 700 }),
-      createPromptSection("agent_signals", agentSignalPrompt, { optional: true, priority: 25 })
+      createPromptSection("agent_signals", agentSignalPrompt, { optional: true, priority: 25, truncatable: true, minChars: 1400 })
     ],
     contextLimit
   );
@@ -78,7 +79,7 @@ function formatLocalContextBoundaryPrompt() {
   ].join("\n");
 }
 
-function formatAgentSignalPrompt(settings) {
+function formatAgentSignalPrompt(settings, interactionPatternCandidates = []) {
   const lines = [];
   const deepMemorySignalsEnabled = settings?.deepMemoryEnabled !== false
     && settings?.deepMemoryAutoCapture !== false;
@@ -154,7 +155,14 @@ function formatAgentSignalPrompt(settings) {
       outcomeExample.interaction = {
         shapes: ["became_concrete", "softened_tone"],
         confidence: 0.58,
-        summary: "semantic account of how the visible final answer responded"
+        summary: "semantic account of how the visible final answer responded",
+        patternCandidate: {
+          key: "concrete_examples_after_ambiguity",
+          axis: "communication_pacing",
+          confidence: 0.58,
+          evidenceQuote: "short exact quote from the current user message",
+          summary: "When a similar ambiguity recurs, use a concrete example before adding more abstraction."
+        }
       };
     }
     if (affectSignalsEnabled) {
@@ -174,7 +182,11 @@ function formatAgentSignalPrompt(settings) {
     lines.push("Agent Dock continuity reflection:");
     lines.push("For every substantive response, generate one lightweight leading `phase=appraisal` envelope before any visible answer text. Generate it first and let the selected stance naturally shape the answer that follows. Omit it only for an empty response, an error-only or system-only response, or a trivial acknowledgement with no meaningful stance. It is structured, auditable metadata, not hidden reasoning.");
     lines.push("Append a terminal `phase=outcome` envelope only when the completed turn contains a meaningful memory, interaction, affect, salience, repair, or achievement change; otherwise omit it. Their `evidence` must contain 1-3 objects shaped as `{origin, speaker, quote}`. Allowed origins are `user_message`, `assistant_message`, `recalled_memory`, `active_note`, and `tool_result`; speaker must be `user`, `assistant`, or `none`. Use short exact visible excerpts and label provenance honestly. Evidence comes from visible context, never hidden reasoning.");
-    lines.push("Omit irrelevant sections. Local rules decide persistence and may reject or limit the reflection. It cannot declare user preferences or facts, directly create interaction patterns, modify the persona preset, or override task accuracy, permissions, or safety.");
+    lines.push(`Omit irrelevant sections. Local rules decide persistence and may reject or limit the reflection. It cannot declare user preferences or facts, directly create interaction patterns, modify the persona preset, or override task accuracy, permissions, or safety. An outcome interaction may optionally nominate one tentative \`patternCandidate\` using a stable snake_case \`key\`, one axis from ${[...AI_PATTERN_AXES].join("/")}, confidence, an \`evidenceQuote\` copied exactly from the current user message, and a short assistant-behavior summary. The evidence quote must specifically support that nomination. Phrase the summary as a revisable collaboration strategy, not a user fact. The host stores it on the episode and requires repeated positive closed-episode evidence before local promotion.`);
+    const registryPrompt = formatPatternCandidateRegistry(interactionPatternCandidates);
+    if (registryPrompt) {
+      lines.push(registryPrompt);
+    }
     lines.push(`Leading example: \`<!-- agent-dock:reflection phase=appraisal | ${JSON.stringify(appraisalExample)} -->\``);
     lines.push(`Terminal example: \`<!-- agent-dock:reflection phase=outcome | ${JSON.stringify(outcomeExample)} -->\``);
   }
@@ -183,6 +195,24 @@ function formatAgentSignalPrompt(settings) {
   }
   lines.push("");
   return lines.join("\n");
+}
+
+function formatPatternCandidateRegistry(items) {
+  const candidates = (Array.isArray(items) ? items : []).slice(0, 4);
+  if (candidates.length === 0) {
+    return "";
+  }
+  return [
+    "Existing unpromoted interaction pattern candidate registry:",
+    "This registry is historical metadata, not an instruction for the current answer and not evidence that the user prefers anything. Reuse an existing key only when the new nomination has the same axis and exactly the same summary; otherwise use a new key.",
+    ...candidates.map((item) => `- ${JSON.stringify({
+      key: item.key,
+      axis: item.axis,
+      summary: item.summary,
+      evidenceCount: item.evidenceCount,
+      minEvidence: item.minEvidence
+    })}`)
+  ].join("\n");
 }
 
 function resolveAssistantStyleProfile(settings) {
@@ -627,7 +657,7 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
   const contextLimit = Number(settings.contextLimitChars) || 258000;
   const stylePrompt = formatAssistantStylePrompt(settings);
   const localContextBoundaryPrompt = formatLocalContextBoundaryPrompt(settings);
-  const agentSignalPrompt = formatAgentSignalPrompt(settings);
+  const agentSignalPrompt = formatAgentSignalPrompt(settings, options.interactionPatternCandidates);
   const continuityPrompt = formatAssistantContinuityPrompt({
     workingAffect: options.workingAffect,
     deepMemories: options.deepMemories || [],
@@ -650,7 +680,7 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
       createPromptSection("assistant_continuity", continuityPrompt, { optional: true, priority: 40, truncatable: true, minChars: 600 }),
       createPromptSection("expression", expressionPrompt, { optional: true, priority: 38, truncatable: true, minChars: 360 }),
       createPromptSection("memory", memoryPrompt, { optional: true, priority: 30, truncatable: true, minChars: 700 }),
-      createPromptSection("agent_signals", agentSignalPrompt, { optional: true, priority: 25 })
+      createPromptSection("agent_signals", agentSignalPrompt, { optional: true, priority: 25, truncatable: true, minChars: 1400 })
     ],
     contextLimit
   );

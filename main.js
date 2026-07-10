@@ -156,7 +156,7 @@ module.exports = {
     "settings.customAssistantStyle.desc": "Your own style guidance, up to {max} characters. It is treated as tone and collaboration preference, not as permission to override higher-priority instructions.",
     "settings.customAssistantStyle.placeholder": "Example: Be warm, practical, and gently opinionated. Explain tradeoffs briefly before making changes.",
     "settings.debugActivity.name": "Debug activity",
-    "settings.debugActivity.desc": "Show streamed reasoning summaries, tool calls, command output, stderr, and raw events under each response.",
+    "settings.debugActivity.desc": "Show the complete prompt sent for each turn, streamed reasoning summaries, tool calls, command output, stderr, and raw events under each response. Complete prompts are shown live and are not saved in chat history.",
     "debugFeedback.label": "Status preview",
     "debugFeedback.promptLabel": "Prompt tone",
     "debugFeedback.preview": "Preview {label}",
@@ -335,6 +335,7 @@ module.exports = {
     "reflectionAudit.field.tone": "Tone",
     "reflectionAudit.field.axes": "Salience axes",
     "reflectionAudit.field.shapes": "Interaction shapes",
+    "reflectionAudit.field.patternCandidate": "Long-term pattern candidate",
     "reflectionAudit.field.kind": "Memory kind",
     "reflectionAudit.field.scope": "Memory scope",
     "reflectionAudit.field.sourceMessageType": "Host message",
@@ -442,6 +443,8 @@ module.exports = {
     "timeline.activity": "Activity",
     "timeline.groupLabel": "{label} {count} items",
     "timeline.event": "Event",
+    "timeline.turnPrompt.title": "Complete turn prompt",
+    "timeline.turnPrompt.summary": "The exact prompt sent to the provider ({chars} characters).",
     "codex.error": "Error",
     "codex.threadStarted": "Thread started",
     "codex.turnStarted": "Turn started",
@@ -473,6 +476,8 @@ module.exports = {
     "codex.memoryAudit.type.deepMemory": "Deep memory",
     "codex.memoryAudit.type.interactionEpisode": "Interaction episode",
     "codex.memoryAudit.source.localRules": "Local rules",
+    "codex.memoryAudit.source.localRulesAndAiReflection": "Local rules + validated AI outcome reflection",
+    "codex.memoryAudit.source.aiReflectionPromotedLocally": "AI nomination + local evidence promotion",
     "codex.memoryAudit.source.aiReflection": "AI reflection",
     "codex.memoryAudit.source.user": "User request",
     "codex.memoryAudit.field.content": "Content",
@@ -482,6 +487,10 @@ module.exports = {
     "codex.memoryAudit.field.userExcerpt": "User excerpt",
     "codex.memoryAudit.field.assistantExcerpt": "Assistant excerpt",
     "codex.memoryAudit.field.reaction": "Follow-up reaction",
+    "codex.memoryAudit.field.reactionType": "Reaction classification",
+    "codex.memoryAudit.field.effect": "Actual effect",
+    "codex.memoryAudit.field.aiReflection": "AI reflection contribution",
+    "codex.memoryAudit.field.patternCandidate": "Long-term pattern candidate status",
     "codex.memoryAudit.field.scope": "Scope",
     "codex.memoryAudit.field.kind": "Kind",
     "codex.memoryAudit.field.role": "Memory role",
@@ -508,10 +517,25 @@ module.exports = {
     "codex.memoryAudit.reason.existingMemoryRefreshed": "This turn produced a {kind} candidate with the same memory key, so the existing record was refreshed. Confidence: {confidence}.",
     "codex.memoryAudit.reason.deepMemoryAiReflection": "This deep memory came from an auditable AI reflection signal. Source: {source}.",
     "codex.memoryAudit.reason.deepMemoryLocalRules": "Local deep-memory rules identified an important {kind} moment. Importance: {importance}; confidence: {confidence}.",
-    "codex.memoryAudit.reason.interactionClosedEpisode": "This turn closed a {context}/{phase} interaction episode and fed it into local interaction experience as {role}. Weight: {weight}.",
-    "codex.memoryAudit.reason.interactionRepairEpisode": "This closed episode includes a repair/calibration path, so it contributed to interaction experience as {role}. Context: {context}/{phase}; weight: {weight}.",
+    "codex.memoryAudit.reason.interactionClosedEpisode": "When the next user message arrived in the same session, the system used it as the previous turn's follow-up reaction and closed that episode. {context}/{phase} describes the closed turn, not the current reaction. It was saved as {role} with weight {weight}.",
+    "codex.memoryAudit.reason.interactionRepairEpisode": "When the next user message arrived in the same session, the system used it to close the previous episode. That episode contains a repair/calibration path, so it was saved as {role}. {context}/{phase} describes the closed turn; weight: {weight}.",
     "codex.memoryAudit.reason.interactionEvidenceUpdate": "This {type} was updated from closed episode evidence. Evidence count: {evidenceCount}; confidence: {confidence}; strength: {strength}.",
     "codex.memoryAudit.reason.interactionAiImpression": "This {type} came from an AI reflection impression and was saved under local evidence constraints. Evidence count: {evidenceCount}; confidence: {confidence}; strength: {strength}.",
+    "codex.memoryAudit.reaction.topic_shift": "No explicit feedback or continuation signal was found; treated as a topic shift",
+    "codex.memoryAudit.reaction.new_request": "Classified as a new request, not positive or negative feedback on the previous turn",
+    "codex.memoryAudit.reaction.accepted": "Classified as acceptance or positive feedback",
+    "codex.memoryAudit.reaction.correction": "Classified as a correction",
+    "codex.memoryAudit.reaction.style_recalibration": "Classified as style recalibration",
+    "codex.memoryAudit.reaction.clarification_requested": "Classified as a request for clarification",
+    "codex.memoryAudit.reaction.implementation_followup": "Classified as an implementation follow-up",
+    "codex.memoryAudit.reaction.productive_deepening": "Classified as productive continuation of the same topic",
+    "codex.memoryAudit.effect.interactionEpisodeOnly": "Saved only as a bounded {role}. It did not update a pattern, tension, or stable impression, and an individual episode is not injected directly into later prompts.",
+    "codex.memoryAudit.effect.interactionDerivedChanged": "This episode contributed evidence to {count} derived item(s): {items}. A derived item can enter a prompt only after meeting evidence thresholds and being relevant to the current request.",
+    "codex.memoryAudit.effect.aiReflectionContribution": "The AI outcome candidate passed visible-evidence validation and supplemented the current episode. Reflection: {summary}; shapes: {shapes}; confidence: {confidence}; weight added: +{weight}. It did not write a long-term pattern directly.",
+    "codex.memoryAudit.patternCandidate.accumulating": "AI nominated candidate {key} ({axis}): {summary}. Candidate-specific user evidence: {evidenceQuote}. This turn's follow-up supplied supporting evidence; progress is {evidenceCount}/{minEvidence}, so it is not yet available to later prompts.",
+    "codex.memoryAudit.patternCandidate.promoted": "AI candidate {key} ({axis}) was promoted locally after reaching {evidenceCount}/{minEvidence} supporting episodes: {summary}. Candidate-specific user evidence for this turn: {evidenceQuote}",
+    "codex.memoryAudit.patternCandidate.rejected": "AI nominated candidate {key} ({axis}), but this turn's follow-up did not support it, so no evidence was accumulated and it was not promoted: {summary}. Candidate-specific user evidence: {evidenceQuote}",
+    "codex.memoryAudit.patternCandidate.conflicted": "AI reused candidate key {key}, but the new summary conflicts with the locally registered definition, so this episode was not counted. Registered summary: {canonicalSummary}; current summary: {summary}",
     "codex.memorySkipped.title": "Memory skipped",
     "codex.memorySkipped.summary": "Agent Dock could not save automatic memory. Check the console for details.",
     "codex.memoryCandidate.title": "Ordinary memory candidate",
@@ -525,10 +549,13 @@ module.exports = {
     "codex.reflectionCandidate.title": "AI continuity reflection",
     "codex.reflectionCandidate.summary": "Extracted {count} candidate supplement(s) from one reflection envelope; local rules still decide their effects.",
     "codex.interactionMemoryUpdated.title": "Interaction memory updated",
-    "codex.interactionMemoryUpdated.summary": "Updated interaction memory from {count} closed local episode(s).",
+    "codex.interactionMemoryUpdated.episodeTitle": "Interaction episode processed",
+    "codex.interactionMemoryUpdated.summary": "Processed {count} closed local interaction episode(s).",
     "codex.interactionMemoryUpdated.episodes": "Closed this turn:\n{items}",
     "codex.interactionMemoryUpdated.changed": "Affected experience:\n{items}",
+    "codex.interactionMemoryUpdated.unchanged": "No pattern, tension, or stable impression was updated.",
     "codex.interactionMemoryUpdated.patternLabel": "pattern",
+    "codex.interactionMemoryUpdated.aiPatternLabel": "AI-nominated pattern",
     "codex.interactionMemoryUpdated.tensionLabel": "tension",
     "codex.interactionMemoryUpdated.impressionLabel": "stable impression",
     "codex.interactionMemoryUpdated.aiImpressionLabel": "AI reflection impression",
@@ -585,6 +612,8 @@ module.exports = {
     "cursor.memoryAudit.type.deepMemory": "Deep memory",
     "cursor.memoryAudit.type.interactionEpisode": "Interaction episode",
     "cursor.memoryAudit.source.localRules": "Local rules",
+    "cursor.memoryAudit.source.localRulesAndAiReflection": "Local rules + validated AI outcome reflection",
+    "cursor.memoryAudit.source.aiReflectionPromotedLocally": "AI nomination + local evidence promotion",
     "cursor.memoryAudit.source.aiReflection": "AI reflection",
     "cursor.memoryAudit.source.user": "User request",
     "cursor.memoryAudit.field.content": "Content",
@@ -594,6 +623,10 @@ module.exports = {
     "cursor.memoryAudit.field.userExcerpt": "User excerpt",
     "cursor.memoryAudit.field.assistantExcerpt": "Assistant excerpt",
     "cursor.memoryAudit.field.reaction": "Follow-up reaction",
+    "cursor.memoryAudit.field.reactionType": "Reaction classification",
+    "cursor.memoryAudit.field.effect": "Actual effect",
+    "cursor.memoryAudit.field.aiReflection": "AI reflection contribution",
+    "cursor.memoryAudit.field.patternCandidate": "Long-term pattern candidate status",
     "cursor.memoryAudit.field.scope": "Scope",
     "cursor.memoryAudit.field.kind": "Kind",
     "cursor.memoryAudit.field.role": "Memory role",
@@ -620,10 +653,25 @@ module.exports = {
     "cursor.memoryAudit.reason.existingMemoryRefreshed": "This turn produced a {kind} candidate with the same memory key, so the existing record was refreshed. Confidence: {confidence}.",
     "cursor.memoryAudit.reason.deepMemoryAiReflection": "This deep memory came from an auditable AI reflection signal. Source: {source}.",
     "cursor.memoryAudit.reason.deepMemoryLocalRules": "Local deep-memory rules identified an important {kind} moment. Importance: {importance}; confidence: {confidence}.",
-    "cursor.memoryAudit.reason.interactionClosedEpisode": "This turn closed a {context}/{phase} interaction episode and fed it into local interaction experience as {role}. Weight: {weight}.",
-    "cursor.memoryAudit.reason.interactionRepairEpisode": "This closed episode includes a repair/calibration path, so it contributed to interaction experience as {role}. Context: {context}/{phase}; weight: {weight}.",
+    "cursor.memoryAudit.reason.interactionClosedEpisode": "When the next user message arrived in the same session, the system used it as the previous turn's follow-up reaction and closed that episode. {context}/{phase} describes the closed turn, not the current reaction. It was saved as {role} with weight {weight}.",
+    "cursor.memoryAudit.reason.interactionRepairEpisode": "When the next user message arrived in the same session, the system used it to close the previous episode. That episode contains a repair/calibration path, so it was saved as {role}. {context}/{phase} describes the closed turn; weight: {weight}.",
     "cursor.memoryAudit.reason.interactionEvidenceUpdate": "This {type} was updated from closed episode evidence. Evidence count: {evidenceCount}; confidence: {confidence}; strength: {strength}.",
     "cursor.memoryAudit.reason.interactionAiImpression": "This {type} came from an AI reflection impression and was saved under local evidence constraints. Evidence count: {evidenceCount}; confidence: {confidence}; strength: {strength}.",
+    "cursor.memoryAudit.reaction.topic_shift": "No explicit feedback or continuation signal was found; treated as a topic shift",
+    "cursor.memoryAudit.reaction.new_request": "Classified as a new request, not positive or negative feedback on the previous turn",
+    "cursor.memoryAudit.reaction.accepted": "Classified as acceptance or positive feedback",
+    "cursor.memoryAudit.reaction.correction": "Classified as a correction",
+    "cursor.memoryAudit.reaction.style_recalibration": "Classified as style recalibration",
+    "cursor.memoryAudit.reaction.clarification_requested": "Classified as a request for clarification",
+    "cursor.memoryAudit.reaction.implementation_followup": "Classified as an implementation follow-up",
+    "cursor.memoryAudit.reaction.productive_deepening": "Classified as productive continuation of the same topic",
+    "cursor.memoryAudit.effect.interactionEpisodeOnly": "Saved only as a bounded {role}. It did not update a pattern, tension, or stable impression, and an individual episode is not injected directly into later prompts.",
+    "cursor.memoryAudit.effect.interactionDerivedChanged": "This episode contributed evidence to {count} derived item(s): {items}. A derived item can enter a prompt only after meeting evidence thresholds and being relevant to the current request.",
+    "cursor.memoryAudit.effect.aiReflectionContribution": "The AI outcome candidate passed visible-evidence validation and supplemented the current episode. Reflection: {summary}; shapes: {shapes}; confidence: {confidence}; weight added: +{weight}. It did not write a long-term pattern directly.",
+    "cursor.memoryAudit.patternCandidate.accumulating": "AI nominated candidate {key} ({axis}): {summary}. Candidate-specific user evidence: {evidenceQuote}. This turn's follow-up supplied supporting evidence; progress is {evidenceCount}/{minEvidence}, so it is not yet available to later prompts.",
+    "cursor.memoryAudit.patternCandidate.promoted": "AI candidate {key} ({axis}) was promoted locally after reaching {evidenceCount}/{minEvidence} supporting episodes: {summary}. Candidate-specific user evidence for this turn: {evidenceQuote}",
+    "cursor.memoryAudit.patternCandidate.rejected": "AI nominated candidate {key} ({axis}), but this turn's follow-up did not support it, so no evidence was accumulated and it was not promoted: {summary}. Candidate-specific user evidence: {evidenceQuote}",
+    "cursor.memoryAudit.patternCandidate.conflicted": "AI reused candidate key {key}, but the new summary conflicts with the locally registered definition, so this episode was not counted. Registered summary: {canonicalSummary}; current summary: {summary}",
     "cursor.memorySkipped.title": "Memory skipped",
     "cursor.memorySkipped.summary": "Agent Dock could not save automatic memory. Check the console for details.",
     "cursor.memoryCandidate.title": "Ordinary memory candidate",
@@ -637,10 +685,13 @@ module.exports = {
     "cursor.reflectionCandidate.title": "AI continuity reflection",
     "cursor.reflectionCandidate.summary": "Extracted {count} candidate supplement(s) from one reflection envelope; local rules still decide their effects.",
     "cursor.interactionMemoryUpdated.title": "Interaction memory updated",
-    "cursor.interactionMemoryUpdated.summary": "Updated interaction memory from {count} closed local episode(s).",
+    "cursor.interactionMemoryUpdated.episodeTitle": "Interaction episode processed",
+    "cursor.interactionMemoryUpdated.summary": "Processed {count} closed local interaction episode(s).",
     "cursor.interactionMemoryUpdated.episodes": "Closed this turn:\n{items}",
     "cursor.interactionMemoryUpdated.changed": "Affected experience:\n{items}",
+    "cursor.interactionMemoryUpdated.unchanged": "No pattern, tension, or stable impression was updated.",
     "cursor.interactionMemoryUpdated.patternLabel": "pattern",
+    "cursor.interactionMemoryUpdated.aiPatternLabel": "AI-nominated pattern",
     "cursor.interactionMemoryUpdated.tensionLabel": "tension",
     "cursor.interactionMemoryUpdated.impressionLabel": "stable impression",
     "cursor.interactionMemoryUpdated.aiImpressionLabel": "AI reflection impression",
@@ -706,7 +757,7 @@ module.exports = {
     "settings.customAssistantStyle.desc": "你的自定义风格指引，最多 {max} 个字符。它只会作为语气和协作偏好，不会覆盖更高优先级指令。",
     "settings.customAssistantStyle.placeholder": "例如：温暖、务实，并适度给出观点。修改前简短说明取舍。",
     "settings.debugActivity.name": "调试活动",
-    "settings.debugActivity.desc": "在每条回复下显示推理摘要、工具调用、命令输出、stderr 和原始事件。",
+    "settings.debugActivity.desc": "在每条回复下显示本轮实际发送的完整 Prompt、推理摘要、工具调用、命令输出、stderr 和原始事件。完整 Prompt 仅在当前界面显示，不写入聊天历史。",
     "debugFeedback.label": "状态预览",
     "debugFeedback.promptLabel": "本轮提示词",
     "debugFeedback.preview": "预览 {label}",
@@ -885,6 +936,7 @@ module.exports = {
     "reflectionAudit.field.tone": "情绪基调",
     "reflectionAudit.field.axes": "重要性轴",
     "reflectionAudit.field.shapes": "互动形态",
+    "reflectionAudit.field.patternCandidate": "长期模式候选",
     "reflectionAudit.field.kind": "记忆类型",
     "reflectionAudit.field.scope": "记忆范围",
     "reflectionAudit.field.sourceMessageType": "承载消息",
@@ -992,6 +1044,8 @@ module.exports = {
     "timeline.activity": "活动",
     "timeline.groupLabel": "{label} {count} 项",
     "timeline.event": "事件",
+    "timeline.turnPrompt.title": "本轮完整 Prompt",
+    "timeline.turnPrompt.summary": "实际发送给 Provider 的 Prompt（{chars} 字符）。",
     "codex.error": "错误",
     "codex.threadStarted": "线程已开始",
     "codex.turnStarted": "回合已开始",
@@ -1023,6 +1077,8 @@ module.exports = {
     "codex.memoryAudit.type.deepMemory": "深刻记忆",
     "codex.memoryAudit.type.interactionEpisode": "互动 episode",
     "codex.memoryAudit.source.localRules": "本地规则",
+    "codex.memoryAudit.source.localRulesAndAiReflection": "本地规则 + 经验证的 AI outcome 反思",
+    "codex.memoryAudit.source.aiReflectionPromotedLocally": "AI 提名 + 本地证据晋升",
     "codex.memoryAudit.source.aiReflection": "AI 反思",
     "codex.memoryAudit.source.user": "用户明确要求",
     "codex.memoryAudit.field.content": "内容",
@@ -1032,6 +1088,10 @@ module.exports = {
     "codex.memoryAudit.field.userExcerpt": "用户片段",
     "codex.memoryAudit.field.assistantExcerpt": "助手片段",
     "codex.memoryAudit.field.reaction": "后续反应",
+    "codex.memoryAudit.field.reactionType": "反应判定",
+    "codex.memoryAudit.field.effect": "实际影响",
+    "codex.memoryAudit.field.aiReflection": "AI 反思贡献",
+    "codex.memoryAudit.field.patternCandidate": "长期模式候选状态",
     "codex.memoryAudit.field.scope": "范围",
     "codex.memoryAudit.field.kind": "类型",
     "codex.memoryAudit.field.role": "记忆角色",
@@ -1058,10 +1118,25 @@ module.exports = {
     "codex.memoryAudit.reason.existingMemoryRefreshed": "本轮识别出的 {kind} 类候选与已有记忆键相同，因此刷新已有记录。置信度：{confidence}。",
     "codex.memoryAudit.reason.deepMemoryAiReflection": "这条深刻记忆来自可审计的 AI 反思信号，来源：{source}。",
     "codex.memoryAudit.reason.deepMemoryLocalRules": "本地深刻记忆规则识别出 {kind} 类重要时刻。重要性：{importance}，置信度：{confidence}。",
-    "codex.memoryAudit.reason.interactionClosedEpisode": "本轮关闭了一个 {context}/{phase} 互动 episode，并作为 {role} 进入本地互动经验归纳。权重：{weight}。",
-    "codex.memoryAudit.reason.interactionRepairEpisode": "本轮关闭的 episode 包含修复/校准路径，因此作为 {role} 参与互动经验更新。上下文：{context}/{phase}，权重：{weight}。",
+    "codex.memoryAudit.reason.interactionClosedEpisode": "同一会话出现下一条用户消息后，系统把它作为上一轮的后续反应并关闭该 episode。{context}/{phase} 描述的是被关闭的上一轮，不是当前反应；本条保存为 {role}，权重：{weight}。",
+    "codex.memoryAudit.reason.interactionRepairEpisode": "同一会话出现下一条用户消息后，系统用它关闭了上一轮 episode；该 episode 含修复/校准路径，因此保存为 {role}。{context}/{phase} 描述的是被关闭的上一轮，权重：{weight}。",
     "codex.memoryAudit.reason.interactionEvidenceUpdate": "这条 {type} 由已关闭 episode 证据归纳更新。证据数：{evidenceCount}，置信度：{confidence}，强度：{strength}。",
     "codex.memoryAudit.reason.interactionAiImpression": "这条 {type} 来自 AI 反思印象，并由本地证据约束保存。证据数：{evidenceCount}，置信度：{confidence}，强度：{strength}。",
+    "codex.memoryAudit.reaction.topic_shift": "没有识别到明确反馈或延续信号，按话题切换处理",
+    "codex.memoryAudit.reaction.new_request": "识别为新的请求，不视为对上一轮的肯定或否定",
+    "codex.memoryAudit.reaction.accepted": "识别为接受或正向反馈",
+    "codex.memoryAudit.reaction.correction": "识别为纠正",
+    "codex.memoryAudit.reaction.style_recalibration": "识别为表达风格校准",
+    "codex.memoryAudit.reaction.clarification_requested": "识别为要求澄清",
+    "codex.memoryAudit.reaction.implementation_followup": "识别为继续落地实现",
+    "codex.memoryAudit.reaction.productive_deepening": "识别为沿原话题继续深入",
+    "codex.memoryAudit.effect.interactionEpisodeOnly": "仅保存为有界的 {role}。本轮没有更新模式、张力或稳定印象；单条 episode 不会直接注入后续提示词。",
+    "codex.memoryAudit.effect.interactionDerivedChanged": "这条 episode 作为证据影响了 {count} 项归纳结果：{items}。归纳结果仍需达到证据阈值并与当前请求相关，才可能进入提示词。",
+    "codex.memoryAudit.effect.aiReflectionContribution": "AI outcome 候选已通过可见证据校验并补充当前 episode。反思：{summary}；补充形态：{shapes}；置信度：{confidence}；权重增量：+{weight}。它没有直接写入长期模式。",
+    "codex.memoryAudit.patternCandidate.accumulating": "AI 提名了候选 {key}（{axis}）：{summary}。候选专属用户证据：{evidenceQuote}。本轮后续反应提供了支持证据，目前 {evidenceCount}/{minEvidence}，尚未进入长期 Prompt。",
+    "codex.memoryAudit.patternCandidate.promoted": "AI 提名的候选 {key}（{axis}）已由本地规则累计到 {evidenceCount}/{minEvidence} 条支持证据并晋升：{summary}。本轮候选专属用户证据：{evidenceQuote}",
+    "codex.memoryAudit.patternCandidate.rejected": "AI 提名了候选 {key}（{axis}），但本轮后续反应未提供支持证据，因此没有累计或晋升：{summary}。候选专属用户证据：{evidenceQuote}",
+    "codex.memoryAudit.patternCandidate.conflicted": "AI 再次使用候选 key {key}，但新摘要与本地登记定义冲突，因此本轮不计入证据。登记摘要：{canonicalSummary}；本轮摘要：{summary}",
     "codex.memorySkipped.title": "已跳过记忆",
     "codex.memorySkipped.summary": "Agent Dock 无法保存自动记忆。请查看控制台详情。",
     "codex.memoryCandidate.title": "普通记忆候选",
@@ -1075,10 +1150,13 @@ module.exports = {
     "codex.reflectionCandidate.title": "AI 连续性反思",
     "codex.reflectionCandidate.summary": "已从统一 reflection envelope 提取 {count} 项候选补充，仍由本地规则裁决。",
     "codex.interactionMemoryUpdated.title": "互动经验已更新",
-    "codex.interactionMemoryUpdated.summary": "已根据 {count} 条关闭的本地 episode 更新互动经验。",
+    "codex.interactionMemoryUpdated.episodeTitle": "互动 episode 已处理",
+    "codex.interactionMemoryUpdated.summary": "已处理 {count} 条关闭的本地互动 episode。",
     "codex.interactionMemoryUpdated.episodes": "本轮关闭：\n{items}",
     "codex.interactionMemoryUpdated.changed": "影响到的经验：\n{items}",
+    "codex.interactionMemoryUpdated.unchanged": "本轮没有更新模式、张力或稳定印象。",
     "codex.interactionMemoryUpdated.patternLabel": "模式",
+    "codex.interactionMemoryUpdated.aiPatternLabel": "AI 提名模式",
     "codex.interactionMemoryUpdated.tensionLabel": "张力",
     "codex.interactionMemoryUpdated.impressionLabel": "稳定印象",
     "codex.interactionMemoryUpdated.aiImpressionLabel": "AI 反思印象",
@@ -1135,6 +1213,8 @@ module.exports = {
     "cursor.memoryAudit.type.deepMemory": "深刻记忆",
     "cursor.memoryAudit.type.interactionEpisode": "互动 episode",
     "cursor.memoryAudit.source.localRules": "本地规则",
+    "cursor.memoryAudit.source.localRulesAndAiReflection": "本地规则 + 经验证的 AI outcome 反思",
+    "cursor.memoryAudit.source.aiReflectionPromotedLocally": "AI 提名 + 本地证据晋升",
     "cursor.memoryAudit.source.aiReflection": "AI 反思",
     "cursor.memoryAudit.source.user": "用户明确要求",
     "cursor.memoryAudit.field.content": "内容",
@@ -1144,6 +1224,10 @@ module.exports = {
     "cursor.memoryAudit.field.userExcerpt": "用户片段",
     "cursor.memoryAudit.field.assistantExcerpt": "助手片段",
     "cursor.memoryAudit.field.reaction": "后续反应",
+    "cursor.memoryAudit.field.reactionType": "反应判定",
+    "cursor.memoryAudit.field.effect": "实际影响",
+    "cursor.memoryAudit.field.aiReflection": "AI 反思贡献",
+    "cursor.memoryAudit.field.patternCandidate": "长期模式候选状态",
     "cursor.memoryAudit.field.scope": "范围",
     "cursor.memoryAudit.field.kind": "类型",
     "cursor.memoryAudit.field.role": "记忆角色",
@@ -1170,10 +1254,25 @@ module.exports = {
     "cursor.memoryAudit.reason.existingMemoryRefreshed": "本轮识别出的 {kind} 类候选与已有记忆键相同，因此刷新已有记录。置信度：{confidence}。",
     "cursor.memoryAudit.reason.deepMemoryAiReflection": "这条深刻记忆来自可审计的 AI 反思信号，来源：{source}。",
     "cursor.memoryAudit.reason.deepMemoryLocalRules": "本地深刻记忆规则识别出 {kind} 类重要时刻。重要性：{importance}，置信度：{confidence}。",
-    "cursor.memoryAudit.reason.interactionClosedEpisode": "本轮关闭了一个 {context}/{phase} 互动 episode，并作为 {role} 进入本地互动经验归纳。权重：{weight}。",
-    "cursor.memoryAudit.reason.interactionRepairEpisode": "本轮关闭的 episode 包含修复/校准路径，因此作为 {role} 参与互动经验更新。上下文：{context}/{phase}，权重：{weight}。",
+    "cursor.memoryAudit.reason.interactionClosedEpisode": "同一会话出现下一条用户消息后，系统把它作为上一轮的后续反应并关闭该 episode。{context}/{phase} 描述的是被关闭的上一轮，不是当前反应；本条保存为 {role}，权重：{weight}。",
+    "cursor.memoryAudit.reason.interactionRepairEpisode": "同一会话出现下一条用户消息后，系统用它关闭了上一轮 episode；该 episode 含修复/校准路径，因此保存为 {role}。{context}/{phase} 描述的是被关闭的上一轮，权重：{weight}。",
     "cursor.memoryAudit.reason.interactionEvidenceUpdate": "这条 {type} 由已关闭 episode 证据归纳更新。证据数：{evidenceCount}，置信度：{confidence}，强度：{strength}。",
     "cursor.memoryAudit.reason.interactionAiImpression": "这条 {type} 来自 AI 反思印象，并由本地证据约束保存。证据数：{evidenceCount}，置信度：{confidence}，强度：{strength}。",
+    "cursor.memoryAudit.reaction.topic_shift": "没有识别到明确反馈或延续信号，按话题切换处理",
+    "cursor.memoryAudit.reaction.new_request": "识别为新的请求，不视为对上一轮的肯定或否定",
+    "cursor.memoryAudit.reaction.accepted": "识别为接受或正向反馈",
+    "cursor.memoryAudit.reaction.correction": "识别为纠正",
+    "cursor.memoryAudit.reaction.style_recalibration": "识别为表达风格校准",
+    "cursor.memoryAudit.reaction.clarification_requested": "识别为要求澄清",
+    "cursor.memoryAudit.reaction.implementation_followup": "识别为继续落地实现",
+    "cursor.memoryAudit.reaction.productive_deepening": "识别为沿原话题继续深入",
+    "cursor.memoryAudit.effect.interactionEpisodeOnly": "仅保存为有界的 {role}。本轮没有更新模式、张力或稳定印象；单条 episode 不会直接注入后续提示词。",
+    "cursor.memoryAudit.effect.interactionDerivedChanged": "这条 episode 作为证据影响了 {count} 项归纳结果：{items}。归纳结果仍需达到证据阈值并与当前请求相关，才可能进入提示词。",
+    "cursor.memoryAudit.effect.aiReflectionContribution": "AI outcome 候选已通过可见证据校验并补充当前 episode。反思：{summary}；补充形态：{shapes}；置信度：{confidence}；权重增量：+{weight}。它没有直接写入长期模式。",
+    "cursor.memoryAudit.patternCandidate.accumulating": "AI 提名了候选 {key}（{axis}）：{summary}。候选专属用户证据：{evidenceQuote}。本轮后续反应提供了支持证据，目前 {evidenceCount}/{minEvidence}，尚未进入长期 Prompt。",
+    "cursor.memoryAudit.patternCandidate.promoted": "AI 提名的候选 {key}（{axis}）已由本地规则累计到 {evidenceCount}/{minEvidence} 条支持证据并晋升：{summary}。本轮候选专属用户证据：{evidenceQuote}",
+    "cursor.memoryAudit.patternCandidate.rejected": "AI 提名了候选 {key}（{axis}），但本轮后续反应未提供支持证据，因此没有累计或晋升：{summary}。候选专属用户证据：{evidenceQuote}",
+    "cursor.memoryAudit.patternCandidate.conflicted": "AI 再次使用候选 key {key}，但新摘要与本地登记定义冲突，因此本轮不计入证据。登记摘要：{canonicalSummary}；本轮摘要：{summary}",
     "cursor.memorySkipped.title": "已跳过记忆",
     "cursor.memorySkipped.summary": "Agent Dock 无法保存自动记忆。请查看控制台详情。",
     "cursor.memoryCandidate.title": "普通记忆候选",
@@ -1187,10 +1286,13 @@ module.exports = {
     "cursor.reflectionCandidate.title": "AI 连续性反思",
     "cursor.reflectionCandidate.summary": "已从统一 reflection envelope 提取 {count} 项候选补充，仍由本地规则裁决。",
     "cursor.interactionMemoryUpdated.title": "互动经验已更新",
-    "cursor.interactionMemoryUpdated.summary": "已根据 {count} 条关闭的本地 episode 更新互动经验。",
+    "cursor.interactionMemoryUpdated.episodeTitle": "互动 episode 已处理",
+    "cursor.interactionMemoryUpdated.summary": "已处理 {count} 条关闭的本地互动 episode。",
     "cursor.interactionMemoryUpdated.episodes": "本轮关闭：\n{items}",
     "cursor.interactionMemoryUpdated.changed": "影响到的经验：\n{items}",
+    "cursor.interactionMemoryUpdated.unchanged": "本轮没有更新模式、张力或稳定印象。",
     "cursor.interactionMemoryUpdated.patternLabel": "模式",
+    "cursor.interactionMemoryUpdated.aiPatternLabel": "AI 提名模式",
     "cursor.interactionMemoryUpdated.tensionLabel": "张力",
     "cursor.interactionMemoryUpdated.impressionLabel": "稳定印象",
     "cursor.interactionMemoryUpdated.aiImpressionLabel": "AI 反思印象",
@@ -1624,6 +1726,7 @@ module.exports = {
   MAX_AGENT_DOCK_SIGNALS,
   createSignalEvidenceContext,
   hasGroundedAgentSignal,
+  hasExactVisibleSignalEvidence,
   hasVisibleSignalEvidence,
   mergeSignalEvidenceContexts,
   normalizeAgentDockSignals,
@@ -3062,8 +3165,162 @@ module.exports = {
 };
 
 },
+"src/interaction/InteractionPatternCandidates.js": function(module, exports, __require) {
+const { redactSensitiveText } = __require("src/storage/sensitiveText.js");
+
+const AI_PATTERN_AXES = new Set([
+  "decision_style",
+  "collaboration_texture",
+  "attention_pattern",
+  "communication_pacing",
+  "collaboration_style",
+  "repair_style"
+]);
+
+const SUPPORTIVE_OUTCOMES = new Set([
+  "accepted",
+  "implementation_followup",
+  "productive_deepening"
+]);
+
+function normalizeAiPatternCandidate(item) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    return null;
+  }
+  const key = normalizeCandidateKey(item.key);
+  const axis = compactText(item.axis);
+  const summary = truncateText(redactSensitiveText(compactText(item.summary)), 440);
+  const evidenceQuote = truncateText(redactSensitiveText(compactText(item.evidenceQuote)), 180);
+  if (!key || !AI_PATTERN_AXES.has(axis) || !summary || !evidenceQuote) {
+    return null;
+  }
+  return {
+    key,
+    axis,
+    summary,
+    evidenceQuote,
+    confidence: Math.min(0.72, clampUnit(Number(item.confidence) || 0)),
+    evidenceOrigin: item.evidenceOrigin === "user_message" ? "user_message" : ""
+  };
+}
+
+function buildAiPatternCandidateRegistry(episodes, settings) {
+  const minEvidence = Math.max(2, Number(settings?.interactionMemoryMinEvidence) || 2);
+  const groups = new Map();
+  const sorted = (Array.isArray(episodes) ? episodes : [])
+    .filter(Boolean)
+    .slice()
+    .sort((left, right) => timestamp(left) - timestamp(right));
+
+  for (const episode of sorted) {
+    const candidate = normalizeAiPatternCandidate(episode.aiReflectionContribution?.patternCandidate);
+    if (!candidate || candidate.evidenceOrigin !== "user_message") {
+      continue;
+    }
+    if (!groups.has(candidate.key)) {
+      groups.set(candidate.key, {
+        key: candidate.key,
+        axis: candidate.axis,
+        summary: candidate.summary,
+        evidenceQuote: candidate.evidenceQuote,
+        confidenceValues: [],
+        evidenceEpisodes: [],
+        conflictingEpisodeIds: [],
+        createdAt: episode.createdAt || episode.updatedAt || Date.now(),
+        updatedAt: episode.updatedAt || episode.createdAt || Date.now()
+      });
+    }
+    const group = groups.get(candidate.key);
+    group.updatedAt = Math.max(group.updatedAt, episode.updatedAt || episode.createdAt || 0);
+    if (!sameCandidateDefinition(group, candidate)) {
+      group.conflictingEpisodeIds.push(episode.id);
+      continue;
+    }
+    if (isSupportiveCandidateEpisode(episode)) {
+      group.evidenceEpisodes.push(episode);
+      group.confidenceValues.push(candidate.confidence);
+    }
+  }
+
+  return [...groups.values()].map((group) => ({
+    key: group.key,
+    axis: group.axis,
+    summary: group.summary,
+    evidenceQuote: group.evidenceQuote,
+    evidenceEpisodes: group.evidenceEpisodes,
+    evidenceEpisodeIds: group.evidenceEpisodes.map((episode) => episode.id),
+    evidenceCount: group.evidenceEpisodes.length,
+    conflictCount: group.conflictingEpisodeIds.length,
+    conflictingEpisodeIds: group.conflictingEpisodeIds,
+    averageConfidence: average(group.confidenceValues),
+    minEvidence,
+    createdAt: group.createdAt,
+    updatedAt: group.updatedAt
+  }));
+}
+
+function sameCandidateDefinition(left, right) {
+  return left.key === right.key
+    && left.axis === right.axis
+    && compactText(left.summary) === compactText(right.summary);
+}
+
+function isSupportiveCandidateEpisode(episode) {
+  return episode?.repairPath?.outcome === "accepted"
+    || SUPPORTIVE_OUTCOMES.has(compactText(episode?.outcomeHint));
+}
+
+function normalizeCandidateKey(value) {
+  const key = compactText(value)
+    .toLowerCase()
+    .replace(/[^a-z0-9_]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 64);
+  return /^[a-z][a-z0-9_]{2,63}$/.test(key) ? key : "";
+}
+
+function average(values) {
+  if (!Array.isArray(values) || values.length === 0) {
+    return 0;
+  }
+  return values.reduce((total, value) => total + value, 0) / values.length;
+}
+
+function timestamp(item) {
+  return Number(item?.createdAt || item?.updatedAt || 0);
+}
+
+function compactText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function truncateText(value, maxChars) {
+  const text = String(value || "");
+  return text.length <= maxChars ? text : `${text.slice(0, maxChars - 1)}…`;
+}
+
+function clampUnit(value) {
+  if (!Number.isFinite(value)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, value));
+}
+
+module.exports = {
+  AI_PATTERN_AXES,
+  buildAiPatternCandidateRegistry,
+  isSupportiveCandidateEpisode,
+  normalizeAiPatternCandidate,
+  normalizeCandidateKey,
+  sameCandidateDefinition
+};
+
+},
 "src/agents/shared/agentSignals.js": function(module, exports, __require) {
 const { redactSensitiveText } = __require("src/storage/sensitiveText.js");
+const {
+  normalizeAiPatternCandidate
+} = __require("src/interaction/InteractionPatternCandidates.js");
 
 const MAX_SIGNAL_TEXT_CHARS = 240;
 const MAX_AXES = 3;
@@ -3353,11 +3610,18 @@ function appendReflectionInteraction(signals, value, evidence, raw) {
   }
   const text = normalizeReflectionText(value.text || value.summary);
   const shapes = normalizeAllowedList(value.shapes, INTERACTION_SIGNAL_SHAPES, 3);
-  if (text && shapes.length > 0) {
+  const rawPatternCandidate = value.patternCandidate || value.pattern_candidate;
+  const patternCandidate = normalizeAiPatternCandidate(rawPatternCandidate
+    ? Object.assign({}, rawPatternCandidate, {
+      confidence: Math.min(0.72, normalizeConfidence(rawPatternCandidate.confidence))
+    })
+    : null);
+  if (text && (shapes.length > 0 || patternCandidate)) {
     signals.push({
       type: "interaction_candidate",
       text,
       shapes,
+      patternCandidate,
       confidence: normalizeConfidence(value.confidence),
       evidence,
       raw
@@ -3555,6 +3819,7 @@ function buildReflectionAuditItem(signal, translate) {
       createReflectionAuditField(translate("reflectionAudit.field.tone"), signal.tone),
       createReflectionAuditField(translate("reflectionAudit.field.axes"), formatReflectionList(signal.axes)),
       createReflectionAuditField(translate("reflectionAudit.field.shapes"), formatReflectionList(signal.shapes)),
+      createReflectionAuditField(translate("reflectionAudit.field.patternCandidate"), formatReflectionPatternCandidate(signal.patternCandidate)),
       createReflectionAuditField(translate("reflectionAudit.field.kind"), signal.kind),
       createReflectionAuditField(translate("reflectionAudit.field.scope"), signal.scope),
       createReflectionAuditField(
@@ -3573,6 +3838,13 @@ function buildReflectionAuditItem(signal, translate) {
       )
     ].filter(Boolean)
   };
+}
+
+function formatReflectionPatternCandidate(value) {
+  if (!value) {
+    return "";
+  }
+  return `${value.key} · ${value.axis} · ${value.summary} · evidence: ${value.evidenceQuote}`;
 }
 
 function getReflectionTextLabel(type, translate) {
@@ -3756,7 +4028,9 @@ function formatInteractionMemoryUpdateSummary(settings, keyPrefix, translate, re
   const closedEpisodes = Array.isArray(result?.closedEpisodes) ? result.closedEpisodes : [];
   const changed = []
     .concat((Array.isArray(result?.updatedPatterns) ? result.updatedPatterns : []).map((item) => ({
-      type: translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`),
+      type: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiPatternLabel`)
+        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`),
       text: item.summary,
       evidenceCount: item.evidenceCount
     })))
@@ -3786,8 +4060,16 @@ function formatInteractionMemoryUpdateSummary(settings, keyPrefix, translate, re
     sections.push(translate(settings, `${keyPrefix}.interactionMemoryUpdated.changed`, {
       items: formatItemList(changed, (item) => formatInteractionChange(settings, keyPrefix, translate, item))
     }));
+  } else if (closedEpisodes.length > 0) {
+    sections.push(translate(settings, `${keyPrefix}.interactionMemoryUpdated.unchanged`));
   }
   return [base].concat(sections).filter(Boolean).join("\n");
+}
+
+function formatInteractionMemoryUpdateTitle(settings, keyPrefix, translate, result) {
+  return translate(settings, hasInteractionDerivedChanges(result)
+    ? `${keyPrefix}.interactionMemoryUpdated.title`
+    : `${keyPrefix}.interactionMemoryUpdated.episodeTitle`);
 }
 
 function buildMemoryUpdateAuditItems(saved, settings, keyPrefix, translate) {
@@ -3863,7 +4145,12 @@ function buildInteractionMemoryAuditItems(result, settings, keyPrefix, translate
   const closedEpisodes = Array.isArray(result?.closedEpisodes) ? result.closedEpisodes : [];
   const items = closedEpisodes.map((item, index) => {
     const type = translate(settings, `${keyPrefix}.memoryAudit.type.interactionEpisode`);
-    const source = translate(settings, `${keyPrefix}.memoryAudit.source.localRules`);
+    const source = item.aiReflectionContribution
+      ? translate(settings, `${keyPrefix}.memoryAudit.source.localRulesAndAiReflection`)
+      : translate(settings, `${keyPrefix}.memoryAudit.source.localRules`);
+    const affectedItems = getInteractionChangesForEpisode(result, item, settings, keyPrefix, translate);
+    const patternCandidateUpdate = (Array.isArray(result?.patternCandidateUpdates) ? result.patternCandidateUpdates : [])
+      .find((entry) => entry.episodeId === item.id);
     return {
       title: formatAuditItemTitle(type, index),
       summary: truncateNoticeText([item.userExcerpt, item.reaction?.excerpt || item.outcomeHint].filter(Boolean).join(" -> ")),
@@ -3876,6 +4163,10 @@ function buildInteractionMemoryAuditItems(result, settings, keyPrefix, translate
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.userExcerpt`), item.userExcerpt),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.assistantExcerpt`), item.assistantExcerpt),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.reaction`), item.reaction?.excerpt || item.outcomeHint),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reactionType`), formatInteractionReaction(item, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.aiReflection`), formatAiReflectionContribution(item.aiReflectionContribution, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.patternCandidate`), formatPatternCandidateUpdate(patternCandidateUpdate, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.effect`), formatInteractionEpisodeEffect(item, affectedItems, settings, keyPrefix, translate)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.role`), item.memoryRole),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.weight`), formatNumber(item.eventWeight))
       ].filter(Boolean)
@@ -3885,8 +4176,13 @@ function buildInteractionMemoryAuditItems(result, settings, keyPrefix, translate
   const changed = []
     .concat((Array.isArray(result?.updatedPatterns) ? result.updatedPatterns : []).map((item) => ({
       item,
-      type: translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`),
-      text: item.summary
+      type: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiPatternLabel`)
+        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`),
+      text: item.summary,
+      source: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.memoryAudit.source.aiReflectionPromotedLocally`)
+        : translate(settings, `${keyPrefix}.memoryAudit.source.localRules`)
     })))
     .concat((Array.isArray(result?.updatedTensions) ? result.updatedTensions : []).map((item) => ({
       item,
@@ -3931,6 +4227,38 @@ function buildInteractionMemoryAuditItems(result, settings, keyPrefix, translate
   return items;
 }
 
+function formatAiReflectionContribution(contribution, settings, keyPrefix, translate) {
+  if (!contribution) {
+    return "";
+  }
+  return translate(settings, `${keyPrefix}.memoryAudit.effect.aiReflectionContribution`, {
+    summary: contribution.summary || "",
+    shapes: (Array.isArray(contribution.shapes) ? contribution.shapes : []).join(", "),
+    confidence: formatNumber(contribution.confidence),
+    weight: formatNumber(contribution.weight)
+  });
+}
+
+function formatPatternCandidateUpdate(update, settings, keyPrefix, translate) {
+  if (!update) {
+    return "";
+  }
+  return translate(settings, `${keyPrefix}.memoryAudit.patternCandidate.${update.status}`, {
+    key: update.key,
+    axis: update.axis,
+    summary: update.summary,
+    canonicalSummary: update.canonicalSummary,
+    evidenceQuote: update.evidenceQuote,
+    evidenceCount: update.evidenceCount,
+    minEvidence: update.minEvidence
+  });
+}
+
+function hasInteractionDerivedChanges(result) {
+  return [result?.updatedPatterns, result?.updatedTensions, result?.updatedStableImpressions]
+    .some((items) => Array.isArray(items) && items.length > 0);
+}
+
 function formatDeepMemoryReason(item, source, settings, keyPrefix, translate) {
   if (item?.whyItMatters) {
     return item.whyItMatters;
@@ -3960,6 +4288,54 @@ function formatInteractionEpisodeReason(item, settings, keyPrefix, translate) {
     role: item?.memoryRole || "",
     weight: formatNumber(item?.eventWeight)
   });
+}
+
+function formatInteractionReaction(item, settings, keyPrefix, translate) {
+  const code = item?.reaction?.outcomeHint || item?.outcomeHint || item?.reaction?.kind || "";
+  if (!code) {
+    return "";
+  }
+  const label = translate(settings, `${keyPrefix}.memoryAudit.reaction.${code}`);
+  return label && label !== `${keyPrefix}.memoryAudit.reaction.${code}`
+    ? `${code} — ${label}`
+    : code;
+}
+
+function formatInteractionEpisodeEffect(item, affectedItems, settings, keyPrefix, translate) {
+  if (!Array.isArray(affectedItems) || affectedItems.length === 0) {
+    return translate(settings, `${keyPrefix}.memoryAudit.effect.interactionEpisodeOnly`, {
+      role: item?.memoryRole || "short_term_episode"
+    });
+  }
+  const labels = affectedItems.map((entry) => entry.type).filter(Boolean).join("、");
+  return translate(settings, `${keyPrefix}.memoryAudit.effect.interactionDerivedChanged`, {
+    count: affectedItems.length,
+    items: labels
+  });
+}
+
+function getInteractionChangesForEpisode(result, episode, settings, keyPrefix, translate) {
+  const entries = []
+    .concat((Array.isArray(result?.updatedPatterns) ? result.updatedPatterns : []).map((item) => ({
+      item,
+      type: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiPatternLabel`)
+        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`)
+    })))
+    .concat((Array.isArray(result?.updatedTensions) ? result.updatedTensions : []).map((item) => ({
+      item,
+      type: translate(settings, `${keyPrefix}.interactionMemoryUpdated.tensionLabel`)
+    })))
+    .concat((Array.isArray(result?.updatedStableImpressions) ? result.updatedStableImpressions : []).map((item) => ({
+      item,
+      type: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiImpressionLabel`)
+        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.impressionLabel`)
+    })));
+  return entries.filter((entry) => (
+    Array.isArray(entry.item?.evidenceEpisodeIds)
+    && entry.item.evidenceEpisodeIds.includes(episode?.id)
+  ));
 }
 
 function formatInteractionChangeReason(entry, settings, keyPrefix, translate) {
@@ -4071,6 +4447,7 @@ module.exports = {
   buildMemoryUpdateAuditItems,
   formatDeepMemoryUpdateSummary,
   formatInteractionMemoryUpdateSummary,
+  formatInteractionMemoryUpdateTitle,
   formatMemoryUpdateSummary
 };
 
@@ -4079,9 +4456,11 @@ module.exports = {
 const { containsSensitiveText, redactSensitiveText } = __require("src/storage/sensitiveText.js");
 const {
   hasGroundedAgentSignal,
+  hasExactVisibleSignalEvidence,
   mergeSignalEvidenceContexts,
   normalizeAgentDockSignals
 } = __require("src/agents/shared/signalEvidence.js");
+const { normalizeAiPatternCandidate } = __require("src/interaction/InteractionPatternCandidates.js");
 
 const MAX_EXCERPT_CHARS = 220;
 
@@ -4293,6 +4672,7 @@ function extractEpisodeDraft(turn, previousPending) {
     assistantExcerpt: sanitizeExcerpt(response),
     userSignals,
     assistantShape,
+    aiReflectionContribution: interactionHints.contribution,
     reaction,
     repairPath,
     eventWeight,
@@ -4306,7 +4686,11 @@ function extractEpisodeDraft(turn, previousPending) {
 function extractInteractionSignalHints(signals, evidenceContextOrPrompt, response = "") {
   const result = {
     shapes: [],
-    weight: 0
+    weight: 0,
+    summaries: [],
+    confidence: 0,
+    patternCandidate: null,
+    contribution: null
   };
   for (const signal of normalizeAgentDockSignals(signals)) {
     if (signal.type !== "interaction_candidate") {
@@ -4319,13 +4703,48 @@ function extractInteractionSignalHints(signals, evidenceContextOrPrompt, respons
       continue;
     }
     result.shapes.push(...normalizeStringArray(signal.shapes));
-    result.weight = Math.max(
-      result.weight,
-      Math.min(0.08, Math.max(0, Number(signal.confidence) || 0.6) * 0.08)
-    );
+    const confidence = Math.max(0, Math.min(1, Number(signal.confidence) || 0.6));
+    result.weight = Math.max(result.weight, Math.min(0.08, confidence * 0.08));
+    result.confidence = Math.max(result.confidence, confidence);
+    const summary = sanitizeExcerpt(signal.text);
+    if (summary) {
+      result.summaries.push(summary);
+    }
+    if (signal.patternCandidate && hasGroundedUserEvidence(signal, evidenceContextOrPrompt)) {
+      result.patternCandidate = normalizeAiPatternCandidate(Object.assign({}, signal.patternCandidate, {
+        evidenceOrigin: "user_message"
+      }));
+    }
   }
   result.shapes = uniqueStrings(result.shapes).slice(0, 3);
+  if (result.shapes.length > 0 || result.patternCandidate) {
+    result.contribution = {
+      source: "ai_outcome_reflection",
+      summary: uniqueStrings(result.summaries).slice(0, 2).join(" | "),
+      shapes: result.shapes,
+      confidence: result.confidence,
+      weight: result.weight,
+      validation: "grounded_visible_evidence",
+      patternCandidate: result.patternCandidate
+    };
+  }
   return result;
+}
+
+function hasGroundedUserEvidence(signal, evidenceContextOrPrompt) {
+  const userMessage = evidenceContextOrPrompt && typeof evidenceContextOrPrompt === "object"
+    ? evidenceContextOrPrompt.user_message
+    : evidenceContextOrPrompt;
+  const evidenceQuote = compactText(signal?.patternCandidate?.evidenceQuote);
+  if (!evidenceQuote || !hasExactVisibleSignalEvidence(evidenceQuote, userMessage)) {
+    return false;
+  }
+  return (Array.isArray(signal?.evidenceRefs) ? signal.evidenceRefs : [])
+    .some((item) => (
+      item?.origin === "user_message"
+      && item?.speaker === "user"
+      && compactText(item?.quote) === evidenceQuote
+    ));
 }
 
 function classifyPhase(context, userSignals, assistantShape, reaction, repairPath) {
@@ -5977,6 +6396,7 @@ const { formatMemoryLine } = __require("src/storage/MemoryStore.js");
 const { formatAssistantContinuityPrompt } = __require("src/continuity/ContinuityPromptFormatter.js");
 const { formatExpressionPrompt } = __require("src/expression/ExpressionPromptFormatter.js");
 const { planPromptSections } = __require("src/promptBudget.js");
+const { AI_PATTERN_AXES } = __require("src/interaction/InteractionPatternCandidates.js");
 
 async function buildPrompt(app, settings, prompt, conversation) {
   const result = await buildPromptWithMetadata(app, settings, prompt, conversation);
@@ -5987,7 +6407,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
   const contextLimit = Number(settings.contextLimitChars) || 258000;
   const stylePrompt = formatAssistantStylePrompt(settings);
   const localContextBoundaryPrompt = formatLocalContextBoundaryPrompt(settings);
-  const agentSignalPrompt = formatAgentSignalPrompt(settings);
+  const agentSignalPrompt = formatAgentSignalPrompt(settings, options.interactionPatternCandidates);
   const continuityPrompt = formatAssistantContinuityPrompt({
     workingAffect: options.workingAffect,
     deepMemories: options.deepMemories || [],
@@ -6010,7 +6430,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
       createPromptSection("assistant_continuity", continuityPrompt, { optional: true, priority: 40, truncatable: true, minChars: 600 }),
       createPromptSection("expression", expressionPrompt, { optional: true, priority: 38, truncatable: true, minChars: 360 }),
       createPromptSection("memory", memoryPrompt, { optional: true, priority: 30, truncatable: true, minChars: 700 }),
-      createPromptSection("agent_signals", agentSignalPrompt, { optional: true, priority: 25 })
+      createPromptSection("agent_signals", agentSignalPrompt, { optional: true, priority: 25, truncatable: true, minChars: 1400 })
     ],
     contextLimit
   );
@@ -6053,7 +6473,7 @@ function formatLocalContextBoundaryPrompt() {
   ].join("\n");
 }
 
-function formatAgentSignalPrompt(settings) {
+function formatAgentSignalPrompt(settings, interactionPatternCandidates = []) {
   const lines = [];
   const deepMemorySignalsEnabled = settings?.deepMemoryEnabled !== false
     && settings?.deepMemoryAutoCapture !== false;
@@ -6129,7 +6549,14 @@ function formatAgentSignalPrompt(settings) {
       outcomeExample.interaction = {
         shapes: ["became_concrete", "softened_tone"],
         confidence: 0.58,
-        summary: "semantic account of how the visible final answer responded"
+        summary: "semantic account of how the visible final answer responded",
+        patternCandidate: {
+          key: "concrete_examples_after_ambiguity",
+          axis: "communication_pacing",
+          confidence: 0.58,
+          evidenceQuote: "short exact quote from the current user message",
+          summary: "When a similar ambiguity recurs, use a concrete example before adding more abstraction."
+        }
       };
     }
     if (affectSignalsEnabled) {
@@ -6149,7 +6576,11 @@ function formatAgentSignalPrompt(settings) {
     lines.push("Agent Dock continuity reflection:");
     lines.push("For every substantive response, generate one lightweight leading `phase=appraisal` envelope before any visible answer text. Generate it first and let the selected stance naturally shape the answer that follows. Omit it only for an empty response, an error-only or system-only response, or a trivial acknowledgement with no meaningful stance. It is structured, auditable metadata, not hidden reasoning.");
     lines.push("Append a terminal `phase=outcome` envelope only when the completed turn contains a meaningful memory, interaction, affect, salience, repair, or achievement change; otherwise omit it. Their `evidence` must contain 1-3 objects shaped as `{origin, speaker, quote}`. Allowed origins are `user_message`, `assistant_message`, `recalled_memory`, `active_note`, and `tool_result`; speaker must be `user`, `assistant`, or `none`. Use short exact visible excerpts and label provenance honestly. Evidence comes from visible context, never hidden reasoning.");
-    lines.push("Omit irrelevant sections. Local rules decide persistence and may reject or limit the reflection. It cannot declare user preferences or facts, directly create interaction patterns, modify the persona preset, or override task accuracy, permissions, or safety.");
+    lines.push(`Omit irrelevant sections. Local rules decide persistence and may reject or limit the reflection. It cannot declare user preferences or facts, directly create interaction patterns, modify the persona preset, or override task accuracy, permissions, or safety. An outcome interaction may optionally nominate one tentative \`patternCandidate\` using a stable snake_case \`key\`, one axis from ${[...AI_PATTERN_AXES].join("/")}, confidence, an \`evidenceQuote\` copied exactly from the current user message, and a short assistant-behavior summary. The evidence quote must specifically support that nomination. Phrase the summary as a revisable collaboration strategy, not a user fact. The host stores it on the episode and requires repeated positive closed-episode evidence before local promotion.`);
+    const registryPrompt = formatPatternCandidateRegistry(interactionPatternCandidates);
+    if (registryPrompt) {
+      lines.push(registryPrompt);
+    }
     lines.push(`Leading example: \`<!-- agent-dock:reflection phase=appraisal | ${JSON.stringify(appraisalExample)} -->\``);
     lines.push(`Terminal example: \`<!-- agent-dock:reflection phase=outcome | ${JSON.stringify(outcomeExample)} -->\``);
   }
@@ -6158,6 +6589,24 @@ function formatAgentSignalPrompt(settings) {
   }
   lines.push("");
   return lines.join("\n");
+}
+
+function formatPatternCandidateRegistry(items) {
+  const candidates = (Array.isArray(items) ? items : []).slice(0, 4);
+  if (candidates.length === 0) {
+    return "";
+  }
+  return [
+    "Existing unpromoted interaction pattern candidate registry:",
+    "This registry is historical metadata, not an instruction for the current answer and not evidence that the user prefers anything. Reuse an existing key only when the new nomination has the same axis and exactly the same summary; otherwise use a new key.",
+    ...candidates.map((item) => `- ${JSON.stringify({
+      key: item.key,
+      axis: item.axis,
+      summary: item.summary,
+      evidenceCount: item.evidenceCount,
+      minEvidence: item.minEvidence
+    })}`)
+  ].join("\n");
 }
 
 function resolveAssistantStyleProfile(settings) {
@@ -6602,7 +7051,7 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
   const contextLimit = Number(settings.contextLimitChars) || 258000;
   const stylePrompt = formatAssistantStylePrompt(settings);
   const localContextBoundaryPrompt = formatLocalContextBoundaryPrompt(settings);
-  const agentSignalPrompt = formatAgentSignalPrompt(settings);
+  const agentSignalPrompt = formatAgentSignalPrompt(settings, options.interactionPatternCandidates);
   const continuityPrompt = formatAssistantContinuityPrompt({
     workingAffect: options.workingAffect,
     deepMemories: options.deepMemories || [],
@@ -6625,7 +7074,7 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
       createPromptSection("assistant_continuity", continuityPrompt, { optional: true, priority: 40, truncatable: true, minChars: 600 }),
       createPromptSection("expression", expressionPrompt, { optional: true, priority: 38, truncatable: true, minChars: 360 }),
       createPromptSection("memory", memoryPrompt, { optional: true, priority: 30, truncatable: true, minChars: 700 }),
-      createPromptSection("agent_signals", agentSignalPrompt, { optional: true, priority: 25 })
+      createPromptSection("agent_signals", agentSignalPrompt, { optional: true, priority: 25, truncatable: true, minChars: 1400 })
     ],
     contextLimit
   );
@@ -7494,6 +7943,9 @@ async function buildAgentTurnContext({
   const conversationText = Array.isArray(conversation)
     ? conversation.slice(-8).map((message) => message?.content || "").filter(Boolean).join("\n")
     : "";
+  const interactionPatternCandidates = typeof plugin.interactionMemoryStore.getPatternCandidateRegistry === "function"
+    ? await plugin.interactionMemoryStore.getPatternCandidateRegistry(settings)
+    : [];
   const promptSignals = planPromptSignals({
     memories: removeMemorySearchDuplicates(memories, memorySearch.results),
     deepMemories: await plugin.deepMemoryStore.getPromptMemories(prompt, settings, {
@@ -7524,6 +7976,7 @@ async function buildAgentTurnContext({
     conversation,
     promptSignals,
     expressionPolicy,
+    interactionPatternCandidates,
     useFullPrompt
   });
 
@@ -7534,6 +7987,7 @@ async function buildAgentTurnContext({
     promptResult,
     promptSignals,
     expressionPolicy,
+    interactionPatternCandidates,
     signalEvidenceContext: createSignalEvidenceContext({
       user_message: prompt,
       recalled_memory: formatRecalledMemoryEvidence(promptSignals),
@@ -7574,6 +8028,7 @@ async function buildPromptResultForTurnContext({
   conversation,
   promptSignals,
   expressionPolicy,
+  interactionPatternCandidates = [],
   useFullPrompt = true
 }) {
   const options = {
@@ -7584,7 +8039,8 @@ async function buildPromptResultForTurnContext({
     memories: promptSignals.memories,
     memorySearchResults: promptSignals.memorySearchResults,
     memorySearchPerformed: promptSignals.memorySearchPerformed,
-    expressionPolicy
+    expressionPolicy,
+    interactionPatternCandidates
   };
 
   if (useFullPrompt) {
@@ -7602,9 +8058,26 @@ function emitPromptContextNotices(onUpdate, promptResult, promptSignals, transla
   }
 }
 
+function emitDebugPromptActivity(onUpdate, promptResult, settings, translate) {
+  if (!settings?.debugActivity || !promptResult?.prompt) {
+    return;
+  }
+
+  onUpdate({
+    kind: "activity",
+    title: translate("timeline.turnPrompt.title"),
+    summary: translate("timeline.turnPrompt.summary", {
+      chars: promptResult.prompt.length
+    }),
+    detail: promptResult.prompt,
+    persist: false
+  });
+}
+
 module.exports = {
   buildAgentTurnContext,
   buildPromptResultForTurnContext,
+  emitDebugPromptActivity,
   emitPromptContextNotices,
   _test: {
     formatRecalledMemoryEvidence,
@@ -8161,9 +8634,13 @@ const {
   buildMemoryUpdateAuditItems,
   formatDeepMemoryUpdateSummary,
   formatInteractionMemoryUpdateSummary,
+  formatInteractionMemoryUpdateTitle,
   formatMemoryUpdateSummary
 } = __require("src/agents/shared/captureNotices.js");
-const { buildAgentTurnContext } = __require("src/agents/shared/TurnContextBuilder.js");
+const {
+  buildAgentTurnContext,
+  emitDebugPromptActivity
+} = __require("src/agents/shared/TurnContextBuilder.js");
 const { ReflectionContentFilter } = __require("src/agents/shared/ReflectionContentFilter.js");
 const { mergeSignalEvidenceContexts } = __require("src/agents/shared/signalEvidence.js");
 const { codexJsonEventToUpdates } = __require("src/agents/codex/jsonEvents.js");
@@ -8207,6 +8684,7 @@ class CodexAgent {
         outputPath
       )
     );
+    emitDebugPromptActivity(onUpdate, turnContext.promptResult, settings, translate);
 
     return new Promise((resolve, reject) => {
       let finalOutput = "";
@@ -8490,7 +8968,7 @@ class CodexAgent {
           kind: "notice",
           noticeType: "interaction_memory_updated",
           insertBeforeLastContent: true,
-          title: t(settings, "codex.interactionMemoryUpdated.title"),
+          title: formatInteractionMemoryUpdateTitle(settings, "codex", t, result),
           summary: formatInteractionMemoryUpdateSummary(settings, "codex", t, result),
           auditItems: buildInteractionMemoryAuditItems(result, settings, "codex", t)
         });
@@ -9345,6 +9823,7 @@ const { spawn } = require("child_process");
 const {
   buildAgentTurnContext,
   buildPromptResultForTurnContext,
+  emitDebugPromptActivity,
   emitPromptContextNotices
 } = __require("src/agents/shared/TurnContextBuilder.js");
 const { buildCliPath } = __require("src/cli/env.js");
@@ -9364,6 +9843,7 @@ const {
   buildMemoryUpdateAuditItems,
   formatDeepMemoryUpdateSummary,
   formatInteractionMemoryUpdateSummary,
+  formatInteractionMemoryUpdateTitle,
   formatMemoryUpdateSummary
 } = __require("src/agents/shared/captureNotices.js");
 const { AcpClient } = __require("src/agents/cursor/AcpClient.js");
@@ -9514,6 +9994,7 @@ class CursorAgent {
       const promptResult = turnContext.promptResult;
       const promptSignals = turnContext.promptSignals;
       const expressionPolicy = turnContext.expressionPolicy;
+      const interactionPatternCandidates = turnContext.interactionPatternCandidates;
       const activeFilePath = turnContext.activeFilePath;
       baseSignalEvidenceContext = turnContext.signalEvidenceContext;
       throwIfAborted();
@@ -9570,6 +10051,7 @@ class CursorAgent {
             conversation,
             promptSignals,
             expressionPolicy,
+            interactionPatternCandidates,
             useFullPrompt: true
           });
           emitPromptContextNotices(emitUpdate, reloadPromptResult, promptSignals, translate, "cursor");
@@ -9581,6 +10063,7 @@ class CursorAgent {
           });
           cursorState.acpSessionId = await client.createSession(cursorMode);
           throwIfAborted();
+          emitDebugPromptActivity(emitUpdate, reloadPromptResult, settings, translate);
           emitUpdate({
             kind: "notice",
             title: translate("cursor.promptSent.title"),
@@ -9605,6 +10088,7 @@ class CursorAgent {
       }
 
       throwIfAborted();
+      emitDebugPromptActivity(emitUpdate, promptResult, settings, translate);
       emitUpdate({
         kind: "notice",
         title: translate("cursor.promptSent.title"),
@@ -9929,7 +10413,7 @@ class CursorAgent {
           kind: "notice",
           noticeType: "interaction_memory_updated",
           insertBeforeLastContent: true,
-          title: t(settings, "cursor.interactionMemoryUpdated.title"),
+          title: formatInteractionMemoryUpdateTitle(settings, "cursor", t, result),
           summary: formatInteractionMemoryUpdateSummary(settings, "cursor", t, result),
           auditItems: buildInteractionMemoryAuditItems(result, settings, "cursor", t)
         });
@@ -11388,6 +11872,10 @@ const MAX_STABLE_IMPRESSIONS = 16;
 
 const { formatInteractionStancePrompt } = __require("src/interaction/InteractionPromptFormatter.js");
 const { PATTERN_RULES, TENSION_RULES, STABLE_PERSONA_RULES } = __require("src/interaction/InteractionRules.js");
+const {
+  buildAiPatternCandidateRegistry,
+  normalizeAiPatternCandidate
+} = __require("src/interaction/InteractionPatternCandidates.js");
 
 function applyEpisodes(profile, newEpisodes, settings, now = Date.now()) {
   const next = normalizeInteractionMemory(profile);
@@ -11396,7 +11884,10 @@ function applyEpisodes(profile, newEpisodes, settings, now = Date.now()) {
     : [];
 
   next.episodes = limitEpisodes(next.episodes.concat(episodes));
-  next.patterns = reducePatterns(next.episodes, settings, now);
+  next.patterns = reducePatterns(next.episodes, settings, now)
+    .concat(reduceAiPatternCandidates(next.episodes, settings, now))
+    .sort(comparePromptItems)
+    .slice(0, MAX_PATTERNS);
   next.tensions = reduceTensions(next.episodes, settings, now);
   next.stableImpressions = reduceStableImpressions(next.patterns, next.tensions, next.stableImpressions, settings, now);
   next.updatedAt = now;
@@ -11548,6 +12039,40 @@ function reducePatterns(episodes, settings, now) {
     .filter((pattern) => pattern.strength >= 0.08 && pattern.confidence >= 0.2)
     .sort(comparePromptItems)
     .slice(0, MAX_PATTERNS);
+}
+
+function reduceAiPatternCandidates(episodes, settings, now) {
+  return buildAiPatternCandidateRegistry(episodes, settings).map((group) => {
+    if (group.evidenceCount < group.minEvidence) {
+      return null;
+    }
+    const matches = group.evidenceEpisodes;
+    const latest = matches[matches.length - 1];
+    return decayPattern({
+      id: `pattern_ai_${normalizeKeyText(group.key)}`,
+      key: `ai_${group.key}`,
+      candidateKey: group.key,
+      axis: group.axis,
+      summary: group.summary,
+      contexts: countBy(matches.map((episode) => episode.context)),
+      signals: uniqueStrings(matches.flatMap((episode) => episode.userSignals || [])),
+      assistantShapes: uniqueStrings(matches.flatMap((episode) => episode.assistantShape || [])),
+      outcomeHints: uniqueStrings(matches.map((episode) => episode.outcomeHint)),
+      phases: uniqueStrings(matches.map((episode) => episode.phase)),
+      repairTriggers: [],
+      repairAdjustments: [],
+      repairOutcomes: [],
+      negativeEvidenceCount: 0,
+      evidenceEpisodeIds: group.evidenceEpisodeIds,
+      evidenceCount: group.evidenceCount,
+      strength: clampUnit(0.18 + group.evidenceCount * 0.12 + group.averageConfidence * 0.25),
+      confidence: clampUnit(0.28 + group.evidenceCount * 0.06 + group.averageConfidence * 0.45),
+      generatedBy: "ai",
+      reviewStatus: "auto",
+      createdAt: group.createdAt,
+      updatedAt: latest.updatedAt || latest.createdAt || now
+    }, settings, now);
+  }).filter(Boolean);
 }
 
 function reduceTensions(episodes, settings, now) {
@@ -11838,6 +12363,7 @@ function normalizeEpisode(item) {
     assistantExcerpt: compactText(item.assistantExcerpt),
     userSignals: normalizeStringArray(item.userSignals),
     assistantShape: normalizeStringArray(item.assistantShape),
+    aiReflectionContribution: normalizeAiReflectionContribution(item.aiReflectionContribution),
     repairPath: normalizeRepairPath(item.repairPath),
     eventWeight: clampUnit(Number.isFinite(Number(item.eventWeight)) ? Number(item.eventWeight) : 0.2),
     memoryRole: normalizeMemoryRole(item.memoryRole),
@@ -11846,6 +12372,28 @@ function normalizeEpisode(item) {
     sourceSessionId: compactText(item.sourceSessionId),
     createdAt: normalizeTimestamp(item.createdAt, Date.now()),
     updatedAt: normalizeTimestamp(item.updatedAt, item.createdAt || Date.now())
+  };
+}
+
+function normalizeAiReflectionContribution(item) {
+  if (!item || typeof item !== "object" || Array.isArray(item)) {
+    return null;
+  }
+  const shapes = normalizeStringArray(item.shapes).slice(0, 3);
+  const patternCandidate = normalizeAiPatternCandidate(item.patternCandidate);
+  if (shapes.length === 0 && !patternCandidate) {
+    return null;
+  }
+  return {
+    source: item.source === "ai_outcome_reflection" ? item.source : "ai_outcome_reflection",
+    summary: compactText(item.summary).slice(0, 440),
+    shapes,
+    confidence: clampUnit(Number(item.confidence) || 0),
+    weight: Math.min(0.08, clampUnit(Number(item.weight) || 0)),
+    validation: item.validation === "grounded_visible_evidence"
+      ? item.validation
+      : "grounded_visible_evidence",
+    patternCandidate
   };
 }
 
@@ -11908,6 +12456,9 @@ function normalizePattern(item) {
     repairAdjustments: normalizeStringArray(item.repairAdjustments),
     repairOutcomes: normalizeStringArray(item.repairOutcomes),
     negativeEvidenceCount: Math.max(0, Number.parseInt(item.negativeEvidenceCount, 10) || 0),
+    candidateKey: compactText(item.candidateKey),
+    generatedBy: normalizeGeneratedBy(item.generatedBy),
+    reviewStatus: normalizeReviewStatus(item.reviewStatus),
     evidenceEpisodeIds: normalizeStringArray(item.evidenceEpisodeIds),
     evidenceCount: Math.max(0, Number.parseInt(item.evidenceCount, 10) || 0),
     strength: clampUnit(Number(item.strength) || 0),
@@ -12101,6 +12652,11 @@ const {
   getPromptStance,
   normalizeInteractionMemory
 } = __require("src/interaction/PatternReducer.js");
+const {
+  buildAiPatternCandidateRegistry,
+  normalizeAiPatternCandidate,
+  sameCandidateDefinition
+} = __require("src/interaction/InteractionPatternCandidates.js");
 const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = __require("src/storage/localDataPath.js");
 
 const INTERACTION_DIR_NAME = "interaction";
@@ -12129,6 +12685,27 @@ class InteractionMemoryStore {
     return getPromptStance(memory, settings, context);
   }
 
+  async getPatternCandidateRegistry(settings) {
+    if (!settings.interactionMemoryEnabled || !settings.interactionMemoryAutoCapture) {
+      return [];
+    }
+    const memory = await this.loadMemory();
+    return buildAiPatternCandidateRegistry(
+      memory.episodes.concat(memory.pendingEpisodes),
+      settings
+    )
+      .filter((item) => item.evidenceCount < item.minEvidence)
+      .sort((left, right) => Number(right.updatedAt) - Number(left.updatedAt))
+      .slice(0, 4)
+      .map((item) => ({
+        key: item.key,
+        axis: item.axis,
+        summary: item.summary,
+        evidenceCount: item.evidenceCount,
+        minEvidence: item.minEvidence
+      }));
+  }
+
   async captureTurn(turn, settings) {
     if (!settings.interactionMemoryEnabled || !settings.interactionMemoryAutoCapture) {
       return {
@@ -12139,7 +12716,8 @@ class InteractionMemoryStore {
         stableImpressions: [],
         updatedPatterns: [],
         updatedTensions: [],
-        updatedStableImpressions: []
+        updatedStableImpressions: [],
+        patternCandidateUpdates: []
       };
     }
 
@@ -12164,6 +12742,7 @@ class InteractionMemoryStore {
         pendingEpisodes
       }), closedEpisodes, settings, now);
       const changed = getChangedInteractionItems(next, closedEpisodes);
+      const patternCandidateUpdates = getPatternCandidateUpdates(next, closedEpisodes, settings);
       next.pendingEpisodes = pendingEpisodes;
       this.cache = next;
       await this.saveMemory(next);
@@ -12176,7 +12755,8 @@ class InteractionMemoryStore {
         stableImpressions: next.stableImpressions,
         updatedPatterns: changed.patterns,
         updatedTensions: changed.tensions,
-        updatedStableImpressions: changed.stableImpressions
+        updatedStableImpressions: changed.stableImpressions,
+        patternCandidateUpdates
       };
     });
   }
@@ -12238,6 +12818,43 @@ class InteractionMemoryStore {
     this.writeQueue = run.catch(() => {});
     return run;
   }
+}
+
+function getPatternCandidateUpdates(memory, closedEpisodes, settings) {
+  const registry = buildAiPatternCandidateRegistry(memory.episodes, settings);
+  return (Array.isArray(closedEpisodes) ? closedEpisodes : []).map((episode) => {
+    const candidate = normalizeAiPatternCandidate(episode.aiReflectionContribution?.patternCandidate);
+    if (!candidate) {
+      return null;
+    }
+    const registered = registry.find((item) => item.key === candidate.key);
+    const conflict = registered && !sameCandidateDefinition(registered, candidate);
+    const promoted = memory.patterns.some((pattern) => (
+      pattern.generatedBy === "ai"
+      && pattern.candidateKey === candidate.key
+      && pattern.axis === candidate.axis
+      && pattern.evidenceEpisodeIds.includes(episode.id)
+    ));
+    const supportive = registered?.evidenceEpisodeIds.includes(episode.id);
+    return {
+      episodeId: episode.id,
+      key: candidate.key,
+      axis: candidate.axis,
+      summary: candidate.summary,
+      evidenceQuote: candidate.evidenceQuote,
+      canonicalSummary: registered?.summary || candidate.summary,
+      evidenceCount: registered?.evidenceCount || 0,
+      minEvidence: registered?.minEvidence || Math.max(2, Number(settings?.interactionMemoryMinEvidence) || 2),
+      status: conflict ? "conflicted" : promoted ? "promoted" : supportive ? "accumulating" : "rejected",
+      reason: conflict
+        ? "definition_conflict"
+        : promoted
+        ? "threshold_met"
+        : supportive
+          ? "waiting_for_repeated_evidence"
+          : "follow_up_not_supportive"
+    };
+  }).filter(Boolean);
 }
 
 function createEmptyInteractionMemory() {
@@ -12305,6 +12922,7 @@ function createPendingEpisode(draft, now) {
     assistantExcerpt: draft.assistantExcerpt,
     userSignals: draft.userSignals,
     assistantShape: draft.assistantShape,
+    aiReflectionContribution: draft.aiReflectionContribution,
     repairPath: draft.repairPath,
     eventWeight: draft.eventWeight,
     memoryRole: draft.memoryRole,
@@ -13385,6 +14003,9 @@ function normalizePersistedTimeline(timeline, role, content) {
 
 function normalizeTimelineEntry(entry) {
   if (!entry || typeof entry !== "object" || !PERSISTED_TIMELINE_KINDS.has(entry.kind)) {
+    return null;
+  }
+  if (entry.persist === false) {
     return null;
   }
 

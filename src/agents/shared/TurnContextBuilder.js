@@ -42,6 +42,9 @@ async function buildAgentTurnContext({
   const conversationText = Array.isArray(conversation)
     ? conversation.slice(-8).map((message) => message?.content || "").filter(Boolean).join("\n")
     : "";
+  const interactionPatternCandidates = typeof plugin.interactionMemoryStore.getPatternCandidateRegistry === "function"
+    ? await plugin.interactionMemoryStore.getPatternCandidateRegistry(settings)
+    : [];
   const promptSignals = planPromptSignals({
     memories: removeMemorySearchDuplicates(memories, memorySearch.results),
     deepMemories: await plugin.deepMemoryStore.getPromptMemories(prompt, settings, {
@@ -72,6 +75,7 @@ async function buildAgentTurnContext({
     conversation,
     promptSignals,
     expressionPolicy,
+    interactionPatternCandidates,
     useFullPrompt
   });
 
@@ -82,6 +86,7 @@ async function buildAgentTurnContext({
     promptResult,
     promptSignals,
     expressionPolicy,
+    interactionPatternCandidates,
     signalEvidenceContext: createSignalEvidenceContext({
       user_message: prompt,
       recalled_memory: formatRecalledMemoryEvidence(promptSignals),
@@ -122,6 +127,7 @@ async function buildPromptResultForTurnContext({
   conversation,
   promptSignals,
   expressionPolicy,
+  interactionPatternCandidates = [],
   useFullPrompt = true
 }) {
   const options = {
@@ -132,7 +138,8 @@ async function buildPromptResultForTurnContext({
     memories: promptSignals.memories,
     memorySearchResults: promptSignals.memorySearchResults,
     memorySearchPerformed: promptSignals.memorySearchPerformed,
-    expressionPolicy
+    expressionPolicy,
+    interactionPatternCandidates
   };
 
   if (useFullPrompt) {
@@ -150,9 +157,26 @@ function emitPromptContextNotices(onUpdate, promptResult, promptSignals, transla
   }
 }
 
+function emitDebugPromptActivity(onUpdate, promptResult, settings, translate) {
+  if (!settings?.debugActivity || !promptResult?.prompt) {
+    return;
+  }
+
+  onUpdate({
+    kind: "activity",
+    title: translate("timeline.turnPrompt.title"),
+    summary: translate("timeline.turnPrompt.summary", {
+      chars: promptResult.prompt.length
+    }),
+    detail: promptResult.prompt,
+    persist: false
+  });
+}
+
 module.exports = {
   buildAgentTurnContext,
   buildPromptResultForTurnContext,
+  emitDebugPromptActivity,
   emitPromptContextNotices,
   _test: {
     formatRecalledMemoryEvidence,

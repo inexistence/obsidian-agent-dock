@@ -4,6 +4,7 @@ const { spawn } = require("child_process");
 const {
   buildAgentTurnContext,
   buildPromptResultForTurnContext,
+  emitDebugPromptActivity,
   emitPromptContextNotices
 } = require("../shared/TurnContextBuilder");
 const { buildCliPath } = require("../../cli/env");
@@ -23,6 +24,7 @@ const {
   buildMemoryUpdateAuditItems,
   formatDeepMemoryUpdateSummary,
   formatInteractionMemoryUpdateSummary,
+  formatInteractionMemoryUpdateTitle,
   formatMemoryUpdateSummary
 } = require("../shared/captureNotices");
 const { AcpClient } = require("./AcpClient");
@@ -173,6 +175,7 @@ class CursorAgent {
       const promptResult = turnContext.promptResult;
       const promptSignals = turnContext.promptSignals;
       const expressionPolicy = turnContext.expressionPolicy;
+      const interactionPatternCandidates = turnContext.interactionPatternCandidates;
       const activeFilePath = turnContext.activeFilePath;
       baseSignalEvidenceContext = turnContext.signalEvidenceContext;
       throwIfAborted();
@@ -229,6 +232,7 @@ class CursorAgent {
             conversation,
             promptSignals,
             expressionPolicy,
+            interactionPatternCandidates,
             useFullPrompt: true
           });
           emitPromptContextNotices(emitUpdate, reloadPromptResult, promptSignals, translate, "cursor");
@@ -240,6 +244,7 @@ class CursorAgent {
           });
           cursorState.acpSessionId = await client.createSession(cursorMode);
           throwIfAborted();
+          emitDebugPromptActivity(emitUpdate, reloadPromptResult, settings, translate);
           emitUpdate({
             kind: "notice",
             title: translate("cursor.promptSent.title"),
@@ -264,6 +269,7 @@ class CursorAgent {
       }
 
       throwIfAborted();
+      emitDebugPromptActivity(emitUpdate, promptResult, settings, translate);
       emitUpdate({
         kind: "notice",
         title: translate("cursor.promptSent.title"),
@@ -588,7 +594,7 @@ class CursorAgent {
           kind: "notice",
           noticeType: "interaction_memory_updated",
           insertBeforeLastContent: true,
-          title: t(settings, "cursor.interactionMemoryUpdated.title"),
+          title: formatInteractionMemoryUpdateTitle(settings, "cursor", t, result),
           summary: formatInteractionMemoryUpdateSummary(settings, "cursor", t, result),
           auditItems: buildInteractionMemoryAuditItems(result, settings, "cursor", t)
         });

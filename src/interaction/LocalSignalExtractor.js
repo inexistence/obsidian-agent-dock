@@ -1,9 +1,11 @@
 const { containsSensitiveText, redactSensitiveText } = require("../storage/sensitiveText");
 const {
   hasGroundedAgentSignal,
+  hasExactVisibleSignalEvidence,
   mergeSignalEvidenceContexts,
   normalizeAgentDockSignals
 } = require("../agents/shared/signalEvidence");
+const { normalizeAiPatternCandidate } = require("./InteractionPatternCandidates");
 
 const MAX_EXCERPT_CHARS = 220;
 
@@ -215,6 +217,7 @@ function extractEpisodeDraft(turn, previousPending) {
     assistantExcerpt: sanitizeExcerpt(response),
     userSignals,
     assistantShape,
+    aiReflectionContribution: interactionHints.contribution,
     reaction,
     repairPath,
     eventWeight,
@@ -228,7 +231,11 @@ function extractEpisodeDraft(turn, previousPending) {
 function extractInteractionSignalHints(signals, evidenceContextOrPrompt, response = "") {
   const result = {
     shapes: [],
-    weight: 0
+    weight: 0,
+    summaries: [],
+    confidence: 0,
+    patternCandidate: null,
+    contribution: null
   };
   for (const signal of normalizeAgentDockSignals(signals)) {
     if (signal.type !== "interaction_candidate") {
@@ -241,13 +248,48 @@ function extractInteractionSignalHints(signals, evidenceContextOrPrompt, respons
       continue;
     }
     result.shapes.push(...normalizeStringArray(signal.shapes));
-    result.weight = Math.max(
-      result.weight,
-      Math.min(0.08, Math.max(0, Number(signal.confidence) || 0.6) * 0.08)
-    );
+    const confidence = Math.max(0, Math.min(1, Number(signal.confidence) || 0.6));
+    result.weight = Math.max(result.weight, Math.min(0.08, confidence * 0.08));
+    result.confidence = Math.max(result.confidence, confidence);
+    const summary = sanitizeExcerpt(signal.text);
+    if (summary) {
+      result.summaries.push(summary);
+    }
+    if (signal.patternCandidate && hasGroundedUserEvidence(signal, evidenceContextOrPrompt)) {
+      result.patternCandidate = normalizeAiPatternCandidate(Object.assign({}, signal.patternCandidate, {
+        evidenceOrigin: "user_message"
+      }));
+    }
   }
   result.shapes = uniqueStrings(result.shapes).slice(0, 3);
+  if (result.shapes.length > 0 || result.patternCandidate) {
+    result.contribution = {
+      source: "ai_outcome_reflection",
+      summary: uniqueStrings(result.summaries).slice(0, 2).join(" | "),
+      shapes: result.shapes,
+      confidence: result.confidence,
+      weight: result.weight,
+      validation: "grounded_visible_evidence",
+      patternCandidate: result.patternCandidate
+    };
+  }
   return result;
+}
+
+function hasGroundedUserEvidence(signal, evidenceContextOrPrompt) {
+  const userMessage = evidenceContextOrPrompt && typeof evidenceContextOrPrompt === "object"
+    ? evidenceContextOrPrompt.user_message
+    : evidenceContextOrPrompt;
+  const evidenceQuote = compactText(signal?.patternCandidate?.evidenceQuote);
+  if (!evidenceQuote || !hasExactVisibleSignalEvidence(evidenceQuote, userMessage)) {
+    return false;
+  }
+  return (Array.isArray(signal?.evidenceRefs) ? signal.evidenceRefs : [])
+    .some((item) => (
+      item?.origin === "user_message"
+      && item?.speaker === "user"
+      && compactText(item?.quote) === evidenceQuote
+    ));
 }
 
 function classifyPhase(context, userSignals, assistantShape, reaction, repairPath) {

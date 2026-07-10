@@ -1,4 +1,7 @@
 const { redactSensitiveText } = require("../../storage/sensitiveText");
+const {
+  normalizeAiPatternCandidate
+} = require("../../interaction/InteractionPatternCandidates");
 
 const MAX_SIGNAL_TEXT_CHARS = 240;
 const MAX_AXES = 3;
@@ -288,11 +291,18 @@ function appendReflectionInteraction(signals, value, evidence, raw) {
   }
   const text = normalizeReflectionText(value.text || value.summary);
   const shapes = normalizeAllowedList(value.shapes, INTERACTION_SIGNAL_SHAPES, 3);
-  if (text && shapes.length > 0) {
+  const rawPatternCandidate = value.patternCandidate || value.pattern_candidate;
+  const patternCandidate = normalizeAiPatternCandidate(rawPatternCandidate
+    ? Object.assign({}, rawPatternCandidate, {
+      confidence: Math.min(0.72, normalizeConfidence(rawPatternCandidate.confidence))
+    })
+    : null);
+  if (text && (shapes.length > 0 || patternCandidate)) {
     signals.push({
       type: "interaction_candidate",
       text,
       shapes,
+      patternCandidate,
       confidence: normalizeConfidence(value.confidence),
       evidence,
       raw
@@ -490,6 +500,7 @@ function buildReflectionAuditItem(signal, translate) {
       createReflectionAuditField(translate("reflectionAudit.field.tone"), signal.tone),
       createReflectionAuditField(translate("reflectionAudit.field.axes"), formatReflectionList(signal.axes)),
       createReflectionAuditField(translate("reflectionAudit.field.shapes"), formatReflectionList(signal.shapes)),
+      createReflectionAuditField(translate("reflectionAudit.field.patternCandidate"), formatReflectionPatternCandidate(signal.patternCandidate)),
       createReflectionAuditField(translate("reflectionAudit.field.kind"), signal.kind),
       createReflectionAuditField(translate("reflectionAudit.field.scope"), signal.scope),
       createReflectionAuditField(
@@ -508,6 +519,13 @@ function buildReflectionAuditItem(signal, translate) {
       )
     ].filter(Boolean)
   };
+}
+
+function formatReflectionPatternCandidate(value) {
+  if (!value) {
+    return "";
+  }
+  return `${value.key} · ${value.axis} · ${value.summary} · evidence: ${value.evidenceQuote}`;
 }
 
 function getReflectionTextLabel(type, translate) {

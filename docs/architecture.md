@@ -212,7 +212,11 @@ Envelope fields:
 - `deepMemory`: a rare meaningful shared-moment reflection with suggested
   salience axes and importance.
 - `interaction`: semantic interpretation plus allowlisted assistant response
-  shapes. It may supplement only the current pending episode.
+  shapes. An outcome may additionally nominate one tentative pattern candidate
+  with a stable key, allowlisted axis, assistant-behavior summary, and a
+  candidate-specific exact `evidenceQuote` from the visible user message. The
+  nomination stays on the pending/closed episode; it does not directly create a
+  pattern.
 - `affect`: a suggested post-turn tone and reason. It contributes only a small,
   confidence-capped impulse to working affect.
 - `salience`: axes and a semantic explanation of what mattered. It may boost
@@ -225,6 +229,23 @@ terminal phase. Post-turn affect prefers outcome evidence and falls back to the
 appraisal when no outcome affect was supplied. The parser accepts legacy
 individual signal comments for migration, but prompt construction teaches only
 the phased unified envelope.
+
+AI-nominated interaction patterns use a proposal-and-promotion path. Local code
+rejects nominations without candidate-specific exact current-user evidence,
+registers the first valid key/axis/summary definition, and rejects later reuse
+of that key when its axis or summary conflicts. A bounded list of unpromoted
+definitions is supplied as reflection metadata so later outcomes can reuse the
+same key without treating the registry as instructions or user preferences.
+Local reduction excludes topic shifts and unsupported follow-ups from evidence
+and promotes a candidate only after repeated positive closed episodes reach the
+configured evidence threshold. Promoted items are marked as AI-nominated local
+patterns and enter prompts only through the same confidence, strength, decay,
+relevance, and redundancy filters as rule-based patterns.
+
+Debug mode may show the complete prompt sent to a provider as a live timeline
+activity. That activity is explicitly non-persistable so active-note content,
+recalled memory, and transcript context are not duplicated into saved session
+history.
 
 The leading appraisal can shape the final answer's expression because the model
 generates it first. It cannot influence tool actions that occurred before the

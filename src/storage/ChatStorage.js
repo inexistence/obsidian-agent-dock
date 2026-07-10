@@ -366,6 +366,9 @@ function normalizeTimelineEntry(entry) {
   if (!entry || typeof entry !== "object" || !PERSISTED_TIMELINE_KINDS.has(entry.kind)) {
     return null;
   }
+  if (entry.persist === false) {
+    return null;
+  }
 
   const normalized = { kind: entry.kind };
   for (const field of PERSISTED_TIMELINE_STRING_FIELDS) {

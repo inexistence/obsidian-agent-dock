@@ -6,6 +6,11 @@ const {
   getPromptStance,
   normalizeInteractionMemory
 } = require("./PatternReducer");
+const {
+  buildAiPatternCandidateRegistry,
+  normalizeAiPatternCandidate,
+  sameCandidateDefinition
+} = require("./InteractionPatternCandidates");
 const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = require("../storage/localDataPath");
 
 const INTERACTION_DIR_NAME = "interaction";
@@ -34,6 +39,27 @@ class InteractionMemoryStore {
     return getPromptStance(memory, settings, context);
   }
 
+  async getPatternCandidateRegistry(settings) {
+    if (!settings.interactionMemoryEnabled || !settings.interactionMemoryAutoCapture) {
+      return [];
+    }
+    const memory = await this.loadMemory();
+    return buildAiPatternCandidateRegistry(
+      memory.episodes.concat(memory.pendingEpisodes),
+      settings
+    )
+      .filter((item) => item.evidenceCount < item.minEvidence)
+      .sort((left, right) => Number(right.updatedAt) - Number(left.updatedAt))
+      .slice(0, 4)
+      .map((item) => ({
+        key: item.key,
+        axis: item.axis,
+        summary: item.summary,
+        evidenceCount: item.evidenceCount,
+        minEvidence: item.minEvidence
+      }));
+  }
+
   async captureTurn(turn, settings) {
     if (!settings.interactionMemoryEnabled || !settings.interactionMemoryAutoCapture) {
       return {
@@ -44,7 +70,8 @@ class InteractionMemoryStore {
         stableImpressions: [],
         updatedPatterns: [],
         updatedTensions: [],
-        updatedStableImpressions: []
+        updatedStableImpressions: [],
+        patternCandidateUpdates: []
       };
     }
 
@@ -69,6 +96,7 @@ class InteractionMemoryStore {
         pendingEpisodes
       }), closedEpisodes, settings, now);
       const changed = getChangedInteractionItems(next, closedEpisodes);
+      const patternCandidateUpdates = getPatternCandidateUpdates(next, closedEpisodes, settings);
       next.pendingEpisodes = pendingEpisodes;
       this.cache = next;
       await this.saveMemory(next);
@@ -81,7 +109,8 @@ class InteractionMemoryStore {
         stableImpressions: next.stableImpressions,
         updatedPatterns: changed.patterns,
         updatedTensions: changed.tensions,
-        updatedStableImpressions: changed.stableImpressions
+        updatedStableImpressions: changed.stableImpressions,
+        patternCandidateUpdates
       };
     });
   }
@@ -143,6 +172,43 @@ class InteractionMemoryStore {
     this.writeQueue = run.catch(() => {});
     return run;
   }
+}
+
+function getPatternCandidateUpdates(memory, closedEpisodes, settings) {
+  const registry = buildAiPatternCandidateRegistry(memory.episodes, settings);
+  return (Array.isArray(closedEpisodes) ? closedEpisodes : []).map((episode) => {
+    const candidate = normalizeAiPatternCandidate(episode.aiReflectionContribution?.patternCandidate);
+    if (!candidate) {
+      return null;
+    }
+    const registered = registry.find((item) => item.key === candidate.key);
+    const conflict = registered && !sameCandidateDefinition(registered, candidate);
+    const promoted = memory.patterns.some((pattern) => (
+      pattern.generatedBy === "ai"
+      && pattern.candidateKey === candidate.key
+      && pattern.axis === candidate.axis
+      && pattern.evidenceEpisodeIds.includes(episode.id)
+    ));
+    const supportive = registered?.evidenceEpisodeIds.includes(episode.id);
+    return {
+      episodeId: episode.id,
+      key: candidate.key,
+      axis: candidate.axis,
+      summary: candidate.summary,
+      evidenceQuote: candidate.evidenceQuote,
+      canonicalSummary: registered?.summary || candidate.summary,
+      evidenceCount: registered?.evidenceCount || 0,
+      minEvidence: registered?.minEvidence || Math.max(2, Number(settings?.interactionMemoryMinEvidence) || 2),
+      status: conflict ? "conflicted" : promoted ? "promoted" : supportive ? "accumulating" : "rejected",
+      reason: conflict
+        ? "definition_conflict"
+        : promoted
+        ? "threshold_met"
+        : supportive
+          ? "waiting_for_repeated_evidence"
+          : "follow_up_not_supportive"
+    };
+  }).filter(Boolean);
 }
 
 function createEmptyInteractionMemory() {
@@ -210,6 +276,7 @@ function createPendingEpisode(draft, now) {
     assistantExcerpt: draft.assistantExcerpt,
     userSignals: draft.userSignals,
     assistantShape: draft.assistantShape,
+    aiReflectionContribution: draft.aiReflectionContribution,
     repairPath: draft.repairPath,
     eventWeight: draft.eventWeight,
     memoryRole: draft.memoryRole,

@@ -171,6 +171,12 @@ async function testAssistantTimelinePersistsAcrossSaveLoad() {
               ]
             }]
           },
+          {
+            kind: "activity",
+            title: "Complete turn prompt",
+            detail: "private active note and full prompt",
+            persist: false
+          },
           { kind: "content", text: "final answer" }
         ]
       }]
@@ -184,6 +190,7 @@ async function testAssistantTimelinePersistsAcrossSaveLoad() {
   assert.strictEqual(persistedMessage.timeline[0].detail, "plan");
   assert.strictEqual(persistedMessage.timeline[0].transient, undefined);
   assert(persistedMessage.timeline.some((entry) => entry.kind === "activity"), "debug activity should be persisted");
+  assert(!persistedMessage.timeline.some((entry) => entry.title === "Complete turn prompt"), "non-persistable prompt activity should be omitted from chat storage");
   const persistedNotice = persistedMessage.timeline[3];
   assert.strictEqual(persistedNotice.auditItems.length, 1);
   assert.deepStrictEqual(persistedNotice.auditItems[0].badges, ["preference", "local"]);

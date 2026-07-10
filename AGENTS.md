@@ -47,6 +47,7 @@ should stay ready for other agent CLIs such as Claude Code or Cursor.
 - `src/interaction/LocalSignalExtractor.js`: local rule-based interaction signal, context, assistant-shape, and reaction extraction; signal rules use strong/weak/blocked matching.
 - `src/interaction/InteractionRules.js`: deterministic pattern, tension, and stable persona rule definitions.
 - `src/interaction/PatternReducer.js`: merges closed episodes into decaying interaction patterns/tensions and promotes stable persona impressions.
+- `src/interaction/InteractionPatternCandidates.js`: validates AI pattern nominations, registers canonical candidate definitions, rejects key conflicts, and counts supportive closed-episode evidence.
 - `src/interaction/InteractionPromptFormatter.js`: formats long-term persona and turn-relevant stance prompt sections.
 - `.agents/skills/code-review-expert/`: project-local reusable code review skill.
 - `.agents/skills/commit-hygiene/`: reusable pre-commit review, docs, verification, and Conventional Commit workflow.
@@ -313,8 +314,16 @@ Users can change this in plugin settings.
   applied locally.
 - The reflection envelope's `interaction` field may contribute allowlisted
   assistant-shape hints, a semantic summary, and a small bounded weight to the
-  current pending episode. It must not directly create closed episodes,
-  patterns, tensions, or stable persona impressions.
+  current pending episode. An outcome reflection may also nominate one
+  tentative long-term pattern candidate with a stable key, allowlisted axis,
+  assistant-behavior summary, and candidate-specific exact visible user-message
+  evidence. Local code registers the first valid definition, exposes a bounded
+  unpromoted-key registry for later reflection reuse, and rejects conflicting
+  reuse of the same key. The candidate remains attached to episodes and must
+  accumulate repeated locally accepted follow-up evidence before deterministic
+  promotion. It must not
+  directly create closed episodes, patterns, tensions, or stable persona
+  impressions.
 - User controls should be able to disable, tune, or clear interaction memory.
 
 ## Normalized Agent Events
