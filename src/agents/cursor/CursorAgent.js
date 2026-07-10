@@ -16,6 +16,14 @@ const {
   formatInvalidAgentDockSignalActivity,
   formatAgentDockSignalNotice
 } = require("../shared/agentSignals");
+const {
+  buildDeepMemoryAuditItems,
+  buildInteractionMemoryAuditItems,
+  buildMemoryUpdateAuditItems,
+  formatDeepMemoryUpdateSummary,
+  formatInteractionMemoryUpdateSummary,
+  formatMemoryUpdateSummary
+} = require("../shared/captureNotices");
 const { AcpClient } = require("./AcpClient");
 const { acpUpdateToEvents } = require("./acpEvents");
 const { toCursorMode } = require("./modes");
@@ -469,10 +477,8 @@ class CursorAgent {
           kind: "notice",
           noticeType: "memory_updated",
           title: t(settings, "cursor.memoryUpdated.title"),
-          summary: t(settings, "cursor.memoryUpdated.summary", {
-            count: saved.length,
-            noteLabel: saved.length === 1 ? "note" : "notes"
-          })
+          summary: formatMemoryUpdateSummary(settings, "cursor", t, saved),
+          auditItems: buildMemoryUpdateAuditItems(saved, settings, "cursor", t)
         });
       }
     } catch (error) {
@@ -494,9 +500,8 @@ class CursorAgent {
           kind: "notice",
           noticeType: "interaction_memory_updated",
           title: t(settings, "cursor.interactionMemoryUpdated.title"),
-          summary: t(settings, "cursor.interactionMemoryUpdated.summary", {
-            count: result.closedEpisodes.length
-          })
+          summary: formatInteractionMemoryUpdateSummary(settings, "cursor", t, result),
+          auditItems: buildInteractionMemoryAuditItems(result, settings, "cursor", t)
         });
       }
     } catch (error) {
@@ -518,9 +523,8 @@ class CursorAgent {
           kind: "notice",
           noticeType: "deep_memory_updated",
           title: t(settings, "cursor.deepMemoryUpdated.title"),
-          summary: t(settings, "cursor.deepMemoryUpdated.summary", {
-            count: saved.length
-          })
+          summary: formatDeepMemoryUpdateSummary(settings, "cursor", t, saved),
+          auditItems: buildDeepMemoryAuditItems(saved, settings, "cursor", t)
         });
       }
     } catch (error) {

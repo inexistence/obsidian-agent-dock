@@ -62,14 +62,13 @@ class MemoryStore {
       return [];
     }
 
-    const queryText = [
-      query,
-      options.activeFilePath || "",
-      options.workingDirectory || ""
-    ].filter(Boolean).join(" ");
-    const queryTokens = tokenize(queryText);
+    const queryTokenInfo = buildQueryTokenInfo([
+      { source: "prompt", text: query },
+      { source: "activeFilePath", text: options.activeFilePath || "" },
+      { source: "workingDirectory", text: options.workingDirectory || "" }
+    ]);
     const scored = items
-      .map((item) => scoreMemory(item, queryTokens))
+      .map((item) => scoreMemory(item, queryTokenInfo.tokens, queryTokenInfo.sources))
       .filter((entry) => entry.matchScore > 0 || isGlobalMemory(entry.item))
       .sort(compareScoredMemories);
 
@@ -86,7 +85,9 @@ class MemoryStore {
       if (used + text.length + 1 > maxChars) {
         continue;
       }
-      selected.push(entry.item);
+      selected.push(Object.assign({}, entry.item, {
+        referenceAudit: createReferenceAudit(entry)
+      }));
       used += text.length + 1;
     }
 
@@ -104,9 +105,9 @@ class MemoryStore {
       return [];
     }
 
-    const queryTokens = tokenize(query);
+    const queryTokenInfo = buildQueryTokenInfo([{ source: "prompt", text: query }]);
     const scored = items
-      .map((item) => scoreMemory(item, queryTokens))
+      .map((item) => scoreMemory(item, queryTokenInfo.tokens, queryTokenInfo.sources))
       .filter((entry) => entry.matchScore > 0)
       .sort(compareScoredMemories);
 
@@ -125,7 +126,8 @@ class MemoryStore {
       }
       selected.push(Object.assign({}, entry.item, {
         matchScore: entry.matchScore,
-        score: entry.totalScore
+        score: entry.totalScore,
+        referenceAudit: createReferenceAudit(entry)
       }));
       used += text.length + 1;
     }
@@ -162,6 +164,7 @@ class MemoryStore {
         previous.updatedAt = now;
         previous.sourceSessionId = item.sourceSessionId || previous.sourceSessionId || "";
         previous.source = item.source || previous.source || "auto";
+        previous.updateAudit = createUpdateAudit(item, true);
         saved.push(previous);
         continue;
       }
@@ -176,7 +179,8 @@ class MemoryStore {
         source: item.source || "auto",
         sourceSessionId: item.sourceSessionId || "",
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
+        updateAudit: createUpdateAudit(item, false)
       };
       memory.items.push(next);
       existingByKey.set(key, next);
@@ -250,12 +254,19 @@ function limitMemoryItems(items, settings) {
     .sort((left, right) => normalizeTimestamp(left.createdAt, 0) - normalizeTimestamp(right.createdAt, 0));
 }
 
-function scoreMemory(item, queryTokens) {
+function scoreMemory(item, queryTokens, queryTokenSources = new Map()) {
   const itemTokens = tokenize(item.text);
   let matchScore = 0;
+  const matchedTokens = [];
+  const matchedTokenSources = [];
   for (const token of itemTokens) {
     if (queryTokens.has(token)) {
       matchScore += token.length > 8 ? 3 : 1;
+      matchedTokens.push(token);
+      matchedTokenSources.push({
+        token,
+        sources: Array.from(queryTokenSources.get(token) || [])
+      });
     }
   }
   let totalScore = matchScore;
@@ -265,7 +276,35 @@ function scoreMemory(item, queryTokens) {
   return {
     item,
     matchScore,
-    totalScore
+    totalScore,
+    matchedTokens,
+    matchedTokenSources
+  };
+}
+
+function createReferenceAudit(entry) {
+  const matchedTokens = Array.isArray(entry.matchedTokens)
+    ? entry.matchedTokens.slice(0, 8)
+    : [];
+  const matchedTokenSources = Array.isArray(entry.matchedTokenSources)
+    ? entry.matchedTokenSources.slice(0, 8)
+    : [];
+  return {
+    reasonCode: entry.matchScore > 0 ? "matched_terms" : "global_memory",
+    matchScore: entry.matchScore,
+    score: entry.totalScore,
+    matchedTokens,
+    matchedTokenSources
+  };
+}
+
+function createUpdateAudit(item, existing) {
+  return {
+    reasonCode: existing ? "existing_memory_refreshed" : "local_rule_capture",
+    kind: item.kind,
+    scope: item.scope || "project",
+    confidence: Number(item.confidence) || 0.6,
+    source: item.source || "auto"
   };
 }
 
@@ -301,8 +340,33 @@ function kindPriority(kind) {
 }
 
 function tokenize(text) {
+  return tokenizeRaw(expandSearchText(String(text || "")));
+}
+
+function buildQueryTokenInfo(parts) {
   const tokens = new Set();
-  const normalized = expandSearchText(String(text || "")).toLowerCase();
+  const sources = new Map();
+  for (const part of parts) {
+    const source = part?.source || "prompt";
+    const text = part?.text || "";
+    if (!text) {
+      continue;
+    }
+    const rawTokens = tokenizeRaw(text);
+    const expandedTokens = tokenizeRaw(expandSearchText(text));
+    for (const token of expandedTokens) {
+      tokens.add(token);
+      const labels = sources.get(token) || new Set();
+      labels.add(rawTokens.has(token) ? source : `${source}Expansion`);
+      sources.set(token, labels);
+    }
+  }
+  return { tokens, sources };
+}
+
+function tokenizeRaw(text) {
+  const tokens = new Set();
+  const normalized = String(text || "").toLowerCase();
   const matches = normalized.match(/[a-z0-9_./-]{3,}|[\u4e00-\u9fff]{2,}/g) || [];
   for (const match of matches) {
     if (!STOP_WORDS.has(match)) {

@@ -308,6 +308,10 @@ module.exports = {
     "view.copied": "Copied",
     "view.copyMessageText": "Copy message text",
     "view.copyEventText": "Copy event text",
+    "memoryNotice.title": "Memory details",
+    "memoryNotice.item": "Item",
+    "memoryNotice.empty": "No structured details are available.",
+    "memoryNotice.viewDetails": "View details",
     "view.contextTitle": "Context {percent}% · {used} / {limit} chars",
     "view.deleteSessionConfirm": "Delete \"{title}\"?",
     "turnStatus.thinking": "Thinking",
@@ -417,21 +421,71 @@ module.exports = {
     "codex.terminalExitedWithCode": "Terminal exited with code {code}",
     "codex.memoryReferenced.title": "Local memory referenced",
     "codex.memoryReferenced.summary": "Referenced {count} relevant local historical {noteLabel} in the prompt.",
-    "codex.memoryReferenced.more": "- ... {count} more",
     "codex.memorySearch.title": "Memory search",
     "codex.memorySearch.summary": "Searched local memory and found {count} matching results.",
     "codex.contextCompressed.title": "Context compressed",
     "codex.contextCompressed.summary": "Compressed {original} chars into {prompt} / {limit} chars.",
     "codex.memoryUpdated.title": "Memory updated",
     "codex.memoryUpdated.summary": "Updated {count} local historical {noteLabel} for future chats.",
+    "codex.memoryAudit.type.memory": "Local memory",
+    "codex.memoryAudit.type.deepMemory": "Deep memory",
+    "codex.memoryAudit.type.interactionEpisode": "Interaction episode",
+    "codex.memoryAudit.source.localRules": "Local rules",
+    "codex.memoryAudit.source.aiReflection": "AI reflection",
+    "codex.memoryAudit.source.user": "User request",
+    "codex.memoryAudit.field.content": "Content",
+    "codex.memoryAudit.field.summary": "Summary",
+    "codex.memoryAudit.field.why": "Why it was saved",
+    "codex.memoryAudit.field.feltSense": "Felt sense",
+    "codex.memoryAudit.field.userExcerpt": "User excerpt",
+    "codex.memoryAudit.field.assistantExcerpt": "Assistant excerpt",
+    "codex.memoryAudit.field.reaction": "Follow-up reaction",
+    "codex.memoryAudit.field.scope": "Scope",
+    "codex.memoryAudit.field.kind": "Kind",
+    "codex.memoryAudit.field.role": "Memory role",
+    "codex.memoryAudit.field.source": "Source",
+    "codex.memoryAudit.field.reason": "Reason",
+    "codex.memoryAudit.field.confidence": "Confidence",
+    "codex.memoryAudit.field.importance": "Importance",
+    "codex.memoryAudit.field.weight": "Weight",
+    "codex.memoryAudit.field.evidenceCount": "Evidence count",
+    "codex.memoryAudit.field.strength": "Strength",
+    "codex.memoryAudit.reason.matchedTerms": "Matched the current prompt or context on: {terms}. Match score: {score}.",
+    "codex.memoryAudit.reason.matchedSources": "Matched sources: {sources}. Match score: {score}.",
+    "codex.memoryAudit.reason.sourceGroup": "{source}: {terms}",
+    "codex.memoryAudit.matchSource.prompt": "User prompt",
+    "codex.memoryAudit.matchSource.promptExpansion": "User prompt query expansion",
+    "codex.memoryAudit.matchSource.activeFilePath": "Current note path",
+    "codex.memoryAudit.matchSource.activeFilePathExpansion": "Current note path expansion",
+    "codex.memoryAudit.matchSource.workingDirectory": "Project directory",
+    "codex.memoryAudit.matchSource.workingDirectoryExpansion": "Project directory expansion",
+    "codex.memoryAudit.reason.globalMemory": "This is a global user-preference or assistant-identity memory, so it may be included even without a direct keyword match.",
+    "codex.memoryAudit.reason.relevantMemory": "Local relevance ranking selected this memory for the current prompt context.",
+    "codex.memoryAudit.reason.localRuleCapture": "Local rules identified a {kind} memory candidate from the visible turn. Confidence: {confidence}.",
+    "codex.memoryAudit.reason.existingMemoryRefreshed": "This turn produced a {kind} candidate with the same memory key, so the existing record was refreshed. Confidence: {confidence}.",
+    "codex.memoryAudit.reason.deepMemoryAiReflection": "This deep memory came from an auditable AI reflection signal. Source: {source}.",
+    "codex.memoryAudit.reason.deepMemoryLocalRules": "Local deep-memory rules identified an important {kind} moment. Importance: {importance}; confidence: {confidence}.",
+    "codex.memoryAudit.reason.interactionClosedEpisode": "This turn closed a {context}/{phase} interaction episode and fed it into local interaction experience as {role}. Weight: {weight}.",
+    "codex.memoryAudit.reason.interactionRepairEpisode": "This closed episode includes a repair/calibration path, so it contributed to interaction experience as {role}. Context: {context}/{phase}; weight: {weight}.",
+    "codex.memoryAudit.reason.interactionEvidenceUpdate": "This {type} was updated from closed episode evidence. Evidence count: {evidenceCount}; confidence: {confidence}; strength: {strength}.",
+    "codex.memoryAudit.reason.interactionAiImpression": "This {type} came from an AI reflection impression and was saved under local evidence constraints. Evidence count: {evidenceCount}; confidence: {confidence}; strength: {strength}.",
     "codex.memorySkipped.title": "Memory skipped",
     "codex.memorySkipped.summary": "Agent Dock could not save automatic memory. Check the console for details.",
     "codex.interactionMemoryUpdated.title": "Interaction memory updated",
     "codex.interactionMemoryUpdated.summary": "Updated interaction memory from {count} closed local episode(s).",
+    "codex.interactionMemoryUpdated.episodes": "Closed this turn:\n{items}",
+    "codex.interactionMemoryUpdated.changed": "Affected experience:\n{items}",
+    "codex.interactionMemoryUpdated.patternLabel": "pattern",
+    "codex.interactionMemoryUpdated.tensionLabel": "tension",
+    "codex.interactionMemoryUpdated.impressionLabel": "stable impression",
+    "codex.interactionMemoryUpdated.aiImpressionLabel": "AI reflection impression",
+    "codex.interactionMemoryUpdated.evidenceLabel": "{count} evidence",
     "codex.interactionMemorySkipped.title": "Interaction memory skipped",
     "codex.interactionMemorySkipped.summary": "Agent Dock could not save interaction memory. Check the console for details.",
     "codex.deepMemoryUpdated.title": "Deep memory updated",
     "codex.deepMemoryUpdated.summary": "Saved {count} important moment(s) for natural continuity later.",
+    "codex.deepMemoryUpdated.aiReflectionSource": "source: AI reflection",
+    "codex.deepMemoryUpdated.aiReflectionCount": "{count} from AI reflection.",
     "codex.deepMemoryCandidate.title": "Deep memory candidate",
     "codex.deepMemoryCandidate.summary": "Captured 1 auditable continuity reflection.",
     "codex.deepMemorySkipped.title": "Deep memory skipped",
@@ -468,21 +522,71 @@ module.exports = {
     "cursor.promptSent.summary": "Waiting for Cursor to stream a response.",
     "cursor.memoryReferenced.title": "Local memory referenced",
     "cursor.memoryReferenced.summary": "Referenced {count} relevant local historical {noteLabel} in the prompt.",
-    "cursor.memoryReferenced.more": "- ... {count} more",
     "cursor.memorySearch.title": "Memory search",
     "cursor.memorySearch.summary": "Searched local memory and found {count} matching results.",
     "cursor.contextCompressed.title": "Context compressed",
     "cursor.contextCompressed.summary": "Compressed {original} chars into {prompt} / {limit} chars.",
     "cursor.memoryUpdated.title": "Memory updated",
     "cursor.memoryUpdated.summary": "Updated {count} local historical {noteLabel} for future chats.",
+    "cursor.memoryAudit.type.memory": "Local memory",
+    "cursor.memoryAudit.type.deepMemory": "Deep memory",
+    "cursor.memoryAudit.type.interactionEpisode": "Interaction episode",
+    "cursor.memoryAudit.source.localRules": "Local rules",
+    "cursor.memoryAudit.source.aiReflection": "AI reflection",
+    "cursor.memoryAudit.source.user": "User request",
+    "cursor.memoryAudit.field.content": "Content",
+    "cursor.memoryAudit.field.summary": "Summary",
+    "cursor.memoryAudit.field.why": "Why it was saved",
+    "cursor.memoryAudit.field.feltSense": "Felt sense",
+    "cursor.memoryAudit.field.userExcerpt": "User excerpt",
+    "cursor.memoryAudit.field.assistantExcerpt": "Assistant excerpt",
+    "cursor.memoryAudit.field.reaction": "Follow-up reaction",
+    "cursor.memoryAudit.field.scope": "Scope",
+    "cursor.memoryAudit.field.kind": "Kind",
+    "cursor.memoryAudit.field.role": "Memory role",
+    "cursor.memoryAudit.field.source": "Source",
+    "cursor.memoryAudit.field.reason": "Reason",
+    "cursor.memoryAudit.field.confidence": "Confidence",
+    "cursor.memoryAudit.field.importance": "Importance",
+    "cursor.memoryAudit.field.weight": "Weight",
+    "cursor.memoryAudit.field.evidenceCount": "Evidence count",
+    "cursor.memoryAudit.field.strength": "Strength",
+    "cursor.memoryAudit.reason.matchedTerms": "Matched the current prompt or context on: {terms}. Match score: {score}.",
+    "cursor.memoryAudit.reason.matchedSources": "Matched sources: {sources}. Match score: {score}.",
+    "cursor.memoryAudit.reason.sourceGroup": "{source}: {terms}",
+    "cursor.memoryAudit.matchSource.prompt": "User prompt",
+    "cursor.memoryAudit.matchSource.promptExpansion": "User prompt query expansion",
+    "cursor.memoryAudit.matchSource.activeFilePath": "Current note path",
+    "cursor.memoryAudit.matchSource.activeFilePathExpansion": "Current note path expansion",
+    "cursor.memoryAudit.matchSource.workingDirectory": "Project directory",
+    "cursor.memoryAudit.matchSource.workingDirectoryExpansion": "Project directory expansion",
+    "cursor.memoryAudit.reason.globalMemory": "This is a global user-preference or assistant-identity memory, so it may be included even without a direct keyword match.",
+    "cursor.memoryAudit.reason.relevantMemory": "Local relevance ranking selected this memory for the current prompt context.",
+    "cursor.memoryAudit.reason.localRuleCapture": "Local rules identified a {kind} memory candidate from the visible turn. Confidence: {confidence}.",
+    "cursor.memoryAudit.reason.existingMemoryRefreshed": "This turn produced a {kind} candidate with the same memory key, so the existing record was refreshed. Confidence: {confidence}.",
+    "cursor.memoryAudit.reason.deepMemoryAiReflection": "This deep memory came from an auditable AI reflection signal. Source: {source}.",
+    "cursor.memoryAudit.reason.deepMemoryLocalRules": "Local deep-memory rules identified an important {kind} moment. Importance: {importance}; confidence: {confidence}.",
+    "cursor.memoryAudit.reason.interactionClosedEpisode": "This turn closed a {context}/{phase} interaction episode and fed it into local interaction experience as {role}. Weight: {weight}.",
+    "cursor.memoryAudit.reason.interactionRepairEpisode": "This closed episode includes a repair/calibration path, so it contributed to interaction experience as {role}. Context: {context}/{phase}; weight: {weight}.",
+    "cursor.memoryAudit.reason.interactionEvidenceUpdate": "This {type} was updated from closed episode evidence. Evidence count: {evidenceCount}; confidence: {confidence}; strength: {strength}.",
+    "cursor.memoryAudit.reason.interactionAiImpression": "This {type} came from an AI reflection impression and was saved under local evidence constraints. Evidence count: {evidenceCount}; confidence: {confidence}; strength: {strength}.",
     "cursor.memorySkipped.title": "Memory skipped",
     "cursor.memorySkipped.summary": "Agent Dock could not save automatic memory. Check the console for details.",
     "cursor.interactionMemoryUpdated.title": "Interaction memory updated",
     "cursor.interactionMemoryUpdated.summary": "Updated interaction memory from {count} closed local episode(s).",
+    "cursor.interactionMemoryUpdated.episodes": "Closed this turn:\n{items}",
+    "cursor.interactionMemoryUpdated.changed": "Affected experience:\n{items}",
+    "cursor.interactionMemoryUpdated.patternLabel": "pattern",
+    "cursor.interactionMemoryUpdated.tensionLabel": "tension",
+    "cursor.interactionMemoryUpdated.impressionLabel": "stable impression",
+    "cursor.interactionMemoryUpdated.aiImpressionLabel": "AI reflection impression",
+    "cursor.interactionMemoryUpdated.evidenceLabel": "{count} evidence",
     "cursor.interactionMemorySkipped.title": "Interaction memory skipped",
     "cursor.interactionMemorySkipped.summary": "Agent Dock could not save interaction memory. Check the console for details.",
     "cursor.deepMemoryUpdated.title": "Deep memory updated",
     "cursor.deepMemoryUpdated.summary": "Saved {count} important moment(s) for natural continuity later.",
+    "cursor.deepMemoryUpdated.aiReflectionSource": "source: AI reflection",
+    "cursor.deepMemoryUpdated.aiReflectionCount": "{count} from AI reflection.",
     "cursor.deepMemoryCandidate.title": "Deep memory candidate",
     "cursor.deepMemoryCandidate.summary": "Captured 1 auditable continuity reflection.",
     "cursor.deepMemorySkipped.title": "Deep memory skipped",
@@ -690,6 +794,10 @@ module.exports = {
     "view.copied": "已复制",
     "view.copyMessageText": "复制消息文本",
     "view.copyEventText": "复制事件文本",
+    "memoryNotice.title": "记忆详情",
+    "memoryNotice.item": "条目",
+    "memoryNotice.empty": "没有可展示的结构化详情。",
+    "memoryNotice.viewDetails": "查看详情",
     "view.contextTitle": "上下文 {percent}% · {used} / {limit} 字符",
     "view.deleteSessionConfirm": "删除“{title}”？",
     "turnStatus.thinking": "思考中",
@@ -799,21 +907,71 @@ module.exports = {
     "codex.terminalExitedWithCode": "终端退出，代码 {code}",
     "codex.memoryReferenced.title": "已引用本地记忆",
     "codex.memoryReferenced.summary": "提示词中引用了 {count} 条相关本地历史记录。",
-    "codex.memoryReferenced.more": "- ... 还有 {count} 条",
     "codex.memorySearch.title": "记忆查询",
     "codex.memorySearch.summary": "已搜索本地记忆，找到 {count} 条匹配结果。",
     "codex.contextCompressed.title": "上下文已压缩",
     "codex.contextCompressed.summary": "已将 {original} 字符压缩为 {prompt} / {limit} 字符。",
     "codex.memoryUpdated.title": "记忆已更新",
     "codex.memoryUpdated.summary": "已为之后的聊天更新 {count} 条本地历史记录。",
+    "codex.memoryAudit.type.memory": "本地记忆",
+    "codex.memoryAudit.type.deepMemory": "深刻记忆",
+    "codex.memoryAudit.type.interactionEpisode": "互动 episode",
+    "codex.memoryAudit.source.localRules": "本地规则",
+    "codex.memoryAudit.source.aiReflection": "AI 反思",
+    "codex.memoryAudit.source.user": "用户明确要求",
+    "codex.memoryAudit.field.content": "内容",
+    "codex.memoryAudit.field.summary": "摘要",
+    "codex.memoryAudit.field.why": "为什么保存",
+    "codex.memoryAudit.field.feltSense": "氛围/感受",
+    "codex.memoryAudit.field.userExcerpt": "用户片段",
+    "codex.memoryAudit.field.assistantExcerpt": "助手片段",
+    "codex.memoryAudit.field.reaction": "后续反应",
+    "codex.memoryAudit.field.scope": "范围",
+    "codex.memoryAudit.field.kind": "类型",
+    "codex.memoryAudit.field.role": "记忆角色",
+    "codex.memoryAudit.field.source": "来源",
+    "codex.memoryAudit.field.reason": "原因",
+    "codex.memoryAudit.field.confidence": "置信度",
+    "codex.memoryAudit.field.importance": "重要性",
+    "codex.memoryAudit.field.weight": "权重",
+    "codex.memoryAudit.field.evidenceCount": "证据数",
+    "codex.memoryAudit.field.strength": "强度",
+    "codex.memoryAudit.reason.matchedTerms": "与当前提示或上下文命中了关键词：{terms}。匹配分：{score}。",
+    "codex.memoryAudit.reason.matchedSources": "命中来源：{sources}。匹配分：{score}。",
+    "codex.memoryAudit.reason.sourceGroup": "{source}：{terms}",
+    "codex.memoryAudit.matchSource.prompt": "用户问题",
+    "codex.memoryAudit.matchSource.promptExpansion": "用户问题的查询扩展",
+    "codex.memoryAudit.matchSource.activeFilePath": "当前打开的笔记路径",
+    "codex.memoryAudit.matchSource.activeFilePathExpansion": "当前打开的笔记路径扩展",
+    "codex.memoryAudit.matchSource.workingDirectory": "项目目录",
+    "codex.memoryAudit.matchSource.workingDirectoryExpansion": "项目目录扩展",
+    "codex.memoryAudit.reason.globalMemory": "这是用户偏好或助手身份类全局记忆，即使没有直接关键词命中也会少量带入。",
+    "codex.memoryAudit.reason.relevantMemory": "本地相关性排序认为这条记忆适合当前提示上下文。",
+    "codex.memoryAudit.reason.localRuleCapture": "本地规则从本轮可见对话中识别出 {kind} 类记忆候选。置信度：{confidence}。",
+    "codex.memoryAudit.reason.existingMemoryRefreshed": "本轮识别出的 {kind} 类候选与已有记忆键相同，因此刷新已有记录。置信度：{confidence}。",
+    "codex.memoryAudit.reason.deepMemoryAiReflection": "这条深刻记忆来自可审计的 AI 反思信号，来源：{source}。",
+    "codex.memoryAudit.reason.deepMemoryLocalRules": "本地深刻记忆规则识别出 {kind} 类重要时刻。重要性：{importance}，置信度：{confidence}。",
+    "codex.memoryAudit.reason.interactionClosedEpisode": "本轮关闭了一个 {context}/{phase} 互动 episode，并作为 {role} 进入本地互动经验归纳。权重：{weight}。",
+    "codex.memoryAudit.reason.interactionRepairEpisode": "本轮关闭的 episode 包含修复/校准路径，因此作为 {role} 参与互动经验更新。上下文：{context}/{phase}，权重：{weight}。",
+    "codex.memoryAudit.reason.interactionEvidenceUpdate": "这条 {type} 由已关闭 episode 证据归纳更新。证据数：{evidenceCount}，置信度：{confidence}，强度：{strength}。",
+    "codex.memoryAudit.reason.interactionAiImpression": "这条 {type} 来自 AI 反思印象，并由本地证据约束保存。证据数：{evidenceCount}，置信度：{confidence}，强度：{strength}。",
     "codex.memorySkipped.title": "已跳过记忆",
     "codex.memorySkipped.summary": "Agent Dock 无法保存自动记忆。请查看控制台详情。",
     "codex.interactionMemoryUpdated.title": "互动经验已更新",
     "codex.interactionMemoryUpdated.summary": "已根据 {count} 条关闭的本地 episode 更新互动经验。",
+    "codex.interactionMemoryUpdated.episodes": "本轮关闭：\n{items}",
+    "codex.interactionMemoryUpdated.changed": "影响到的经验：\n{items}",
+    "codex.interactionMemoryUpdated.patternLabel": "模式",
+    "codex.interactionMemoryUpdated.tensionLabel": "张力",
+    "codex.interactionMemoryUpdated.impressionLabel": "稳定印象",
+    "codex.interactionMemoryUpdated.aiImpressionLabel": "AI 反思印象",
+    "codex.interactionMemoryUpdated.evidenceLabel": "{count} 条证据",
     "codex.interactionMemorySkipped.title": "互动经验已跳过",
     "codex.interactionMemorySkipped.summary": "Agent Dock 无法保存互动经验。请查看控制台详情。",
     "codex.deepMemoryUpdated.title": "深刻记忆已更新",
     "codex.deepMemoryUpdated.summary": "已保存 {count} 条重要时刻，用于之后自然延续。",
+    "codex.deepMemoryUpdated.aiReflectionSource": "来源：AI 反思",
+    "codex.deepMemoryUpdated.aiReflectionCount": "其中 {count} 条来自 AI 反思。",
     "codex.deepMemoryCandidate.title": "深刻记忆候选",
     "codex.deepMemoryCandidate.summary": "已捕获 1 条可审计的连续性反思。",
     "codex.deepMemorySkipped.title": "深刻记忆已跳过",
@@ -850,21 +1008,71 @@ module.exports = {
     "cursor.promptSent.summary": "正在等待 Cursor 流式返回。",
     "cursor.memoryReferenced.title": "已引用本地记忆",
     "cursor.memoryReferenced.summary": "提示词中引用了 {count} 条相关本地历史记录。",
-    "cursor.memoryReferenced.more": "- ... 还有 {count} 条",
     "cursor.memorySearch.title": "记忆查询",
     "cursor.memorySearch.summary": "已搜索本地记忆，找到 {count} 条匹配结果。",
     "cursor.contextCompressed.title": "上下文已压缩",
     "cursor.contextCompressed.summary": "已将 {original} 字符压缩为 {prompt} / {limit} 字符。",
     "cursor.memoryUpdated.title": "记忆已更新",
     "cursor.memoryUpdated.summary": "已为之后的聊天更新 {count} 条本地历史记录。",
+    "cursor.memoryAudit.type.memory": "本地记忆",
+    "cursor.memoryAudit.type.deepMemory": "深刻记忆",
+    "cursor.memoryAudit.type.interactionEpisode": "互动 episode",
+    "cursor.memoryAudit.source.localRules": "本地规则",
+    "cursor.memoryAudit.source.aiReflection": "AI 反思",
+    "cursor.memoryAudit.source.user": "用户明确要求",
+    "cursor.memoryAudit.field.content": "内容",
+    "cursor.memoryAudit.field.summary": "摘要",
+    "cursor.memoryAudit.field.why": "为什么保存",
+    "cursor.memoryAudit.field.feltSense": "氛围/感受",
+    "cursor.memoryAudit.field.userExcerpt": "用户片段",
+    "cursor.memoryAudit.field.assistantExcerpt": "助手片段",
+    "cursor.memoryAudit.field.reaction": "后续反应",
+    "cursor.memoryAudit.field.scope": "范围",
+    "cursor.memoryAudit.field.kind": "类型",
+    "cursor.memoryAudit.field.role": "记忆角色",
+    "cursor.memoryAudit.field.source": "来源",
+    "cursor.memoryAudit.field.reason": "原因",
+    "cursor.memoryAudit.field.confidence": "置信度",
+    "cursor.memoryAudit.field.importance": "重要性",
+    "cursor.memoryAudit.field.weight": "权重",
+    "cursor.memoryAudit.field.evidenceCount": "证据数",
+    "cursor.memoryAudit.field.strength": "强度",
+    "cursor.memoryAudit.reason.matchedTerms": "与当前提示或上下文命中了关键词：{terms}。匹配分：{score}。",
+    "cursor.memoryAudit.reason.matchedSources": "命中来源：{sources}。匹配分：{score}。",
+    "cursor.memoryAudit.reason.sourceGroup": "{source}：{terms}",
+    "cursor.memoryAudit.matchSource.prompt": "用户问题",
+    "cursor.memoryAudit.matchSource.promptExpansion": "用户问题的查询扩展",
+    "cursor.memoryAudit.matchSource.activeFilePath": "当前打开的笔记路径",
+    "cursor.memoryAudit.matchSource.activeFilePathExpansion": "当前打开的笔记路径扩展",
+    "cursor.memoryAudit.matchSource.workingDirectory": "项目目录",
+    "cursor.memoryAudit.matchSource.workingDirectoryExpansion": "项目目录扩展",
+    "cursor.memoryAudit.reason.globalMemory": "这是用户偏好或助手身份类全局记忆，即使没有直接关键词命中也会少量带入。",
+    "cursor.memoryAudit.reason.relevantMemory": "本地相关性排序认为这条记忆适合当前提示上下文。",
+    "cursor.memoryAudit.reason.localRuleCapture": "本地规则从本轮可见对话中识别出 {kind} 类记忆候选。置信度：{confidence}。",
+    "cursor.memoryAudit.reason.existingMemoryRefreshed": "本轮识别出的 {kind} 类候选与已有记忆键相同，因此刷新已有记录。置信度：{confidence}。",
+    "cursor.memoryAudit.reason.deepMemoryAiReflection": "这条深刻记忆来自可审计的 AI 反思信号，来源：{source}。",
+    "cursor.memoryAudit.reason.deepMemoryLocalRules": "本地深刻记忆规则识别出 {kind} 类重要时刻。重要性：{importance}，置信度：{confidence}。",
+    "cursor.memoryAudit.reason.interactionClosedEpisode": "本轮关闭了一个 {context}/{phase} 互动 episode，并作为 {role} 进入本地互动经验归纳。权重：{weight}。",
+    "cursor.memoryAudit.reason.interactionRepairEpisode": "本轮关闭的 episode 包含修复/校准路径，因此作为 {role} 参与互动经验更新。上下文：{context}/{phase}，权重：{weight}。",
+    "cursor.memoryAudit.reason.interactionEvidenceUpdate": "这条 {type} 由已关闭 episode 证据归纳更新。证据数：{evidenceCount}，置信度：{confidence}，强度：{strength}。",
+    "cursor.memoryAudit.reason.interactionAiImpression": "这条 {type} 来自 AI 反思印象，并由本地证据约束保存。证据数：{evidenceCount}，置信度：{confidence}，强度：{strength}。",
     "cursor.memorySkipped.title": "已跳过记忆",
     "cursor.memorySkipped.summary": "Agent Dock 无法保存自动记忆。请查看控制台详情。",
     "cursor.interactionMemoryUpdated.title": "互动经验已更新",
     "cursor.interactionMemoryUpdated.summary": "已根据 {count} 条关闭的本地 episode 更新互动经验。",
+    "cursor.interactionMemoryUpdated.episodes": "本轮关闭：\n{items}",
+    "cursor.interactionMemoryUpdated.changed": "影响到的经验：\n{items}",
+    "cursor.interactionMemoryUpdated.patternLabel": "模式",
+    "cursor.interactionMemoryUpdated.tensionLabel": "张力",
+    "cursor.interactionMemoryUpdated.impressionLabel": "稳定印象",
+    "cursor.interactionMemoryUpdated.aiImpressionLabel": "AI 反思印象",
+    "cursor.interactionMemoryUpdated.evidenceLabel": "{count} 条证据",
     "cursor.interactionMemorySkipped.title": "互动经验已跳过",
     "cursor.interactionMemorySkipped.summary": "Agent Dock 无法保存互动经验。请查看控制台详情。",
     "cursor.deepMemoryUpdated.title": "深刻记忆已更新",
     "cursor.deepMemoryUpdated.summary": "已保存 {count} 条重要时刻，用于之后自然延续。",
+    "cursor.deepMemoryUpdated.aiReflectionSource": "来源：AI 反思",
+    "cursor.deepMemoryUpdated.aiReflectionCount": "其中 {count} 条来自 AI 反思。",
     "cursor.deepMemoryCandidate.title": "深刻记忆候选",
     "cursor.deepMemoryCandidate.summary": "已捕获 1 条可审计的连续性反思。",
     "cursor.deepMemorySkipped.title": "深刻记忆已跳过",
@@ -2603,6 +2811,362 @@ module.exports = {
 };
 
 },
+"src/agents/shared/captureNotices.js": function(module, exports, __require) {
+const MAX_NOTICE_ITEMS = 3;
+const MAX_NOTICE_TEXT_CHARS = 180;
+const MAX_AUDIT_TEXT_CHARS = 1400;
+
+function formatMemoryUpdateSummary(settings, keyPrefix, translate, saved) {
+  const count = saved.length;
+  return translate(settings, `${keyPrefix}.memoryUpdated.summary`, {
+    count,
+    noteLabel: count === 1 ? "note" : "notes"
+  });
+}
+
+function formatDeepMemoryUpdateSummary(settings, keyPrefix, translate, saved) {
+  const count = saved.length;
+  const aiCount = saved.filter(isAiReflectionDeepMemory).length;
+  const base = translate(settings, `${keyPrefix}.deepMemoryUpdated.summary`, { count });
+  if (aiCount <= 0) {
+    return base;
+  }
+  return `${base}\n${translate(settings, `${keyPrefix}.deepMemoryUpdated.aiReflectionCount`, { count: aiCount })}`;
+}
+
+function formatInteractionMemoryUpdateSummary(settings, keyPrefix, translate, result) {
+  const closedEpisodes = Array.isArray(result?.closedEpisodes) ? result.closedEpisodes : [];
+  const changed = []
+    .concat((Array.isArray(result?.updatedPatterns) ? result.updatedPatterns : []).map((item) => ({
+      type: translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`),
+      text: item.summary,
+      evidenceCount: item.evidenceCount
+    })))
+    .concat((Array.isArray(result?.updatedTensions) ? result.updatedTensions : []).map((item) => ({
+      type: translate(settings, `${keyPrefix}.interactionMemoryUpdated.tensionLabel`),
+      text: item.resolutionStyle,
+      evidenceCount: item.evidenceCount
+    })))
+    .concat((Array.isArray(result?.updatedStableImpressions) ? result.updatedStableImpressions : []).map((item) => ({
+      type: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiImpressionLabel`)
+        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.impressionLabel`),
+      text: item.text,
+      evidenceCount: item.evidenceCount
+    })));
+
+  const base = translate(settings, `${keyPrefix}.interactionMemoryUpdated.summary`, {
+    count: closedEpisodes.length
+  });
+  const sections = [];
+  if (closedEpisodes.length > 0) {
+    sections.push(translate(settings, `${keyPrefix}.interactionMemoryUpdated.episodes`, {
+      items: formatItemList(closedEpisodes, formatInteractionEpisode)
+    }));
+  }
+  if (changed.length > 0) {
+    sections.push(translate(settings, `${keyPrefix}.interactionMemoryUpdated.changed`, {
+      items: formatItemList(changed, (item) => formatInteractionChange(settings, keyPrefix, translate, item))
+    }));
+  }
+  return [base].concat(sections.slice(0, 1)).filter(Boolean).join("\n");
+}
+
+function buildMemoryUpdateAuditItems(saved, settings, keyPrefix, translate) {
+  return (Array.isArray(saved) ? saved : []).map((item, index) => {
+    const type = translate(settings, `${keyPrefix}.memoryAudit.type.memory`);
+    const source = translateMemorySource(settings, keyPrefix, translate, item.source);
+    return {
+      title: formatAuditItemTitle(type, index),
+      summary: truncateNoticeText(item.text),
+      type,
+      source,
+      badges: [item.scope, item.kind, source].filter(Boolean),
+      fields: [
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatUpdateReason(item, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.content`), item.text),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.scope`), item.scope),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.kind`), item.kind),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.confidence`), formatNumber(item.confidence))
+      ].filter(Boolean)
+    };
+  });
+}
+
+function formatUpdateReason(item, settings, keyPrefix, translate) {
+  const audit = item?.updateAudit || {};
+  if (audit.reasonCode === "existing_memory_refreshed") {
+    return translate(settings, `${keyPrefix}.memoryAudit.reason.existingMemoryRefreshed`, {
+      kind: item.kind || audit.kind || "",
+      confidence: formatNumber(item.confidence || audit.confidence)
+    });
+  }
+  return translate(settings, `${keyPrefix}.memoryAudit.reason.localRuleCapture`, {
+    kind: item.kind || audit.kind || "",
+    confidence: formatNumber(item.confidence || audit.confidence)
+  });
+}
+
+function buildDeepMemoryAuditItems(saved, settings, keyPrefix, translate) {
+  return (Array.isArray(saved) ? saved : []).map((item, index) => {
+    const type = translate(settings, `${keyPrefix}.memoryAudit.type.deepMemory`);
+    const source = isAiReflectionDeepMemory(item)
+      ? translate(settings, `${keyPrefix}.deepMemoryUpdated.aiReflectionSource`)
+      : translate(settings, `${keyPrefix}.memoryAudit.source.localRules`);
+    return {
+      title: formatAuditItemTitle(type, index),
+      summary: truncateNoticeText(item.summary),
+      type,
+      source,
+      badges: [item.kind, source].concat(item.salienceAxes || []).filter(Boolean),
+      fields: [
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatDeepMemoryReason(item, source, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.summary`), item.summary),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.why`), item.whyItMatters),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.feltSense`), item.feltSense),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.userExcerpt`), item.userExcerpt),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.assistantExcerpt`), item.assistantExcerpt),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.importance`), formatNumber(item.importance)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.confidence`), formatNumber(item.confidence))
+      ].filter(Boolean)
+    };
+  });
+}
+
+function buildInteractionMemoryAuditItems(result, settings, keyPrefix, translate) {
+  const closedEpisodes = Array.isArray(result?.closedEpisodes) ? result.closedEpisodes : [];
+  const items = closedEpisodes.map((item, index) => {
+    const type = translate(settings, `${keyPrefix}.memoryAudit.type.interactionEpisode`);
+    const source = translate(settings, `${keyPrefix}.memoryAudit.source.localRules`);
+    return {
+      title: formatAuditItemTitle(type, index),
+      summary: truncateNoticeText([item.userExcerpt, item.reaction?.excerpt || item.outcomeHint].filter(Boolean).join(" -> ")),
+      type,
+      source,
+      badges: [item.context, item.phase, item.memoryRole].filter(Boolean),
+      fields: [
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatInteractionEpisodeReason(item, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.userExcerpt`), item.userExcerpt),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.assistantExcerpt`), item.assistantExcerpt),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reaction`), item.reaction?.excerpt || item.outcomeHint),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.role`), item.memoryRole),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.weight`), formatNumber(item.eventWeight))
+      ].filter(Boolean)
+    };
+  });
+
+  const changed = []
+    .concat((Array.isArray(result?.updatedPatterns) ? result.updatedPatterns : []).map((item) => ({
+      item,
+      type: translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`),
+      text: item.summary
+    })))
+    .concat((Array.isArray(result?.updatedTensions) ? result.updatedTensions : []).map((item) => ({
+      item,
+      type: translate(settings, `${keyPrefix}.interactionMemoryUpdated.tensionLabel`),
+      text: item.resolutionStyle
+    })))
+    .concat((Array.isArray(result?.updatedStableImpressions) ? result.updatedStableImpressions : []).map((item) => ({
+      item,
+      type: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiImpressionLabel`)
+        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.impressionLabel`),
+      text: item.text,
+      source: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.memoryAudit.source.aiReflection`)
+        : translate(settings, `${keyPrefix}.memoryAudit.source.localRules`)
+    })));
+
+  for (const [index, entry] of changed.entries()) {
+    const source = entry.source || translate(settings, `${keyPrefix}.memoryAudit.source.localRules`);
+    items.push({
+      title: formatAuditItemTitle(entry.type, index),
+      summary: truncateNoticeText(entry.text),
+      type: entry.type,
+      source,
+      badges: [
+        entry.type,
+        entry.item.evidenceCount ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.evidenceLabel`, {
+          count: entry.item.evidenceCount
+        }) : ""
+      ].filter(Boolean),
+      fields: [
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatInteractionChangeReason(entry, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.content`), entry.text),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.evidenceCount`), entry.item.evidenceCount),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.confidence`), formatNumber(entry.item.confidence)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.strength`), formatNumber(entry.item.strength))
+      ].filter(Boolean)
+    });
+  }
+
+  return items;
+}
+
+function formatDeepMemoryReason(item, source, settings, keyPrefix, translate) {
+  if (item?.whyItMatters) {
+    return item.whyItMatters;
+  }
+  if (isAiReflectionDeepMemory(item)) {
+    return translate(settings, `${keyPrefix}.memoryAudit.reason.deepMemoryAiReflection`, { source });
+  }
+  return translate(settings, `${keyPrefix}.memoryAudit.reason.deepMemoryLocalRules`, {
+    kind: item?.kind || "",
+    importance: formatNumber(item?.importance),
+    confidence: formatNumber(item?.confidence)
+  });
+}
+
+function formatInteractionEpisodeReason(item, settings, keyPrefix, translate) {
+  if (item?.repairPath) {
+    return translate(settings, `${keyPrefix}.memoryAudit.reason.interactionRepairEpisode`, {
+      context: item.context || "",
+      phase: item.phase || "",
+      role: item.memoryRole || "",
+      weight: formatNumber(item.eventWeight)
+    });
+  }
+  return translate(settings, `${keyPrefix}.memoryAudit.reason.interactionClosedEpisode`, {
+    context: item?.context || "",
+    phase: item?.phase || "",
+    role: item?.memoryRole || "",
+    weight: formatNumber(item?.eventWeight)
+  });
+}
+
+function formatInteractionChangeReason(entry, settings, keyPrefix, translate) {
+  const evidenceCount = entry?.item?.evidenceCount || 0;
+  const confidence = formatNumber(entry?.item?.confidence);
+  const strength = formatNumber(entry?.item?.strength);
+  if (entry?.source === translate(settings, `${keyPrefix}.memoryAudit.source.aiReflection`)) {
+    return translate(settings, `${keyPrefix}.memoryAudit.reason.interactionAiImpression`, {
+      type: entry.type || "",
+      evidenceCount,
+      confidence,
+      strength
+    });
+  }
+  return translate(settings, `${keyPrefix}.memoryAudit.reason.interactionEvidenceUpdate`, {
+    type: entry?.type || "",
+    evidenceCount,
+    confidence,
+    strength
+  });
+}
+
+function formatAuditItemTitle(type, index) {
+  const label = String(type || "").trim();
+  const number = Number.isFinite(index) ? index + 1 : 1;
+  return label ? `${label} ${number}` : `Item ${number}`;
+}
+
+function formatItemList(items, formatter) {
+  const visible = items.slice(0, MAX_NOTICE_ITEMS)
+    .map((item) => formatter(item))
+    .filter(Boolean);
+  const remaining = Math.max(0, items.length - visible.length);
+  if (remaining > 0) {
+    visible.push(`- ... +${remaining}`);
+  }
+  return visible.join("\n");
+}
+
+function formatMemoryItem(item) {
+  const label = [item.scope, item.kind].filter(Boolean).join("/");
+  const text = truncateNoticeText(item.text);
+  return label ? `- [${label}] ${text}` : `- ${text}`;
+}
+
+function formatDeepMemoryItem(settings, keyPrefix, translate, item) {
+  const labels = [item.kind];
+  if (isAiReflectionDeepMemory(item)) {
+    labels.push(translate(settings, `${keyPrefix}.deepMemoryUpdated.aiReflectionSource`));
+  }
+  const label = labels.filter(Boolean).join(" | ");
+  const text = truncateNoticeText(item.summary);
+  return label ? `- [${label}] ${text}` : `- ${text}`;
+}
+
+function formatInteractionEpisode(item) {
+  const parts = [
+    item.userExcerpt,
+    item.reaction?.excerpt || item.outcomeHint
+  ].map(truncateNoticeText).filter(Boolean);
+  return parts.length > 1 ? `- ${parts[0]} -> ${parts[1]}` : `- ${parts[0] || item.context || item.phase}`;
+}
+
+function formatInteractionChange(settings, keyPrefix, translate, item) {
+  const label = [
+    item.type,
+    item.evidenceCount ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.evidenceLabel`, {
+      count: item.evidenceCount
+    }) : ""
+  ].filter(Boolean).join(", ");
+  const text = truncateNoticeText(item.text);
+  return label ? `- [${label}] ${text}` : `- ${text}`;
+}
+
+function isAiReflectionDeepMemory(item) {
+  return item?.kind === "visible_reflection"
+    || (Array.isArray(item?.topics) && item.topics.includes("agent_dock_signal"));
+}
+
+function translateMemorySource(settings, keyPrefix, translate, source) {
+  const normalized = String(source || "").trim();
+  if (normalized === "user") {
+    return translate(settings, `${keyPrefix}.memoryAudit.source.user`);
+  }
+  if (normalized === "ai") {
+    return translate(settings, `${keyPrefix}.memoryAudit.source.aiReflection`);
+  }
+  return translate(settings, `${keyPrefix}.memoryAudit.source.localRules`);
+}
+
+function createField(label, value) {
+  const text = String(value === undefined || value === null ? "" : value).replace(/\s+/g, " ").trim();
+  if (!label || !text) {
+    return null;
+  }
+  return {
+    label,
+    value: truncateAuditText(text)
+  };
+}
+
+function formatNumber(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return "";
+  }
+  return number.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function truncateNoticeText(text, maxChars = MAX_NOTICE_TEXT_CHARS) {
+  const compact = String(text || "").replace(/\s+/g, " ").trim();
+  if (compact.length <= maxChars) {
+    return compact;
+  }
+  return `${compact.slice(0, maxChars - 1)}...`;
+}
+
+function truncateAuditText(text) {
+  return truncateNoticeText(text, MAX_AUDIT_TEXT_CHARS);
+}
+
+module.exports = {
+  buildDeepMemoryAuditItems,
+  buildInteractionMemoryAuditItems,
+  buildMemoryUpdateAuditItems,
+  formatDeepMemoryUpdateSummary,
+  formatInteractionMemoryUpdateSummary,
+  formatMemoryUpdateSummary
+};
+
+},
 "src/storage/sensitiveText.js": function(module, exports, __require) {
 function containsSensitiveText(text) {
   return /(api[_-]?key|access[_-]?token|refresh[_-]?token|auth[_-]?token|client[_-]?secret|password|passwd|secret|token|bearer|private[_-]?key|ssh-rsa|BEGIN (?:OPENSSH |RSA |EC )?PRIVATE KEY|sk-[a-z0-9]|ghp_[a-z0-9]|github_pat_[a-z0-9_]+|xox[baprs]-[a-z0-9-]+|AKIA[0-9A-Z]{16}|密码|密钥|私钥|令牌|凭证)/i.test(text);
@@ -3572,14 +4136,13 @@ class MemoryStore {
       return [];
     }
 
-    const queryText = [
-      query,
-      options.activeFilePath || "",
-      options.workingDirectory || ""
-    ].filter(Boolean).join(" ");
-    const queryTokens = tokenize(queryText);
+    const queryTokenInfo = buildQueryTokenInfo([
+      { source: "prompt", text: query },
+      { source: "activeFilePath", text: options.activeFilePath || "" },
+      { source: "workingDirectory", text: options.workingDirectory || "" }
+    ]);
     const scored = items
-      .map((item) => scoreMemory(item, queryTokens))
+      .map((item) => scoreMemory(item, queryTokenInfo.tokens, queryTokenInfo.sources))
       .filter((entry) => entry.matchScore > 0 || isGlobalMemory(entry.item))
       .sort(compareScoredMemories);
 
@@ -3596,7 +4159,9 @@ class MemoryStore {
       if (used + text.length + 1 > maxChars) {
         continue;
       }
-      selected.push(entry.item);
+      selected.push(Object.assign({}, entry.item, {
+        referenceAudit: createReferenceAudit(entry)
+      }));
       used += text.length + 1;
     }
 
@@ -3614,9 +4179,9 @@ class MemoryStore {
       return [];
     }
 
-    const queryTokens = tokenize(query);
+    const queryTokenInfo = buildQueryTokenInfo([{ source: "prompt", text: query }]);
     const scored = items
-      .map((item) => scoreMemory(item, queryTokens))
+      .map((item) => scoreMemory(item, queryTokenInfo.tokens, queryTokenInfo.sources))
       .filter((entry) => entry.matchScore > 0)
       .sort(compareScoredMemories);
 
@@ -3635,7 +4200,8 @@ class MemoryStore {
       }
       selected.push(Object.assign({}, entry.item, {
         matchScore: entry.matchScore,
-        score: entry.totalScore
+        score: entry.totalScore,
+        referenceAudit: createReferenceAudit(entry)
       }));
       used += text.length + 1;
     }
@@ -3672,6 +4238,7 @@ class MemoryStore {
         previous.updatedAt = now;
         previous.sourceSessionId = item.sourceSessionId || previous.sourceSessionId || "";
         previous.source = item.source || previous.source || "auto";
+        previous.updateAudit = createUpdateAudit(item, true);
         saved.push(previous);
         continue;
       }
@@ -3686,7 +4253,8 @@ class MemoryStore {
         source: item.source || "auto",
         sourceSessionId: item.sourceSessionId || "",
         createdAt: now,
-        updatedAt: now
+        updatedAt: now,
+        updateAudit: createUpdateAudit(item, false)
       };
       memory.items.push(next);
       existingByKey.set(key, next);
@@ -3760,12 +4328,19 @@ function limitMemoryItems(items, settings) {
     .sort((left, right) => normalizeTimestamp(left.createdAt, 0) - normalizeTimestamp(right.createdAt, 0));
 }
 
-function scoreMemory(item, queryTokens) {
+function scoreMemory(item, queryTokens, queryTokenSources = new Map()) {
   const itemTokens = tokenize(item.text);
   let matchScore = 0;
+  const matchedTokens = [];
+  const matchedTokenSources = [];
   for (const token of itemTokens) {
     if (queryTokens.has(token)) {
       matchScore += token.length > 8 ? 3 : 1;
+      matchedTokens.push(token);
+      matchedTokenSources.push({
+        token,
+        sources: Array.from(queryTokenSources.get(token) || [])
+      });
     }
   }
   let totalScore = matchScore;
@@ -3775,7 +4350,35 @@ function scoreMemory(item, queryTokens) {
   return {
     item,
     matchScore,
-    totalScore
+    totalScore,
+    matchedTokens,
+    matchedTokenSources
+  };
+}
+
+function createReferenceAudit(entry) {
+  const matchedTokens = Array.isArray(entry.matchedTokens)
+    ? entry.matchedTokens.slice(0, 8)
+    : [];
+  const matchedTokenSources = Array.isArray(entry.matchedTokenSources)
+    ? entry.matchedTokenSources.slice(0, 8)
+    : [];
+  return {
+    reasonCode: entry.matchScore > 0 ? "matched_terms" : "global_memory",
+    matchScore: entry.matchScore,
+    score: entry.totalScore,
+    matchedTokens,
+    matchedTokenSources
+  };
+}
+
+function createUpdateAudit(item, existing) {
+  return {
+    reasonCode: existing ? "existing_memory_refreshed" : "local_rule_capture",
+    kind: item.kind,
+    scope: item.scope || "project",
+    confidence: Number(item.confidence) || 0.6,
+    source: item.source || "auto"
   };
 }
 
@@ -3811,8 +4414,33 @@ function kindPriority(kind) {
 }
 
 function tokenize(text) {
+  return tokenizeRaw(expandSearchText(String(text || "")));
+}
+
+function buildQueryTokenInfo(parts) {
   const tokens = new Set();
-  const normalized = expandSearchText(String(text || "")).toLowerCase();
+  const sources = new Map();
+  for (const part of parts) {
+    const source = part?.source || "prompt";
+    const text = part?.text || "";
+    if (!text) {
+      continue;
+    }
+    const rawTokens = tokenizeRaw(text);
+    const expandedTokens = tokenizeRaw(expandSearchText(text));
+    for (const token of expandedTokens) {
+      tokens.add(token);
+      const labels = sources.get(token) || new Set();
+      labels.add(rawTokens.has(token) ? source : `${source}Expansion`);
+      sources.set(token, labels);
+    }
+  }
+  return { tokens, sources };
+}
+
+function tokenizeRaw(text) {
+  const tokens = new Set();
+  const normalized = String(text || "").toLowerCase();
   const matches = normalized.match(/[a-z0-9_./-]{3,}|[\u4e00-\u9fff]{2,}/g) || [];
   for (const match of matches) {
     if (!STOP_WORDS.has(match)) {
@@ -5532,7 +6160,8 @@ function emitMemoryNotice(onUpdate, memories, translate, keyPrefix = "cursor") {
     noticeType: "memory_referenced",
     title: translate(`${keyPrefix}.memoryReferenced.title`),
     summary: formatMemoryNoticeSummary(memories, translate, keyPrefix),
-    detail: memories.map(formatMemoryLine).join("\n")
+    detail: memories.map(formatMemoryLine).join("\n"),
+    auditItems: buildReferencedMemoryAuditItems(memories, translate, keyPrefix)
   });
 }
 
@@ -5545,36 +6174,160 @@ function emitContextCompressedNotice(onUpdate, context, translate, keyPrefix = "
     kind: "notice",
     title: translate(`${keyPrefix}.contextCompressed.title`),
     summary: translate(`${keyPrefix}.contextCompressed.summary`, {
-      original: formatNumber(context.originalChars),
-      prompt: formatNumber(context.promptChars),
-      limit: formatNumber(context.limitChars)
+      original: formatLocaleNumber(context.originalChars),
+      prompt: formatLocaleNumber(context.promptChars),
+      limit: formatLocaleNumber(context.limitChars)
     })
   });
 }
 
 function formatMemoryNoticeSummary(memories, translate, keyPrefix = "cursor") {
   const count = memories.length;
-  const lines = [
-    translate(`${keyPrefix}.memoryReferenced.summary`, {
-      count,
-      noteLabel: count === 1 ? "note" : "notes"
-    })
-  ];
-  const visibleMemories = memories.slice(0, 5).map(formatMemoryLine);
-  lines.push(...visibleMemories);
-  if (memories.length > visibleMemories.length) {
-    lines.push(translate(`${keyPrefix}.memoryReferenced.more`, {
-      count: memories.length - visibleMemories.length
-    }));
-  }
-  return lines.join("\n");
+  return translate(`${keyPrefix}.memoryReferenced.summary`, {
+    count,
+    noteLabel: count === 1 ? "note" : "notes"
+  });
 }
 
-function formatNumber(value) {
+function buildReferencedMemoryAuditItems(memories, translate, keyPrefix = "cursor") {
+  return (Array.isArray(memories) ? memories : []).map((item, index) => {
+    const source = translateMemorySource(translate, keyPrefix, item.source);
+    const type = translate(`${keyPrefix}.memoryAudit.type.memory`);
+    return {
+      title: formatAuditItemTitle(type, index),
+      summary: truncateNoticeText(item.text),
+      type,
+      source,
+      badges: [item.scope, item.kind, source].filter(Boolean),
+      fields: [
+        createField(translate(`${keyPrefix}.memoryAudit.field.reason`), formatReferenceReason(item, translate, keyPrefix)),
+        createField(translate(`${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(`${keyPrefix}.memoryAudit.field.content`), item.text),
+        createField(translate(`${keyPrefix}.memoryAudit.field.scope`), item.scope),
+        createField(translate(`${keyPrefix}.memoryAudit.field.kind`), item.kind),
+        createField(translate(`${keyPrefix}.memoryAudit.field.confidence`), formatDecimal(item.confidence))
+      ].filter(Boolean)
+    };
+  });
+}
+
+function formatReferenceReason(item, translate, keyPrefix) {
+  const audit = item?.referenceAudit || {};
+  if (audit.reasonCode === "global_memory") {
+    return translate(`${keyPrefix}.memoryAudit.reason.globalMemory`);
+  }
+  const sourceSummary = formatMatchedTokenSources(audit.matchedTokenSources, translate, keyPrefix);
+  if (sourceSummary) {
+    return translate(`${keyPrefix}.memoryAudit.reason.matchedSources`, {
+      sources: sourceSummary,
+      score: formatDecimal(audit.matchScore)
+    });
+  }
+  const terms = Array.isArray(audit.matchedTokens)
+    ? audit.matchedTokens.filter(Boolean).slice(0, 6).join(", ")
+    : "";
+  if (terms) {
+    return translate(`${keyPrefix}.memoryAudit.reason.matchedTerms`, {
+      terms,
+      score: formatDecimal(audit.matchScore)
+    });
+  }
+  return translate(`${keyPrefix}.memoryAudit.reason.relevantMemory`);
+}
+
+function formatMatchedTokenSources(matchedTokenSources, translate, keyPrefix) {
+  if (!Array.isArray(matchedTokenSources) || matchedTokenSources.length === 0) {
+    return "";
+  }
+  const bySource = new Map();
+  for (const entry of matchedTokenSources) {
+    const token = String(entry?.token || "").trim();
+    if (!token) {
+      continue;
+    }
+    const sources = Array.isArray(entry.sources) && entry.sources.length > 0
+      ? entry.sources
+      : ["prompt"];
+    for (const source of sources) {
+      const sourceKey = normalizeMatchSource(source);
+      const tokens = bySource.get(sourceKey) || [];
+      if (!tokens.includes(token)) {
+        tokens.push(token);
+      }
+      bySource.set(sourceKey, tokens);
+    }
+  }
+  return Array.from(bySource.entries())
+    .map(([source, tokens]) => translate(`${keyPrefix}.memoryAudit.reason.sourceGroup`, {
+      source: translate(`${keyPrefix}.memoryAudit.matchSource.${source}`),
+      terms: tokens.slice(0, 6).join(", ")
+    }))
+    .join("; ");
+}
+
+function normalizeMatchSource(source) {
+  if (source === "activeFilePath" || source === "activeFilePathExpansion") {
+    return source;
+  }
+  if (source === "workingDirectory" || source === "workingDirectoryExpansion") {
+    return source;
+  }
+  if (source === "promptExpansion") {
+    return source;
+  }
+  return "prompt";
+}
+
+function formatAuditItemTitle(type, index) {
+  const label = String(type || "").trim();
+  const number = Number.isFinite(index) ? index + 1 : 1;
+  return label ? `${label} ${number}` : `Item ${number}`;
+}
+
+function createField(label, value) {
+  const text = String(value === undefined || value === null ? "" : value).replace(/\s+/g, " ").trim();
+  if (!label || !text) {
+    return null;
+  }
+  return {
+    label,
+    value: truncateNoticeText(text, 1400)
+  };
+}
+
+function truncateNoticeText(text, maxChars = 180) {
+  const compact = String(text || "").replace(/\s+/g, " ").trim();
+  if (compact.length <= maxChars) {
+    return compact;
+  }
+  return `${compact.slice(0, maxChars - 1)}...`;
+}
+
+function translateMemorySource(translate, keyPrefix, source) {
+  const normalized = String(source || "").trim();
+  if (normalized === "user") {
+    return translate(`${keyPrefix}.memoryAudit.source.user`);
+  }
+  if (normalized === "ai") {
+    return translate(`${keyPrefix}.memoryAudit.source.aiReflection`);
+  }
+  return translate(`${keyPrefix}.memoryAudit.source.localRules`);
+}
+
+function formatDecimal(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return "";
+  }
+  return number.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function formatLocaleNumber(value) {
   return new Intl.NumberFormat().format(value);
 }
 
 module.exports = {
+  buildReferencedMemoryAuditItems,
   emitContextCompressedNotice,
   emitMemoryNotice,
   formatMemoryNoticeSummary
@@ -5985,6 +6738,14 @@ const {
   formatInvalidAgentDockSignalActivity,
   formatAgentDockSignalNotice
 } = __require("src/agents/shared/agentSignals.js");
+const {
+  buildDeepMemoryAuditItems,
+  buildInteractionMemoryAuditItems,
+  buildMemoryUpdateAuditItems,
+  formatDeepMemoryUpdateSummary,
+  formatInteractionMemoryUpdateSummary,
+  formatMemoryUpdateSummary
+} = __require("src/agents/shared/captureNotices.js");
 const { buildAgentTurnContext } = __require("src/agents/shared/TurnContextBuilder.js");
 const { codexJsonEventToUpdates } = __require("src/agents/codex/jsonEvents.js");
 
@@ -6225,10 +6986,8 @@ class CodexAgent {
           kind: "notice",
           noticeType: "memory_updated",
           title: t(settings, "codex.memoryUpdated.title"),
-          summary: t(settings, "codex.memoryUpdated.summary", {
-            count: saved.length,
-            noteLabel: saved.length === 1 ? "note" : "notes"
-          })
+          summary: formatMemoryUpdateSummary(settings, "codex", t, saved),
+          auditItems: buildMemoryUpdateAuditItems(saved, settings, "codex", t)
         });
       }
     } catch (error) {
@@ -6250,9 +7009,8 @@ class CodexAgent {
           kind: "notice",
           noticeType: "interaction_memory_updated",
           title: t(settings, "codex.interactionMemoryUpdated.title"),
-          summary: t(settings, "codex.interactionMemoryUpdated.summary", {
-            count: result.closedEpisodes.length
-          })
+          summary: formatInteractionMemoryUpdateSummary(settings, "codex", t, result),
+          auditItems: buildInteractionMemoryAuditItems(result, settings, "codex", t)
         });
       }
     } catch (error) {
@@ -6274,9 +7032,8 @@ class CodexAgent {
           kind: "notice",
           noticeType: "deep_memory_updated",
           title: t(settings, "codex.deepMemoryUpdated.title"),
-          summary: t(settings, "codex.deepMemoryUpdated.summary", {
-            count: saved.length
-          })
+          summary: formatDeepMemoryUpdateSummary(settings, "codex", t, saved),
+          auditItems: buildDeepMemoryAuditItems(saved, settings, "codex", t)
         });
       }
     } catch (error) {
@@ -7071,6 +7828,14 @@ const {
   formatInvalidAgentDockSignalActivity,
   formatAgentDockSignalNotice
 } = __require("src/agents/shared/agentSignals.js");
+const {
+  buildDeepMemoryAuditItems,
+  buildInteractionMemoryAuditItems,
+  buildMemoryUpdateAuditItems,
+  formatDeepMemoryUpdateSummary,
+  formatInteractionMemoryUpdateSummary,
+  formatMemoryUpdateSummary
+} = __require("src/agents/shared/captureNotices.js");
 const { AcpClient } = __require("src/agents/cursor/AcpClient.js");
 const { acpUpdateToEvents } = __require("src/agents/cursor/acpEvents.js");
 const { toCursorMode } = __require("src/agents/cursor/modes.js");
@@ -7524,10 +8289,8 @@ class CursorAgent {
           kind: "notice",
           noticeType: "memory_updated",
           title: t(settings, "cursor.memoryUpdated.title"),
-          summary: t(settings, "cursor.memoryUpdated.summary", {
-            count: saved.length,
-            noteLabel: saved.length === 1 ? "note" : "notes"
-          })
+          summary: formatMemoryUpdateSummary(settings, "cursor", t, saved),
+          auditItems: buildMemoryUpdateAuditItems(saved, settings, "cursor", t)
         });
       }
     } catch (error) {
@@ -7549,9 +8312,8 @@ class CursorAgent {
           kind: "notice",
           noticeType: "interaction_memory_updated",
           title: t(settings, "cursor.interactionMemoryUpdated.title"),
-          summary: t(settings, "cursor.interactionMemoryUpdated.summary", {
-            count: result.closedEpisodes.length
-          })
+          summary: formatInteractionMemoryUpdateSummary(settings, "cursor", t, result),
+          auditItems: buildInteractionMemoryAuditItems(result, settings, "cursor", t)
         });
       }
     } catch (error) {
@@ -7573,9 +8335,8 @@ class CursorAgent {
           kind: "notice",
           noticeType: "deep_memory_updated",
           title: t(settings, "cursor.deepMemoryUpdated.title"),
-          summary: t(settings, "cursor.deepMemoryUpdated.summary", {
-            count: saved.length
-          })
+          summary: formatDeepMemoryUpdateSummary(settings, "cursor", t, saved),
+          auditItems: buildDeepMemoryAuditItems(saved, settings, "cursor", t)
         });
       }
     } catch (error) {
@@ -9668,7 +10429,10 @@ class InteractionMemoryStore {
         pendingEpisode: null,
         patterns: [],
         tensions: [],
-        stableImpressions: []
+        stableImpressions: [],
+        updatedPatterns: [],
+        updatedTensions: [],
+        updatedStableImpressions: []
       };
     }
 
@@ -9692,6 +10456,7 @@ class InteractionMemoryStore {
       const next = applyEpisodes(Object.assign({}, memory, {
         pendingEpisodes
       }), closedEpisodes, settings, now);
+      const changed = getChangedInteractionItems(next, closedEpisodes);
       next.pendingEpisodes = pendingEpisodes;
       this.cache = next;
       await this.saveMemory(next);
@@ -9701,7 +10466,10 @@ class InteractionMemoryStore {
         pendingEpisode,
         patterns: next.patterns,
         tensions: next.tensions,
-        stableImpressions: next.stableImpressions
+        stableImpressions: next.stableImpressions,
+        updatedPatterns: changed.patterns,
+        updatedTensions: changed.tensions,
+        updatedStableImpressions: changed.stableImpressions
       };
     });
   }
@@ -9794,6 +10562,30 @@ function findPendingForSession(pendingEpisodes, sessionId) {
     }
   }
   return null;
+}
+
+function getChangedInteractionItems(memory, closedEpisodes) {
+  const closedIds = new Set((Array.isArray(closedEpisodes) ? closedEpisodes : [])
+    .map((episode) => episode.id)
+    .filter(Boolean));
+  if (closedIds.size === 0) {
+    return {
+      patterns: [],
+      tensions: [],
+      stableImpressions: []
+    };
+  }
+  return {
+    patterns: findItemsWithEvidence(memory.patterns, closedIds),
+    tensions: findItemsWithEvidence(memory.tensions, closedIds),
+    stableImpressions: findItemsWithEvidence(memory.stableImpressions, closedIds)
+  };
+}
+
+function findItemsWithEvidence(items, closedIds) {
+  return (Array.isArray(items) ? items : [])
+    .filter((item) => (Array.isArray(item.evidenceEpisodeIds) ? item.evidenceEpisodeIds : [])
+      .some((id) => closedIds.has(id)));
 }
 
 function createPendingEpisode(draft, now) {
@@ -10537,6 +11329,18 @@ const PERSISTED_TIMELINE_TEXT_LIMITS = {
   toolType: 80,
   noticeType: 80
 };
+const PERSISTED_AUDIT_ITEMS_LIMIT = 12;
+const PERSISTED_AUDIT_BADGES_LIMIT = 8;
+const PERSISTED_AUDIT_FIELDS_LIMIT = 12;
+const PERSISTED_AUDIT_TEXT_LIMITS = {
+  title: 300,
+  summary: 1000,
+  type: 120,
+  source: 160,
+  badge: 100,
+  label: 120,
+  value: 1600
+};
 const TRUNCATED_TEXT_MARKER = "\n\n[Persisted timeline detail truncated]";
 
 class ChatStorage {
@@ -10886,6 +11690,10 @@ function normalizeTimelineEntry(entry) {
   if (entry.kind === "reasoning" && entry.discrete !== undefined) {
     normalized.discrete = entry.discrete === true;
   }
+  const auditItems = normalizeAuditItems(entry.auditItems);
+  if (auditItems.length > 0) {
+    normalized.auditItems = auditItems;
+  }
 
   if ((entry.kind === "message" || entry.kind === "content") && !normalized.text) {
     return null;
@@ -10910,6 +11718,78 @@ function truncatePersistedTimelineText(text, limit) {
     return normalized;
   }
   return `${normalized.slice(0, maxLength)}${TRUNCATED_TEXT_MARKER}`;
+}
+
+function normalizeAuditItems(items) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  return items
+    .map(normalizeAuditItem)
+    .filter(Boolean)
+    .slice(0, PERSISTED_AUDIT_ITEMS_LIMIT);
+}
+
+function normalizeAuditItem(item) {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+  const title = normalizeAuditText(item.title, PERSISTED_AUDIT_TEXT_LIMITS.title);
+  const summary = normalizeAuditText(item.summary, PERSISTED_AUDIT_TEXT_LIMITS.summary);
+  if (!title && !summary) {
+    return null;
+  }
+  const normalized = {
+    title: title || summary,
+    summary,
+    type: normalizeAuditText(item.type, PERSISTED_AUDIT_TEXT_LIMITS.type),
+    source: normalizeAuditText(item.source, PERSISTED_AUDIT_TEXT_LIMITS.source),
+    badges: normalizeAuditBadges(item.badges),
+    fields: normalizeAuditFields(item.fields)
+  };
+  return normalized;
+}
+
+function normalizeAuditBadges(badges) {
+  if (!Array.isArray(badges)) {
+    return [];
+  }
+  const seen = new Set();
+  return badges
+    .map((badge) => normalizeAuditText(badge, PERSISTED_AUDIT_TEXT_LIMITS.badge))
+    .filter(Boolean)
+    .filter((badge) => {
+      if (seen.has(badge)) {
+        return false;
+      }
+      seen.add(badge);
+      return true;
+    })
+    .slice(0, PERSISTED_AUDIT_BADGES_LIMIT);
+}
+
+function normalizeAuditFields(fields) {
+  if (!Array.isArray(fields)) {
+    return [];
+  }
+  return fields
+    .map((field) => {
+      if (!field || typeof field !== "object") {
+        return null;
+      }
+      const label = normalizeAuditText(field.label, PERSISTED_AUDIT_TEXT_LIMITS.label);
+      const value = normalizeAuditText(field.value, PERSISTED_AUDIT_TEXT_LIMITS.value);
+      if (!label || !value) {
+        return null;
+      }
+      return { label, value };
+    })
+    .filter(Boolean)
+    .slice(0, PERSISTED_AUDIT_FIELDS_LIMIT);
+}
+
+function normalizeAuditText(value, limit) {
+  return truncatePersistedTimelineText(redactSensitiveText(String(value || "").replace(/\s+/g, " ").trim()), limit);
 }
 
 function limitSessions(sessions, settings) {
@@ -15602,6 +16482,7 @@ class MessageTimelineRenderer {
     this.renderMarkdownContent = options.renderMarkdownContent;
     this.copyText = options.copyText;
     this.setIcon = options.setIcon;
+    this.openNoticeDetails = options.openNoticeDetails;
     this.prefersReducedMotion = options.prefersReducedMotion;
     this.onDetailsToggleStart = options.onDetailsToggleStart;
     this.onDetailsLayoutChanged = options.onDetailsLayoutChanged;
@@ -15799,6 +16680,11 @@ class MessageTimelineRenderer {
       return;
     }
 
+    if (item.entries.length === 1 && isAuditableNotice(entry)) {
+      this.renderAuditableProcessedNoticeRow(containerEl, entry, options);
+      return;
+    }
+
     const key = `processed-item:${item.firstIndex}:${item.kind}:${item.key}`;
     const details = this.renderDetails(containerEl, message, key, {
       cls: `codex-dock__processed-item codex-dock__processed-item--${item.kind}`,
@@ -15828,8 +16714,7 @@ class MessageTimelineRenderer {
     } else {
       const detail = this.getProcessedEntryDetail(entry);
       if (detail) {
-        body.createEl("pre", { cls: "codex-dock__processed-item-detail", text: detail });
-        this.renderCopyButton(body, detail, this.translate("view.copyEventText"));
+        this.renderProcessedEntryBody(body, entry, detail);
       }
     }
     this.prepareAnimatedDetails(details, summary, body, message, key);
@@ -15837,6 +16722,11 @@ class MessageTimelineRenderer {
 
   renderProcessedEventSubItems(containerEl, message, parentKey, item) {
     item.entries.forEach((entry, offset) => {
+      if (isAuditableNotice(entry)) {
+        this.renderProcessedSubItemTitleRow(containerEl, entry, { interactive: true });
+        return;
+      }
+
       const detail = this.getProcessedEntryDetail(entry);
       if (!detail) {
         this.renderProcessedSubItemTitleRow(containerEl, entry);
@@ -15857,26 +16747,87 @@ class MessageTimelineRenderer {
       this.renderChevron(summary);
 
       const body = details.createDiv({ cls: "codex-dock__processed-subitem-body" });
-      body.createEl("pre", { cls: "codex-dock__processed-item-detail", text: detail });
-      this.renderCopyButton(body, detail, this.translate("view.copyEventText"));
+      this.renderProcessedEntryBody(body, entry, detail);
       this.prepareAnimatedDetails(details, summary, body, message, key);
     });
   }
 
-  renderProcessedSubItemTitleRow(containerEl, entry) {
+  renderProcessedEntryBody(containerEl, entry, detail) {
+    if (isAuditableNotice(entry)) {
+      this.renderNoticePreview(containerEl, entry, detail);
+      return;
+    }
+    containerEl.createEl("pre", { cls: "codex-dock__processed-item-detail", text: detail });
+    this.renderCopyButton(containerEl, detail, this.translate("view.copyEventText"));
+  }
+
+  renderAuditableProcessedNoticeRow(containerEl, entry, options = {}) {
     if (!this.shouldShowEvent(entry)) {
       return;
     }
 
     const row = containerEl.createDiv({
-      cls: `codex-dock__processed-subitem codex-dock__processed-subitem--static codex-dock__processed-subitem--${entry.kind || "activity"}`
+      cls: [
+        "codex-dock__processed-item",
+        "codex-dock__processed-item--notice",
+        "codex-dock__notice-details-row",
+        options.currentItem ? "is-current" : ""
+      ].filter(Boolean).join(" ")
     });
-    const title = row.createDiv({ cls: "codex-dock__processed-subitem-summary" });
+    const summary = row.createDiv({
+      cls: "codex-dock__processed-item-summary codex-dock__notice-details-trigger",
+      attr: {
+        role: "button",
+        tabindex: "0",
+        title: this.translate("memoryNotice.viewDetails")
+      }
+    });
+    this.renderProcessIcon(summary, entry);
+    this.renderProcessTitleText(summary, {
+      cls: "codex-dock__processed-item-title",
+      text: this.getProcessedEntryTitle(entry),
+      currentItem: options.currentItem,
+      shimmerState: options.shimmerState
+    });
+    this.renderNoticeDetailsIcon(summary);
+    this.bindNoticeDetailsTrigger(summary, entry);
+  }
+
+  renderProcessedSubItemTitleRow(containerEl, entry, options = {}) {
+    if (!this.shouldShowEvent(entry)) {
+      return;
+    }
+
+    const row = containerEl.createDiv({
+      cls: [
+        "codex-dock__processed-subitem",
+        options.interactive ? "codex-dock__notice-details-row" : "codex-dock__processed-subitem--static",
+        `codex-dock__processed-subitem--${entry.kind || "activity"}`
+      ].filter(Boolean).join(" ")
+    });
+    const titleOptions = {
+      cls: [
+        "codex-dock__processed-subitem-summary",
+        options.interactive ? "codex-dock__notice-details-trigger" : ""
+      ].filter(Boolean).join(" ")
+    };
+    if (options.interactive) {
+      titleOptions.attr = {
+        role: "button",
+        tabindex: "0",
+        title: this.translate("memoryNotice.viewDetails")
+      };
+    }
+    const title = row.createDiv(titleOptions);
     this.renderProcessIcon(title, entry);
     title.createSpan({
       cls: "codex-dock__processed-subitem-title",
       text: this.getProcessedEntryTitle(entry)
     });
+    if (options.interactive) {
+      this.renderNoticeDetailsIcon(title);
+      this.bindNoticeDetailsTrigger(title, entry);
+    }
   }
 
   getProcessedEntryDetail(entry) {
@@ -16034,6 +16985,14 @@ class MessageTimelineRenderer {
       chevron.setText(">");
     }
     return chevron;
+  }
+
+  renderNoticeDetailsIcon(containerEl) {
+    return containerEl.createSpan({
+      cls: "codex-dock__notice-details-icon",
+      text: "i",
+      attr: { "aria-hidden": "true" }
+    });
   }
 
   renderProcessIcon(containerEl, entry) {
@@ -16293,7 +17252,21 @@ class MessageTimelineRenderer {
     }
 
     const eventEl = containerEl.createDiv({ cls: `codex-dock__event codex-dock__event--${entry.kind || "activity"}` });
-    eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || this.translate("timeline.event") });
+    if (isAuditableNotice(entry)) {
+      const title = eventEl.createDiv({
+        cls: "codex-dock__event-title codex-dock__notice-details-trigger",
+        attr: {
+          role: "button",
+          tabindex: "0",
+          title: this.translate("memoryNotice.viewDetails")
+        }
+      });
+      title.createSpan({ cls: "codex-dock__notice-details-title", text: entry.title || this.translate("timeline.event") });
+      this.renderNoticeDetailsIcon(title);
+      this.bindNoticeDetailsTrigger(title, entry);
+    } else {
+      eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || this.translate("timeline.event") });
+    }
     this.renderCopyButton(eventEl, entryToClipboardText(entry, this.getDebugActivity()), this.translate("view.copyEventText"));
 
     if (entry.kind === "reasoning") {
@@ -16329,6 +17302,61 @@ class MessageTimelineRenderer {
   shouldShowEvent(entry) {
     return shouldShowEvent(entry, this.getDebugActivity());
   }
+
+  renderNoticePreview(containerEl, entry, text, options = {}) {
+    const preview = containerEl.createDiv({
+      cls: [
+        "codex-dock__processed-subitem-summary",
+        "codex-dock__notice-preview"
+      ].join(" "),
+      attr: {
+        role: "button",
+        tabindex: "0",
+        title: this.translate("memoryNotice.viewDetails")
+      }
+    });
+    this.renderProcessIcon(preview, entry);
+    preview.createSpan({
+      cls: "codex-dock__processed-subitem-title",
+      text: compactProcessedText(text || this.getProcessedEntryTitle(entry))
+    });
+    this.renderNoticeDetailsIcon(preview);
+    const openDetails = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof this.openNoticeDetails === "function") {
+        this.openNoticeDetails(entry);
+      }
+    };
+    preview.addEventListener("click", openDetails);
+    preview.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      openDetails(event);
+    });
+  }
+
+  bindNoticeDetailsTrigger(triggerEl, entry) {
+    const openDetails = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof this.openNoticeDetails === "function") {
+        this.openNoticeDetails(entry);
+      }
+    };
+    triggerEl.addEventListener("click", openDetails);
+    triggerEl.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      openDetails(event);
+    });
+  }
+}
+
+function isAuditableNotice(entry) {
+  return entry?.kind === "notice" && Array.isArray(entry.auditItems) && entry.auditItems.length > 0;
 }
 
 function entryToClipboardText(entry, debugActivity) {
@@ -16522,6 +17550,230 @@ function compactProcessedText(value) {
   const compact = String(value || "").replace(/\s+/g, " ").trim();
   return compact.length > 180 ? `${compact.slice(0, 177)}...` : compact;
 }
+
+},
+"src/view/timeline/MemoryNoticeModal.js": function(module, exports, __require) {
+const { Modal } = require("obsidian");
+
+class MemoryNoticeModal extends Modal {
+  constructor(app, options) {
+    super(app);
+    this.entry = options.entry || {};
+    this.translate = options.translate;
+    this.renderMarkdownContent = options.renderMarkdownContent;
+    this.selectedIndex = 0;
+    this.itemButtons = [];
+    this.itemTitles = [];
+    this.listEl = null;
+    this.detailEl = null;
+  }
+
+  onOpen() {
+    this.render();
+  }
+
+  onClose() {
+    this.itemButtons = [];
+    this.itemTitles = [];
+    this.listEl = null;
+    this.detailEl = null;
+    this.contentEl.empty();
+  }
+
+  render() {
+    const items = getAuditItems(this.entry);
+    this.selectedIndex = clampIndex(this.selectedIndex, items.length);
+    this.itemButtons = [];
+    this.itemTitles = [];
+    this.listEl = null;
+    this.detailEl = null;
+    this.contentEl.empty();
+    this.modalEl.addClass("codex-dock__memory-modal");
+
+    const header = this.contentEl.createDiv({ cls: "codex-dock__memory-modal-header" });
+    header.createEl("h2", {
+      cls: "codex-dock__memory-modal-title",
+      text: this.entry.title || this.translate("memoryNotice.title")
+    });
+    header.createDiv({
+      cls: "codex-dock__memory-modal-summary",
+      text: this.entry.summary || this.translate("memoryNotice.empty")
+    });
+
+    if (items.length === 0) {
+      this.contentEl.createDiv({
+        cls: "codex-dock__memory-modal-empty",
+        text: this.entry.detail || this.translate("memoryNotice.empty")
+      });
+      return;
+    }
+
+    const layout = this.contentEl.createDiv({ cls: "codex-dock__memory-modal-layout" });
+    const list = layout.createDiv({
+      cls: "codex-dock__memory-modal-list",
+      attr: { role: "listbox" }
+    });
+    this.listEl = list;
+    this.detailEl = layout.createDiv({ cls: "codex-dock__memory-modal-detail" });
+
+    items.forEach((item, index) => {
+      const displayTitle = this.getAuditItemDisplayTitle(item, index);
+      this.itemTitles[index] = displayTitle;
+      const button = list.createDiv({
+        cls: [
+          "codex-dock__memory-modal-list-item",
+          index === this.selectedIndex ? "is-selected" : ""
+        ].filter(Boolean).join(" "),
+        attr: {
+          role: "option",
+          tabindex: "0",
+          "aria-selected": index === this.selectedIndex ? "true" : "false"
+        }
+      });
+      button.addEventListener("click", () => {
+        this.selectItem(index);
+      });
+      button.addEventListener("keydown", (event) => {
+        if (event.key !== "Enter" && event.key !== " ") {
+          return;
+        }
+        event.preventDefault();
+        this.selectItem(index);
+      });
+      button.addEventListener("mousedown", (event) => {
+        event.preventDefault();
+      });
+      this.itemButtons.push(button);
+      button.createDiv({
+        cls: "codex-dock__memory-modal-list-title",
+        text: displayTitle
+      });
+      const meta = [item.type, item.source].filter(Boolean).join(" · ");
+      if (meta) {
+        button.createDiv({ cls: "codex-dock__memory-modal-list-meta", text: meta });
+      }
+    });
+
+    this.renderSelectedItemDetail(items);
+  }
+
+  selectItem(index) {
+    const items = getAuditItems(this.entry);
+    const nextIndex = clampIndex(index, items.length);
+    if (nextIndex === this.selectedIndex && this.detailEl) {
+      return;
+    }
+    const listScrollTop = this.listEl ? this.listEl.scrollTop : 0;
+    this.selectedIndex = nextIndex;
+    this.itemButtons.forEach((button, itemIndex) => {
+      const isSelected = itemIndex === this.selectedIndex;
+      button.classList.toggle("is-selected", isSelected);
+      button.setAttribute("aria-selected", isSelected ? "true" : "false");
+    });
+    this.renderSelectedItemDetail(items);
+    this.restoreListScroll(listScrollTop);
+  }
+
+  renderSelectedItemDetail(items = getAuditItems(this.entry)) {
+    if (!this.detailEl) {
+      return;
+    }
+    this.detailEl.empty();
+    this.renderItemDetail(this.detailEl, items[this.selectedIndex] || items[0], this.selectedIndex);
+    this.detailEl.scrollTop = 0;
+  }
+
+  restoreListScroll(scrollTop) {
+    if (!this.listEl) {
+      return;
+    }
+    this.listEl.scrollTop = scrollTop;
+    window.requestAnimationFrame(() => {
+      if (this.listEl) {
+        this.listEl.scrollTop = scrollTop;
+      }
+    });
+  }
+
+  renderItemDetail(containerEl, item, index = 0) {
+    if (!item) {
+      containerEl.createDiv({
+        cls: "codex-dock__memory-modal-empty",
+        text: this.translate("memoryNotice.empty")
+      });
+      return;
+    }
+    const top = containerEl.createDiv({ cls: "codex-dock__memory-modal-detail-top" });
+    top.createEl("h3", {
+      cls: "codex-dock__memory-modal-detail-title",
+      text: this.getItemTitle(index, item)
+    });
+
+    const badges = Array.isArray(item.badges) ? item.badges.filter(Boolean) : [];
+    if (badges.length > 0) {
+      const badgeRow = containerEl.createDiv({ cls: "codex-dock__memory-modal-badges" });
+      for (const badge of badges) {
+        badgeRow.createSpan({ cls: "codex-dock__memory-modal-badge", text: badge });
+      }
+    }
+
+    const fields = Array.isArray(item.fields) ? item.fields : [];
+    if (fields.length === 0 && item.summary) {
+      this.renderFieldValue(containerEl, item.summary);
+      return;
+    }
+
+    for (const field of fields) {
+      const row = containerEl.createDiv({ cls: "codex-dock__memory-modal-field" });
+      row.createDiv({ cls: "codex-dock__memory-modal-field-label", text: field.label });
+      this.renderFieldValue(row, field.value);
+    }
+  }
+
+  getItemTitle(index, item) {
+    return this.itemTitles[index] || this.getAuditItemDisplayTitle(item, index);
+  }
+
+  getAuditItemDisplayTitle(item, index) {
+    const title = String(item?.title || "").replace(/\s+/g, " ").trim();
+    if (title && title.length <= 64) {
+      return title;
+    }
+    const type = String(item?.type || this.translate("memoryNotice.item")).trim();
+    return `${type} ${index + 1}`;
+  }
+
+  renderFieldValue(containerEl, value) {
+    const valueEl = containerEl.createDiv({ cls: "codex-dock__memory-modal-field-value" });
+    if (typeof this.renderMarkdownContent === "function") {
+      this.renderMarkdownContent(valueEl, value || "");
+      return valueEl;
+    }
+    valueEl.setText(value || "");
+    return valueEl;
+  }
+
+}
+
+function getAuditItems(entry) {
+  return Array.isArray(entry?.auditItems) ? entry.auditItems : [];
+}
+
+function clampIndex(index, length) {
+  const count = Number(length);
+  if (!Number.isFinite(count) || count <= 0) {
+    return 0;
+  }
+  const value = Number(index);
+  if (!Number.isFinite(value) || value < 0) {
+    return 0;
+  }
+  return Math.min(Math.floor(value), count - 1);
+}
+
+module.exports = {
+  MemoryNoticeModal
+};
 
 },
 "src/view/turn/TurnStatusController.js": function(module, exports, __require) {
@@ -17700,6 +18952,7 @@ const {
 const { SessionStore } = __require("src/view/session/SessionStore.js");
 const { renderSessionSwitcher } = __require("src/view/session/SessionSwitcherRenderer.js");
 const { MessageTimelineRenderer } = __require("src/view/timeline/MessageTimelineRenderer.js");
+const { MemoryNoticeModal } = __require("src/view/timeline/MemoryNoticeModal.js");
 const { TurnStatusController } = __require("src/view/turn/TurnStatusController.js");
 const { copyText } = __require("src/view/utils/clipboard.js");
 const { estimateContextChars, formatCompactNumber } = __require("src/view/utils/contextEstimate.js");
@@ -17720,6 +18973,7 @@ class AgentDockView extends ItemView {
       renderMarkdownContent: (containerEl, text, options) => this.renderMarkdownContent(containerEl, text, options),
       copyText: (text) => copyText(text),
       setIcon: (containerEl, iconName) => setIcon(containerEl, iconName),
+      openNoticeDetails: (entry) => this.openMemoryNoticeDetails(entry),
       prefersReducedMotion: () => this.prefersReducedMotion(),
       onDetailsToggleStart: (opening) => this.handleTimelineDetailsToggleStart(opening),
       onDetailsLayoutChanged: () => this.scrollMessagesToBottom()
@@ -17797,6 +19051,18 @@ class AgentDockView extends ItemView {
 
   translate(key, params) {
     return t(this.plugin.settings, key, params);
+  }
+
+  openMemoryNoticeDetails(entry) {
+    new MemoryNoticeModal(this.app, {
+      entry,
+      translate: (key, params) => this.translate(key, params),
+      renderMarkdownContent: (containerEl, text, options) => this.renderMarkdownContent(containerEl, text, {
+        ...options,
+        skipTimelineScroll: true,
+        variant: "memoryNotice"
+      })
+    }).open();
   }
 
   async onOpen() {
@@ -18607,7 +19873,9 @@ class AgentDockView extends ItemView {
   }
 
   renderMarkdownContent(containerEl, text, options = {}) {
-    const contentClass = options.compact
+    const contentClass = options.variant === "memoryNotice"
+      ? "codex-dock__memory-modal-markdown markdown-rendered"
+      : options.compact
       ? "codex-dock__processed-content markdown-rendered"
       : "codex-dock__content markdown-rendered";
     const contentEl = containerEl.createDiv({ cls: contentClass });
@@ -18625,10 +19893,14 @@ class AgentDockView extends ItemView {
         }
       });
       this.decorateImagePreviews(markdownEl);
-      this.scrollMessagesToBottomIfPinned();
+      if (!options.skipTimelineScroll) {
+        this.scrollMessagesToBottomIfPinned();
+      }
     }).catch(() => {
       markdownEl.setText(text || "");
-      this.scrollMessagesToBottomIfPinned();
+      if (!options.skipTimelineScroll) {
+        this.scrollMessagesToBottomIfPinned();
+      }
     });
     return contentEl;
   }

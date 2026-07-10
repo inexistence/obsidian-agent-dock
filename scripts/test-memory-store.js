@@ -21,6 +21,11 @@ const {
   removeMemorySearchDuplicates,
   shouldSearchMemory
 } = require("../src/agents/shared/memorySearch");
+const {
+  buildDeepMemoryAuditItems,
+  buildInteractionMemoryAuditItems
+} = require("../src/agents/shared/captureNotices");
+const { t } = require("../src/i18n");
 const { buildPromptWithMetadata } = require("../src/prompt");
 const { RuleBasedMemoryExtractor } = require("../src/storage/memoryExtraction/RuleBasedMemoryExtractor");
 
@@ -351,6 +356,11 @@ async function testSearchMemories() {
   const cursorResults = await store.searchMemories("Cursor session id preference", settings);
   assert.equal(cursorResults.length, 1, "explicit search should return matching memories");
   assert.equal(cursorResults[0].id, "mem-2");
+  assert.equal(
+    cursorResults[0].referenceAudit.reasonCode,
+    "matched_terms",
+    "explicit search results should carry reference audit metadata"
+  );
 
   const noMatchResults = await store.searchMemories("unrelated deployment pipeline", settings);
   assert.deepEqual(
@@ -367,6 +377,11 @@ async function testSearchMemories() {
     relevantResults.some((memory) => memory.id === "mem-3"),
     false,
     "automatic memory injection should exclude sensitive memories"
+  );
+  assert.equal(
+    relevantResults.some((memory) => memory.referenceAudit?.reasonCode),
+    true,
+    "automatic memory injection should carry reference audit metadata"
   );
 
   const limitedResults = await store.searchMemories("session timeline content", settings, { limit: 1 });
@@ -408,6 +423,32 @@ async function testSearchMemories() {
     subtleResults.some((memory) => memory.id === "mem-subtle"),
     true,
     "query expansion should recall subtle continuity memories despite different wording"
+  );
+
+  const pathStore = createMemoryStore([
+    {
+      id: "mem-path",
+      key: "decision:todo",
+      kind: "decision",
+      scope: "project",
+      text: "周报 review order should keep the current-state check first.",
+      confidence: 0.8,
+      createdAt: Date.UTC(2026, 0, 7),
+      updatedAt: Date.UTC(2026, 6, 4)
+    }
+  ]);
+  const pathResults = await pathStore.getRelevantMemories("这个问题怎么处理？", settings, {
+    activeFilePath: "/Users/example/Vault/周报/TODO.md",
+    workingDirectory: "/Users/example/project"
+  });
+  assert.equal(pathResults[0].id, "mem-path", "active file path should participate in memory relevance");
+  assert.equal(
+    pathResults[0].referenceAudit.matchedTokenSources.some((entry) => (
+      entry.token === "周报"
+      && entry.sources.includes("activeFilePath")
+    )),
+    true,
+    "reference audit should identify matches that came from the active file path"
   );
 }
 
@@ -513,10 +554,50 @@ async function testLegacyMemoryPathFallback() {
   assert.equal(matches[0].id, "legacy-memory", "legacy memory file should be used when local data path is absent");
 }
 
+async function testCaptureAuditReason() {
+  const adapter = new MemoryAdapter();
+  const store = new MemoryStore({
+    manifest: {
+      dir: "agent-dock",
+      id: "agent-dock"
+    },
+    app: {
+      vault: {
+        adapter
+      }
+    }
+  }, {
+    extractor: {
+      extractTurn() {
+        return [{
+          kind: "preference",
+          scope: "user",
+          text: "User prefers compact audit panels",
+          confidence: 0.82,
+          source: "auto"
+        }];
+      }
+    }
+  });
+
+  const saved = await store.captureTurn({ sessionId: "audit-session" }, {
+    memoryEnabled: true,
+    memoryAutoCapture: true
+  });
+  assert.equal(saved.length, 1, "memory capture should save the injected candidate");
+  assert.equal(
+    saved[0].updateAudit.reasonCode,
+    "local_rule_capture",
+    "captured memories should carry update audit metadata"
+  );
+}
+
 testSearchMemories().then(() => {
   return testExplicitMemorySearchSurvivesCompression();
 }).then(() => {
   return testLegacyMemoryPathFallback();
+}).then(() => {
+  return testCaptureAuditReason();
 }).then(() => {
   console.log("MemoryStore tests passed");
 }).catch((error) => {
@@ -547,4 +628,42 @@ testSearchMemories().then(() => {
     "extractor should allow candidate and classifier injection"
   );
   assert.equal(items[0].sourceSessionId, "inject-session");
+}
+
+{
+  const settings = { language: "zh" };
+  const deepItems = buildDeepMemoryAuditItems([{
+    kind: "repair",
+    summary: "一次重要校准",
+    whyItMatters: "这次修复能帮助之后更稳地协作。",
+    importance: 0.82,
+    confidence: 0.74
+  }], settings, "codex", t);
+  assert.equal(deepItems[0].fields[0].label, "原因", "deep memory audit should lead with reason");
+  assert.equal(deepItems[0].fields[1].label, "来源", "deep memory audit should show source after reason");
+  assert.match(deepItems[0].fields[0].value, /这次修复/);
+
+  const interactionItems = buildInteractionMemoryAuditItems({
+    closedEpisodes: [{
+      context: "review",
+      phase: "repair",
+      userExcerpt: "这里不对",
+      assistantExcerpt: "我来修",
+      reaction: { excerpt: "好了" },
+      memoryRole: "pattern_evidence",
+      eventWeight: 0.62
+    }],
+    updatedPatterns: [{
+      summary: "用户希望先看风险",
+      evidenceCount: 2,
+      confidence: 0.61,
+      strength: 0.53
+    }],
+    updatedTensions: [],
+    updatedStableImpressions: []
+  }, settings, "codex", t);
+  assert.equal(interactionItems[0].fields[0].label, "原因", "interaction episode audit should lead with reason");
+  assert.equal(interactionItems[0].fields[1].label, "来源", "interaction episode audit should show source after reason");
+  assert.equal(interactionItems[1].fields[0].label, "原因", "interaction change audit should lead with reason");
+  assert.equal(interactionItems[1].fields[1].label, "来源", "interaction change audit should show source after reason");
 }

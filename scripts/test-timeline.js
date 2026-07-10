@@ -4,8 +4,76 @@ const {
   _test: timelineTest
 } = require("../src/view/timeline/timeline");
 const {
+  MessageTimelineRenderer,
   _test: timelineRendererTest
 } = require("../src/view/timeline/MessageTimelineRenderer");
+
+class FakeElement {
+  constructor(tag = "div", options = {}) {
+    this.tag = tag;
+    this.children = [];
+    this.listeners = {};
+    this.text = options.text || "";
+    this.cls = options.cls || "";
+    this.attr = options.attr || {};
+  }
+
+  createDiv(options = {}) {
+    return this.createEl("div", options);
+  }
+
+  createSpan(options = {}) {
+    return this.createEl("span", options);
+  }
+
+  createEl(tag, options = {}) {
+    const child = new FakeElement(tag, options);
+    this.children.push(child);
+    return child;
+  }
+
+  addEventListener(type, handler) {
+    this.listeners[type] = handler;
+  }
+
+  setText(text) {
+    this.text = text;
+  }
+
+  findByClass(cls) {
+    if (hasClass(this, cls)) {
+      return this;
+    }
+    for (const child of this.children) {
+      const found = child.findByClass(cls);
+      if (found) {
+        return found;
+      }
+    }
+    return null;
+  }
+}
+
+function hasClass(element, cls) {
+  return String(element.cls || "").split(/\s+/).includes(cls);
+}
+
+function createRenderer(iconCalls = []) {
+  return new MessageTimelineRenderer({
+    getDebugActivity: () => false,
+    translate: (key) => key,
+    renderMarkdownContent: () => {},
+    copyText: null,
+    setIcon: (containerEl, iconName) => {
+      iconCalls.push({ cls: containerEl.cls, iconName });
+      containerEl.iconName = iconName;
+    },
+    openNoticeDetails: () => {},
+    prefersReducedMotion: () => true,
+    onDetailsToggleStart: () => {},
+    onDetailsLayoutChanged: () => {}
+  });
+}
 
 function createMessage(timeline = [], content = "") {
   return { timeline, content };
@@ -247,6 +315,60 @@ function reasoningEntries(message) {
     { kind: "error", title: "失败", summary: "B" }
   ]);
   assert.strictEqual(processed.length, 2, "errors should not be folded into ordinary process groups");
+}
+
+{
+  const iconCalls = [];
+  const renderer = createRenderer(iconCalls);
+  const container = new FakeElement();
+  renderer.renderTimelineEntry(container, {
+    kind: "notice",
+    title: "已引用本地记忆",
+    summary: "提示词中引用了 1 条相关本地历史记录。",
+    auditItems: [{ title: "偏好", summary: "紧凑输出" }]
+  });
+  assert(container.findByClass("codex-dock__notice-details-trigger"), "auditable notice title should be clickable");
+  assert(container.findByClass("codex-dock__notice-details-icon"), "auditable notice should render the audit marker");
+  assert(!iconCalls.some((call) => call.iconName === "clipboard-list"), "auditable notice should not use a heavy icon");
+  assert(!iconCalls.some((call) => call.iconName === "chevron-right"), "auditable notice should not use a disclosure chevron");
+}
+
+{
+  const iconCalls = [];
+  const renderer = createRenderer(iconCalls);
+  const container = new FakeElement();
+  renderer.renderAuditableProcessedNoticeRow(container, {
+    kind: "notice",
+    title: "记忆已更新",
+    auditItems: [{ title: "偏好", summary: "紧凑输出" }]
+  });
+  assert(container.findByClass("codex-dock__processed-item-summary"), "processed audit notice should render a top-level row");
+  assert(container.findByClass("codex-dock__notice-details-icon"), "processed audit notice should render the audit marker");
+  assert(!iconCalls.some((call) => call.iconName === "clipboard-list"), "processed audit notice should not use a heavy icon");
+  assert(!iconCalls.some((call) => call.iconName === "chevron-right"), "processed audit notice should not look expandable");
+}
+
+{
+  const iconCalls = [];
+  const renderer = createRenderer(iconCalls);
+  const container = new FakeElement();
+  renderer.renderProcessedSubItemTitleRow(container, {
+    kind: "notice",
+    title: "深刻记忆已更新",
+    auditItems: [{ title: "AI 反思", summary: "from reflection" }]
+  }, { interactive: true });
+  assert(container.findByClass("codex-dock__processed-subitem-summary"), "folded audit notice should render a subitem row");
+  assert(container.findByClass("codex-dock__notice-details-icon"), "folded audit notice should render the audit marker");
+  assert(!iconCalls.some((call) => call.iconName === "clipboard-list"), "folded audit notice should not use a heavy icon");
+  assert(!iconCalls.some((call) => call.iconName === "chevron-right"), "folded audit notice should not use a disclosure chevron");
+}
+
+{
+  const iconCalls = [];
+  const renderer = createRenderer(iconCalls);
+  const container = new FakeElement();
+  renderer.renderChevron(container);
+  assert(iconCalls.some((call) => call.iconName === "chevron-right"), "expandable rows should still use disclosure chevrons");
 }
 
 console.log("timeline tests passed");

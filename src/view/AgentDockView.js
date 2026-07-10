@@ -21,6 +21,7 @@ const {
 const { SessionStore } = require("./session/SessionStore");
 const { renderSessionSwitcher } = require("./session/SessionSwitcherRenderer");
 const { MessageTimelineRenderer } = require("./timeline/MessageTimelineRenderer");
+const { MemoryNoticeModal } = require("./timeline/MemoryNoticeModal");
 const { TurnStatusController } = require("./turn/TurnStatusController");
 const { copyText } = require("./utils/clipboard");
 const { estimateContextChars, formatCompactNumber } = require("./utils/contextEstimate");
@@ -41,6 +42,7 @@ class AgentDockView extends ItemView {
       renderMarkdownContent: (containerEl, text, options) => this.renderMarkdownContent(containerEl, text, options),
       copyText: (text) => copyText(text),
       setIcon: (containerEl, iconName) => setIcon(containerEl, iconName),
+      openNoticeDetails: (entry) => this.openMemoryNoticeDetails(entry),
       prefersReducedMotion: () => this.prefersReducedMotion(),
       onDetailsToggleStart: (opening) => this.handleTimelineDetailsToggleStart(opening),
       onDetailsLayoutChanged: () => this.scrollMessagesToBottom()
@@ -118,6 +120,18 @@ class AgentDockView extends ItemView {
 
   translate(key, params) {
     return t(this.plugin.settings, key, params);
+  }
+
+  openMemoryNoticeDetails(entry) {
+    new MemoryNoticeModal(this.app, {
+      entry,
+      translate: (key, params) => this.translate(key, params),
+      renderMarkdownContent: (containerEl, text, options) => this.renderMarkdownContent(containerEl, text, {
+        ...options,
+        skipTimelineScroll: true,
+        variant: "memoryNotice"
+      })
+    }).open();
   }
 
   async onOpen() {
@@ -928,7 +942,9 @@ class AgentDockView extends ItemView {
   }
 
   renderMarkdownContent(containerEl, text, options = {}) {
-    const contentClass = options.compact
+    const contentClass = options.variant === "memoryNotice"
+      ? "codex-dock__memory-modal-markdown markdown-rendered"
+      : options.compact
       ? "codex-dock__processed-content markdown-rendered"
       : "codex-dock__content markdown-rendered";
     const contentEl = containerEl.createDiv({ cls: contentClass });
@@ -946,10 +962,14 @@ class AgentDockView extends ItemView {
         }
       });
       this.decorateImagePreviews(markdownEl);
-      this.scrollMessagesToBottomIfPinned();
+      if (!options.skipTimelineScroll) {
+        this.scrollMessagesToBottomIfPinned();
+      }
     }).catch(() => {
       markdownEl.setText(text || "");
-      this.scrollMessagesToBottomIfPinned();
+      if (!options.skipTimelineScroll) {
+        this.scrollMessagesToBottomIfPinned();
+      }
     });
     return contentEl;
   }

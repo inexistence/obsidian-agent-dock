@@ -15,6 +15,14 @@ const {
   formatInvalidAgentDockSignalActivity,
   formatAgentDockSignalNotice
 } = require("../shared/agentSignals");
+const {
+  buildDeepMemoryAuditItems,
+  buildInteractionMemoryAuditItems,
+  buildMemoryUpdateAuditItems,
+  formatDeepMemoryUpdateSummary,
+  formatInteractionMemoryUpdateSummary,
+  formatMemoryUpdateSummary
+} = require("../shared/captureNotices");
 const { buildAgentTurnContext } = require("../shared/TurnContextBuilder");
 const { codexJsonEventToUpdates } = require("./jsonEvents");
 
@@ -255,10 +263,8 @@ class CodexAgent {
           kind: "notice",
           noticeType: "memory_updated",
           title: t(settings, "codex.memoryUpdated.title"),
-          summary: t(settings, "codex.memoryUpdated.summary", {
-            count: saved.length,
-            noteLabel: saved.length === 1 ? "note" : "notes"
-          })
+          summary: formatMemoryUpdateSummary(settings, "codex", t, saved),
+          auditItems: buildMemoryUpdateAuditItems(saved, settings, "codex", t)
         });
       }
     } catch (error) {
@@ -280,9 +286,8 @@ class CodexAgent {
           kind: "notice",
           noticeType: "interaction_memory_updated",
           title: t(settings, "codex.interactionMemoryUpdated.title"),
-          summary: t(settings, "codex.interactionMemoryUpdated.summary", {
-            count: result.closedEpisodes.length
-          })
+          summary: formatInteractionMemoryUpdateSummary(settings, "codex", t, result),
+          auditItems: buildInteractionMemoryAuditItems(result, settings, "codex", t)
         });
       }
     } catch (error) {
@@ -304,9 +309,8 @@ class CodexAgent {
           kind: "notice",
           noticeType: "deep_memory_updated",
           title: t(settings, "codex.deepMemoryUpdated.title"),
-          summary: t(settings, "codex.deepMemoryUpdated.summary", {
-            count: saved.length
-          })
+          summary: formatDeepMemoryUpdateSummary(settings, "codex", t, saved),
+          auditItems: buildDeepMemoryAuditItems(saved, settings, "codex", t)
         });
       }
     } catch (error) {

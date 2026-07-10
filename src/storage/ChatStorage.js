@@ -15,6 +15,18 @@ const PERSISTED_TIMELINE_TEXT_LIMITS = {
   toolType: 80,
   noticeType: 80
 };
+const PERSISTED_AUDIT_ITEMS_LIMIT = 12;
+const PERSISTED_AUDIT_BADGES_LIMIT = 8;
+const PERSISTED_AUDIT_FIELDS_LIMIT = 12;
+const PERSISTED_AUDIT_TEXT_LIMITS = {
+  title: 300,
+  summary: 1000,
+  type: 120,
+  source: 160,
+  badge: 100,
+  label: 120,
+  value: 1600
+};
 const TRUNCATED_TEXT_MARKER = "\n\n[Persisted timeline detail truncated]";
 
 class ChatStorage {
@@ -364,6 +376,10 @@ function normalizeTimelineEntry(entry) {
   if (entry.kind === "reasoning" && entry.discrete !== undefined) {
     normalized.discrete = entry.discrete === true;
   }
+  const auditItems = normalizeAuditItems(entry.auditItems);
+  if (auditItems.length > 0) {
+    normalized.auditItems = auditItems;
+  }
 
   if ((entry.kind === "message" || entry.kind === "content") && !normalized.text) {
     return null;
@@ -388,6 +404,78 @@ function truncatePersistedTimelineText(text, limit) {
     return normalized;
   }
   return `${normalized.slice(0, maxLength)}${TRUNCATED_TEXT_MARKER}`;
+}
+
+function normalizeAuditItems(items) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+  return items
+    .map(normalizeAuditItem)
+    .filter(Boolean)
+    .slice(0, PERSISTED_AUDIT_ITEMS_LIMIT);
+}
+
+function normalizeAuditItem(item) {
+  if (!item || typeof item !== "object") {
+    return null;
+  }
+  const title = normalizeAuditText(item.title, PERSISTED_AUDIT_TEXT_LIMITS.title);
+  const summary = normalizeAuditText(item.summary, PERSISTED_AUDIT_TEXT_LIMITS.summary);
+  if (!title && !summary) {
+    return null;
+  }
+  const normalized = {
+    title: title || summary,
+    summary,
+    type: normalizeAuditText(item.type, PERSISTED_AUDIT_TEXT_LIMITS.type),
+    source: normalizeAuditText(item.source, PERSISTED_AUDIT_TEXT_LIMITS.source),
+    badges: normalizeAuditBadges(item.badges),
+    fields: normalizeAuditFields(item.fields)
+  };
+  return normalized;
+}
+
+function normalizeAuditBadges(badges) {
+  if (!Array.isArray(badges)) {
+    return [];
+  }
+  const seen = new Set();
+  return badges
+    .map((badge) => normalizeAuditText(badge, PERSISTED_AUDIT_TEXT_LIMITS.badge))
+    .filter(Boolean)
+    .filter((badge) => {
+      if (seen.has(badge)) {
+        return false;
+      }
+      seen.add(badge);
+      return true;
+    })
+    .slice(0, PERSISTED_AUDIT_BADGES_LIMIT);
+}
+
+function normalizeAuditFields(fields) {
+  if (!Array.isArray(fields)) {
+    return [];
+  }
+  return fields
+    .map((field) => {
+      if (!field || typeof field !== "object") {
+        return null;
+      }
+      const label = normalizeAuditText(field.label, PERSISTED_AUDIT_TEXT_LIMITS.label);
+      const value = normalizeAuditText(field.value, PERSISTED_AUDIT_TEXT_LIMITS.value);
+      if (!label || !value) {
+        return null;
+      }
+      return { label, value };
+    })
+    .filter(Boolean)
+    .slice(0, PERSISTED_AUDIT_FIELDS_LIMIT);
+}
+
+function normalizeAuditText(value, limit) {
+  return truncatePersistedTimelineText(redactSensitiveText(String(value || "").replace(/\s+/g, " ").trim()), limit);
 }
 
 function limitSessions(sessions, settings) {

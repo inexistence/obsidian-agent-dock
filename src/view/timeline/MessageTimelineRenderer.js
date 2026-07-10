@@ -13,6 +13,7 @@ class MessageTimelineRenderer {
     this.renderMarkdownContent = options.renderMarkdownContent;
     this.copyText = options.copyText;
     this.setIcon = options.setIcon;
+    this.openNoticeDetails = options.openNoticeDetails;
     this.prefersReducedMotion = options.prefersReducedMotion;
     this.onDetailsToggleStart = options.onDetailsToggleStart;
     this.onDetailsLayoutChanged = options.onDetailsLayoutChanged;
@@ -210,6 +211,11 @@ class MessageTimelineRenderer {
       return;
     }
 
+    if (item.entries.length === 1 && isAuditableNotice(entry)) {
+      this.renderAuditableProcessedNoticeRow(containerEl, entry, options);
+      return;
+    }
+
     const key = `processed-item:${item.firstIndex}:${item.kind}:${item.key}`;
     const details = this.renderDetails(containerEl, message, key, {
       cls: `codex-dock__processed-item codex-dock__processed-item--${item.kind}`,
@@ -239,8 +245,7 @@ class MessageTimelineRenderer {
     } else {
       const detail = this.getProcessedEntryDetail(entry);
       if (detail) {
-        body.createEl("pre", { cls: "codex-dock__processed-item-detail", text: detail });
-        this.renderCopyButton(body, detail, this.translate("view.copyEventText"));
+        this.renderProcessedEntryBody(body, entry, detail);
       }
     }
     this.prepareAnimatedDetails(details, summary, body, message, key);
@@ -248,6 +253,11 @@ class MessageTimelineRenderer {
 
   renderProcessedEventSubItems(containerEl, message, parentKey, item) {
     item.entries.forEach((entry, offset) => {
+      if (isAuditableNotice(entry)) {
+        this.renderProcessedSubItemTitleRow(containerEl, entry, { interactive: true });
+        return;
+      }
+
       const detail = this.getProcessedEntryDetail(entry);
       if (!detail) {
         this.renderProcessedSubItemTitleRow(containerEl, entry);
@@ -268,26 +278,87 @@ class MessageTimelineRenderer {
       this.renderChevron(summary);
 
       const body = details.createDiv({ cls: "codex-dock__processed-subitem-body" });
-      body.createEl("pre", { cls: "codex-dock__processed-item-detail", text: detail });
-      this.renderCopyButton(body, detail, this.translate("view.copyEventText"));
+      this.renderProcessedEntryBody(body, entry, detail);
       this.prepareAnimatedDetails(details, summary, body, message, key);
     });
   }
 
-  renderProcessedSubItemTitleRow(containerEl, entry) {
+  renderProcessedEntryBody(containerEl, entry, detail) {
+    if (isAuditableNotice(entry)) {
+      this.renderNoticePreview(containerEl, entry, detail);
+      return;
+    }
+    containerEl.createEl("pre", { cls: "codex-dock__processed-item-detail", text: detail });
+    this.renderCopyButton(containerEl, detail, this.translate("view.copyEventText"));
+  }
+
+  renderAuditableProcessedNoticeRow(containerEl, entry, options = {}) {
     if (!this.shouldShowEvent(entry)) {
       return;
     }
 
     const row = containerEl.createDiv({
-      cls: `codex-dock__processed-subitem codex-dock__processed-subitem--static codex-dock__processed-subitem--${entry.kind || "activity"}`
+      cls: [
+        "codex-dock__processed-item",
+        "codex-dock__processed-item--notice",
+        "codex-dock__notice-details-row",
+        options.currentItem ? "is-current" : ""
+      ].filter(Boolean).join(" ")
     });
-    const title = row.createDiv({ cls: "codex-dock__processed-subitem-summary" });
+    const summary = row.createDiv({
+      cls: "codex-dock__processed-item-summary codex-dock__notice-details-trigger",
+      attr: {
+        role: "button",
+        tabindex: "0",
+        title: this.translate("memoryNotice.viewDetails")
+      }
+    });
+    this.renderProcessIcon(summary, entry);
+    this.renderProcessTitleText(summary, {
+      cls: "codex-dock__processed-item-title",
+      text: this.getProcessedEntryTitle(entry),
+      currentItem: options.currentItem,
+      shimmerState: options.shimmerState
+    });
+    this.renderNoticeDetailsIcon(summary);
+    this.bindNoticeDetailsTrigger(summary, entry);
+  }
+
+  renderProcessedSubItemTitleRow(containerEl, entry, options = {}) {
+    if (!this.shouldShowEvent(entry)) {
+      return;
+    }
+
+    const row = containerEl.createDiv({
+      cls: [
+        "codex-dock__processed-subitem",
+        options.interactive ? "codex-dock__notice-details-row" : "codex-dock__processed-subitem--static",
+        `codex-dock__processed-subitem--${entry.kind || "activity"}`
+      ].filter(Boolean).join(" ")
+    });
+    const titleOptions = {
+      cls: [
+        "codex-dock__processed-subitem-summary",
+        options.interactive ? "codex-dock__notice-details-trigger" : ""
+      ].filter(Boolean).join(" ")
+    };
+    if (options.interactive) {
+      titleOptions.attr = {
+        role: "button",
+        tabindex: "0",
+        title: this.translate("memoryNotice.viewDetails")
+      };
+    }
+    const title = row.createDiv(titleOptions);
     this.renderProcessIcon(title, entry);
     title.createSpan({
       cls: "codex-dock__processed-subitem-title",
       text: this.getProcessedEntryTitle(entry)
     });
+    if (options.interactive) {
+      this.renderNoticeDetailsIcon(title);
+      this.bindNoticeDetailsTrigger(title, entry);
+    }
   }
 
   getProcessedEntryDetail(entry) {
@@ -445,6 +516,14 @@ class MessageTimelineRenderer {
       chevron.setText(">");
     }
     return chevron;
+  }
+
+  renderNoticeDetailsIcon(containerEl) {
+    return containerEl.createSpan({
+      cls: "codex-dock__notice-details-icon",
+      text: "i",
+      attr: { "aria-hidden": "true" }
+    });
   }
 
   renderProcessIcon(containerEl, entry) {
@@ -704,7 +783,21 @@ class MessageTimelineRenderer {
     }
 
     const eventEl = containerEl.createDiv({ cls: `codex-dock__event codex-dock__event--${entry.kind || "activity"}` });
-    eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || this.translate("timeline.event") });
+    if (isAuditableNotice(entry)) {
+      const title = eventEl.createDiv({
+        cls: "codex-dock__event-title codex-dock__notice-details-trigger",
+        attr: {
+          role: "button",
+          tabindex: "0",
+          title: this.translate("memoryNotice.viewDetails")
+        }
+      });
+      title.createSpan({ cls: "codex-dock__notice-details-title", text: entry.title || this.translate("timeline.event") });
+      this.renderNoticeDetailsIcon(title);
+      this.bindNoticeDetailsTrigger(title, entry);
+    } else {
+      eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || this.translate("timeline.event") });
+    }
     this.renderCopyButton(eventEl, entryToClipboardText(entry, this.getDebugActivity()), this.translate("view.copyEventText"));
 
     if (entry.kind === "reasoning") {
@@ -740,6 +833,61 @@ class MessageTimelineRenderer {
   shouldShowEvent(entry) {
     return shouldShowEvent(entry, this.getDebugActivity());
   }
+
+  renderNoticePreview(containerEl, entry, text, options = {}) {
+    const preview = containerEl.createDiv({
+      cls: [
+        "codex-dock__processed-subitem-summary",
+        "codex-dock__notice-preview"
+      ].join(" "),
+      attr: {
+        role: "button",
+        tabindex: "0",
+        title: this.translate("memoryNotice.viewDetails")
+      }
+    });
+    this.renderProcessIcon(preview, entry);
+    preview.createSpan({
+      cls: "codex-dock__processed-subitem-title",
+      text: compactProcessedText(text || this.getProcessedEntryTitle(entry))
+    });
+    this.renderNoticeDetailsIcon(preview);
+    const openDetails = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof this.openNoticeDetails === "function") {
+        this.openNoticeDetails(entry);
+      }
+    };
+    preview.addEventListener("click", openDetails);
+    preview.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      openDetails(event);
+    });
+  }
+
+  bindNoticeDetailsTrigger(triggerEl, entry) {
+    const openDetails = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (typeof this.openNoticeDetails === "function") {
+        this.openNoticeDetails(entry);
+      }
+    };
+    triggerEl.addEventListener("click", openDetails);
+    triggerEl.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter" && event.key !== " ") {
+        return;
+      }
+      openDetails(event);
+    });
+  }
+}
+
+function isAuditableNotice(entry) {
+  return entry?.kind === "notice" && Array.isArray(entry.auditItems) && entry.auditItems.length > 0;
 }
 
 function entryToClipboardText(entry, debugActivity) {

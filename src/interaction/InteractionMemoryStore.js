@@ -41,7 +41,10 @@ class InteractionMemoryStore {
         pendingEpisode: null,
         patterns: [],
         tensions: [],
-        stableImpressions: []
+        stableImpressions: [],
+        updatedPatterns: [],
+        updatedTensions: [],
+        updatedStableImpressions: []
       };
     }
 
@@ -65,6 +68,7 @@ class InteractionMemoryStore {
       const next = applyEpisodes(Object.assign({}, memory, {
         pendingEpisodes
       }), closedEpisodes, settings, now);
+      const changed = getChangedInteractionItems(next, closedEpisodes);
       next.pendingEpisodes = pendingEpisodes;
       this.cache = next;
       await this.saveMemory(next);
@@ -74,7 +78,10 @@ class InteractionMemoryStore {
         pendingEpisode,
         patterns: next.patterns,
         tensions: next.tensions,
-        stableImpressions: next.stableImpressions
+        stableImpressions: next.stableImpressions,
+        updatedPatterns: changed.patterns,
+        updatedTensions: changed.tensions,
+        updatedStableImpressions: changed.stableImpressions
       };
     });
   }
@@ -167,6 +174,30 @@ function findPendingForSession(pendingEpisodes, sessionId) {
     }
   }
   return null;
+}
+
+function getChangedInteractionItems(memory, closedEpisodes) {
+  const closedIds = new Set((Array.isArray(closedEpisodes) ? closedEpisodes : [])
+    .map((episode) => episode.id)
+    .filter(Boolean));
+  if (closedIds.size === 0) {
+    return {
+      patterns: [],
+      tensions: [],
+      stableImpressions: []
+    };
+  }
+  return {
+    patterns: findItemsWithEvidence(memory.patterns, closedIds),
+    tensions: findItemsWithEvidence(memory.tensions, closedIds),
+    stableImpressions: findItemsWithEvidence(memory.stableImpressions, closedIds)
+  };
+}
+
+function findItemsWithEvidence(items, closedIds) {
+  return (Array.isArray(items) ? items : [])
+    .filter((item) => (Array.isArray(item.evidenceEpisodeIds) ? item.evidenceEpisodeIds : [])
+      .some((id) => closedIds.has(id)));
 }
 
 function createPendingEpisode(draft, now) {

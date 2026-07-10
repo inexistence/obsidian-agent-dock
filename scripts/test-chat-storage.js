@@ -140,7 +140,23 @@ async function testAssistantTimelinePersistsAcrossSaveLoad() {
           { kind: "reasoning", title: "Thinking", detail: "plan", transient: true },
           { kind: "tool", title: "Command", summary: "node test | exit 0", detail: "full output", toolCallId: "tool-1", toolType: "command" },
           { kind: "content", text: "intermediate" },
-          { kind: "notice", title: "Notice", summary: "context compressed", noticeType: "memory_referenced" },
+          {
+            kind: "notice",
+            title: "Notice",
+            summary: "context compressed",
+            noticeType: "memory_referenced",
+            auditItems: [{
+              title: "Pinned preference",
+              summary: "User likes compact review output",
+              type: "Local memory",
+              source: "Local rules",
+              badges: ["preference", "preference", "local"],
+              fields: [
+                { label: "Content", value: "Use compact review output" },
+                { label: "Secret", value: "api_key=abc123" }
+              ]
+            }]
+          },
           { kind: "activity", title: "Raw", detail: "debug-only provider output" },
           { kind: "content", text: "final answer" }
         ]
@@ -155,6 +171,11 @@ async function testAssistantTimelinePersistsAcrossSaveLoad() {
   assert.strictEqual(persistedMessage.timeline[0].detail, "plan");
   assert.strictEqual(persistedMessage.timeline[0].transient, undefined);
   assert(persistedMessage.timeline.some((entry) => entry.kind === "activity"), "debug activity should be persisted");
+  const persistedNotice = persistedMessage.timeline[3];
+  assert.strictEqual(persistedNotice.auditItems.length, 1);
+  assert.deepStrictEqual(persistedNotice.auditItems[0].badges, ["preference", "local"]);
+  assert.strictEqual(persistedNotice.auditItems[0].fields[0].value, "Use compact review output");
+  assert.strictEqual(persistedNotice.auditItems[0].fields[1].value, "[Sensitive content omitted]");
 
   const restored = await storage.loadSessions(plugin.chatState, settings);
   const restoredMessage = restored.sessions[0].messages[0];
@@ -166,6 +187,8 @@ async function testAssistantTimelinePersistsAcrossSaveLoad() {
   assert.strictEqual(restoredMessage.timeline[1].detail, "full output");
   assert.strictEqual(restoredMessage.timeline[1].toolType, "command");
   assert.strictEqual(restoredMessage.timeline[3].noticeType, "memory_referenced");
+  assert.strictEqual(restoredMessage.timeline[3].auditItems[0].title, "Pinned preference");
+  assert.strictEqual(restoredMessage.timeline[3].auditItems[0].fields[1].value, "[Sensitive content omitted]");
   assert.strictEqual(restoredMessage.timeline[4].detail, "debug-only provider output");
   assert.strictEqual(restoredMessage.timeline[5].text, "final answer");
 }
