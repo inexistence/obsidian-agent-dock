@@ -15,6 +15,23 @@ function emitMemoryNotice(onUpdate, memories, translate, keyPrefix = "cursor") {
   });
 }
 
+function emitDeepMemoryNotice(onUpdate, memories, translate, keyPrefix = "cursor") {
+  if (!Array.isArray(memories) || memories.length === 0) {
+    return;
+  }
+
+  onUpdate({
+    kind: "notice",
+    noticeType: "deep_memory_referenced",
+    title: translate(`${keyPrefix}.deepMemoryReferenced.title`),
+    summary: translate(`${keyPrefix}.deepMemoryReferenced.summary`, {
+      count: memories.length
+    }),
+    detail: memories.map(formatDeepMemoryLine).join("\n"),
+    auditItems: buildReferencedDeepMemoryAuditItems(memories, translate, keyPrefix)
+  });
+}
+
 function emitContextCompressedNotice(onUpdate, context, translate, keyPrefix = "cursor") {
   if (!context?.compressed) {
     return;
@@ -59,6 +76,47 @@ function buildReferencedMemoryAuditItems(memories, translate, keyPrefix = "curso
       ].filter(Boolean)
     };
   });
+}
+
+function buildReferencedDeepMemoryAuditItems(memories, translate, keyPrefix = "cursor") {
+  return (Array.isArray(memories) ? memories : []).map((item, index) => {
+    const type = translate(`${keyPrefix}.memoryAudit.type.deepMemory`);
+    const source = isAiReflectionDeepMemory(item)
+      ? translate(`${keyPrefix}.deepMemoryUpdated.aiReflectionSource`)
+      : translate(`${keyPrefix}.memoryAudit.source.localRules`);
+    return {
+      title: formatAuditItemTitle(type, index),
+      summary: truncateNoticeText(item.summary),
+      type,
+      source,
+      badges: [item.kind, source].concat(item.salienceAxes || []).filter(Boolean),
+      fields: [
+        createField(
+          translate(`${keyPrefix}.memoryAudit.field.reason`),
+          translate(`${keyPrefix}.memoryAudit.reason.deepMemoryReferenced`)
+        ),
+        createField(translate(`${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(`${keyPrefix}.memoryAudit.field.summary`), item.summary),
+        createField(translate(`${keyPrefix}.memoryAudit.field.why`), item.whyItMatters),
+        createField(translate(`${keyPrefix}.memoryAudit.field.feltSense`), item.feltSense),
+        createField(translate(`${keyPrefix}.memoryAudit.field.userExcerpt`), item.userExcerpt),
+        createField(translate(`${keyPrefix}.memoryAudit.field.assistantExcerpt`), item.assistantExcerpt),
+        createField(translate(`${keyPrefix}.memoryAudit.field.importance`), formatDecimal(item.importance)),
+        createField(translate(`${keyPrefix}.memoryAudit.field.confidence`), formatDecimal(item.confidence))
+      ].filter(Boolean)
+    };
+  });
+}
+
+function isAiReflectionDeepMemory(item) {
+  return item?.kind === "visible_reflection"
+    || (Array.isArray(item?.topics) && item.topics.includes("agent_dock_signal"));
+}
+
+function formatDeepMemoryLine(item) {
+  const label = [item?.kind].concat(item?.salienceAxes || []).filter(Boolean).join("/");
+  const summary = truncateNoticeText(item?.summary);
+  return label ? `[${label}] ${summary}` : summary;
 }
 
 function formatReferenceReason(item, translate, keyPrefix) {
@@ -177,7 +235,9 @@ function formatLocaleNumber(value) {
 }
 
 module.exports = {
+  buildReferencedDeepMemoryAuditItems,
   buildReferencedMemoryAuditItems,
+  emitDeepMemoryNotice,
   emitContextCompressedNotice,
   emitMemoryNotice,
   formatMemoryNoticeSummary

@@ -52,11 +52,10 @@ function formatToneLine(affect) {
 }
 
 function formatMomentLines(memories, maxItems) {
-  return normalizeArray(memories)
-    .slice(0, maxItems)
+  return selectMomentMemories(memories, maxItems)
     .map((memory) => {
       const parts = [
-        `- Meaningful recalled moment [origin=local_memory_synthesis; speaker=none; not a quote]: ${compactText(memory.summary)}`
+        formatMomentSummary(memory)
       ];
       const dateAnchor = formatMemoryDateAnchor(memory);
       if (dateAnchor) {
@@ -78,6 +77,14 @@ function formatMomentLines(memories, maxItems) {
       parts.push("use only if this turn naturally connects");
       return parts.join(" | ");
     });
+}
+
+function formatMomentSummary(memory) {
+  return `- Meaningful recalled moment [origin=local_memory_synthesis; speaker=none; not a quote]: ${compactText(memory?.summary)}`;
+}
+
+function selectMomentMemories(memories, maxItems = DEFAULT_MAX_MOMENTS) {
+  return normalizeArray(memories).slice(0, maxItems);
 }
 
 function formatMomentEvidence(memory) {
@@ -214,6 +221,8 @@ function formatDate(value) {
 
 module.exports = {
   formatAssistantContinuityPrompt,
+  formatMomentSummary,
+  selectMomentMemories,
   _test: {
     formatMemoryDateAnchor,
     compactEvidenceExcerpt,

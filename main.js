@@ -466,6 +466,8 @@ module.exports = {
     "codex.terminalExitedWithCode": "Terminal exited with code {code}",
     "codex.memoryReferenced.title": "Local memory referenced",
     "codex.memoryReferenced.summary": "Referenced {count} relevant local historical {noteLabel} in the prompt.",
+    "codex.deepMemoryReferenced.title": "Deep memory referenced",
+    "codex.deepMemoryReferenced.summary": "Referenced {count} meaningful prior moment(s) in the continuity context.",
     "codex.memorySearch.title": "Memory search",
     "codex.memorySearch.summary": "Searched local memory and found {count} matching results.",
     "codex.contextCompressed.title": "Context compressed",
@@ -517,6 +519,7 @@ module.exports = {
     "codex.memoryAudit.reason.existingMemoryRefreshed": "This turn produced a {kind} candidate with the same memory key, so the existing record was refreshed. Confidence: {confidence}.",
     "codex.memoryAudit.reason.deepMemoryAiReflection": "This deep memory came from an auditable AI reflection signal. Source: {source}.",
     "codex.memoryAudit.reason.deepMemoryLocalRules": "Local deep-memory rules identified an important {kind} moment. Importance: {importance}; confidence: {confidence}.",
+    "codex.memoryAudit.reason.deepMemoryReferenced": "Local relevance ranking selected this meaningful prior moment, and its summary was included in the final continuity prompt.",
     "codex.memoryAudit.reason.interactionClosedEpisode": "When the next user message arrived in the same session, the system used it as the previous turn's follow-up reaction and closed that episode. {context}/{phase} describes the closed turn, not the current reaction. It was saved as {role} with weight {weight}.",
     "codex.memoryAudit.reason.interactionRepairEpisode": "When the next user message arrived in the same session, the system used it to close the previous episode. That episode contains a repair/calibration path, so it was saved as {role}. {context}/{phase} describes the closed turn; weight: {weight}.",
     "codex.memoryAudit.reason.interactionEvidenceUpdate": "This {type} was updated from closed episode evidence. Evidence count: {evidenceCount}; confidence: {confidence}; strength: {strength}.",
@@ -602,6 +605,8 @@ module.exports = {
     "cursor.promptSent.summary": "Waiting for Cursor to stream a response.",
     "cursor.memoryReferenced.title": "Local memory referenced",
     "cursor.memoryReferenced.summary": "Referenced {count} relevant local historical {noteLabel} in the prompt.",
+    "cursor.deepMemoryReferenced.title": "Deep memory referenced",
+    "cursor.deepMemoryReferenced.summary": "Referenced {count} meaningful prior moment(s) in the continuity context.",
     "cursor.memorySearch.title": "Memory search",
     "cursor.memorySearch.summary": "Searched local memory and found {count} matching results.",
     "cursor.contextCompressed.title": "Context compressed",
@@ -653,6 +658,7 @@ module.exports = {
     "cursor.memoryAudit.reason.existingMemoryRefreshed": "This turn produced a {kind} candidate with the same memory key, so the existing record was refreshed. Confidence: {confidence}.",
     "cursor.memoryAudit.reason.deepMemoryAiReflection": "This deep memory came from an auditable AI reflection signal. Source: {source}.",
     "cursor.memoryAudit.reason.deepMemoryLocalRules": "Local deep-memory rules identified an important {kind} moment. Importance: {importance}; confidence: {confidence}.",
+    "cursor.memoryAudit.reason.deepMemoryReferenced": "Local relevance ranking selected this meaningful prior moment, and its summary was included in the final continuity prompt.",
     "cursor.memoryAudit.reason.interactionClosedEpisode": "When the next user message arrived in the same session, the system used it as the previous turn's follow-up reaction and closed that episode. {context}/{phase} describes the closed turn, not the current reaction. It was saved as {role} with weight {weight}.",
     "cursor.memoryAudit.reason.interactionRepairEpisode": "When the next user message arrived in the same session, the system used it to close the previous episode. That episode contains a repair/calibration path, so it was saved as {role}. {context}/{phase} describes the closed turn; weight: {weight}.",
     "cursor.memoryAudit.reason.interactionEvidenceUpdate": "This {type} was updated from closed episode evidence. Evidence count: {evidenceCount}; confidence: {confidence}; strength: {strength}.",
@@ -1067,6 +1073,8 @@ module.exports = {
     "codex.terminalExitedWithCode": "终端退出，代码 {code}",
     "codex.memoryReferenced.title": "已引用本地记忆",
     "codex.memoryReferenced.summary": "提示词中引用了 {count} 条相关本地历史记录。",
+    "codex.deepMemoryReferenced.title": "已引用深刻记忆",
+    "codex.deepMemoryReferenced.summary": "连续性上下文中引用了 {count} 条有意义的过往时刻。",
     "codex.memorySearch.title": "记忆查询",
     "codex.memorySearch.summary": "已搜索本地记忆，找到 {count} 条匹配结果。",
     "codex.contextCompressed.title": "上下文已压缩",
@@ -1118,6 +1126,7 @@ module.exports = {
     "codex.memoryAudit.reason.existingMemoryRefreshed": "本轮识别出的 {kind} 类候选与已有记忆键相同，因此刷新已有记录。置信度：{confidence}。",
     "codex.memoryAudit.reason.deepMemoryAiReflection": "这条深刻记忆来自可审计的 AI 反思信号，来源：{source}。",
     "codex.memoryAudit.reason.deepMemoryLocalRules": "本地深刻记忆规则识别出 {kind} 类重要时刻。重要性：{importance}，置信度：{confidence}。",
+    "codex.memoryAudit.reason.deepMemoryReferenced": "本地相关性排序选中了这条重要过往时刻，并且它的摘要实际进入了最终连续性提示词。",
     "codex.memoryAudit.reason.interactionClosedEpisode": "同一会话出现下一条用户消息后，系统把它作为上一轮的后续反应并关闭该 episode。{context}/{phase} 描述的是被关闭的上一轮，不是当前反应；本条保存为 {role}，权重：{weight}。",
     "codex.memoryAudit.reason.interactionRepairEpisode": "同一会话出现下一条用户消息后，系统用它关闭了上一轮 episode；该 episode 含修复/校准路径，因此保存为 {role}。{context}/{phase} 描述的是被关闭的上一轮，权重：{weight}。",
     "codex.memoryAudit.reason.interactionEvidenceUpdate": "这条 {type} 由已关闭 episode 证据归纳更新。证据数：{evidenceCount}，置信度：{confidence}，强度：{strength}。",
@@ -1203,6 +1212,8 @@ module.exports = {
     "cursor.promptSent.summary": "正在等待 Cursor 流式返回。",
     "cursor.memoryReferenced.title": "已引用本地记忆",
     "cursor.memoryReferenced.summary": "提示词中引用了 {count} 条相关本地历史记录。",
+    "cursor.deepMemoryReferenced.title": "已引用深刻记忆",
+    "cursor.deepMemoryReferenced.summary": "连续性上下文中引用了 {count} 条有意义的过往时刻。",
     "cursor.memorySearch.title": "记忆查询",
     "cursor.memorySearch.summary": "已搜索本地记忆，找到 {count} 条匹配结果。",
     "cursor.contextCompressed.title": "上下文已压缩",
@@ -1254,6 +1265,7 @@ module.exports = {
     "cursor.memoryAudit.reason.existingMemoryRefreshed": "本轮识别出的 {kind} 类候选与已有记忆键相同，因此刷新已有记录。置信度：{confidence}。",
     "cursor.memoryAudit.reason.deepMemoryAiReflection": "这条深刻记忆来自可审计的 AI 反思信号，来源：{source}。",
     "cursor.memoryAudit.reason.deepMemoryLocalRules": "本地深刻记忆规则识别出 {kind} 类重要时刻。重要性：{importance}，置信度：{confidence}。",
+    "cursor.memoryAudit.reason.deepMemoryReferenced": "本地相关性排序选中了这条重要过往时刻，并且它的摘要实际进入了最终连续性提示词。",
     "cursor.memoryAudit.reason.interactionClosedEpisode": "同一会话出现下一条用户消息后，系统把它作为上一轮的后续反应并关闭该 episode。{context}/{phase} 描述的是被关闭的上一轮，不是当前反应；本条保存为 {role}，权重：{weight}。",
     "cursor.memoryAudit.reason.interactionRepairEpisode": "同一会话出现下一条用户消息后，系统用它关闭了上一轮 episode；该 episode 含修复/校准路径，因此保存为 {role}。{context}/{phase} 描述的是被关闭的上一轮，权重：{weight}。",
     "cursor.memoryAudit.reason.interactionEvidenceUpdate": "这条 {type} 由已关闭 episode 证据归纳更新。证据数：{evidenceCount}，置信度：{confidence}，强度：{strength}。",
@@ -5049,6 +5061,245 @@ module.exports = {
 };
 
 },
+"src/continuity/ContinuityPromptFormatter.js": function(module, exports, __require) {
+const DEFAULT_MAX_MOMENTS = 1;
+const DEFAULT_MAX_STANCE_ITEMS = 2;
+const DEFAULT_MAX_SALIENCE_HINTS = 3;
+const MAX_MOMENT_EVIDENCE_ITEMS = 2;
+const MAX_MOMENT_EVIDENCE_CHARS = 140;
+
+const { rankSalienceAxes } = __require("src/persona/PersonaProfile.js");
+
+function formatAssistantContinuityPrompt(options = {}) {
+  const tone = formatToneLine(options.workingAffect);
+  const moments = formatMomentLines(options.deepMemories, DEFAULT_MAX_MOMENTS);
+  const stance = formatStanceLines(options.interactionStance, DEFAULT_MAX_STANCE_ITEMS);
+  const salience = formatSalienceLine(options.personaProfile, DEFAULT_MAX_SALIENCE_HINTS);
+  const lines = [tone].concat(moments, stance, salience).filter(Boolean);
+  if (lines.length === 0) {
+    return "";
+  }
+
+  return [
+    "Assistant continuity context:",
+    "These are soft local continuity notes with explicit provenance. Local synthesis and inferred state are not user or assistant quotes. They may shape tone, pacing, warmth, and occasional relevant references when the current request naturally connects.",
+    lines.join("\n"),
+    ""
+  ].join("\n");
+}
+
+function formatToneLine(affect) {
+  if (!affect) {
+    return "";
+  }
+  const parts = [`- Current tone: ${affect.label || "steady"} [origin=locally_computed_affect; speaker=none; decaying state, not a statement]`];
+  if (affect.secondaryLabel) {
+    parts.push(`secondary ${affect.secondaryLabel}`);
+  }
+  if (Number.isFinite(Number(affect.strength))) {
+    parts.push(`strength ${formatLevel(affect.strength)}`);
+  }
+  if (Number.isFinite(Number(affect.ageMinutes))) {
+    parts.push(`${formatAgeMinutes(affect.ageMinutes)} old`);
+  }
+  const guidance = [];
+  if (Number(affect.warmth) >= 0.72) {
+    guidance.push("keep warmth present");
+  }
+  if (Number(affect.focus) >= 0.72) {
+    guidance.push("stay focused");
+  }
+  if (Number(affect.tension) >= 0.45) {
+    guidance.push("handle tension carefully");
+  }
+  return `${parts.join(", ")}.${guidance.length ? ` ${guidance.join("; ")}.` : ""}`;
+}
+
+function formatMomentLines(memories, maxItems) {
+  return selectMomentMemories(memories, maxItems)
+    .map((memory) => {
+      const parts = [
+        formatMomentSummary(memory)
+      ];
+      const dateAnchor = formatMemoryDateAnchor(memory);
+      if (dateAnchor) {
+        parts.push(dateAnchor);
+      }
+      if (memory.whyItMatters) {
+        parts.push(`why it matters: ${compactText(memory.whyItMatters)}`);
+      }
+      if (memory.feltSense) {
+        parts.push(`felt sense: ${compactText(memory.feltSense)}`);
+      }
+      const evidence = formatMomentEvidence(memory);
+      if (evidence.length > 0) {
+        parts.push(...evidence);
+      }
+      if (Array.isArray(memory.salienceAxes) && memory.salienceAxes.length > 0) {
+        parts.push(`salience axes: ${memory.salienceAxes.slice(0, 3).join(", ")}`);
+      }
+      parts.push("use only if this turn naturally connects");
+      return parts.join(" | ");
+    });
+}
+
+function formatMomentSummary(memory) {
+  return `- Meaningful recalled moment [origin=local_memory_synthesis; speaker=none; not a quote]: ${compactText(memory?.summary)}`;
+}
+
+function selectMomentMemories(memories, maxItems = DEFAULT_MAX_MOMENTS) {
+  return normalizeArray(memories).slice(0, maxItems);
+}
+
+function formatMomentEvidence(memory) {
+  return [
+    {
+      text: memory?.userExcerpt,
+      origin: "user_message",
+      speaker: "user"
+    },
+    {
+      text: memory?.assistantExcerpt,
+      origin: "assistant_message",
+      speaker: "assistant"
+    }
+  ]
+    .filter((item) => compactText(item.text))
+    .slice(0, MAX_MOMENT_EVIDENCE_ITEMS)
+    .map((item) => (
+      `evidence [origin=${item.origin}; speaker=${item.speaker}; quote]: “${compactEvidenceExcerpt(item.text)}”`
+    ));
+}
+
+function compactEvidenceExcerpt(value) {
+  const text = compactText(value);
+  const sentenceEnds = [...text.matchAll(/[。！？!?](?:[”’"']+)?|[.](?:[”’"']+)?(?=\s|$)/g)]
+    .map((match) => match.index + match[0].length)
+    .filter((end) => end <= MAX_MOMENT_EVIDENCE_CHARS)
+    .slice(0, 2);
+  if (sentenceEnds.length >= 2) {
+    return text.slice(0, sentenceEnds[1]).trim();
+  }
+  if (text.length <= MAX_MOMENT_EVIDENCE_CHARS) {
+    return text;
+  }
+  if (sentenceEnds.length === 1) {
+    return text.slice(0, sentenceEnds[0]).trim();
+  }
+  return `${text.slice(0, MAX_MOMENT_EVIDENCE_CHARS - 1).trim()}…`;
+}
+
+function formatMemoryDateAnchor(memory) {
+  return formatDateAnchor(memory, {
+    singlePrefix: "recorded",
+    dualPrefix: "recorded",
+    includeRelativeGuidance: true
+  });
+}
+
+function formatDateAnchor(item, options = {}) {
+  const createdDate = formatDate(item?.createdAt);
+  const updatedDate = formatDate(item?.updatedAt);
+  if (!createdDate && !updatedDate) {
+    return "";
+  }
+  const singlePrefix = options.singlePrefix || "recorded";
+  const dualPrefix = options.dualPrefix || singlePrefix;
+  const anchor = createdDate && updatedDate && createdDate !== updatedDate
+    ? `${dualPrefix} ${createdDate}, updated ${updatedDate}`
+    : `${singlePrefix} ${createdDate || updatedDate}`;
+  const guidance = options.includeRelativeGuidance
+    ? "; interpret relative words like tomorrow/yesterday relative to that recorded date unless the current turn says otherwise"
+    : "";
+  return `date anchor: ${anchor}${guidance}`;
+}
+
+function formatStanceDateAnchor(item) {
+  return formatDateAnchor(item, {
+    singlePrefix: "evidence updated",
+    dualPrefix: "evidence since",
+    includeRelativeGuidance: true
+  });
+}
+
+function formatStanceLines(items, maxItems) {
+  return normalizeArray(items)
+    .slice(0, maxItems)
+    .map((item) => {
+      const evidence = item.evidenceCount ? `, ${item.evidenceCount} episodes` : "";
+      const dateAnchor = formatStanceDateAnchor(item);
+      return `- Collaboration stance: ${compactText(item.text)} [origin=local_episode_inference; speaker=none; not quote] (${item.axis || "interaction"}, confidence ${formatLevel(item.confidence)}${evidence}${dateAnchor ? `, ${dateAnchor}` : ""}).`;
+    });
+}
+
+function formatSalienceLine(profile, maxItems) {
+  if (!profile || profile.preset === "none") {
+    return "";
+  }
+  const axes = rankSalienceAxes(profile, { limit: maxItems });
+  if (axes.length === 0) {
+    return "";
+  }
+  const hints = axes.map((axis) => `${axis.label} ${formatLevel(axis.value)}`).join(", ");
+  return `- Salience hints: ${hints}. [origin=configured_persona_preset; speaker=none; not a statement] This is a soft personality reference from ${profile.label || profile.preset}, not an identity claim.`;
+}
+
+function formatLevel(value) {
+  const number = Number(value) || 0;
+  if (number >= 0.72) {
+    return "high";
+  }
+  if (number >= 0.5) {
+    return "medium";
+  }
+  return "low";
+}
+
+function formatAgeMinutes(value) {
+  const minutes = Math.max(0, Math.round(Number(value) || 0));
+  if (minutes < 60) {
+    return `${minutes} min`;
+  }
+  return `${Math.round(minutes / 60)} hr`;
+}
+
+function normalizeArray(value) {
+  return Array.isArray(value) ? value.filter(Boolean) : [];
+}
+
+function compactText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function formatDate(value) {
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return "";
+  }
+  const date = new Date(timestamp);
+  if (!Number.isFinite(date.getTime())) {
+    return "";
+  }
+  return date.toISOString().slice(0, 10);
+}
+
+module.exports = {
+  formatAssistantContinuityPrompt,
+  formatMomentSummary,
+  selectMomentMemories,
+  _test: {
+    formatMemoryDateAnchor,
+    compactEvidenceExcerpt,
+    formatMomentEvidence,
+    formatStanceDateAnchor,
+    formatMomentLines,
+    formatSalienceLine,
+    formatStanceLines,
+    formatToneLine
+  }
+};
+
+},
 "src/storage/memoryExtraction/RuleBasedMemoryExtractor.js": function(module, exports, __require) {
 const {
   hasGroundedAgentSignal,
@@ -6065,236 +6316,6 @@ module.exports = {
     isGlobalMemory,
     scoreMemory,
     tokenize
-  }
-};
-
-},
-"src/continuity/ContinuityPromptFormatter.js": function(module, exports, __require) {
-const DEFAULT_MAX_MOMENTS = 1;
-const DEFAULT_MAX_STANCE_ITEMS = 2;
-const DEFAULT_MAX_SALIENCE_HINTS = 3;
-const MAX_MOMENT_EVIDENCE_ITEMS = 2;
-const MAX_MOMENT_EVIDENCE_CHARS = 140;
-
-const { rankSalienceAxes } = __require("src/persona/PersonaProfile.js");
-
-function formatAssistantContinuityPrompt(options = {}) {
-  const tone = formatToneLine(options.workingAffect);
-  const moments = formatMomentLines(options.deepMemories, DEFAULT_MAX_MOMENTS);
-  const stance = formatStanceLines(options.interactionStance, DEFAULT_MAX_STANCE_ITEMS);
-  const salience = formatSalienceLine(options.personaProfile, DEFAULT_MAX_SALIENCE_HINTS);
-  const lines = [tone].concat(moments, stance, salience).filter(Boolean);
-  if (lines.length === 0) {
-    return "";
-  }
-
-  return [
-    "Assistant continuity context:",
-    "These are soft local continuity notes with explicit provenance. Local synthesis and inferred state are not user or assistant quotes. They may shape tone, pacing, warmth, and occasional relevant references when the current request naturally connects.",
-    lines.join("\n"),
-    ""
-  ].join("\n");
-}
-
-function formatToneLine(affect) {
-  if (!affect) {
-    return "";
-  }
-  const parts = [`- Current tone: ${affect.label || "steady"} [origin=locally_computed_affect; speaker=none; decaying state, not a statement]`];
-  if (affect.secondaryLabel) {
-    parts.push(`secondary ${affect.secondaryLabel}`);
-  }
-  if (Number.isFinite(Number(affect.strength))) {
-    parts.push(`strength ${formatLevel(affect.strength)}`);
-  }
-  if (Number.isFinite(Number(affect.ageMinutes))) {
-    parts.push(`${formatAgeMinutes(affect.ageMinutes)} old`);
-  }
-  const guidance = [];
-  if (Number(affect.warmth) >= 0.72) {
-    guidance.push("keep warmth present");
-  }
-  if (Number(affect.focus) >= 0.72) {
-    guidance.push("stay focused");
-  }
-  if (Number(affect.tension) >= 0.45) {
-    guidance.push("handle tension carefully");
-  }
-  return `${parts.join(", ")}.${guidance.length ? ` ${guidance.join("; ")}.` : ""}`;
-}
-
-function formatMomentLines(memories, maxItems) {
-  return normalizeArray(memories)
-    .slice(0, maxItems)
-    .map((memory) => {
-      const parts = [
-        `- Meaningful recalled moment [origin=local_memory_synthesis; speaker=none; not a quote]: ${compactText(memory.summary)}`
-      ];
-      const dateAnchor = formatMemoryDateAnchor(memory);
-      if (dateAnchor) {
-        parts.push(dateAnchor);
-      }
-      if (memory.whyItMatters) {
-        parts.push(`why it matters: ${compactText(memory.whyItMatters)}`);
-      }
-      if (memory.feltSense) {
-        parts.push(`felt sense: ${compactText(memory.feltSense)}`);
-      }
-      const evidence = formatMomentEvidence(memory);
-      if (evidence.length > 0) {
-        parts.push(...evidence);
-      }
-      if (Array.isArray(memory.salienceAxes) && memory.salienceAxes.length > 0) {
-        parts.push(`salience axes: ${memory.salienceAxes.slice(0, 3).join(", ")}`);
-      }
-      parts.push("use only if this turn naturally connects");
-      return parts.join(" | ");
-    });
-}
-
-function formatMomentEvidence(memory) {
-  return [
-    {
-      text: memory?.userExcerpt,
-      origin: "user_message",
-      speaker: "user"
-    },
-    {
-      text: memory?.assistantExcerpt,
-      origin: "assistant_message",
-      speaker: "assistant"
-    }
-  ]
-    .filter((item) => compactText(item.text))
-    .slice(0, MAX_MOMENT_EVIDENCE_ITEMS)
-    .map((item) => (
-      `evidence [origin=${item.origin}; speaker=${item.speaker}; quote]: “${compactEvidenceExcerpt(item.text)}”`
-    ));
-}
-
-function compactEvidenceExcerpt(value) {
-  const text = compactText(value);
-  const sentenceEnds = [...text.matchAll(/[。！？!?](?:[”’"']+)?|[.](?:[”’"']+)?(?=\s|$)/g)]
-    .map((match) => match.index + match[0].length)
-    .filter((end) => end <= MAX_MOMENT_EVIDENCE_CHARS)
-    .slice(0, 2);
-  if (sentenceEnds.length >= 2) {
-    return text.slice(0, sentenceEnds[1]).trim();
-  }
-  if (text.length <= MAX_MOMENT_EVIDENCE_CHARS) {
-    return text;
-  }
-  if (sentenceEnds.length === 1) {
-    return text.slice(0, sentenceEnds[0]).trim();
-  }
-  return `${text.slice(0, MAX_MOMENT_EVIDENCE_CHARS - 1).trim()}…`;
-}
-
-function formatMemoryDateAnchor(memory) {
-  return formatDateAnchor(memory, {
-    singlePrefix: "recorded",
-    dualPrefix: "recorded",
-    includeRelativeGuidance: true
-  });
-}
-
-function formatDateAnchor(item, options = {}) {
-  const createdDate = formatDate(item?.createdAt);
-  const updatedDate = formatDate(item?.updatedAt);
-  if (!createdDate && !updatedDate) {
-    return "";
-  }
-  const singlePrefix = options.singlePrefix || "recorded";
-  const dualPrefix = options.dualPrefix || singlePrefix;
-  const anchor = createdDate && updatedDate && createdDate !== updatedDate
-    ? `${dualPrefix} ${createdDate}, updated ${updatedDate}`
-    : `${singlePrefix} ${createdDate || updatedDate}`;
-  const guidance = options.includeRelativeGuidance
-    ? "; interpret relative words like tomorrow/yesterday relative to that recorded date unless the current turn says otherwise"
-    : "";
-  return `date anchor: ${anchor}${guidance}`;
-}
-
-function formatStanceDateAnchor(item) {
-  return formatDateAnchor(item, {
-    singlePrefix: "evidence updated",
-    dualPrefix: "evidence since",
-    includeRelativeGuidance: true
-  });
-}
-
-function formatStanceLines(items, maxItems) {
-  return normalizeArray(items)
-    .slice(0, maxItems)
-    .map((item) => {
-      const evidence = item.evidenceCount ? `, ${item.evidenceCount} episodes` : "";
-      const dateAnchor = formatStanceDateAnchor(item);
-      return `- Collaboration stance: ${compactText(item.text)} [origin=local_episode_inference; speaker=none; not quote] (${item.axis || "interaction"}, confidence ${formatLevel(item.confidence)}${evidence}${dateAnchor ? `, ${dateAnchor}` : ""}).`;
-    });
-}
-
-function formatSalienceLine(profile, maxItems) {
-  if (!profile || profile.preset === "none") {
-    return "";
-  }
-  const axes = rankSalienceAxes(profile, { limit: maxItems });
-  if (axes.length === 0) {
-    return "";
-  }
-  const hints = axes.map((axis) => `${axis.label} ${formatLevel(axis.value)}`).join(", ");
-  return `- Salience hints: ${hints}. [origin=configured_persona_preset; speaker=none; not a statement] This is a soft personality reference from ${profile.label || profile.preset}, not an identity claim.`;
-}
-
-function formatLevel(value) {
-  const number = Number(value) || 0;
-  if (number >= 0.72) {
-    return "high";
-  }
-  if (number >= 0.5) {
-    return "medium";
-  }
-  return "low";
-}
-
-function formatAgeMinutes(value) {
-  const minutes = Math.max(0, Math.round(Number(value) || 0));
-  if (minutes < 60) {
-    return `${minutes} min`;
-  }
-  return `${Math.round(minutes / 60)} hr`;
-}
-
-function normalizeArray(value) {
-  return Array.isArray(value) ? value.filter(Boolean) : [];
-}
-
-function compactText(value) {
-  return String(value || "").replace(/\s+/g, " ").trim();
-}
-
-function formatDate(value) {
-  const timestamp = Number(value);
-  if (!Number.isFinite(timestamp) || timestamp <= 0) {
-    return "";
-  }
-  const date = new Date(timestamp);
-  if (!Number.isFinite(date.getTime())) {
-    return "";
-  }
-  return date.toISOString().slice(0, 10);
-}
-
-module.exports = {
-  formatAssistantContinuityPrompt,
-  _test: {
-    formatMemoryDateAnchor,
-    compactEvidenceExcerpt,
-    formatMomentEvidence,
-    formatStanceDateAnchor,
-    formatMomentLines,
-    formatSalienceLine,
-    formatStanceLines,
-    formatToneLine
   }
 };
 
@@ -7902,6 +7923,23 @@ function emitMemoryNotice(onUpdate, memories, translate, keyPrefix = "cursor") {
   });
 }
 
+function emitDeepMemoryNotice(onUpdate, memories, translate, keyPrefix = "cursor") {
+  if (!Array.isArray(memories) || memories.length === 0) {
+    return;
+  }
+
+  onUpdate({
+    kind: "notice",
+    noticeType: "deep_memory_referenced",
+    title: translate(`${keyPrefix}.deepMemoryReferenced.title`),
+    summary: translate(`${keyPrefix}.deepMemoryReferenced.summary`, {
+      count: memories.length
+    }),
+    detail: memories.map(formatDeepMemoryLine).join("\n"),
+    auditItems: buildReferencedDeepMemoryAuditItems(memories, translate, keyPrefix)
+  });
+}
+
 function emitContextCompressedNotice(onUpdate, context, translate, keyPrefix = "cursor") {
   if (!context?.compressed) {
     return;
@@ -7946,6 +7984,47 @@ function buildReferencedMemoryAuditItems(memories, translate, keyPrefix = "curso
       ].filter(Boolean)
     };
   });
+}
+
+function buildReferencedDeepMemoryAuditItems(memories, translate, keyPrefix = "cursor") {
+  return (Array.isArray(memories) ? memories : []).map((item, index) => {
+    const type = translate(`${keyPrefix}.memoryAudit.type.deepMemory`);
+    const source = isAiReflectionDeepMemory(item)
+      ? translate(`${keyPrefix}.deepMemoryUpdated.aiReflectionSource`)
+      : translate(`${keyPrefix}.memoryAudit.source.localRules`);
+    return {
+      title: formatAuditItemTitle(type, index),
+      summary: truncateNoticeText(item.summary),
+      type,
+      source,
+      badges: [item.kind, source].concat(item.salienceAxes || []).filter(Boolean),
+      fields: [
+        createField(
+          translate(`${keyPrefix}.memoryAudit.field.reason`),
+          translate(`${keyPrefix}.memoryAudit.reason.deepMemoryReferenced`)
+        ),
+        createField(translate(`${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(`${keyPrefix}.memoryAudit.field.summary`), item.summary),
+        createField(translate(`${keyPrefix}.memoryAudit.field.why`), item.whyItMatters),
+        createField(translate(`${keyPrefix}.memoryAudit.field.feltSense`), item.feltSense),
+        createField(translate(`${keyPrefix}.memoryAudit.field.userExcerpt`), item.userExcerpt),
+        createField(translate(`${keyPrefix}.memoryAudit.field.assistantExcerpt`), item.assistantExcerpt),
+        createField(translate(`${keyPrefix}.memoryAudit.field.importance`), formatDecimal(item.importance)),
+        createField(translate(`${keyPrefix}.memoryAudit.field.confidence`), formatDecimal(item.confidence))
+      ].filter(Boolean)
+    };
+  });
+}
+
+function isAiReflectionDeepMemory(item) {
+  return item?.kind === "visible_reflection"
+    || (Array.isArray(item?.topics) && item.topics.includes("agent_dock_signal"));
+}
+
+function formatDeepMemoryLine(item) {
+  const label = [item?.kind].concat(item?.salienceAxes || []).filter(Boolean).join("/");
+  const summary = truncateNoticeText(item?.summary);
+  return label ? `[${label}] ${summary}` : summary;
 }
 
 function formatReferenceReason(item, translate, keyPrefix) {
@@ -8064,7 +8143,9 @@ function formatLocaleNumber(value) {
 }
 
 module.exports = {
+  buildReferencedDeepMemoryAuditItems,
   buildReferencedMemoryAuditItems,
+  emitDeepMemoryNotice,
   emitContextCompressedNotice,
   emitMemoryNotice,
   formatMemoryNoticeSummary
@@ -8073,6 +8154,10 @@ module.exports = {
 },
 "src/agents/shared/TurnContextBuilder.js": function(module, exports, __require) {
 const { buildPromptInteractionContext } = __require("src/interaction/LocalSignalExtractor.js");
+const {
+  formatMomentSummary,
+  selectMomentMemories
+} = __require("src/continuity/ContinuityPromptFormatter.js");
 const { getPersonaProfile } = __require("src/persona/PersonaProfile.js");
 const { buildPromptWithMetadata, buildTurnContextPrompt } = __require("src/prompt.js");
 const { planPromptSignals } = __require("src/promptSignals.js");
@@ -8083,6 +8168,7 @@ const {
 } = __require("src/agents/shared/memorySearch.js");
 const {
   emitContextCompressedNotice,
+  emitDeepMemoryNotice,
   emitMemoryNotice
 } = __require("src/agents/shared/memoryNotices.js");
 const { createSignalEvidenceContext } = __require("src/agents/shared/signalEvidence.js");
@@ -8226,9 +8312,25 @@ function emitPromptContextNotices(onUpdate, promptResult, promptSignals, transla
   if (promptSignals.memories.length > 0) {
     emitMemoryNotice(onUpdate, promptSignals.memories, translate, keyPrefix);
   }
+  const referencedDeepMemories = getReferencedDeepMemories(promptResult, promptSignals);
+  if (referencedDeepMemories.length > 0) {
+    emitDeepMemoryNotice(onUpdate, referencedDeepMemories, translate, keyPrefix);
+  }
   if (promptResult.context.compressed) {
     emitContextCompressedNotice(onUpdate, promptResult.context, translate, keyPrefix);
   }
+}
+
+function getReferencedDeepMemories(promptResult, promptSignals) {
+  const prompt = String(promptResult?.prompt || "");
+  const omittedSections = Array.isArray(promptResult?.context?.omittedSections)
+    ? promptResult.context.omittedSections
+    : [];
+  if (!prompt || omittedSections.includes("assistant_continuity")) {
+    return [];
+  }
+  return selectMomentMemories(promptSignals?.deepMemories)
+    .filter((item) => item?.summary && prompt.includes(formatMomentSummary(item)));
 }
 
 function emitDebugPromptActivity(onUpdate, promptResult, settings, translate) {
@@ -8254,6 +8356,7 @@ module.exports = {
   emitPromptContextNotices,
   _test: {
     formatRecalledMemoryEvidence,
+    getReferencedDeepMemories,
     readActiveNoteEvidence
   }
 };

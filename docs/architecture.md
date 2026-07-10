@@ -317,7 +317,9 @@ planning step; `promptSignals.js` itself only decides which soft signals are
 worth offering to prompt construction for the current turn. Prompt construction
 then merges deep memory, working affect, interaction stance, and persona
 salience hints into one `Assistant continuity context` section so continuity
-guidance stays concise.
+guidance stays concise. A deep-memory reference notice is emitted only when the
+selected moment's summary is present in the final prompt after section budgeting,
+so retrieval alone is not reported as prompt use.
 
 `src/expression/ExpressionPolicyPlanner.js` separately creates an
 `Expression context` section. It is a soft, turn-local expression policy that

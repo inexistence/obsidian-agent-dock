@@ -1,4 +1,8 @@
 const { buildPromptInteractionContext } = require("../../interaction/LocalSignalExtractor");
+const {
+  formatMomentSummary,
+  selectMomentMemories
+} = require("../../continuity/ContinuityPromptFormatter");
 const { getPersonaProfile } = require("../../persona/PersonaProfile");
 const { buildPromptWithMetadata, buildTurnContextPrompt } = require("../../prompt");
 const { planPromptSignals } = require("../../promptSignals");
@@ -9,6 +13,7 @@ const {
 } = require("./memorySearch");
 const {
   emitContextCompressedNotice,
+  emitDeepMemoryNotice,
   emitMemoryNotice
 } = require("./memoryNotices");
 const { createSignalEvidenceContext } = require("./signalEvidence");
@@ -152,9 +157,25 @@ function emitPromptContextNotices(onUpdate, promptResult, promptSignals, transla
   if (promptSignals.memories.length > 0) {
     emitMemoryNotice(onUpdate, promptSignals.memories, translate, keyPrefix);
   }
+  const referencedDeepMemories = getReferencedDeepMemories(promptResult, promptSignals);
+  if (referencedDeepMemories.length > 0) {
+    emitDeepMemoryNotice(onUpdate, referencedDeepMemories, translate, keyPrefix);
+  }
   if (promptResult.context.compressed) {
     emitContextCompressedNotice(onUpdate, promptResult.context, translate, keyPrefix);
   }
+}
+
+function getReferencedDeepMemories(promptResult, promptSignals) {
+  const prompt = String(promptResult?.prompt || "");
+  const omittedSections = Array.isArray(promptResult?.context?.omittedSections)
+    ? promptResult.context.omittedSections
+    : [];
+  if (!prompt || omittedSections.includes("assistant_continuity")) {
+    return [];
+  }
+  return selectMomentMemories(promptSignals?.deepMemories)
+    .filter((item) => item?.summary && prompt.includes(formatMomentSummary(item)));
 }
 
 function emitDebugPromptActivity(onUpdate, promptResult, settings, translate) {
@@ -180,6 +201,7 @@ module.exports = {
   emitPromptContextNotices,
   _test: {
     formatRecalledMemoryEvidence,
+    getReferencedDeepMemories,
     readActiveNoteEvidence
   }
 };

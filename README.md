@@ -133,7 +133,9 @@ durable memory.
 Malformed terminal `agent-dock` signals are stripped from the answer body and
 ignored rather than shown to the user. Deep memory recall uses lightweight local
 query expansion for subtle continuity wording, but explicit recall can still
-return no results.
+return no results. When a recalled deep-memory summary actually enters the final
+continuity prompt, the timeline shows a compact auditable reference notice; a
+candidate omitted by prompt budgeting does not produce that notice.
 Settings -> Agent Dock -> Deep memory can disable prompt use, disable automatic
 capture, tune recall limits and cooldowns, choose a soft persona salience
 preset, or clear deep memories.

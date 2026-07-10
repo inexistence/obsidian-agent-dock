@@ -14,7 +14,9 @@ Module._load = function patchedLoad(request, parent, isMain) {
 const {
   buildAgentTurnContext,
   buildPromptResultForTurnContext,
-  emitDebugPromptActivity
+  emitDebugPromptActivity,
+  emitPromptContextNotices,
+  _test: { getReferencedDeepMemories }
 } = require("../src/agents/shared/TurnContextBuilder");
 
 const now = Date.UTC(2026, 6, 9);
@@ -162,6 +164,67 @@ async function testBuildAgentTurnContext() {
   assert(result.signalEvidenceContext.active_note.includes("Active note evidence"));
   assert(notices.some((notice) => notice.noticeType === "memory_search"));
   assert(notices.some((notice) => notice.noticeType === "memory_referenced"));
+  const deepMemoryNotice = notices.find((notice) => notice.noticeType === "deep_memory_referenced");
+  assert(deepMemoryNotice, "an actually injected deep memory should emit a reference notice");
+  assert.equal(deepMemoryNotice.auditItems.length, 1);
+  assert(deepMemoryNotice.auditItems[0].summary.includes("important moments"));
+}
+
+function testDeepMemoryNoticeRequiresFinalPromptInclusion() {
+  const deepMemory = {
+    kind: "relationship_insight",
+    summary: "A meaningful moment that may be omitted from the final prompt.",
+    importance: 0.86,
+    confidence: 0.78
+  };
+  const promptSignals = {
+    memories: [],
+    deepMemories: [deepMemory]
+  };
+
+  assert.deepEqual(
+    getReferencedDeepMemories({
+      prompt: `User request:\n${deepMemory.summary}`,
+      context: { omittedSections: ["assistant_continuity"] }
+    }, promptSignals),
+    [],
+    "summary text in the user request should not count when the continuity section was omitted"
+  );
+
+  const notices = [];
+  emitPromptContextNotices(
+    (update) => notices.push(update),
+    {
+      prompt: [
+        "Assistant continuity context:",
+        "- Meaningful recalled moment [origin=local_memory_synthesis; speaker=none; not a quote]:",
+        deepMemory.summary
+      ].join(" "),
+      context: { compressed: false, omittedSections: [] }
+    },
+    promptSignals,
+    translate,
+    "codex"
+  );
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].noticeType, "deep_memory_referenced");
+
+  const duplicateSummary = Object.assign({}, deepMemory, { id: "deep-2" });
+  assert.equal(
+    getReferencedDeepMemories(
+      {
+        prompt: [
+          "Assistant continuity context:",
+          "- Meaningful recalled moment [origin=local_memory_synthesis; speaker=none; not a quote]:",
+          deepMemory.summary
+        ].join(" "),
+        context: { omittedSections: [] }
+      },
+      { deepMemories: [deepMemory, duplicateSummary] }
+    ).length,
+    1,
+    "notice selection should match the formatter's one-moment prompt limit"
+  );
 }
 
 async function testBuildPromptResultForTurnContextUsesSessionPrompt() {
@@ -218,6 +281,7 @@ function testEmitDebugPromptActivity() {
 
 Promise.resolve()
   .then(testBuildAgentTurnContext)
+  .then(testDeepMemoryNoticeRequiresFinalPromptInclusion)
   .then(testBuildPromptResultForTurnContextUsesSessionPrompt)
   .then(testEmitDebugPromptActivity)
   .then(() => {
