@@ -6490,35 +6490,37 @@ function formatAgentSignalPrompt(settings, interactionPatternCandidates = []) {
       evidence: [{
         origin: "user_message",
         speaker: "user",
-        quote: "short exact quote from the visible user request"
+        quote: "exact visible quote"
       }],
-      selfAwareness: "how the selected stance differs from the usual baseline",
+      selfAwareness: "brief stance shift",
       expression: {
-        playfulness: 0.1,
-        laughter: 0,
-        vulnerability: 0.25,
-        restraint: 0.65
+        restraint: 0.6
       }
     };
-    if (interactionSignalsEnabled) {
-      appraisalExample.interaction = {
-        shapes: ["mechanism_explanation"],
-        confidence: 0.55,
-        summary: "how to respond to the current collaboration moment"
-      };
-    }
     if (affectSignalsEnabled) {
       appraisalExample.affect = {
         tone: "focused",
-        confidence: 0.55,
-        why: "why the current state differs from baseline"
+        confidence: 0.6,
+        why: "current request benefits from focus"
       };
-    }
-    if (salienceSignalsEnabled) {
+    } else if (interactionSignalsEnabled) {
+      appraisalExample.interaction = {
+        shapes: ["mechanism_explanation"],
+        confidence: 0.6,
+        summary: "respond with a clear mechanism"
+      };
+    } else if (salienceSignalsEnabled) {
       appraisalExample.salience = {
-        axes: ["care", "craft"],
-        confidence: 0.55,
-        why: "what feels important before answering"
+        axes: ["craft"],
+        confidence: 0.6,
+        why: "careful execution matters"
+      };
+    } else if (memorySignalsEnabled) {
+      appraisalExample.memory = {
+        kind: "task",
+        scope: "project",
+        confidence: 0.6,
+        summary: "current task requires a substantive response"
       };
     }
 
@@ -6527,68 +6529,88 @@ function formatAgentSignalPrompt(settings, interactionPatternCandidates = []) {
       evidence: [{
         origin: "assistant_message",
         speaker: "assistant",
-        quote: "short exact quote from the visible final answer"
+        quote: "exact visible quote"
       }]
     };
     if (memorySignalsEnabled) {
       outcomeExample.memory = {
         kind: "decision",
         scope: "project",
-        confidence: 0.62,
-        summary: "semantic summary of a grounded decision, task, assistant identity, or shared collaboration note"
+        confidence: 0.6,
+        summary: "grounded decision"
       };
-    }
-    if (deepMemorySignalsEnabled) {
-      outcomeExample.deepMemory = {
-        axes: ["care", "repair"],
-        importance: 0.72,
-        summary: "rare user-correctable reflection about a meaningful shared moment"
-      };
-    }
-    if (interactionSignalsEnabled) {
+    } else if (interactionSignalsEnabled) {
       outcomeExample.interaction = {
-        shapes: ["became_concrete", "softened_tone"],
-        confidence: 0.58,
-        summary: "semantic account of how the visible final answer responded",
-        patternCandidate: {
-          key: "concrete_examples_after_ambiguity",
-          axis: "communication_pacing",
-          confidence: 0.58,
-          evidenceQuote: "short exact quote from the current user message",
-          summary: "When a similar ambiguity recurs, use a concrete example before adding more abstraction."
-        }
+        shapes: ["became_concrete"],
+        confidence: 0.6,
+        summary: "grounded response change"
       };
-    }
-    if (affectSignalsEnabled) {
+    } else if (affectSignalsEnabled) {
       outcomeExample.affect = {
         tone: "focused",
-        confidence: 0.55,
-        why: "semantic account of the post-turn tone shift"
+        confidence: 0.6,
+        why: "grounded tone shift"
       };
-    }
-    if (salienceSignalsEnabled) {
-      outcomeExample.salience = {
-        axes: ["craft", "achievement"],
-        confidence: 0.55,
-        why: "semantic account of what mattered in this turn"
+    } else if (deepMemorySignalsEnabled) {
+      outcomeExample.deepMemory = {
+        axes: ["repair"],
+        importance: 0.7,
+        summary: "meaningful shared moment"
       };
     }
     lines.push("Agent Dock continuity reflection:");
-    lines.push("For every substantive response, generate one lightweight leading `phase=appraisal` envelope before any visible answer text. Generate it first and let the selected stance naturally shape the answer that follows. Omit it only for an empty response, an error-only or system-only response, or a trivial acknowledgement with no meaningful stance. It is structured, auditable metadata, not hidden reasoning.");
-    lines.push("Append a terminal `phase=outcome` envelope only when the completed turn contains a meaningful memory, interaction, affect, salience, repair, or achievement change; otherwise omit it. Their `evidence` must contain 1-3 objects shaped as `{origin, speaker, quote}`. Allowed origins are `user_message`, `assistant_message`, `recalled_memory`, `active_note`, and `tool_result`; speaker must be `user`, `assistant`, or `none`. Use short exact visible excerpts and label provenance honestly. Evidence comes from visible context, never hidden reasoning.");
-    lines.push(`Omit irrelevant sections. Local rules decide persistence and may reject or limit the reflection. It cannot declare user preferences or facts, directly create interaction patterns, modify the persona preset, or override task accuracy, permissions, or safety. An outcome interaction may optionally nominate one tentative \`patternCandidate\` using a stable snake_case \`key\`, one axis from ${[...AI_PATTERN_AXES].join("/")}, confidence, an \`evidenceQuote\` copied exactly from the current user message, and a short assistant-behavior summary. The evidence quote must specifically support that nomination. Phrase the summary as a revisable collaboration strategy, not a user fact. The host stores it on the episode and requires repeated positive closed-episode evidence before local promotion.`);
+    lines.push("Before every substantive answer, emit one leading `phase=appraisal` envelope and let that stance shape the answer; omit it only for empty, error-only, system-only, or trivial acknowledgement responses. Append `phase=outcome` after the visible answer only for a meaningful continuity change; otherwise omit it.");
+    lines.push("Each envelope needs 1-3 `evidence` objects shaped as `{origin,speaker,quote}`. Origins: user_message/assistant_message/recalled_memory/active_note/tool_result. Speakers: user/assistant/none. Quotes must be short exact visible excerpts with honest provenance, never hidden reasoning.");
+    lines.push(formatReflectionFieldSchemas({
+      memorySignalsEnabled,
+      deepMemorySignalsEnabled,
+      interactionSignalsEnabled,
+      affectSignalsEnabled,
+      salienceSignalsEnabled
+    }));
+    lines.push("Omit unused fields. Local validation controls persistence and may reject or cap every proposal. Reflection cannot declare user preferences or facts, directly create interaction patterns, modify the persona preset, or override task accuracy, permissions, or safety.");
+    if (interactionSignalsEnabled) {
+      lines.push(`An outcome interaction may nominate one tentative \`patternCandidate\`: {key:stable_snake_case,axis:${[...AI_PATTERN_AXES].join("/")},confidence,evidenceQuote,summary}. Copy \`evidenceQuote\` exactly from the current user message; it must support the nomination. The summary is a revisable assistant strategy, not a user fact. Promotion requires repeated positive closed-episode evidence.`);
+    }
     const registryPrompt = formatPatternCandidateRegistry(interactionPatternCandidates);
     if (registryPrompt) {
       lines.push(registryPrompt);
     }
-    lines.push(`Leading example: \`<!-- agent-dock:reflection phase=appraisal | ${JSON.stringify(appraisalExample)} -->\``);
-    lines.push(`Terminal example: \`<!-- agent-dock:reflection phase=outcome | ${JSON.stringify(outcomeExample)} -->\``);
+    lines.push(`Minimal leading example: \`<!-- agent-dock:reflection phase=appraisal | ${JSON.stringify(appraisalExample)} -->\``);
+    lines.push(`Minimal terminal example: \`<!-- agent-dock:reflection phase=outcome | ${JSON.stringify(outcomeExample)} -->\``);
   }
   if (lines.length === 0) {
     return "";
   }
   lines.push("");
   return lines.join("\n");
+}
+
+function formatReflectionFieldSchemas(options) {
+  const appraisal = [
+    "selfAwareness:string",
+    "expression:{playfulness,laughter,vulnerability,restraint}"
+  ];
+  const outcome = [];
+  if (options.interactionSignalsEnabled) {
+    appraisal.push("interaction:{shapes,confidence,summary}, e.g. shapes:[mechanism_explanation]");
+    outcome.push("interaction:{shapes,confidence,summary,patternCandidate?}, e.g. shapes:[became_concrete]");
+  }
+  if (options.affectSignalsEnabled) {
+    appraisal.push("affect:{tone,confidence,why}, e.g. tone:focused");
+    outcome.push("affect:{tone,confidence,why}, e.g. tone:reassuring");
+  }
+  if (options.salienceSignalsEnabled) {
+    appraisal.push("salience:{axes,confidence,why}, e.g. axes:[craft]");
+    outcome.push("salience:{axes,confidence,why}, e.g. axes:[repair]");
+  }
+  if (options.memorySignalsEnabled) {
+    outcome.push("memory:{kind,scope,confidence,summary}");
+  }
+  if (options.deepMemorySignalsEnabled) {
+    outcome.push("deepMemory:{axes,importance,summary}, e.g. axes:[care]");
+  }
+  return `Optional fields — appraisal: ${appraisal.join("; ")}. Outcome: ${outcome.join("; ")}.`;
 }
 
 function formatPatternCandidateRegistry(items) {

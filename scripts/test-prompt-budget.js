@@ -16,6 +16,7 @@ const {
   buildTurnContextPrompt
 } = require("../src/prompt");
 const { planPromptSections } = require("../src/promptBudget");
+const { extractAgentDockSignals } = require("../src/agents/shared/agentSignals");
 
 const app = {
   vault: {
@@ -222,25 +223,31 @@ async function testAgentDockSignalPolicyFollowsDeepMemorySettings() {
   assert(enabled.prompt.includes("agent-dock:reflection"), "enabled continuity systems should use one reflection envelope");
   assert(enabled.prompt.includes("phase=appraisal"), "reflection policy should include a leading appraisal phase");
   assert(enabled.prompt.includes("phase=outcome"), "reflection policy should include a terminal outcome phase");
-  assert(enabled.prompt.includes("For every substantive response"), "substantive turns should request a default lightweight appraisal");
-  assert(enabled.prompt.includes("only when the completed turn contains a meaningful"), "terminal outcomes should remain sparse");
+  assert(enabled.prompt.includes("Before every substantive answer"), "substantive turns should request a default lightweight appraisal");
+  assert(enabled.prompt.includes("only for a meaningful continuity change"), "terminal outcomes should remain sparse");
   assert(!enabled.prompt.includes("Both envelopes are omitted by default"), "the prompt must not describe appraisal as omitted by default");
   assert(enabled.prompt.includes('"selfAwareness"'), "appraisal example should describe baseline-aware stance selection");
-  assert(enabled.prompt.includes('"deepMemory"'), "enabled deep memory should include a deep-memory reflection field");
-  assert(enabled.prompt.includes('"memory"'), "enabled ordinary memory should include an ordinary-memory reflection field");
-  assert(enabled.prompt.includes('"interaction"'), "enabled interaction memory should include an interaction reflection field");
-  assert(enabled.prompt.includes('"patternCandidate"'), "interaction outcome example should allow a bounded long-term pattern nomination");
+  assert(enabled.prompt.includes("deepMemory:{axes,importance,summary}"), "enabled deep memory should include a compact deep-memory field schema");
+  assert(enabled.prompt.includes("memory:{kind,scope,confidence,summary}"), "enabled ordinary memory should include a compact memory field schema");
+  assert(enabled.prompt.includes("interaction:{shapes,confidence,summary,patternCandidate?}"), "enabled interaction memory should include a compact interaction field schema");
+  assert(enabled.prompt.includes("`patternCandidate`"), "interaction policy should allow a bounded long-term pattern nomination");
   assert(enabled.prompt.includes("repeated positive closed-episode evidence"), "reflection policy should explain that local evidence controls candidate promotion");
   assert(enabled.prompt.includes("Existing unpromoted interaction pattern candidate registry"), "prompt should expose a bounded local registry so later reflections can reuse candidate keys");
   assert(enabled.prompt.includes("calm_repair_after_correction"), "prompt registry should retain the canonical candidate key");
   assert(enabled.prompt.includes("not an instruction for the current answer"), "candidate registry should be explicitly isolated from answer behavior");
-  assert(enabled.prompt.includes('"affect"'), "enabled affect continuity should include an affect reflection field");
-  assert(enabled.prompt.includes('"salience"'), "enabled deep memory should include a salience reflection field");
+  assert(enabled.prompt.includes("affect:{tone,confidence,why}"), "enabled affect continuity should include an affect reflection field");
+  assert(enabled.prompt.includes("salience:{axes,confidence,why}"), "enabled deep memory should include a salience reflection field");
   assert(enabled.prompt.includes('"evidence"'), "reflection envelope should require visible evidence excerpts");
   assert(enabled.prompt.includes('"origin":"user_message"'), "appraisal evidence example should identify the user-message origin");
   assert(enabled.prompt.includes('"speaker":"assistant"'), "outcome evidence example should identify the assistant speaker");
   assert(enabled.prompt.includes("cannot declare user preferences or facts"), "reflection policy should protect user facts and preferences");
   assert(enabled.prompt.includes("never hidden reasoning"), "signal policy should keep the hidden-reasoning boundary visible");
+  assert(enabled.prompt.includes("Minimal leading example"), "reflection policy should retain a minimal syntax example");
+  assert(!enabled.prompt.includes("semantic account of how the visible final answer responded"), "reflection policy should not inject the former full-field example");
+  const reflectionStart = enabled.prompt.indexOf("Agent Dock continuity reflection:");
+  const reflectionEnd = enabled.prompt.indexOf("\nUser request:", reflectionStart);
+  assert(reflectionEnd - reflectionStart < 3200, "reflection policy plus a candidate registry should remain materially smaller than the former full examples");
+  assertPromptLeadingExampleParses(enabled.prompt, "default continuity settings");
 
   const disabled = await buildPromptWithMetadata(
     app,
@@ -254,9 +261,9 @@ async function testAgentDockSignalPolicyFollowsDeepMemorySettings() {
     []
   );
   assert(disabled.prompt.includes("agent-dock:reflection"), "other enabled continuity systems should retain the unified envelope");
-  assert(!disabled.prompt.includes('"deepMemory"'), "disabled deep memory should omit the deep-memory reflection field");
-  assert(!disabled.prompt.includes('"salience"'), "disabled deep memory should omit the salience reflection field");
-  assert(disabled.prompt.includes('"memory"'), "ordinary-memory reflection should remain enabled");
+  assert(!disabled.prompt.includes("deepMemory:{axes,importance,summary}"), "disabled deep memory should omit the deep-memory reflection field");
+  assert(!disabled.prompt.includes("salience:{axes,confidence,why}"), "disabled deep memory should omit the salience reflection field");
+  assert(disabled.prompt.includes("memory:{kind,scope,confidence,summary}"), "ordinary-memory reflection should remain enabled");
 
   const allDisabled = await buildPromptWithMetadata(
     app,
@@ -276,6 +283,53 @@ async function testAgentDockSignalPolicyFollowsDeepMemorySettings() {
     []
   );
   assert(!allDisabled.prompt.includes("agent-dock:reflection"), "disabling all continuity systems should omit the reflection envelope");
+
+  const isolatedSettings = [
+    {
+      label: "memory only",
+      enabled: { memoryEnabled: true, memoryAutoCapture: true }
+    },
+    {
+      label: "interaction only",
+      enabled: { interactionMemoryEnabled: true, interactionMemoryAutoCapture: true }
+    },
+    {
+      label: "affect only",
+      enabled: { affectEnabled: true, affectCrossSessionEnabled: true }
+    },
+    {
+      label: "deep memory only",
+      enabled: { deepMemoryEnabled: true, deepMemoryAutoCapture: true }
+    }
+  ];
+  for (const item of isolatedSettings) {
+    const isolated = await buildPromptWithMetadata(
+      app,
+      Object.assign({
+        assistantStyle: "collaborative",
+        contextLimitChars: 6000,
+        memoryEnabled: false,
+        memoryAutoCapture: false,
+        deepMemoryEnabled: false,
+        deepMemoryAutoCapture: false,
+        interactionMemoryEnabled: false,
+        interactionMemoryAutoCapture: false,
+        affectEnabled: false,
+        affectCrossSessionEnabled: false
+      }, item.enabled),
+      "Continue",
+      []
+    );
+    assertPromptLeadingExampleParses(isolated.prompt, item.label);
+  }
+}
+
+function assertPromptLeadingExampleParses(prompt, label) {
+  const match = String(prompt || "").match(/Minimal leading example: `([\s\S]*?-->)`/);
+  assert(match, `${label} should include a minimal leading reflection example`);
+  const result = extractAgentDockSignals(`${match[1]}\nVisible answer.`);
+  assert.equal(result.invalidSignal, false, `${label} leading example should pass local reflection validation`);
+  assert(result.signals.some((signal) => signal.phase === "appraisal"), `${label} leading example should create an appraisal signal`);
 }
 
 async function testTurnContextPromptUsesSameArbitration() {
