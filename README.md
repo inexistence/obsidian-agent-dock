@@ -111,6 +111,15 @@ answer text, tool notices, or errors. These live cues reuse the same tone labels
 for UI feedback only, are smoothed to avoid rapid flicker, and are not injected
 into prompts or saved as affect continuity.
 
+Agent Dock also plans a short per-turn expression context from local expression
+signals. This is not a hard scene mode switch: a prompt can be partly work,
+partly tired, and a little playful. The planner blends signals such as work,
+support, repair, playfulness, intimacy, seriousness, and tenderness with working
+affect and interaction stance, then adds a compact `Expression context` prompt
+section. It shapes phrasing only, such as whether to stay contained, allow light
+laughter, sound more naturally present, or acknowledge feelings before solving.
+It cannot override facts, permissions, task priority, or safety boundaries.
+
 Interaction memory is enabled by default. After successful replies, Agent Dock
 records a bounded local pending episode from the visible user message and final
 assistant answer. The next successful turn closes that episode with the next

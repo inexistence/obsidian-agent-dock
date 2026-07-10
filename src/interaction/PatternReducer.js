@@ -55,6 +55,8 @@ function getPromptStance(profile, settings, promptContext = {}, now = Date.now()
       confidence: impression.confidence,
       evidenceCount: impression.evidenceCount,
       reviewStatus: impression.reviewStatus,
+      createdAt: impression.createdAt,
+      updatedAt: impression.updatedAt,
       score: impression.strength + impression.confidence + Math.min(0.6, impression.evidenceCount * 0.09) + reviewStatusBoost(impression.reviewStatus) + 0.35
     }));
 
@@ -73,6 +75,8 @@ function getPromptStance(profile, settings, promptContext = {}, now = Date.now()
       text: pattern.summary,
       confidence: pattern.confidence,
       evidenceCount: pattern.evidenceCount,
+      createdAt: pattern.createdAt,
+      updatedAt: pattern.updatedAt,
       score: scorePattern(pattern, currentSignals, currentContext)
     }));
 
@@ -90,6 +94,8 @@ function getPromptStance(profile, settings, promptContext = {}, now = Date.now()
       text: tension.resolutionStyle,
       confidence: tension.confidence,
       evidenceCount: tension.evidenceCount,
+      createdAt: tension.createdAt,
+      updatedAt: tension.updatedAt,
       score: scoreTension(tension, currentSignals)
     }));
 

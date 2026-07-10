@@ -61,6 +61,7 @@ src/
   storage/                          chat and memory persistence
   interaction/                      interaction memory pipeline
   affect/                           working affect scoring and prompt guidance
+  expression/                       per-turn expression signal mixing and prompt guidance
   deepMemory/                       high-importance relational memory pipeline
   continuity/                       prompt aggregation for soft continuity signals
   persona/                          salience presets and soft personality reference axes
@@ -191,6 +192,10 @@ Inputs may include:
 - Assistant continuity context built from high-importance deep local memory,
   short-lived working affect, relevant local interaction stance, and persona
   salience hints.
+- Per-turn expression context built from local expression signals, working
+  affect, and interaction stance. This blends signals such as work, support,
+  repair, playfulness, intimacy, seriousness, and tenderness; it is not a hard
+  scene mode switch.
 - Provider and system metadata.
 
 `contextLimitChars` is a character budget, not a tokenizer-backed token budget.
@@ -204,6 +209,13 @@ worth offering to prompt construction for the current turn. Prompt construction
 then merges deep memory, working affect, interaction stance, and persona
 salience hints into one `Assistant continuity context` section so continuity
 guidance stays concise.
+
+`src/expression/ExpressionPolicyPlanner.js` separately creates an
+`Expression context` section. It is a soft, turn-local expression policy that
+can make a work answer contained, a support answer gentler, a creative answer
+more vivid, or a mixed work/playful answer allow light laughter. It shapes
+phrasing only and explicitly cannot override facts, permissions, current task
+priority, safety, or tool policy.
 
 Prompt sections are planned before the conversation transcript is formatted so
 soft signals cannot crowd out the current turn. The assistant style and explicit
@@ -606,6 +618,7 @@ Useful focused tests:
 - Timeline rendering: `node scripts/test-timeline.js`
 - Affect scoring and prompt guidance: `node scripts/test-affect.js`
 - Prompt signal planning: `node scripts/test-prompt-signals.js`
+- Expression signal mixing and prompt guidance: `node scripts/test-expression-policy.js`
 - Turn prompt context builder: `node scripts/test-turn-context-builder.js`
 - Turn lifecycle: `node scripts/test-chat-turn-runner.js`
 - Interaction memory episodes and stance: `node scripts/test-interaction-memory.js`

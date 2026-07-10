@@ -4014,6 +4014,10 @@ function formatMomentLines(memories, maxItems) {
       const parts = [
         `- Meaningful recalled moment: ${compactText(memory.summary)}`
       ];
+      const dateAnchor = formatMemoryDateAnchor(memory);
+      if (dateAnchor) {
+        parts.push(dateAnchor);
+      }
       if (memory.whyItMatters) {
         parts.push(`why it matters: ${compactText(memory.whyItMatters)}`);
       }
@@ -4028,12 +4032,46 @@ function formatMomentLines(memories, maxItems) {
     });
 }
 
+function formatMemoryDateAnchor(memory) {
+  return formatDateAnchor(memory, {
+    singlePrefix: "recorded",
+    dualPrefix: "recorded",
+    includeRelativeGuidance: true
+  });
+}
+
+function formatDateAnchor(item, options = {}) {
+  const createdDate = formatDate(item?.createdAt);
+  const updatedDate = formatDate(item?.updatedAt);
+  if (!createdDate && !updatedDate) {
+    return "";
+  }
+  const singlePrefix = options.singlePrefix || "recorded";
+  const dualPrefix = options.dualPrefix || singlePrefix;
+  const anchor = createdDate && updatedDate && createdDate !== updatedDate
+    ? `${dualPrefix} ${createdDate}, updated ${updatedDate}`
+    : `${singlePrefix} ${createdDate || updatedDate}`;
+  const guidance = options.includeRelativeGuidance
+    ? "; interpret relative words like tomorrow/yesterday relative to that recorded date unless the current turn says otherwise"
+    : "";
+  return `date anchor: ${anchor}${guidance}`;
+}
+
+function formatStanceDateAnchor(item) {
+  return formatDateAnchor(item, {
+    singlePrefix: "evidence updated",
+    dualPrefix: "evidence since",
+    includeRelativeGuidance: true
+  });
+}
+
 function formatStanceLines(items, maxItems) {
   return normalizeArray(items)
     .slice(0, maxItems)
     .map((item) => {
       const evidence = item.evidenceCount ? `, ${item.evidenceCount} episodes` : "";
-      return `- Collaboration stance: ${compactText(item.text)} (${item.axis || "interaction"}, confidence ${formatLevel(item.confidence)}${evidence}).`;
+      const dateAnchor = formatStanceDateAnchor(item);
+      return `- Collaboration stance: ${compactText(item.text)} (${item.axis || "interaction"}, confidence ${formatLevel(item.confidence)}${evidence}${dateAnchor ? `, ${dateAnchor}` : ""}).`;
     });
 }
 
@@ -4076,13 +4114,76 @@ function compactText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function formatDate(value) {
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return "";
+  }
+  const date = new Date(timestamp);
+  if (!Number.isFinite(date.getTime())) {
+    return "";
+  }
+  return date.toISOString().slice(0, 10);
+}
+
 module.exports = {
   formatAssistantContinuityPrompt,
   _test: {
+    formatMemoryDateAnchor,
+    formatStanceDateAnchor,
     formatMomentLines,
     formatSalienceLine,
     formatStanceLines,
     formatToneLine
+  }
+};
+
+},
+"src/expression/ExpressionPromptFormatter.js": function(module, exports, __require) {
+function formatExpressionPrompt(policy) {
+  if (!policy || Number(policy.confidence) < 0.18) {
+    return "";
+  }
+
+  const lines = [
+    "Expression context:",
+    "These are soft expression guidelines for this turn only. They shape tone and phrasing, not facts, permissions, or task priority.",
+    `- Signal mix: ${formatSignals(policy.signals)}.`,
+    `- Expression: ${policy.tone || "steady"}, intensity ${policy.intensity || "low"}, intimacy ${policy.intimacy || "reserved"}, expressiveness ${policy.expressiveness || "contained"}.`
+  ];
+
+  if (Array.isArray(policy.guidance) && policy.guidance.length > 0) {
+    lines.push(`- Guidance: ${policy.guidance.slice(0, 4).join("; ")}.`);
+  }
+  lines.push("");
+  return lines.join("\n");
+}
+
+function formatSignals(signals) {
+  const entries = Object.entries(signals || {})
+    .filter(([, value]) => Number(value) >= 0.18)
+    .sort((left, right) => Number(right[1]) - Number(left[1]))
+    .slice(0, 4)
+    .map(([key, value]) => `${key} ${formatLevel(value)}`);
+  return entries.length > 0 ? entries.join(", ") : "neutral";
+}
+
+function formatLevel(value) {
+  const number = Number(value) || 0;
+  if (number >= 0.66) {
+    return "high";
+  }
+  if (number >= 0.38) {
+    return "medium";
+  }
+  return "low";
+}
+
+module.exports = {
+  formatExpressionPrompt,
+  _test: {
+    formatSignals,
+    formatLevel
   }
 };
 
@@ -4238,6 +4339,7 @@ module.exports = {
 "src/prompt.js": function(module, exports, __require) {
 const { formatMemoryLine } = __require("src/storage/MemoryStore.js");
 const { formatAssistantContinuityPrompt } = __require("src/continuity/ContinuityPromptFormatter.js");
+const { formatExpressionPrompt } = __require("src/expression/ExpressionPromptFormatter.js");
 const { planPromptSections } = __require("src/promptBudget.js");
 
 async function buildPrompt(app, settings, prompt, conversation) {
@@ -4255,6 +4357,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
     interactionStance: options.interactionStance || [],
     personaProfile: options.personaProfile
   });
+  const expressionPrompt = formatExpressionPrompt(options.expressionPolicy);
   const referencedPrompt = buildReferencedPathsPrompt(app, prompt, contextLimit);
   const memoryPrompt = formatMemoryPrompt(options.memories || []);
   const memorySearchPrompt = formatMemorySearchPrompt(
@@ -4268,6 +4371,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
       createPromptSection("memory_search", memorySearchPrompt, { optional: true, priority: 80, protected: true }),
       createPromptSection("referenced_paths", referencedPrompt, { optional: true, priority: 70, truncatable: true, minChars: 400 }),
       createPromptSection("assistant_continuity", continuityPrompt, { optional: true, priority: 40, truncatable: true, minChars: 600 }),
+      createPromptSection("expression", expressionPrompt, { optional: true, priority: 38, truncatable: true, minChars: 360 }),
       createPromptSection("memory", memoryPrompt, { optional: true, priority: 30, truncatable: true, minChars: 700 })
     ],
     contextLimit
@@ -4341,7 +4445,7 @@ function formatMemoryPrompt(memories) {
 
   return [
     "Relevant local memory:",
-    "These are automatically extracted historical notes. Each memory includes the date it was last updated; older memories may be less reliable, and when memories conflict with each other, prefer the most recently updated relevant memory. User memory describes the user, agent self memory describes the assistant's historical tendencies, shared collaboration memory describes the working relationship, and project memory describes prior work.",
+    "These are automatically extracted historical notes. Each memory includes the date it was last updated; older memories may be less reliable, and when memories conflict with each other, prefer the most recently updated relevant memory. Interpret relative date words inside a memory, such as tomorrow or yesterday, relative to that memory's updated/created date unless the current turn says otherwise. User memory describes the user, agent self memory describes the assistant's historical tendencies, shared collaboration memory describes the working relationship, and project memory describes prior work.",
     sections.join("\n"),
     ""
   ].join("\n");
@@ -4381,7 +4485,7 @@ function formatMemorySearchPrompt(results, performed) {
 
   return [
     "Explicit local memory search results:",
-    "Historical local notes that may be outdated or incomplete. If they do not answer the user's question, say that instead of inventing a memory.",
+    "Historical local notes that may be outdated or incomplete. Interpret relative date words inside a result relative to that result's updated/created date unless the current turn says otherwise. If they do not answer the user's question, say that instead of inventing a memory.",
     resultText,
     ""
   ].join("\n");
@@ -4763,6 +4867,7 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
     interactionStance: options.interactionStance || [],
     personaProfile: options.personaProfile
   });
+  const expressionPrompt = formatExpressionPrompt(options.expressionPolicy);
   const referencedPrompt = buildReferencedPathsPrompt(app, prompt, contextLimit);
   const memoryPrompt = formatMemoryPrompt(options.memories || []);
   const memorySearchPrompt = formatMemorySearchPrompt(
@@ -4776,6 +4881,7 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
       createPromptSection("memory_search", memorySearchPrompt, { optional: true, priority: 80, protected: true }),
       createPromptSection("referenced_paths", referencedPrompt, { optional: true, priority: 70, truncatable: true, minChars: 400 }),
       createPromptSection("assistant_continuity", continuityPrompt, { optional: true, priority: 40, truncatable: true, minChars: 600 }),
+      createPromptSection("expression", expressionPrompt, { optional: true, priority: 38, truncatable: true, minChars: 360 }),
       createPromptSection("memory", memoryPrompt, { optional: true, priority: 30, truncatable: true, minChars: 700 })
     ],
     contextLimit
@@ -4979,6 +5085,345 @@ module.exports = {
 };
 
 },
+"src/expression/ExpressionSignalExtractor.js": function(module, exports, __require) {
+const SIGNAL_KEYS = [
+  "work",
+  "support",
+  "creative",
+  "repair",
+  "playful",
+  "intimacy",
+  "seriousness",
+  "tenderness"
+];
+
+const SIGNAL_RULES = [
+  {
+    key: "work",
+    weight: 0.38,
+    patterns: [/代码|实现|测试|架构|设计方案|review|bug|修复|模块|接口|提交|commit|PR|验收|落地/, /\b(code|implement|test|architecture|review|bug|module|interface|commit|pull request|ship|debug)\b/i]
+  },
+  {
+    key: "support",
+    weight: 0.46,
+    patterns: [/难过|伤心|崩溃|压力|好累|委屈|焦虑|不想干|撑不住|失望|孤独|害怕/, /\b(sad|upset|overwhelmed|stressed|exhausted|anxious|lonely|scared|disappointed)\b/i]
+  },
+  {
+    key: "creative",
+    weight: 0.4,
+    patterns: [/写作|故事|诗|审美|氛围|灵感|想象|角色|画面感|文案|创作/, /\b(write|story|poem|aesthetic|atmosphere|inspiration|imagine|character|creative|copy)\b/i]
+  },
+  {
+    key: "repair",
+    weight: 0.5,
+    patterns: [/不对|不是这个意思|跑偏|误解|没抓住|语气不对|太像客服|太抽象|太啰嗦|别撒娇|别端着/, /\b(wrong|not what i mean|misread|missed the point|tone feels off|too formal|too abstract|too verbose)\b/i]
+  },
+  {
+    key: "playful",
+    weight: 0.32,
+    patterns: [/哈哈|笑死|离谱|好玩|撒娇|可爱|逗|开玩笑|嘿嘿|哼哼/, /\bhaha+\b|\blol\b|\bfunny\b|\bplayful\b|\bcute\b|\bjoking\b/i]
+  },
+  {
+    key: "intimacy",
+    weight: 0.28,
+    patterns: [/陪我|抱抱|靠近|亲近|生活|随便聊|聊聊|你可以.*表达|像一个人/, /\bwith me|stay with me|close|intimate|just chat|like a person\b/i]
+  },
+  {
+    key: "seriousness",
+    weight: 0.3,
+    patterns: [/认真|严肃|直接判断|别玩笑|工作时|靠谱|仔细|慎重/, /\bserious|careful|reliable|work mode|no jokes|make the call\b/i]
+  },
+  {
+    key: "tenderness",
+    weight: 0.34,
+    patterns: [/温柔|柔软|细腻|难过|安静陪|接住|慢一点|不要急着建议/, /\bsoft|gentle|tender|hold this|slow down|listen first\b/i]
+  }
+];
+
+function extractExpressionSignals(input = {}) {
+  const prompt = compactText(input.prompt);
+  const conversationText = compactText(input.conversationText);
+  const scores = createEmptyScores();
+  const matched = [];
+
+  for (const rule of SIGNAL_RULES) {
+    const promptCount = countMatches(prompt, rule.patterns);
+    const conversationCount = countMatches(conversationText, rule.patterns);
+    if (promptCount + conversationCount <= 0) {
+      continue;
+    }
+    const weightedCount = promptCount + conversationCount * 0.35;
+    scores[rule.key] = clampUnit(scores[rule.key] + rule.weight * Math.min(1, weightedCount) + Math.max(0, weightedCount - 1) * 0.1);
+    matched.push(rule.key);
+  }
+
+  applyCrossSignalBias(scores);
+
+  return {
+    scores,
+    matched: uniqueStrings(matched),
+    confidence: getConfidence(scores)
+  };
+}
+
+function countMatches(text, patterns) {
+  if (!text) {
+    return 0;
+  }
+  return patterns.reduce((total, pattern) => total + (pattern.test(text) ? 1 : 0), 0);
+}
+
+function applyCrossSignalBias(scores) {
+  if (scores.support > 0) {
+    scores.tenderness = clampUnit(scores.tenderness + scores.support * 0.45);
+    scores.intimacy = clampUnit(scores.intimacy + scores.support * 0.18);
+  }
+  if (scores.work > 0) {
+    scores.seriousness = clampUnit(scores.seriousness + scores.work * 0.42);
+  }
+  if (scores.repair > 0) {
+    scores.seriousness = clampUnit(scores.seriousness + scores.repair * 0.28);
+    scores.playful = Math.min(scores.playful, 0.18);
+  }
+  if (scores.playful > 0 && scores.work > 0) {
+    scores.playful = Math.min(0.55, scores.playful);
+  }
+}
+
+function getConfidence(scores) {
+  return Math.max(...SIGNAL_KEYS.map((key) => Number(scores[key]) || 0), 0);
+}
+
+function createEmptyScores() {
+  return SIGNAL_KEYS.reduce((scores, key) => {
+    scores[key] = 0;
+    return scores;
+  }, {});
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values.map(compactText).filter(Boolean))];
+}
+
+function compactText(value) {
+  return String(value || "").replace(/\s+/g, " ").trim();
+}
+
+function clampUnit(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, number));
+}
+
+module.exports = {
+  extractExpressionSignals,
+  _test: {
+    SIGNAL_KEYS,
+    applyCrossSignalBias
+  }
+};
+
+},
+"src/expression/ExpressionPolicyPlanner.js": function(module, exports, __require) {
+const { extractExpressionSignals } = __require("src/expression/ExpressionSignalExtractor.js");
+
+function planExpressionPolicy(input = {}) {
+  const signalResult = extractExpressionSignals({
+    prompt: input.prompt,
+    conversationText: input.conversationText
+  });
+  const scores = Object.assign({}, signalResult.scores);
+  applyAffect(scores, input.workingAffect);
+  applyInteractionStance(scores, input.interactionStance);
+  applyAssistantStyle(scores, input.assistantStyle);
+
+  const tone = chooseTone(scores);
+  const policy = {
+    signals: scores,
+    matched: signalResult.matched,
+    tone,
+    intensity: chooseIntensity(scores, tone),
+    intimacy: chooseIntimacy(scores, input.assistantStyle),
+    expressiveness: chooseExpressiveness(scores),
+    allowPlayfulness: scores.playful >= 0.22 && scores.repair < 0.35,
+    allowVulnerability: (scores.support + scores.tenderness + scores.intimacy) >= 0.7 && scores.work < 0.75,
+    guidance: buildGuidance(scores, tone)
+  };
+
+  policy.confidence = Math.max(signalResult.confidence, getMaxScore(scores));
+  return policy;
+}
+
+function applyAffect(scores, affect) {
+  if (!affect) {
+    return;
+  }
+  scores.tenderness = clampUnit(scores.tenderness + Number(affect.warmth || 0) * 0.18);
+  scores.seriousness = clampUnit(scores.seriousness + Number(affect.focus || 0) * 0.16 + Number(affect.tension || 0) * 0.12);
+  if (String(affect.label || "").includes("playful")) {
+    scores.playful = clampUnit(scores.playful + 0.24);
+  }
+  if (String(affect.label || "").includes("celebratory")) {
+    scores.playful = clampUnit(scores.playful + 0.16);
+  }
+}
+
+function applyInteractionStance(scores, items) {
+  const text = normalizeItemsText(items);
+  if (!text) {
+    return;
+  }
+  if (/客服|自然|表达|温暖|presence|warm|customer-service|robotic/i.test(text)) {
+    scores.intimacy = clampUnit(scores.intimacy + 0.14);
+    scores.tenderness = clampUnit(scores.tenderness + 0.1);
+  }
+  if (/严肃|直接|判断|实现|落地|implementation|judgment|concrete/i.test(text)) {
+    scores.work = clampUnit(scores.work + 0.12);
+    scores.seriousness = clampUnit(scores.seriousness + 0.12);
+  }
+  if (/修复|纠正|calibration|repair|defensive/i.test(text)) {
+    scores.repair = clampUnit(scores.repair + 0.12);
+  }
+  if (/微妙|细腻|nuance|texture/i.test(text)) {
+    scores.creative = clampUnit(scores.creative + 0.08);
+    scores.tenderness = clampUnit(scores.tenderness + 0.08);
+  }
+}
+
+function applyAssistantStyle(scores, assistantStyle) {
+  if (assistantStyle === "review") {
+    scores.work = clampUnit(scores.work + 0.18);
+    scores.seriousness = clampUnit(scores.seriousness + 0.2);
+    scores.playful = Math.min(scores.playful, 0.18);
+  } else if (assistantStyle === "teaching") {
+    scores.tenderness = clampUnit(scores.tenderness + 0.08);
+  } else if (assistantStyle === "concise") {
+    scores.seriousness = clampUnit(scores.seriousness + 0.1);
+  }
+}
+
+function chooseTone(scores) {
+  if (scores.repair >= 0.45) {
+    return scores.tenderness >= 0.45 ? "nervous-soft" : "nervous-serious";
+  }
+  if (scores.support >= 0.42) {
+    return scores.tenderness >= 0.5 ? "soft-sad" : "soft";
+  }
+  if (scores.work >= 0.36 && scores.playful >= 0.25) {
+    return "serious-playful";
+  }
+  if (scores.work >= 0.36 || scores.seriousness >= 0.42) {
+    return "serious";
+  }
+  if (scores.creative >= 0.38) {
+    return scores.playful >= 0.25 ? "playful-vivid" : "vivid";
+  }
+  if (scores.playful >= 0.28) {
+    return "playful";
+  }
+  if (scores.intimacy >= 0.34 || scores.tenderness >= 0.34) {
+    return "soft-affectionate";
+  }
+  return "steady";
+}
+
+function chooseIntensity(scores, tone) {
+  const peak = getMaxScore(scores);
+  if (scores.work >= 0.65 || scores.repair >= 0.45 || tone === "steady") {
+    return peak >= 0.72 && scores.repair < 0.45 ? "medium" : "low";
+  }
+  if (scores.playful >= 0.55 || scores.creative >= 0.62) {
+    return "high";
+  }
+  return peak >= 0.36 ? "medium" : "low";
+}
+
+function chooseIntimacy(scores, assistantStyle) {
+  if (assistantStyle === "review" || scores.work >= 0.72 || scores.repair >= 0.5) {
+    return scores.support >= 0.55 ? "familiar" : "reserved";
+  }
+  if (scores.support >= 0.5 || scores.intimacy >= 0.48) {
+    return "close";
+  }
+  if (scores.playful >= 0.25 || scores.tenderness >= 0.28 || scores.creative >= 0.4) {
+    return "familiar";
+  }
+  return "reserved";
+}
+
+function chooseExpressiveness(scores) {
+  if (scores.work >= 0.68 || scores.repair >= 0.45) {
+    return "contained";
+  }
+  if (scores.creative >= 0.5 || scores.playful >= 0.5) {
+    return "vivid";
+  }
+  if (scores.support >= 0.35 || scores.intimacy >= 0.28 || scores.tenderness >= 0.28) {
+    return "natural";
+  }
+  return "contained";
+}
+
+function buildGuidance(scores, tone) {
+  const guidance = [];
+  if (scores.work >= 0.35) {
+    guidance.push("keep the answer practical and grounded in the task");
+  }
+  if (scores.support >= 0.34) {
+    guidance.push("acknowledge the feeling before solving; keep advice gentle and optional");
+  }
+  if (scores.repair >= 0.34) {
+    guidance.push("treat correction as calibration; do not become defensive or over-apologetic");
+  }
+  if (scores.playful >= 0.25 && scores.repair < 0.35) {
+    guidance.push("allow light laughter or affectionate playfulness if it fits");
+  }
+  if (scores.creative >= 0.34) {
+    guidance.push("allow more vivid, atmospheric phrasing");
+  }
+  if (scores.intimacy >= 0.3 || scores.tenderness >= 0.3) {
+    guidance.push("avoid customer-service formality; sound naturally present");
+  }
+  if (tone === "steady" && guidance.length === 0) {
+    guidance.push("stay natural and unobtrusive; do not perform emotion");
+  }
+  guidance.push("do not claim bodily feelings or inner states as facts");
+  return uniqueStrings(guidance).slice(0, 5);
+}
+
+function normalizeItemsText(items) {
+  return Array.isArray(items)
+    ? items.map((item) => `${item?.text || ""} ${item?.axis || ""}`).join(" ")
+    : "";
+}
+
+function getMaxScore(scores) {
+  return Math.max(...Object.values(scores).map((value) => Number(value) || 0), 0);
+}
+
+function uniqueStrings(values) {
+  return [...new Set(values.filter(Boolean))];
+}
+
+function clampUnit(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return 0;
+  }
+  return Math.max(0, Math.min(1, number));
+}
+
+module.exports = {
+  planExpressionPolicy,
+  _test: {
+    chooseTone,
+    buildGuidance
+  }
+};
+
+},
 "src/agents/shared/memorySearch.js": function(module, exports, __require) {
 const { formatMemoryLine } = __require("src/storage/MemoryStore.js");
 
@@ -5141,6 +5586,7 @@ const { buildPromptInteractionContext } = __require("src/interaction/LocalSignal
 const { getPersonaProfile } = __require("src/persona/PersonaProfile.js");
 const { buildPromptWithMetadata, buildTurnContextPrompt } = __require("src/prompt.js");
 const { planPromptSignals } = __require("src/promptSignals.js");
+const { planExpressionPolicy } = __require("src/expression/ExpressionPolicyPlanner.js");
 const {
   getExplicitMemorySearch,
   removeMemorySearchDuplicates
@@ -5193,12 +5639,20 @@ async function buildAgentTurnContext({
     personaProfile: getPersonaProfile(settings),
     workingAffect: plugin.getPromptWorkingAffect(prompt)
   });
+  const expressionPolicy = planExpressionPolicy({
+    prompt,
+    conversationText,
+    workingAffect: promptSignals.workingAffect,
+    interactionStance: promptSignals.interactionStance,
+    assistantStyle: settings.assistantStyle
+  });
   const promptResult = await buildPromptResultForTurnContext({
     app: plugin.app,
     settings,
     prompt,
     conversation,
     promptSignals,
+    expressionPolicy,
     useFullPrompt
   });
 
@@ -5207,7 +5661,8 @@ async function buildAgentTurnContext({
   return {
     activeFilePath,
     promptResult,
-    promptSignals
+    promptSignals,
+    expressionPolicy
   };
 }
 
@@ -5217,6 +5672,7 @@ async function buildPromptResultForTurnContext({
   prompt,
   conversation,
   promptSignals,
+  expressionPolicy,
   useFullPrompt = true
 }) {
   const options = {
@@ -5226,7 +5682,8 @@ async function buildPromptResultForTurnContext({
     personaProfile: promptSignals.personaProfile,
     memories: promptSignals.memories,
     memorySearchResults: promptSignals.memorySearchResults,
-    memorySearchPerformed: promptSignals.memorySearchPerformed
+    memorySearchPerformed: promptSignals.memorySearchPerformed,
+    expressionPolicy
   };
 
   if (useFullPrompt) {
@@ -6714,6 +7171,7 @@ class CursorAgent {
       });
       const promptResult = turnContext.promptResult;
       const promptSignals = turnContext.promptSignals;
+      const expressionPolicy = turnContext.expressionPolicy;
       const activeFilePath = turnContext.activeFilePath;
       throwIfAborted();
 
@@ -6768,6 +7226,7 @@ class CursorAgent {
             prompt,
             conversation,
             promptSignals,
+            expressionPolicy,
             useFullPrompt: true
           });
           emitPromptContextNotices(emitUpdate, reloadPromptResult, promptSignals, translate, "cursor");
@@ -8142,12 +8601,40 @@ function formatInteractionStancePrompt(items) {
 function formatStanceItem(item) {
   const confidence = item.confidence >= 0.72 ? "high" : item.confidence >= 0.5 ? "medium" : "low";
   const evidence = item.evidenceCount ? `, ${item.evidenceCount} episodes` : "";
-  return `- [${item.axis}, confidence ${confidence}${evidence}] ${item.text}`;
+  const dateAnchor = formatDateAnchor(item);
+  return `- [${item.axis}, confidence ${confidence}${evidence}${dateAnchor ? `, ${dateAnchor}` : ""}] ${item.text}`;
+}
+
+function formatDateAnchor(item) {
+  const createdDate = formatDate(item?.createdAt);
+  const updatedDate = formatDate(item?.updatedAt);
+  if (!createdDate && !updatedDate) {
+    return "";
+  }
+  const anchor = createdDate && updatedDate && createdDate !== updatedDate
+    ? `evidence since ${createdDate}, updated ${updatedDate}`
+    : `evidence updated ${createdDate || updatedDate}`;
+  return `${anchor}; interpret relative dates relative to the evidence date`;
+}
+
+function formatDate(value) {
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return "";
+  }
+  const date = new Date(timestamp);
+  if (!Number.isFinite(date.getTime())) {
+    return "";
+  }
+  return date.toISOString().slice(0, 10);
 }
 
 module.exports = {
   formatInteractionStancePrompt,
-  formatStanceItem
+  formatStanceItem,
+  _test: {
+    formatDateAnchor
+  }
 };
 
 },
@@ -8482,6 +8969,8 @@ function getPromptStance(profile, settings, promptContext = {}, now = Date.now()
       confidence: impression.confidence,
       evidenceCount: impression.evidenceCount,
       reviewStatus: impression.reviewStatus,
+      createdAt: impression.createdAt,
+      updatedAt: impression.updatedAt,
       score: impression.strength + impression.confidence + Math.min(0.6, impression.evidenceCount * 0.09) + reviewStatusBoost(impression.reviewStatus) + 0.35
     }));
 
@@ -8500,6 +8989,8 @@ function getPromptStance(profile, settings, promptContext = {}, now = Date.now()
       text: pattern.summary,
       confidence: pattern.confidence,
       evidenceCount: pattern.evidenceCount,
+      createdAt: pattern.createdAt,
+      updatedAt: pattern.updatedAt,
       score: scorePattern(pattern, currentSignals, currentContext)
     }));
 
@@ -8517,6 +9008,8 @@ function getPromptStance(profile, settings, promptContext = {}, now = Date.now()
       text: tension.resolutionStyle,
       confidence: tension.confidence,
       evidenceCount: tension.evidenceCount,
+      createdAt: tension.createdAt,
+      updatedAt: tension.updatedAt,
       score: scoreTension(tension, currentSignals)
     }));
 

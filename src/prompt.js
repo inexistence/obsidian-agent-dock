@@ -1,5 +1,6 @@
 const { formatMemoryLine } = require("./storage/MemoryStore");
 const { formatAssistantContinuityPrompt } = require("./continuity/ContinuityPromptFormatter");
+const { formatExpressionPrompt } = require("./expression/ExpressionPromptFormatter");
 const { planPromptSections } = require("./promptBudget");
 
 async function buildPrompt(app, settings, prompt, conversation) {
@@ -17,6 +18,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
     interactionStance: options.interactionStance || [],
     personaProfile: options.personaProfile
   });
+  const expressionPrompt = formatExpressionPrompt(options.expressionPolicy);
   const referencedPrompt = buildReferencedPathsPrompt(app, prompt, contextLimit);
   const memoryPrompt = formatMemoryPrompt(options.memories || []);
   const memorySearchPrompt = formatMemorySearchPrompt(
@@ -30,6 +32,7 @@ async function buildPromptWithMetadata(app, settings, prompt, conversation, opti
       createPromptSection("memory_search", memorySearchPrompt, { optional: true, priority: 80, protected: true }),
       createPromptSection("referenced_paths", referencedPrompt, { optional: true, priority: 70, truncatable: true, minChars: 400 }),
       createPromptSection("assistant_continuity", continuityPrompt, { optional: true, priority: 40, truncatable: true, minChars: 600 }),
+      createPromptSection("expression", expressionPrompt, { optional: true, priority: 38, truncatable: true, minChars: 360 }),
       createPromptSection("memory", memoryPrompt, { optional: true, priority: 30, truncatable: true, minChars: 700 })
     ],
     contextLimit
@@ -103,7 +106,7 @@ function formatMemoryPrompt(memories) {
 
   return [
     "Relevant local memory:",
-    "These are automatically extracted historical notes. Each memory includes the date it was last updated; older memories may be less reliable, and when memories conflict with each other, prefer the most recently updated relevant memory. User memory describes the user, agent self memory describes the assistant's historical tendencies, shared collaboration memory describes the working relationship, and project memory describes prior work.",
+    "These are automatically extracted historical notes. Each memory includes the date it was last updated; older memories may be less reliable, and when memories conflict with each other, prefer the most recently updated relevant memory. Interpret relative date words inside a memory, such as tomorrow or yesterday, relative to that memory's updated/created date unless the current turn says otherwise. User memory describes the user, agent self memory describes the assistant's historical tendencies, shared collaboration memory describes the working relationship, and project memory describes prior work.",
     sections.join("\n"),
     ""
   ].join("\n");
@@ -143,7 +146,7 @@ function formatMemorySearchPrompt(results, performed) {
 
   return [
     "Explicit local memory search results:",
-    "Historical local notes that may be outdated or incomplete. If they do not answer the user's question, say that instead of inventing a memory.",
+    "Historical local notes that may be outdated or incomplete. Interpret relative date words inside a result relative to that result's updated/created date unless the current turn says otherwise. If they do not answer the user's question, say that instead of inventing a memory.",
     resultText,
     ""
   ].join("\n");
@@ -525,6 +528,7 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
     interactionStance: options.interactionStance || [],
     personaProfile: options.personaProfile
   });
+  const expressionPrompt = formatExpressionPrompt(options.expressionPolicy);
   const referencedPrompt = buildReferencedPathsPrompt(app, prompt, contextLimit);
   const memoryPrompt = formatMemoryPrompt(options.memories || []);
   const memorySearchPrompt = formatMemorySearchPrompt(
@@ -538,6 +542,7 @@ async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
       createPromptSection("memory_search", memorySearchPrompt, { optional: true, priority: 80, protected: true }),
       createPromptSection("referenced_paths", referencedPrompt, { optional: true, priority: 70, truncatable: true, minChars: 400 }),
       createPromptSection("assistant_continuity", continuityPrompt, { optional: true, priority: 40, truncatable: true, minChars: 600 }),
+      createPromptSection("expression", expressionPrompt, { optional: true, priority: 38, truncatable: true, minChars: 360 }),
       createPromptSection("memory", memoryPrompt, { optional: true, priority: 30, truncatable: true, minChars: 700 })
     ],
     contextLimit

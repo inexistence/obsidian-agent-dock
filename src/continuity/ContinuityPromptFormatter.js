@@ -56,6 +56,10 @@ function formatMomentLines(memories, maxItems) {
       const parts = [
         `- Meaningful recalled moment: ${compactText(memory.summary)}`
       ];
+      const dateAnchor = formatMemoryDateAnchor(memory);
+      if (dateAnchor) {
+        parts.push(dateAnchor);
+      }
       if (memory.whyItMatters) {
         parts.push(`why it matters: ${compactText(memory.whyItMatters)}`);
       }
@@ -70,12 +74,46 @@ function formatMomentLines(memories, maxItems) {
     });
 }
 
+function formatMemoryDateAnchor(memory) {
+  return formatDateAnchor(memory, {
+    singlePrefix: "recorded",
+    dualPrefix: "recorded",
+    includeRelativeGuidance: true
+  });
+}
+
+function formatDateAnchor(item, options = {}) {
+  const createdDate = formatDate(item?.createdAt);
+  const updatedDate = formatDate(item?.updatedAt);
+  if (!createdDate && !updatedDate) {
+    return "";
+  }
+  const singlePrefix = options.singlePrefix || "recorded";
+  const dualPrefix = options.dualPrefix || singlePrefix;
+  const anchor = createdDate && updatedDate && createdDate !== updatedDate
+    ? `${dualPrefix} ${createdDate}, updated ${updatedDate}`
+    : `${singlePrefix} ${createdDate || updatedDate}`;
+  const guidance = options.includeRelativeGuidance
+    ? "; interpret relative words like tomorrow/yesterday relative to that recorded date unless the current turn says otherwise"
+    : "";
+  return `date anchor: ${anchor}${guidance}`;
+}
+
+function formatStanceDateAnchor(item) {
+  return formatDateAnchor(item, {
+    singlePrefix: "evidence updated",
+    dualPrefix: "evidence since",
+    includeRelativeGuidance: true
+  });
+}
+
 function formatStanceLines(items, maxItems) {
   return normalizeArray(items)
     .slice(0, maxItems)
     .map((item) => {
       const evidence = item.evidenceCount ? `, ${item.evidenceCount} episodes` : "";
-      return `- Collaboration stance: ${compactText(item.text)} (${item.axis || "interaction"}, confidence ${formatLevel(item.confidence)}${evidence}).`;
+      const dateAnchor = formatStanceDateAnchor(item);
+      return `- Collaboration stance: ${compactText(item.text)} (${item.axis || "interaction"}, confidence ${formatLevel(item.confidence)}${evidence}${dateAnchor ? `, ${dateAnchor}` : ""}).`;
     });
 }
 
@@ -118,9 +156,23 @@ function compactText(value) {
   return String(value || "").replace(/\s+/g, " ").trim();
 }
 
+function formatDate(value) {
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return "";
+  }
+  const date = new Date(timestamp);
+  if (!Number.isFinite(date.getTime())) {
+    return "";
+  }
+  return date.toISOString().slice(0, 10);
+}
+
 module.exports = {
   formatAssistantContinuityPrompt,
   _test: {
+    formatMemoryDateAnchor,
+    formatStanceDateAnchor,
     formatMomentLines,
     formatSalienceLine,
     formatStanceLines,

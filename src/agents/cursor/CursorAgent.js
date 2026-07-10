@@ -116,6 +116,7 @@ class CursorAgent {
       });
       const promptResult = turnContext.promptResult;
       const promptSignals = turnContext.promptSignals;
+      const expressionPolicy = turnContext.expressionPolicy;
       const activeFilePath = turnContext.activeFilePath;
       throwIfAborted();
 
@@ -170,6 +171,7 @@ class CursorAgent {
             prompt,
             conversation,
             promptSignals,
+            expressionPolicy,
             useFullPrompt: true
           });
           emitPromptContextNotices(emitUpdate, reloadPromptResult, promptSignals, translate, "cursor");

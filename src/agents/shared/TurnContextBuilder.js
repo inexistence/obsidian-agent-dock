@@ -2,6 +2,7 @@ const { buildPromptInteractionContext } = require("../../interaction/LocalSignal
 const { getPersonaProfile } = require("../../persona/PersonaProfile");
 const { buildPromptWithMetadata, buildTurnContextPrompt } = require("../../prompt");
 const { planPromptSignals } = require("../../promptSignals");
+const { planExpressionPolicy } = require("../../expression/ExpressionPolicyPlanner");
 const {
   getExplicitMemorySearch,
   removeMemorySearchDuplicates
@@ -54,12 +55,20 @@ async function buildAgentTurnContext({
     personaProfile: getPersonaProfile(settings),
     workingAffect: plugin.getPromptWorkingAffect(prompt)
   });
+  const expressionPolicy = planExpressionPolicy({
+    prompt,
+    conversationText,
+    workingAffect: promptSignals.workingAffect,
+    interactionStance: promptSignals.interactionStance,
+    assistantStyle: settings.assistantStyle
+  });
   const promptResult = await buildPromptResultForTurnContext({
     app: plugin.app,
     settings,
     prompt,
     conversation,
     promptSignals,
+    expressionPolicy,
     useFullPrompt
   });
 
@@ -68,7 +77,8 @@ async function buildAgentTurnContext({
   return {
     activeFilePath,
     promptResult,
-    promptSignals
+    promptSignals,
+    expressionPolicy
   };
 }
 
@@ -78,6 +88,7 @@ async function buildPromptResultForTurnContext({
   prompt,
   conversation,
   promptSignals,
+  expressionPolicy,
   useFullPrompt = true
 }) {
   const options = {
@@ -87,7 +98,8 @@ async function buildPromptResultForTurnContext({
     personaProfile: promptSignals.personaProfile,
     memories: promptSignals.memories,
     memorySearchResults: promptSignals.memorySearchResults,
-    memorySearchPerformed: promptSignals.memorySearchPerformed
+    memorySearchPerformed: promptSignals.memorySearchPerformed,
+    expressionPolicy
   };
 
   if (useFullPrompt) {

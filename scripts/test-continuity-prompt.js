@@ -24,7 +24,9 @@ function testContinuityMergesSignalsIntoOneSection() {
         whyItMatters: "It makes continuity feel meaningful.",
         feltSense: "warm and grounded",
         importance: 0.86,
-        confidence: 0.78
+        confidence: 0.78,
+        createdAt: Date.UTC(2026, 6, 8),
+        updatedAt: Date.UTC(2026, 6, 9)
       },
       {
         summary: "This second memory should not be included by default.",
@@ -68,6 +70,8 @@ function testContinuityMergesSignalsIntoOneSection() {
   assert(prompt.includes("These are soft local continuity notes"));
   assert(prompt.includes("Current tone: warm-focused"));
   assert(prompt.includes("important moments remembered"));
+  assert(prompt.includes("date anchor: recorded 2026-07-08, updated 2026-07-09"));
+  assert(prompt.includes("interpret relative words like tomorrow/yesterday relative to that recorded date"));
   assert(prompt.includes("Prefer warm, concrete engineering judgment"));
   assert(prompt.includes("Keep explanations compact"));
   assert(prompt.includes("Salience hints: beauty and atmosphere high, care and being seen high, justice and principled boundaries high"));

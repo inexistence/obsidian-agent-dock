@@ -167,7 +167,9 @@ async function testEpisodeClosureAndStance() {
   assert(prompt.includes("Interaction memory:"), "stance prompt should be clearly labeled");
   assert(prompt.includes("Long-term interaction persona:"), "stance prompt should separate long-term persona from turn-local stance");
   assert(prompt.includes("Relevant interaction stance for this turn:"), "stance prompt should separate turn-local stance");
-  assert(prompt.includes("episodes]"), "stance prompt should expose evidence count");
+  assert(prompt.includes("episodes"), "stance prompt should expose evidence count");
+  assert(prompt.includes("evidence updated 2026-07-09"), "stance prompt should expose evidence date anchors");
+  assert(prompt.includes("interpret relative dates relative to the evidence date"), "stance prompt should tell agents how to interpret relative dates");
   assert(prompt.includes("soft local interaction notes"), "stance prompt should preserve its local context label");
 }
 
@@ -199,6 +201,7 @@ async function testPromptIntegrationAndSensitiveFiltering() {
   });
   assert(result.prompt.includes("Assistant continuity context:"), "buildPrompt should include continuity context");
   assert(result.prompt.includes("Collaboration stance:"), "buildPrompt should include interaction stance");
+  assert(result.prompt.includes("date anchor: evidence updated 2026-07-09"), "continuity prompt should date-anchor interaction stance");
   assert(result.prompt.includes("User request:"), "buildPrompt should still include the user request");
 }
 
