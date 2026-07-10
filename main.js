@@ -8298,8 +8298,19 @@ async function buildAgentTurnContext({
     interactionPatternCandidates,
     useFullPrompt
   });
+  const referencedDeepMemories = getReferencedDeepMemories(promptResult, promptSignals);
+  if (referencedDeepMemories.length > 0 && typeof plugin.deepMemoryStore.markRecalled === "function") {
+    await plugin.deepMemoryStore.markRecalled(referencedDeepMemories, Date.now());
+  }
 
-  emitPromptContextNotices(onUpdate, promptResult, promptSignals, translate, keyPrefix);
+  emitPromptContextNotices(
+    onUpdate,
+    promptResult,
+    promptSignals,
+    translate,
+    keyPrefix,
+    referencedDeepMemories
+  );
 
   return {
     activeFilePath,
@@ -8368,13 +8379,13 @@ async function buildPromptResultForTurnContext({
   return buildTurnContextPrompt(app, settings, prompt, options);
 }
 
-function emitPromptContextNotices(onUpdate, promptResult, promptSignals, translate, keyPrefix) {
+function emitPromptContextNotices(onUpdate, promptResult, promptSignals, translate, keyPrefix, referencedDeepMemories = null) {
   if (promptSignals.memories.length > 0) {
     emitMemoryNotice(onUpdate, promptSignals.memories, translate, keyPrefix);
   }
-  const referencedDeepMemories = getReferencedDeepMemories(promptResult, promptSignals);
-  if (referencedDeepMemories.length > 0) {
-    emitDeepMemoryNotice(onUpdate, referencedDeepMemories, translate, keyPrefix);
+  const referenced = referencedDeepMemories || getReferencedDeepMemories(promptResult, promptSignals);
+  if (referenced.length > 0) {
+    emitDeepMemoryNotice(onUpdate, referenced, translate, keyPrefix);
   }
   if (promptResult.context.compressed) {
     emitContextCompressedNotice(onUpdate, promptResult.context, translate, keyPrefix);
@@ -11451,7 +11462,19 @@ const STOP_WORDS = new Set([
   "重要",
   "记忆",
   "记得",
-  "真的"
+  "真的",
+  "我们",
+  "你们",
+  "他们",
+  "用户",
+  "继续",
+  "问题",
+  "功能",
+  "内容",
+  "相关",
+  "进行",
+  "已经",
+  "一下"
 ]);
 
 class DeepMemoryStore {
@@ -11478,27 +11501,28 @@ class DeepMemoryStore {
     }
 
     const now = Number(options.now) || Date.now();
-    const contextText = [
-      query,
+    const supportingContextText = [
       options.conversationText || "",
       options.activeFilePath || "",
       options.workingDirectory || ""
     ].filter(Boolean).join(" ");
-    const queryTokens = tokenize(contextText);
-    const explicitRecall = isExplicitDeepMemoryRecall(contextText);
+    const explicitRecall = isExplicitDeepMemoryRecall(query);
+    const recallTopicText = explicitRecall ? stripRecallLanguage(query) : query;
+    const queryTokens = tokenize(recallTopicText);
+    const supportingTokens = tokenize(supportingContextText);
+    const specificRecall = explicitRecall && queryTokens.size > 0;
     const cooldownMs = getRecallCooldownDays(settings) * 86400000;
     const scored = active
-      .map((item) => scoreDeepMemory(item, queryTokens, explicitRecall, now))
+      .map((item) => scoreDeepMemory(item, queryTokens, explicitRecall, now, {
+        specificRecall,
+        supportingTokens
+      }))
       .filter((entry) => entry.score > 0)
       .filter((entry) => explicitRecall || !isCoolingDown(entry.item, now, cooldownMs))
       .sort(compareScoredDeepMemories);
 
     const maxItems = Math.max(1, Math.min(Number(settings.deepMemoryMaxPromptItems) || DEFAULT_MAX_PROMPT_ITEMS, scored.length));
-    const selected = scored.slice(0, maxItems).map((entry) => entry.item);
-    if (selected.length > 0) {
-      await this.markRecalled(selected, now);
-    }
-    return selected;
+    return scored.slice(0, maxItems).map((entry) => entry.item);
   }
 
   async captureTurn(turn, settings) {
@@ -11701,13 +11725,13 @@ function limitDeepMemoryItems(items, settings) {
     .sort((left, right) => normalizeTimestamp(left.createdAt, 0) - normalizeTimestamp(right.createdAt, 0));
 }
 
-function scoreDeepMemory(item, queryTokens, explicitRecall, now) {
+function scoreDeepMemory(item, queryTokens, explicitRecall, now, options = {}) {
   const itemTokens = tokenize(formatSearchText(item));
-  let matchScore = 0;
-  for (const token of itemTokens) {
-    if (queryTokens.has(token)) {
-      matchScore += token.length > 6 ? 2 : 1;
-    }
+  const primaryMatch = tokenMatchScore(queryTokens, itemTokens);
+  const supportingMatch = tokenMatchScore(options.supportingTokens, itemTokens);
+  const matchScore = Math.min(4, primaryMatch) + Math.min(1, supportingMatch * 0.3);
+  if (options.specificRecall && primaryMatch === 0) {
+    return { item, matchScore: 0, score: 0 };
   }
   const importance = Number(item.importance) || 0;
   const confidence = Number(item.confidence) || 0;
@@ -11720,8 +11744,40 @@ function scoreDeepMemory(item, queryTokens, explicitRecall, now) {
   return {
     item,
     matchScore,
-    score: matchScore > 0 || explicitRecall ? score : 0
+    score: matchScore > 0 || (explicitRecall && !options.specificRecall) ? score : 0
   };
+}
+
+function tokenMatchScore(queryTokens, itemTokens) {
+  if (!(queryTokens instanceof Set) || queryTokens.size === 0 || !(itemTokens instanceof Set)) {
+    return 0;
+  }
+  let score = 0;
+  for (const token of queryTokens) {
+    if (itemTokens.has(token)) {
+      score += getTokenMatchWeight(token);
+    }
+  }
+  return score;
+}
+
+function getTokenMatchWeight(token) {
+  if (/^[\u4e00-\u9fff]+$/.test(token)) {
+    if (token.length === 2) {
+      return 0.4;
+    }
+    if (token.length === 3) {
+      return 0.75;
+    }
+    return 1.4;
+  }
+  if (token.length <= 3) {
+    return 0.45;
+  }
+  if (token.length <= 6) {
+    return 0.85;
+  }
+  return 1.25;
 }
 
 function compareScoredDeepMemories(left, right) {
@@ -11740,7 +11796,17 @@ function isPromptSafeDeepMemory(item) {
 }
 
 function isExplicitDeepMemoryRecall(text) {
-  return /(记得|记住|回忆|之前|过去|那次|重要时刻|深刻记忆|remember|memory|memories|previous|important moment)/i.test(text || "");
+  const source = compactText(text);
+  return /你还?记得|还记得|记不记得|有没有印象|是否记得|能否回忆|回忆一下|想起来|记得.{0,24}(?:之前|以前|过去|上次|那次)|(?:查|找|搜索|看看|读取).{0,12}(?:深刻记忆|重要时刻|记忆|记录)|(?:之前|以前|过去|上次|那次).{0,24}(?:说过|提过|聊过|决定|约定|发生|完成)/.test(source)
+    || /(?:do you|can you|could you|what do you)\s+(?:still\s+)?(?:remember(?!\s+to\b)|recall)|(?:search|find|look up|check).{0,24}(?:memories?|past notes?|history)|(?:remember|recall).{0,32}(?:before|previously|last time|that time)/i.test(source);
+}
+
+function stripRecallLanguage(text) {
+  return compactText(text)
+    .replace(/你还?记得|还记得|记不记得|有没有印象|是否记得|能否回忆|记得|记住|回忆(?:一下)?|想起来|(?:查|找|搜索|看看|读取|翻看)(?:一下)?|深刻记忆|重要时刻|记忆|记录|之前(?:说的|提过的)?|以前|过去|上次|那次|我(?:曾经|之前)?说的|那个|一些|关于|事情|内容|感觉|有没有|里|吗|呢|一下/gi, " ")
+    .replace(/\b(?:do you|can you|could you|what do you|please|still|remember|recall|search|find|look up|check|memories?|previous(?:ly)?|past|history|important moments?|the|that|thing|things|about|what|i|we|said|mentioned|last time)\b/gi, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function isCoolingDown(item, now, cooldownMs) {
@@ -11863,6 +11929,8 @@ module.exports = {
     isExplicitDeepMemoryRecall,
     isPromptSafeDeepMemory,
     scoreDeepMemory,
+    stripRecallLanguage,
+    tokenMatchScore,
     tokenize
   }
 };

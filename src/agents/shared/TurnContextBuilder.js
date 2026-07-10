@@ -83,8 +83,19 @@ async function buildAgentTurnContext({
     interactionPatternCandidates,
     useFullPrompt
   });
+  const referencedDeepMemories = getReferencedDeepMemories(promptResult, promptSignals);
+  if (referencedDeepMemories.length > 0 && typeof plugin.deepMemoryStore.markRecalled === "function") {
+    await plugin.deepMemoryStore.markRecalled(referencedDeepMemories, Date.now());
+  }
 
-  emitPromptContextNotices(onUpdate, promptResult, promptSignals, translate, keyPrefix);
+  emitPromptContextNotices(
+    onUpdate,
+    promptResult,
+    promptSignals,
+    translate,
+    keyPrefix,
+    referencedDeepMemories
+  );
 
   return {
     activeFilePath,
@@ -153,13 +164,13 @@ async function buildPromptResultForTurnContext({
   return buildTurnContextPrompt(app, settings, prompt, options);
 }
 
-function emitPromptContextNotices(onUpdate, promptResult, promptSignals, translate, keyPrefix) {
+function emitPromptContextNotices(onUpdate, promptResult, promptSignals, translate, keyPrefix, referencedDeepMemories = null) {
   if (promptSignals.memories.length > 0) {
     emitMemoryNotice(onUpdate, promptSignals.memories, translate, keyPrefix);
   }
-  const referencedDeepMemories = getReferencedDeepMemories(promptResult, promptSignals);
-  if (referencedDeepMemories.length > 0) {
-    emitDeepMemoryNotice(onUpdate, referencedDeepMemories, translate, keyPrefix);
+  const referenced = referencedDeepMemories || getReferencedDeepMemories(promptResult, promptSignals);
+  if (referenced.length > 0) {
+    emitDeepMemoryNotice(onUpdate, referenced, translate, keyPrefix);
   }
   if (promptResult.context.compressed) {
     emitContextCompressedNotice(onUpdate, promptResult.context, translate, keyPrefix);

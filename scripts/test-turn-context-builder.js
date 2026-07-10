@@ -88,6 +88,7 @@ function createPlugin() {
       }
     },
     deepMemoryStore: {
+      marked: [],
       async getPromptMemories() {
         return [{
           id: "deep-1",
@@ -101,6 +102,9 @@ function createPlugin() {
           createdAt: now,
           updatedAt: now
         }];
+      },
+      async markRecalled(items) {
+        this.marked.push(...items);
       }
     },
     getPromptWorkingAffect() {
@@ -121,8 +125,9 @@ function translate(key, params = {}) {
 
 async function testBuildAgentTurnContext() {
   const notices = [];
+  const plugin = createPlugin();
   const result = await buildAgentTurnContext({
-    plugin: createPlugin(),
+    plugin,
     settings: {
       assistantStyle: "collaborative",
       contextLimitChars: 8000,
@@ -184,6 +189,11 @@ async function testBuildAgentTurnContext() {
   const deepMemoryFields = Object.fromEntries(deepMemoryNotice.auditItems[0].fields.map((field) => [field.label, field.value]));
   assert.equal(deepMemoryFields["codex.memoryAudit.field.createdAt"], "2026-07-09");
   assert.equal(deepMemoryFields["codex.memoryAudit.field.updatedAt"], "2026-07-09");
+  assert.deepEqual(
+    plugin.deepMemoryStore.marked.map((memory) => memory.id),
+    ["deep-1"],
+    "only the deep memory actually retained in the final prompt should enter recall cooldown"
+  );
 }
 
 function testDeepMemoryNoticeRequiresFinalPromptInclusion() {

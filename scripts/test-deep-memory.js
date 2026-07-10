@@ -15,7 +15,10 @@ const {
   extractDeepMemoryCandidates,
   _test: deepMemoryExtractorTest
 } = require("../src/deepMemory/DeepMemoryExtractor");
-const { DeepMemoryStore } = require("../src/deepMemory/DeepMemoryStore");
+const {
+  DeepMemoryStore,
+  _test: deepMemoryStoreTest
+} = require("../src/deepMemory/DeepMemoryStore");
 
 const now = Date.UTC(2026, 6, 9);
 
@@ -103,6 +106,34 @@ function testExtractorSkipsGenericThanksAndSensitiveText() {
     extractDeepMemoryCandidates({ prompt: "api_key=sk-abc123 我很喜欢你这样", response: "ok", now }, { threshold: 0.68, now }).length,
     0,
     "sensitive content should not be captured"
+  );
+}
+
+function testExplicitRecallDetectionExcludesMechanismAndFutureCaptureTalk() {
+  assert.equal(
+    deepMemoryStoreTest.isExplicitDeepMemoryRecall("深刻记忆的召回效果很差"),
+    false,
+    "mechanism discussion should not be mistaken for an explicit request to recall stored moments"
+  );
+  assert.equal(
+    deepMemoryStoreTest.isExplicitDeepMemoryRecall("请记住这个决定"),
+    false,
+    "a request to capture future memory should not bypass recall cooldown"
+  );
+  assert.equal(
+    deepMemoryStoreTest.isExplicitDeepMemoryRecall("记得更新 README 和测试"),
+    false,
+    "a current-task reminder should not be mistaken for historical recall"
+  );
+  assert.equal(
+    deepMemoryStoreTest.isExplicitDeepMemoryRecall("你还记得我们上次完成的同步修复吗？"),
+    true,
+    "a direct recollection question should bypass cooldown"
+  );
+  assert.equal(
+    deepMemoryStoreTest.isExplicitDeepMemoryRecall("你有没有印象我们之前修过同步问题？"),
+    true,
+    "a natural recollection question should bypass cooldown"
   );
 }
 
@@ -246,6 +277,8 @@ async function testStoreCapturesAndRecallsWithCooldown() {
     { now: now + 86400000 }
   );
   assert.equal(recalled.length, 1, "matching prompt should recall the memory");
+  assert.equal(recalled[0].recallCount, 0, "ranking alone should not cool a memory before prompt injection");
+  await store.markRecalled(recalled, now + 86400000);
   assert.equal(recalled[0].recallCount, 1, "recall should update the selected memory");
 
   const cooled = await store.getPromptMemories(
@@ -261,6 +294,159 @@ async function testStoreCapturesAndRecallsWithCooldown() {
     { now: now + 2 * 86400000 }
   );
   assert.equal(explicit.length, 1, "explicit recall should bypass cooldown");
+}
+
+async function testSpecificExplicitRecallRejectsUnrelatedHighImportanceMemory() {
+  const { store } = createStore();
+  const settings = createSettings({ deepMemoryMaxPromptItems: 1 });
+  await store.saveMemory({
+    version: 1,
+    updatedAt: now,
+    items: [
+      {
+        id: "deep-unrelated",
+        key: "unrelated",
+        kind: "relationship_insight",
+        summary: "用户珍惜自然连续、不过度强调记忆机制的陪伴感。",
+        userExcerpt: "不要让连续性显得刻意。",
+        importance: 1,
+        confidence: 1,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "deep-timeline",
+        key: "timeline-repair",
+        kind: "turning_point",
+        summary: "我们修复了时间线最终答案顺序，保留最后 content 在已处理分组之外。",
+        userExcerpt: "最终答案必须保持在最后。",
+        importance: 0.7,
+        confidence: 0.7,
+        createdAt: now - 30 * 86400000,
+        updatedAt: now - 30 * 86400000
+      }
+    ]
+  });
+
+  const recalled = await store.getPromptMemories(
+    "你还记得我们修复时间线最终答案顺序的那次吗？",
+    settings,
+    { now: now + 86400000 }
+  );
+  assert.deepEqual(
+    recalled.map((item) => item.id),
+    ["deep-timeline"],
+    "a topical explicit recall should exclude unrelated memories even when they have higher importance"
+  );
+}
+
+async function testConversationRecallWordsDoNotBypassCooldown() {
+  const { store } = createStore();
+  const settings = createSettings();
+  await store.saveMemory({
+    version: 1,
+    updatedAt: now,
+    items: [{
+      id: "deep-cooled",
+      key: "cooled",
+      kind: "meaningful_episode",
+      summary: "我们完成了困难的同步修复。",
+      userExcerpt: "同步问题终于修好了。",
+      importance: 0.9,
+      confidence: 0.9,
+      recallCount: 1,
+      lastRecalledAt: now,
+      createdAt: now,
+      updatedAt: now
+    }]
+  });
+
+  const recalled = await store.getPromptMemories(
+    "继续检查同步修复。",
+    settings,
+    {
+      now: now + 86400000,
+      conversationText: "上一轮用户问：你还记得之前的重要时刻吗？"
+    }
+  );
+  assert.equal(
+    recalled.length,
+    0,
+    "recall words in old conversation should not make the current request bypass cooldown"
+  );
+}
+
+async function testGenericRecallCommandsReturnSalientMemories() {
+  for (const prompt of [
+    "看看深刻记忆",
+    "搜索一下重要时刻",
+    "读取记忆记录"
+  ]) {
+    const { store } = createStore();
+    const settings = createSettings({ deepMemoryMaxPromptItems: 1 });
+    await store.saveMemory({
+      version: 1,
+      updatedAt: now,
+      items: [{
+        id: "deep-salient",
+        key: "salient",
+        kind: "meaningful_episode",
+        summary: "我们完成了一次重要的同步修复。",
+        importance: 0.9,
+        confidence: 0.9,
+        createdAt: now,
+        updatedAt: now
+      }]
+    });
+
+    const recalled = await store.getPromptMemories(prompt, settings, { now: now + 86400000 });
+    assert.equal(recalled[0]?.id, "deep-salient", `generic recall command should return salient memory: ${prompt}`);
+  }
+}
+
+async function testCurrentRequestOutranksSupportingConversation() {
+  const { store } = createStore();
+  const settings = createSettings({ deepMemoryMaxPromptItems: 1 });
+  const longRequestContext = Array.from(
+    { length: 80 },
+    (_, index) => `requirement${index}`
+  ).join(" ");
+  await store.saveMemory({
+    version: 1,
+    updatedAt: now,
+    items: [
+      {
+        id: "deep-conversation",
+        key: "conversation",
+        kind: "relationship_insight",
+        summary: "另一个项目使用普通会话约定 requirement0。",
+        importance: 1,
+        confidence: 1,
+        createdAt: now,
+        updatedAt: now
+      },
+      {
+        id: "deep-current",
+        key: "current",
+        kind: "meaningful_episode",
+        summary: "我们解决了 Cursor ACP 会话复用故障。",
+        importance: 0.7,
+        confidence: 0.7,
+        createdAt: now - 20 * 86400000,
+        updatedAt: now - 20 * 86400000
+      }
+    ]
+  });
+
+  const recalled = await store.getPromptMemories(
+    `继续排查 Cursor ACP 会话复用故障。${longRequestContext}`,
+    settings,
+    {
+      now: now + 86400000,
+      conversationText: "我们一直在讨论自然连续和陪伴感。"
+    }
+  );
+  assert.equal(recalled[0]?.id, "deep-current", "the current request should outweigh stale conversation overlap");
 }
 
 async function testDeepMemoryRecallsSubtleParaphrase() {
@@ -349,12 +535,17 @@ async function testAssistantContentCanProvideOutcomeEvidence() {
 Promise.resolve()
   .then(testExtractorCapturesImportantMomentPreference)
   .then(testExtractorSkipsGenericThanksAndSensitiveText)
+  .then(testExplicitRecallDetectionExcludesMechanismAndFutureCaptureTalk)
   .then(testExtractorSkipsDeepMemoryMetaDiscussionAndOptOut)
   .then(testExtractorCapturesAgentDockDeepMemorySignal)
   .then(testExtractorDoesNotTreatOrdinaryAssistantContentAsSignal)
   .then(testLowImportanceAiSignalDoesNotAutomaticallyPassThreshold)
   .then(testSalienceObservationOnlyBoostsMatchingExistingCandidates)
   .then(testStoreCapturesAndRecallsWithCooldown)
+  .then(testSpecificExplicitRecallRejectsUnrelatedHighImportanceMemory)
+  .then(testConversationRecallWordsDoNotBypassCooldown)
+  .then(testGenericRecallCommandsReturnSalientMemories)
+  .then(testCurrentRequestOutranksSupportingConversation)
   .then(testDeepMemoryRecallsSubtleParaphrase)
   .then(testSaliencePresetInfluencesCapture)
   .then(testAssistantContentCanProvideOutcomeEvidence)

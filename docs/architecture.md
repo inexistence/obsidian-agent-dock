@@ -546,9 +546,13 @@ Stored files:
 After a successful provider reply, Agent Dock extracts deep memory candidates
 locally and saves only items above `deepMemoryImportanceThreshold`. Generic
 thanks are ignored, sensitive text is filtered, and prompt injection is limited
-by `deepMemoryMaxPromptItems`. Recalled items update `recallCount` and
-`lastRecalledAt`; the configured cooldown prevents repeatedly surfacing the
-same important moment unless the user explicitly asks about memory. Candidate
+by `deepMemoryMaxPromptItems`. Recall ranking gives the current request more
+weight than recent conversation or path context, and a specific explicit recall
+request excludes unrelated memories instead of treating every stored moment as
+a match. Only memories actually retained in the final prompt update
+`recallCount` and `lastRecalledAt`; the configured cooldown prevents repeatedly
+surfacing the same important moment unless the user explicitly asks about
+memory. Candidate
 events can carry `salienceAxes`; the current persona salience preset can lightly
 raise importance for matching axes such as beauty, achievement, craft, care,
 justice, curiosity, or repair. The final assistant content can contribute
