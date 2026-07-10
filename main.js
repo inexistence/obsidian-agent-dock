@@ -4090,6 +4090,10 @@ function formatInteractionMemoryUpdateTitle(settings, keyPrefix, translate, resu
     : `${keyPrefix}.interactionMemoryUpdated.episodeTitle`);
 }
 
+function formatInteractionMemoryUpdateKind(result) {
+  return hasInteractionDerivedChanges(result) ? "notice" : "activity";
+}
+
 function buildMemoryUpdateAuditItems(saved, settings, keyPrefix, translate) {
   return (Array.isArray(saved) ? saved : []).map((item, index) => {
     const type = translate(settings, `${keyPrefix}.memoryAudit.type.memory`);
@@ -4464,6 +4468,7 @@ module.exports = {
   buildInteractionMemoryAuditItems,
   buildMemoryUpdateAuditItems,
   formatDeepMemoryUpdateSummary,
+  formatInteractionMemoryUpdateKind,
   formatInteractionMemoryUpdateSummary,
   formatInteractionMemoryUpdateTitle,
   formatMemoryUpdateSummary
@@ -8719,6 +8724,7 @@ const {
   buildInteractionMemoryAuditItems,
   buildMemoryUpdateAuditItems,
   formatDeepMemoryUpdateSummary,
+  formatInteractionMemoryUpdateKind,
   formatInteractionMemoryUpdateSummary,
   formatInteractionMemoryUpdateTitle,
   formatMemoryUpdateSummary
@@ -9051,7 +9057,7 @@ class CodexAgent {
       const result = await this.plugin.interactionMemoryStore.captureTurn(turn, settings);
       if (result.closedEpisodes.length > 0) {
         onUpdate({
-          kind: "notice",
+          kind: formatInteractionMemoryUpdateKind(result),
           noticeType: "interaction_memory_updated",
           insertBeforeLastContent: true,
           title: formatInteractionMemoryUpdateTitle(settings, "codex", t, result),
@@ -9928,6 +9934,7 @@ const {
   buildInteractionMemoryAuditItems,
   buildMemoryUpdateAuditItems,
   formatDeepMemoryUpdateSummary,
+  formatInteractionMemoryUpdateKind,
   formatInteractionMemoryUpdateSummary,
   formatInteractionMemoryUpdateTitle,
   formatMemoryUpdateSummary
@@ -10496,7 +10503,7 @@ class CursorAgent {
       const result = await this.plugin.interactionMemoryStore.captureTurn(turn, settings);
       if (result.closedEpisodes.length > 0) {
         onUpdate({
-          kind: "notice",
+          kind: formatInteractionMemoryUpdateKind(result),
           noticeType: "interaction_memory_updated",
           insertBeforeLastContent: true,
           title: formatInteractionMemoryUpdateTitle(settings, "cursor", t, result),

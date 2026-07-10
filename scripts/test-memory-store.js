@@ -24,6 +24,7 @@ const {
 const {
   buildDeepMemoryAuditItems,
   buildInteractionMemoryAuditItems,
+  formatInteractionMemoryUpdateKind,
   formatInteractionMemoryUpdateSummary,
   formatInteractionMemoryUpdateTitle
 } = require("../src/agents/shared/captureNotices");
@@ -954,6 +955,24 @@ testSearchMemories().then(() => {
     updatedStableImpressions: []
   });
   assert.match(unchangedInteractionSummary, /没有更新模式、张力或稳定印象/, "interaction summary should distinguish episode storage from derived-memory changes");
+  assert.equal(
+    formatInteractionMemoryUpdateKind({
+      updatedPatterns: [],
+      updatedTensions: [],
+      updatedStableImpressions: []
+    }),
+    "activity",
+    "episode-only interaction updates should be debug activity"
+  );
+  assert.equal(
+    formatInteractionMemoryUpdateKind({
+      updatedPatterns: [{ id: "pattern-1" }],
+      updatedTensions: [],
+      updatedStableImpressions: []
+    }),
+    "notice",
+    "derived interaction changes should remain visible notices"
+  );
   assert.equal(
     formatInteractionMemoryUpdateTitle(settings, "codex", t, {
       updatedPatterns: [],

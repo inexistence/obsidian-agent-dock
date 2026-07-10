@@ -68,6 +68,10 @@ function formatInteractionMemoryUpdateTitle(settings, keyPrefix, translate, resu
     : `${keyPrefix}.interactionMemoryUpdated.episodeTitle`);
 }
 
+function formatInteractionMemoryUpdateKind(result) {
+  return hasInteractionDerivedChanges(result) ? "notice" : "activity";
+}
+
 function buildMemoryUpdateAuditItems(saved, settings, keyPrefix, translate) {
   return (Array.isArray(saved) ? saved : []).map((item, index) => {
     const type = translate(settings, `${keyPrefix}.memoryAudit.type.memory`);
@@ -442,6 +446,7 @@ module.exports = {
   buildInteractionMemoryAuditItems,
   buildMemoryUpdateAuditItems,
   formatDeepMemoryUpdateSummary,
+  formatInteractionMemoryUpdateKind,
   formatInteractionMemoryUpdateSummary,
   formatInteractionMemoryUpdateTitle,
   formatMemoryUpdateSummary

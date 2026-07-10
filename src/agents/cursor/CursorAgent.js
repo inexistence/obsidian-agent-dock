@@ -23,6 +23,7 @@ const {
   buildInteractionMemoryAuditItems,
   buildMemoryUpdateAuditItems,
   formatDeepMemoryUpdateSummary,
+  formatInteractionMemoryUpdateKind,
   formatInteractionMemoryUpdateSummary,
   formatInteractionMemoryUpdateTitle,
   formatMemoryUpdateSummary
@@ -591,7 +592,7 @@ class CursorAgent {
       const result = await this.plugin.interactionMemoryStore.captureTurn(turn, settings);
       if (result.closedEpisodes.length > 0) {
         onUpdate({
-          kind: "notice",
+          kind: formatInteractionMemoryUpdateKind(result),
           noticeType: "interaction_memory_updated",
           insertBeforeLastContent: true,
           title: formatInteractionMemoryUpdateTitle(settings, "cursor", t, result),
