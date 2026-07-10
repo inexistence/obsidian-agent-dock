@@ -1,0 +1,73 @@
+scripts/test-prompt-budget.js
+  s_c4ac52de5c7432::t_ef396d1e28f4b8 195-196
+scripts/test-continuity-prompt.js
+  s_c4ac52de5c7432::t_5bd3c43e871073 27-29,73-74
+src/agents/shared/TurnContextBuilder.js
+  s_c4ac52de5c7432::t_1eae5da72e69b4 5,58-64,71,80-81,91,101-102
+src/expression/ExpressionSignalExtractor.js
+  s_c4ac52de5c7432::t_5cb86abf1fbf56 62-64,67-68,79-85
+  s_c4ac52de5c7432::t_1e1ed6bec04575 1-35,37-61,65-66,69-78,86-138
+  s_c4ac52de5c7432::t_f8c7b7e3e60c85 36
+src/expression/ExpressionPolicyPlanner.js
+  s_c4ac52de5c7432::t_88c7a140e9d2ed 85
+  s_c4ac52de5c7432::t_22b1b995e4b10b 88,142
+  s_c4ac52de5c7432::t_40bf660bee4e63 1-84,86-87,89-141,143-195
+src/prompt.js
+  s_c4ac52de5c7432::t_a6e47baeb9b33b 109,149
+  s_c4ac52de5c7432::t_dd5dfab04a3f63 3,21,35,531,545
+src/interaction/PatternReducer.js
+  s_c4ac52de5c7432::t_19b1cb7f86cf2a 58-59,78-79,97-98
+src/interaction/InteractionPromptFormatter.js
+  s_c4ac52de5c7432::t_0991fe425f2f6e 30-31,33-57,60-63
+  s_c4ac52de5c7432::t_11707381259a94 32
+src/agents/cursor/CursorAgent.js
+  s_c4ac52de5c7432::t_ba9511f0c5e5fc 119,174
+scripts/test-expression-policy.js
+  s_c4ac52de5c7432::t_84b10b377930ed 1-74,86-109,111-118
+  s_c4ac52de5c7432::t_827371688629a9 75-85,110
+docs/architecture.md
+  s_c4ac52de5c7432::t_bccdaa7b883c68 64,195-198,213-219,621
+main.js
+  s_c4ac52de5c7432::t_8f8da704cbe189 4036-4045,4049-4050,4052-4065,4067,4073-4074,4133,4138,4448,4488,8604-8605,8607-8631,8634-8637,8972-8973,8992-8993,9011-9012
+  s_c4ac52de5c7432::t_1893ddc4b79ae4 4139,4141-4186,4189,4342,4360,4374,4870,4884,5084-5348,5350-5423,5425,5589,5641-5647,5655,5664-5665,5675,5685-5686,7174,7229
+  s_c4ac52de5c7432::t_ceef8c0904d5ad 4017-4020,4033-4035,4046-4048,4051,4117-4128,4132
+  s_25a947e74d5d6f::t_b05655669281c0 4066,4187-4188,5349,5424,5648,8606
+scripts/test-interaction-memory.js
+  s_c4ac52de5c7432::t_a67c6626d2208d 172
+  s_c4ac52de5c7432::t_59448f5033c146 170
+  s_c4ac52de5c7432::t_73673788ab66bf 171,204
+src/continuity/ContinuityPromptFormatter.js
+  s_c4ac52de5c7432::t_86a3d49b7b6572 59-62,75-77,88-90,93,157-168,170,174
+  s_c4ac52de5c7432::t_bd3dfd8bdc6617 78-87,91-92,94-99,101-109,115-116,175
+  s_c4ac52de5c7432::t_9ef02753732674 100
+  s_c4ac52de5c7432::t_5023bb34b38368 169
+src/expression/ExpressionPromptFormatter.js
+  s_c4ac52de5c7432::t_67e859c3ed000a 1-46
+README.md
+  s_c4ac52de5c7432::t_3feea63f6b6e34 114-122
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "59d83456a59a8264053eb96eaf6651cf4156360c",
+  "prompts": {},
+  "logical_commit_id": "59d83456a59a8264053eb96eaf6651cf4156360c",
+  "sessions": {
+    "s_25a947e74d5d6f": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f49e7-a43d-7a30-8001-a8781246980b",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    },
+    "s_c4ac52de5c7432": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f49b3-85dd-7c80-b8a6-159157e57df5",
+        "model": "gpt-5.5"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
