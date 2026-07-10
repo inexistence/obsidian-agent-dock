@@ -2,6 +2,12 @@ const { redactSensitiveText } = require("../../storage/sensitiveText");
 const {
   normalizeAiPatternCandidate
 } = require("../../interaction/InteractionPatternCandidates");
+const {
+  AFFECT_SIGNAL_TONES,
+  INTERACTION_SIGNAL_SHAPES,
+  MEMORY_SIGNAL_SCOPES,
+  SALIENCE_SIGNAL_AXES
+} = require("./reflectionProtocol");
 
 const MAX_SIGNAL_TEXT_CHARS = 240;
 const MAX_AXES = 3;
@@ -18,48 +24,6 @@ const REFLECTION_EVIDENCE_ORIGINS = new Set([
   "unknown"
 ]);
 const REFLECTION_EVIDENCE_SPEAKERS = new Set(["user", "assistant", "none"]);
-const MEMORY_SIGNAL_SCOPES = {
-  decision: "project",
-  task: "project",
-  identity: "agent",
-  shared: "shared"
-};
-const INTERACTION_SIGNAL_SHAPES = new Set([
-  "implementation_plan",
-  "mechanism_explanation",
-  "independent_judgment",
-  "repair_response",
-  "restated_intent",
-  "became_concrete",
-  "became_shorter",
-  "became_deeper",
-  "softened_tone",
-  "warm_presence"
-]);
-const AFFECT_SIGNAL_TONES = new Set([
-  "serious",
-  "reassuring",
-  "celebratory",
-  "playful",
-  "confident",
-  "patient",
-  "restrained",
-  "composed",
-  "tense-focused",
-  "warm-focused",
-  "focused",
-  "calm"
-]);
-const SALIENCE_SIGNAL_AXES = new Set([
-  "beauty",
-  "care",
-  "justice",
-  "curiosity",
-  "craft",
-  "achievement",
-  "repair"
-]);
-
 const TERMINAL_AGENT_DOCK_COMMENT_PATTERN = /(?:\n\s*)?<!--\s*agent-dock:([a-z-]+)([^|>]*)\|\s*([\s\S]*?)\s*-->\s*$/i;
 const TERMINAL_AGENT_DOCK_SUSPECT_PATTERN = /(?:^|\n)\s*<!--\s*agent-dock:[^\n]*$/i;
 const LEADING_REFLECTION_PATTERN = /^\s*<!--\s*agent-dock:reflection\b([^|>]*)\|\s*([\s\S]*?)\s*-->\s*/i;

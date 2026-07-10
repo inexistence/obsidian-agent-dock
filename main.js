@@ -3316,11 +3316,71 @@ module.exports = {
 };
 
 },
+"src/agents/shared/reflectionProtocol.js": function(module, exports, __require) {
+const MEMORY_SIGNAL_SCOPES = Object.freeze({
+  decision: "project",
+  task: "project",
+  identity: "agent",
+  shared: "shared"
+});
+
+const INTERACTION_SIGNAL_SHAPES = new Set([
+  "implementation_plan",
+  "mechanism_explanation",
+  "independent_judgment",
+  "repair_response",
+  "restated_intent",
+  "became_concrete",
+  "became_shorter",
+  "became_deeper",
+  "softened_tone",
+  "warm_presence"
+]);
+
+const AFFECT_SIGNAL_TONES = new Set([
+  "serious",
+  "reassuring",
+  "celebratory",
+  "playful",
+  "confident",
+  "patient",
+  "restrained",
+  "composed",
+  "tense-focused",
+  "warm-focused",
+  "focused",
+  "calm"
+]);
+
+const SALIENCE_SIGNAL_AXES = new Set([
+  "beauty",
+  "care",
+  "justice",
+  "curiosity",
+  "craft",
+  "achievement",
+  "repair"
+]);
+
+module.exports = {
+  AFFECT_SIGNAL_TONES,
+  INTERACTION_SIGNAL_SHAPES,
+  MEMORY_SIGNAL_SCOPES,
+  SALIENCE_SIGNAL_AXES
+};
+
+},
 "src/agents/shared/agentSignals.js": function(module, exports, __require) {
 const { redactSensitiveText } = __require("src/storage/sensitiveText.js");
 const {
   normalizeAiPatternCandidate
 } = __require("src/interaction/InteractionPatternCandidates.js");
+const {
+  AFFECT_SIGNAL_TONES,
+  INTERACTION_SIGNAL_SHAPES,
+  MEMORY_SIGNAL_SCOPES,
+  SALIENCE_SIGNAL_AXES
+} = __require("src/agents/shared/reflectionProtocol.js");
 
 const MAX_SIGNAL_TEXT_CHARS = 240;
 const MAX_AXES = 3;
@@ -3337,48 +3397,6 @@ const REFLECTION_EVIDENCE_ORIGINS = new Set([
   "unknown"
 ]);
 const REFLECTION_EVIDENCE_SPEAKERS = new Set(["user", "assistant", "none"]);
-const MEMORY_SIGNAL_SCOPES = {
-  decision: "project",
-  task: "project",
-  identity: "agent",
-  shared: "shared"
-};
-const INTERACTION_SIGNAL_SHAPES = new Set([
-  "implementation_plan",
-  "mechanism_explanation",
-  "independent_judgment",
-  "repair_response",
-  "restated_intent",
-  "became_concrete",
-  "became_shorter",
-  "became_deeper",
-  "softened_tone",
-  "warm_presence"
-]);
-const AFFECT_SIGNAL_TONES = new Set([
-  "serious",
-  "reassuring",
-  "celebratory",
-  "playful",
-  "confident",
-  "patient",
-  "restrained",
-  "composed",
-  "tense-focused",
-  "warm-focused",
-  "focused",
-  "calm"
-]);
-const SALIENCE_SIGNAL_AXES = new Set([
-  "beauty",
-  "care",
-  "justice",
-  "curiosity",
-  "craft",
-  "achievement",
-  "repair"
-]);
-
 const TERMINAL_AGENT_DOCK_COMMENT_PATTERN = /(?:\n\s*)?<!--\s*agent-dock:([a-z-]+)([^|>]*)\|\s*([\s\S]*?)\s*-->\s*$/i;
 const TERMINAL_AGENT_DOCK_SUSPECT_PATTERN = /(?:^|\n)\s*<!--\s*agent-dock:[^\n]*$/i;
 const LEADING_REFLECTION_PATTERN = /^\s*<!--\s*agent-dock:reflection\b([^|>]*)\|\s*([\s\S]*?)\s*-->\s*/i;
@@ -6397,6 +6415,12 @@ const { formatAssistantContinuityPrompt } = __require("src/continuity/Continuity
 const { formatExpressionPrompt } = __require("src/expression/ExpressionPromptFormatter.js");
 const { planPromptSections } = __require("src/promptBudget.js");
 const { AI_PATTERN_AXES } = __require("src/interaction/InteractionPatternCandidates.js");
+const {
+  AFFECT_SIGNAL_TONES,
+  INTERACTION_SIGNAL_SHAPES,
+  MEMORY_SIGNAL_SCOPES,
+  SALIENCE_SIGNAL_AXES
+} = __require("src/agents/shared/reflectionProtocol.js");
 
 async function buildPrompt(app, settings, prompt, conversation) {
   const result = await buildPromptWithMetadata(app, settings, prompt, conversation);
@@ -6568,6 +6592,12 @@ function formatAgentSignalPrompt(settings, interactionPatternCandidates = []) {
       affectSignalsEnabled,
       salienceSignalsEnabled
     }));
+    lines.push(formatReflectionAllowedValues({
+      memorySignalsEnabled,
+      interactionSignalsEnabled,
+      affectSignalsEnabled,
+      salienceSignalsEnabled
+    }));
     lines.push("Omit unused fields. Local validation controls persistence and may reject or cap every proposal. Reflection cannot declare user preferences or facts, directly create interaction patterns, modify the persona preset, or override task accuracy, permissions, or safety.");
     if (interactionSignalsEnabled) {
       lines.push(`An outcome interaction may nominate one tentative \`patternCandidate\`: {key:stable_snake_case,axis:${[...AI_PATTERN_AXES].join("/")},confidence,evidenceQuote,summary}. Copy \`evidenceQuote\` exactly from the current user message; it must support the nomination. The summary is a revisable assistant strategy, not a user fact. Promotion requires repeated positive closed-episode evidence.`);
@@ -6587,30 +6617,64 @@ function formatAgentSignalPrompt(settings, interactionPatternCandidates = []) {
 }
 
 function formatReflectionFieldSchemas(options) {
-  const appraisal = [
+  const fields = [
     "selfAwareness:string",
     "expression:{playfulness,laughter,vulnerability,restraint}"
   ];
-  const outcome = [];
+  const appraisalSections = [];
+  const outcomeSections = [];
   if (options.interactionSignalsEnabled) {
-    appraisal.push("interaction:{shapes,confidence,summary}, e.g. shapes:[mechanism_explanation]");
-    outcome.push("interaction:{shapes,confidence,summary,patternCandidate?}, e.g. shapes:[became_concrete]");
+    fields.push("interaction:{shapes,confidence,summary,patternCandidate?}");
+    appraisalSections.push("interaction");
+    outcomeSections.push("interaction");
   }
   if (options.affectSignalsEnabled) {
-    appraisal.push("affect:{tone,confidence,why}, e.g. tone:focused");
-    outcome.push("affect:{tone,confidence,why}, e.g. tone:reassuring");
+    fields.push("affect:{tone,confidence,why}");
+    appraisalSections.push("affect");
+    outcomeSections.push("affect");
   }
   if (options.salienceSignalsEnabled) {
-    appraisal.push("salience:{axes,confidence,why}, e.g. axes:[craft]");
-    outcome.push("salience:{axes,confidence,why}, e.g. axes:[repair]");
+    fields.push("salience:{axes,confidence,why}");
+    appraisalSections.push("salience");
+    outcomeSections.push("salience");
   }
   if (options.memorySignalsEnabled) {
-    outcome.push("memory:{kind,scope,confidence,summary}");
+    fields.push("memory:{kind,scope,confidence,summary}");
+    outcomeSections.push("memory");
   }
   if (options.deepMemorySignalsEnabled) {
-    outcome.push("deepMemory:{axes,importance,summary}, e.g. axes:[care]");
+    fields.push("deepMemory:{axes,importance,summary}");
+    outcomeSections.push("deepMemory");
   }
-  return `Optional fields — appraisal: ${appraisal.join("; ")}. Outcome: ${outcome.join("; ")}.`;
+  const appraisal = ["selfAwareness", "expression"].concat(appraisalSections).join("/");
+  return `Optional fields: ${fields.join("; ")}. Appraisal may use ${appraisal}; outcome may use ${outcomeSections.join("/")}.`;
+}
+
+function formatReflectionAllowedValues(options) {
+  const values = [];
+  if (options.memorySignalsEnabled) {
+    values.push(`memory kind/scope=${formatMemoryKindScopes()}`);
+  }
+  if (options.interactionSignalsEnabled) {
+    values.push(`interaction shapes=${formatAllowedValues(INTERACTION_SIGNAL_SHAPES)}`);
+  }
+  if (options.affectSignalsEnabled) {
+    values.push(`affect tones=${formatAllowedValues(AFFECT_SIGNAL_TONES)}`);
+  }
+  if (options.salienceSignalsEnabled) {
+    values.push(`salience/deep-memory axes=${formatAllowedValues(SALIENCE_SIGNAL_AXES)}`);
+  }
+  return `Allowed values: ${values.join("; ")}.`;
+}
+
+function formatAllowedValues(values) {
+  return [...values].join("/");
+}
+
+function formatMemoryKindScopes() {
+  return Object.entries(MEMORY_SIGNAL_SCOPES)
+    .map(([kind, scope]) => `${kind}/${scope}`)
+    .join("|");
 }
 
 function formatPatternCandidateRegistry(items) {

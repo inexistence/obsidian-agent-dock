@@ -17,6 +17,12 @@ const {
 } = require("../src/prompt");
 const { planPromptSections } = require("../src/promptBudget");
 const { extractAgentDockSignals } = require("../src/agents/shared/agentSignals");
+const {
+  AFFECT_SIGNAL_TONES,
+  INTERACTION_SIGNAL_SHAPES,
+  MEMORY_SIGNAL_SCOPES,
+  SALIENCE_SIGNAL_AXES
+} = require("../src/agents/shared/reflectionProtocol");
 
 const app = {
   vault: {
@@ -242,11 +248,12 @@ async function testAgentDockSignalPolicyFollowsDeepMemorySettings() {
   assert(enabled.prompt.includes('"speaker":"assistant"'), "outcome evidence example should identify the assistant speaker");
   assert(enabled.prompt.includes("cannot declare user preferences or facts"), "reflection policy should protect user facts and preferences");
   assert(enabled.prompt.includes("never hidden reasoning"), "signal policy should keep the hidden-reasoning boundary visible");
+  assertPromptListsAllowedValues(enabled.prompt);
   assert(enabled.prompt.includes("Minimal leading example"), "reflection policy should retain a minimal syntax example");
   assert(!enabled.prompt.includes("semantic account of how the visible final answer responded"), "reflection policy should not inject the former full-field example");
   const reflectionStart = enabled.prompt.indexOf("Agent Dock continuity reflection:");
   const reflectionEnd = enabled.prompt.indexOf("\nUser request:", reflectionStart);
-  assert(reflectionEnd - reflectionStart < 3200, "reflection policy plus a candidate registry should remain materially smaller than the former full examples");
+  assert(reflectionEnd - reflectionStart < 3500, "reflection policy plus a candidate registry should remain materially smaller than the former full examples");
   assertPromptLeadingExampleParses(enabled.prompt, "default continuity settings");
 
   const disabled = await buildPromptWithMetadata(
@@ -321,6 +328,21 @@ async function testAgentDockSignalPolicyFollowsDeepMemorySettings() {
       []
     );
     assertPromptLeadingExampleParses(isolated.prompt, item.label);
+  }
+}
+
+function assertPromptListsAllowedValues(prompt) {
+  for (const [kind, scope] of Object.entries(MEMORY_SIGNAL_SCOPES)) {
+    assert(prompt.includes(`${kind}/${scope}`), `prompt should list the accepted ${kind} memory scope`);
+  }
+  for (const shape of INTERACTION_SIGNAL_SHAPES) {
+    assert(prompt.includes(shape), `prompt should list the accepted interaction shape ${shape}`);
+  }
+  for (const tone of AFFECT_SIGNAL_TONES) {
+    assert(prompt.includes(tone), `prompt should list the accepted affect tone ${tone}`);
+  }
+  for (const axis of SALIENCE_SIGNAL_AXES) {
+    assert(prompt.includes(axis), `prompt should list the accepted salience axis ${axis}`);
   }
 }
 
