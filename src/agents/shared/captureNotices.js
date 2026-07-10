@@ -1,3 +1,5 @@
+const { formatAuditDate } = require("./auditFormatting");
+
 const MAX_NOTICE_ITEMS = 3;
 const MAX_NOTICE_TEXT_CHARS = 180;
 const MAX_AUDIT_TEXT_CHARS = 1400;
@@ -85,6 +87,8 @@ function buildMemoryUpdateAuditItems(saved, settings, keyPrefix, translate) {
       fields: [
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatUpdateReason(item, settings, keyPrefix, translate)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(item.createdAt)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(item.updatedAt)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.content`), item.text),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.scope`), item.scope),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.kind`), item.kind),
@@ -129,6 +133,8 @@ function buildDeepMemoryAuditItems(saved, settings, keyPrefix, translate) {
       fields: [
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatDeepMemoryReason(item, source, settings, keyPrefix, translate)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(item.createdAt)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(item.updatedAt)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.summary`), item.summary),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.why`), item.whyItMatters),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.feltSense`), item.feltSense),
@@ -160,6 +166,8 @@ function buildInteractionMemoryAuditItems(result, settings, keyPrefix, translate
       fields: [
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatInteractionEpisodeReason(item, settings, keyPrefix, translate)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(item.createdAt)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(item.updatedAt)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.userExcerpt`), item.userExcerpt),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.assistantExcerpt`), item.assistantExcerpt),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.reaction`), item.reaction?.excerpt || item.outcomeHint),
@@ -216,6 +224,8 @@ function buildInteractionMemoryAuditItems(result, settings, keyPrefix, translate
       fields: [
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatInteractionChangeReason(entry, settings, keyPrefix, translate)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(entry.item.createdAt)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(entry.item.updatedAt)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.content`), entry.text),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.evidenceCount`), entry.item.evidenceCount),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.confidence`), formatNumber(entry.item.confidence)),

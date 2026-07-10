@@ -171,8 +171,8 @@ function formatAgentSignalPrompt(settings, interactionPatternCandidates = []) {
       };
     }
     lines.push("Agent Dock continuity reflection:");
-    lines.push("Before every substantive answer, emit one leading `phase=appraisal` envelope and let that stance shape the answer; omit it only for empty, error-only, system-only, or trivial acknowledgement responses. Append `phase=outcome` after the visible answer only for a meaningful continuity change; otherwise omit it.");
-    lines.push("Each envelope needs 1-3 `evidence` objects shaped as `{origin,speaker,quote}`. Origins: user_message/assistant_message/recalled_memory/active_note/tool_result. Speakers: user/assistant/none. Quotes must be short exact visible excerpts with honest provenance, never hidden reasoning.");
+    lines.push("Before every substantive answer, emit one leading `phase=appraisal`; let it shape the answer. Omit only for empty, error-only, system-only, or trivial acknowledgements. Append `phase=outcome` after visible text only for a meaningful continuity change.");
+    lines.push("Each envelope needs 1-3 `{origin,speaker,quote}` evidence objects. Origins: user_message/assistant_message/recalled_memory/active_note/tool_result. Speakers: user/assistant/none. Use short exact visible quotes with honest provenance, never hidden reasoning.");
     lines.push(formatReflectionFieldSchemas({
       memorySignalsEnabled,
       deepMemorySignalsEnabled,
@@ -186,6 +186,9 @@ function formatAgentSignalPrompt(settings, interactionPatternCandidates = []) {
       affectSignalsEnabled,
       salienceSignalsEnabled
     }));
+    if (deepMemorySignalsEnabled) {
+      lines.push("`deepMemory` is rare: lasting recognition, repair, hard-won progress, warmth/beauty, grounded emotional turns, or trust/connection growth. Exclude meta-discussion, routine events, temporary mood; when unsure, omit.");
+    }
     lines.push("Omit unused fields. Local validation controls persistence and may reject or cap every proposal. Reflection cannot declare user preferences or facts, directly create interaction patterns, modify the persona preset, or override task accuracy, permissions, or safety.");
     if (interactionSignalsEnabled) {
       lines.push(`An outcome interaction may nominate one tentative \`patternCandidate\`: {key:stable_snake_case,axis:${[...AI_PATTERN_AXES].join("/")},confidence,evidenceQuote,summary}. Copy \`evidenceQuote\` exactly from the current user message; it must support the nomination. The summary is a revisable assistant strategy, not a user fact. Promotion requires repeated positive closed-episode evidence.`);

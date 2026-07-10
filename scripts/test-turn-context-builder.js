@@ -19,7 +19,7 @@ const {
   _test: { getReferencedDeepMemories }
 } = require("../src/agents/shared/TurnContextBuilder");
 
-const now = Date.UTC(2026, 6, 9);
+const now = new Date(2026, 6, 9, 12).getTime();
 
 function createMemory(id, text, scope = "project") {
   return {
@@ -164,10 +164,26 @@ async function testBuildAgentTurnContext() {
   assert(result.signalEvidenceContext.active_note.includes("Active note evidence"));
   assert(notices.some((notice) => notice.noticeType === "memory_search"));
   assert(notices.some((notice) => notice.noticeType === "memory_referenced"));
+  const memorySearchNotice = notices.find((notice) => notice.noticeType === "memory_search");
+  assert.equal(memorySearchNotice.auditItems.length, 1, "explicit memory search should expose structured audit details");
+  const memorySearchFields = Object.fromEntries(memorySearchNotice.auditItems[0].fields.map((field) => [field.label, field.value]));
+  assert.equal(
+    memorySearchFields["codex.memoryAudit.field.createdAt"],
+    "2026-07-09",
+    "explicit memory search audit should include the memory creation date"
+  );
+  assert.equal(
+    memorySearchFields["codex.memoryAudit.field.updatedAt"],
+    "2026-07-09",
+    "explicit memory search audit should include the memory update date"
+  );
   const deepMemoryNotice = notices.find((notice) => notice.noticeType === "deep_memory_referenced");
   assert(deepMemoryNotice, "an actually injected deep memory should emit a reference notice");
   assert.equal(deepMemoryNotice.auditItems.length, 1);
   assert(deepMemoryNotice.auditItems[0].summary.includes("important moments"));
+  const deepMemoryFields = Object.fromEntries(deepMemoryNotice.auditItems[0].fields.map((field) => [field.label, field.value]));
+  assert.equal(deepMemoryFields["codex.memoryAudit.field.createdAt"], "2026-07-09");
+  assert.equal(deepMemoryFields["codex.memoryAudit.field.updatedAt"], "2026-07-09");
 }
 
 function testDeepMemoryNoticeRequiresFinalPromptInclusion() {

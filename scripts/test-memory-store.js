@@ -24,6 +24,7 @@ const {
 const {
   buildDeepMemoryAuditItems,
   buildInteractionMemoryAuditItems,
+  buildMemoryUpdateAuditItems,
   formatInteractionMemoryUpdateKind,
   formatInteractionMemoryUpdateSummary,
   formatInteractionMemoryUpdateTitle
@@ -31,6 +32,7 @@ const {
 const { t } = require("../src/i18n");
 const { buildPromptWithMetadata } = require("../src/prompt");
 const { RuleBasedMemoryExtractor } = require("../src/storage/memoryExtraction/RuleBasedMemoryExtractor");
+const { formatAuditDate } = require("../src/agents/shared/auditFormatting");
 
 const extractor = new RuleBasedMemoryExtractor();
 
@@ -861,16 +863,46 @@ testSearchMemories().then(() => {
 
 {
   const settings = { language: "zh" };
+  const createdAt = new Date(2026, 6, 8, 12).getTime();
+  const updatedAt = new Date(2026, 6, 9, 12).getTime();
+  const timezoneBoundary = Date.UTC(2026, 6, 8, 16, 30);
+  assert.equal(
+    formatAuditDate(timezoneBoundary, { timeZone: "Asia/Shanghai" }),
+    "2026-07-09",
+    "audit dates should follow the user's calendar day rather than UTC"
+  );
+  assert.equal(
+    formatAuditDate(timezoneBoundary, { timeZone: "America/Los_Angeles" }),
+    "2026-07-08",
+    "audit date formatting should remain deterministic across time zones"
+  );
+  const memoryItems = buildMemoryUpdateAuditItems([{
+    kind: "decision",
+    scope: "project",
+    text: "统一审计日期",
+    confidence: 0.8,
+    createdAt,
+    updatedAt
+  }], settings, "codex", t);
+  const memoryFields = Object.fromEntries(memoryItems[0].fields.map((field) => [field.label, field.value]));
+  assert.equal(memoryFields["创建日期"], "2026-07-08", "ordinary memory audit should show its creation date");
+  assert.equal(memoryFields["更新日期"], "2026-07-09", "ordinary memory audit should show its update date");
+
   const deepItems = buildDeepMemoryAuditItems([{
     kind: "repair",
     summary: "一次重要校准",
     whyItMatters: "这次修复能帮助之后更稳地协作。",
     importance: 0.82,
-    confidence: 0.74
+    confidence: 0.74,
+    createdAt,
+    updatedAt
   }], settings, "codex", t);
   assert.equal(deepItems[0].fields[0].label, "原因", "deep memory audit should lead with reason");
   assert.equal(deepItems[0].fields[1].label, "来源", "deep memory audit should show source after reason");
   assert.match(deepItems[0].fields[0].value, /这次修复/);
+  const deepFields = Object.fromEntries(deepItems[0].fields.map((field) => [field.label, field.value]));
+  assert.equal(deepFields["创建日期"], "2026-07-08", "deep memory audit should show its creation date");
+  assert.equal(deepFields["更新日期"], "2026-07-09", "deep memory audit should show its update date");
 
   const interactionItems = buildInteractionMemoryAuditItems({
     closedEpisodes: [{
@@ -880,13 +912,17 @@ testSearchMemories().then(() => {
       assistantExcerpt: "我来修",
       reaction: { excerpt: "好了" },
       memoryRole: "pattern_evidence",
-      eventWeight: 0.62
+      eventWeight: 0.62,
+      createdAt,
+      updatedAt
     }],
     updatedPatterns: [{
       summary: "用户希望先看风险",
       evidenceCount: 2,
       confidence: 0.61,
-      strength: 0.53
+      strength: 0.53,
+      createdAt,
+      updatedAt
     }],
     updatedTensions: [],
     updatedStableImpressions: []
@@ -895,6 +931,12 @@ testSearchMemories().then(() => {
   assert.equal(interactionItems[0].fields[1].label, "来源", "interaction episode audit should show source after reason");
   assert.equal(interactionItems[1].fields[0].label, "原因", "interaction change audit should lead with reason");
   assert.equal(interactionItems[1].fields[1].label, "来源", "interaction change audit should show source after reason");
+  const episodeFields = Object.fromEntries(interactionItems[0].fields.map((field) => [field.label, field.value]));
+  const patternFields = Object.fromEntries(interactionItems[1].fields.map((field) => [field.label, field.value]));
+  assert.equal(episodeFields["创建日期"], "2026-07-08", "interaction episode audit should show its creation date");
+  assert.equal(episodeFields["更新日期"], "2026-07-09", "interaction episode audit should show its update date");
+  assert.equal(patternFields["创建日期"], "2026-07-08", "derived interaction audit should show its creation date");
+  assert.equal(patternFields["更新日期"], "2026-07-09", "derived interaction audit should show its update date");
 
   const topicShiftItems = buildInteractionMemoryAuditItems({
     closedEpisodes: [{

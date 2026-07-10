@@ -497,6 +497,8 @@ module.exports = {
     "codex.memoryAudit.field.kind": "Kind",
     "codex.memoryAudit.field.role": "Memory role",
     "codex.memoryAudit.field.source": "Source",
+    "codex.memoryAudit.field.createdAt": "Created",
+    "codex.memoryAudit.field.updatedAt": "Updated",
     "codex.memoryAudit.field.reason": "Reason",
     "codex.memoryAudit.field.confidence": "Confidence",
     "codex.memoryAudit.field.importance": "Importance",
@@ -636,6 +638,8 @@ module.exports = {
     "cursor.memoryAudit.field.kind": "Kind",
     "cursor.memoryAudit.field.role": "Memory role",
     "cursor.memoryAudit.field.source": "Source",
+    "cursor.memoryAudit.field.createdAt": "Created",
+    "cursor.memoryAudit.field.updatedAt": "Updated",
     "cursor.memoryAudit.field.reason": "Reason",
     "cursor.memoryAudit.field.confidence": "Confidence",
     "cursor.memoryAudit.field.importance": "Importance",
@@ -1104,6 +1108,8 @@ module.exports = {
     "codex.memoryAudit.field.kind": "类型",
     "codex.memoryAudit.field.role": "记忆角色",
     "codex.memoryAudit.field.source": "来源",
+    "codex.memoryAudit.field.createdAt": "创建日期",
+    "codex.memoryAudit.field.updatedAt": "更新日期",
     "codex.memoryAudit.field.reason": "原因",
     "codex.memoryAudit.field.confidence": "置信度",
     "codex.memoryAudit.field.importance": "重要性",
@@ -1243,6 +1249,8 @@ module.exports = {
     "cursor.memoryAudit.field.kind": "类型",
     "cursor.memoryAudit.field.role": "记忆角色",
     "cursor.memoryAudit.field.source": "来源",
+    "cursor.memoryAudit.field.createdAt": "创建日期",
+    "cursor.memoryAudit.field.updatedAt": "更新日期",
     "cursor.memoryAudit.field.reason": "原因",
     "cursor.memoryAudit.field.confidence": "置信度",
     "cursor.memoryAudit.field.importance": "重要性",
@@ -4031,7 +4039,41 @@ module.exports = {
 };
 
 },
+"src/agents/shared/auditFormatting.js": function(module, exports, __require) {
+function formatAuditDate(value, options = {}) {
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return "";
+  }
+  const date = new Date(timestamp);
+  if (!Number.isFinite(date.getTime())) {
+    return "";
+  }
+  if (options.timeZone) {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: options.timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  }
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+}
+
+module.exports = {
+  formatAuditDate
+};
+
+},
 "src/agents/shared/captureNotices.js": function(module, exports, __require) {
+const { formatAuditDate } = __require("src/agents/shared/auditFormatting.js");
+
 const MAX_NOTICE_ITEMS = 3;
 const MAX_NOTICE_TEXT_CHARS = 180;
 const MAX_AUDIT_TEXT_CHARS = 1400;
@@ -4119,6 +4161,8 @@ function buildMemoryUpdateAuditItems(saved, settings, keyPrefix, translate) {
       fields: [
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatUpdateReason(item, settings, keyPrefix, translate)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(item.createdAt)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(item.updatedAt)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.content`), item.text),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.scope`), item.scope),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.kind`), item.kind),
@@ -4163,6 +4207,8 @@ function buildDeepMemoryAuditItems(saved, settings, keyPrefix, translate) {
       fields: [
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatDeepMemoryReason(item, source, settings, keyPrefix, translate)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(item.createdAt)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(item.updatedAt)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.summary`), item.summary),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.why`), item.whyItMatters),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.feltSense`), item.feltSense),
@@ -4194,6 +4240,8 @@ function buildInteractionMemoryAuditItems(result, settings, keyPrefix, translate
       fields: [
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatInteractionEpisodeReason(item, settings, keyPrefix, translate)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(item.createdAt)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(item.updatedAt)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.userExcerpt`), item.userExcerpt),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.assistantExcerpt`), item.assistantExcerpt),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.reaction`), item.reaction?.excerpt || item.outcomeHint),
@@ -4250,6 +4298,8 @@ function buildInteractionMemoryAuditItems(result, settings, keyPrefix, translate
       fields: [
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatInteractionChangeReason(entry, settings, keyPrefix, translate)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(entry.item.createdAt)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(entry.item.updatedAt)),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.content`), entry.text),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.evidenceCount`), entry.item.evidenceCount),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.confidence`), formatNumber(entry.item.confidence)),
@@ -6691,8 +6741,8 @@ function formatAgentSignalPrompt(settings, interactionPatternCandidates = []) {
       };
     }
     lines.push("Agent Dock continuity reflection:");
-    lines.push("Before every substantive answer, emit one leading `phase=appraisal` envelope and let that stance shape the answer; omit it only for empty, error-only, system-only, or trivial acknowledgement responses. Append `phase=outcome` after the visible answer only for a meaningful continuity change; otherwise omit it.");
-    lines.push("Each envelope needs 1-3 `evidence` objects shaped as `{origin,speaker,quote}`. Origins: user_message/assistant_message/recalled_memory/active_note/tool_result. Speakers: user/assistant/none. Quotes must be short exact visible excerpts with honest provenance, never hidden reasoning.");
+    lines.push("Before every substantive answer, emit one leading `phase=appraisal`; let it shape the answer. Omit only for empty, error-only, system-only, or trivial acknowledgements. Append `phase=outcome` after visible text only for a meaningful continuity change.");
+    lines.push("Each envelope needs 1-3 `{origin,speaker,quote}` evidence objects. Origins: user_message/assistant_message/recalled_memory/active_note/tool_result. Speakers: user/assistant/none. Use short exact visible quotes with honest provenance, never hidden reasoning.");
     lines.push(formatReflectionFieldSchemas({
       memorySignalsEnabled,
       deepMemorySignalsEnabled,
@@ -6706,6 +6756,9 @@ function formatAgentSignalPrompt(settings, interactionPatternCandidates = []) {
       affectSignalsEnabled,
       salienceSignalsEnabled
     }));
+    if (deepMemorySignalsEnabled) {
+      lines.push("`deepMemory` is rare: lasting recognition, repair, hard-won progress, warmth/beauty, grounded emotional turns, or trust/connection growth. Exclude meta-discussion, routine events, temporary mood; when unsure, omit.");
+    }
     lines.push("Omit unused fields. Local validation controls persistence and may reject or cap every proposal. Reflection cannot declare user preferences or facts, directly create interaction patterns, modify the persona preset, or override task accuracy, permissions, or safety.");
     if (interactionSignalsEnabled) {
       lines.push(`An outcome interaction may nominate one tentative \`patternCandidate\`: {key:stable_snake_case,axis:${[...AI_PATTERN_AXES].join("/")},confidence,evidenceQuote,summary}. Copy \`evidenceQuote\` exactly from the current user message; it must support the nomination. The summary is a revisable assistant strategy, not a user fact. Promotion requires repeated positive closed-episode evidence.`);
@@ -7810,103 +7863,9 @@ module.exports = {
 };
 
 },
-"src/agents/shared/memorySearch.js": function(module, exports, __require) {
-const { formatMemoryLine } = __require("src/storage/MemoryStore.js");
-
-const MEMORY_SEARCH_LIMIT = 5;
-
-const MEMORY_LOOKUP_PATTERNS = [
-  /(?:之前|以前|过去|上次|曾经).{0,24}(?:说过|说的|提过|聊过|记录|记得|偏好|要求|方案|感觉)/,
-  /(?:之前|以前|过去|上次|曾经|上回|前面|刚才).{0,24}(?:定的|约定|决定|选的|用的|习惯|风格|规则|结论)/,
-  /(?:按|照|根据).{0,12}(?:之前|以前|上次|上回|过去).{0,24}(?:习惯|偏好|要求|约定|方案|规则|结论)/,
-  /(?:回忆|想起来|记一下|翻一下|看一下).{0,16}(?:记忆|记录|历史|之前|以前|上次|上回|约定)/,
-  /(?:查|找|搜索|看看).{0,12}(?:记忆|记录|历史)/,
-  /(?:有没有|是否).{0,16}(?:记录|记得|保存).{0,24}(?:不想|不要|偏好|要求|方案)/,
-  /(?:有没有|是否).{0,16}(?:保存|记录|记住|提过).{0,24}(?:约定|决定|结论|习惯|规则|风格)/,
-  /(?:记得|记住|想起来).{0,24}(?:那个|这种|这种感觉|感觉|不要太刻意|不刻意|自然|连续)/,
-  /(?:do you remember|did i mention|previously|before|earlier|past).{0,48}(?:preference|requirement|decision|memory|note|said|mentioned)/i,
-  /(?:preference|requirement|decision|agreement|convention|rule|style|habit|memory|note|said|mentioned).{0,48}(?:previously|before|earlier|past|last time)/i,
-  /(?:previously|before|earlier|past|last time).{0,48}(?:agreement|convention|rule|style|habit|choice|decision)/i,
-  /(?:search|check|look up|find).{0,24}(?:memory|memories|previous notes|past notes|history)/i
-];
-
-async function getExplicitMemorySearch(memoryStore, prompt, settings, onUpdate, translate, keyPrefix) {
-  if (!shouldSearchMemory(prompt, settings)) {
-    return {
-      performed: false,
-      results: []
-    };
-  }
-
-  const results = await memoryStore.searchMemories(prompt, settings, {
-    limit: MEMORY_SEARCH_LIMIT
-  });
-
-  onUpdate({
-    kind: "notice",
-    noticeType: "memory_search",
-    title: translate(`${keyPrefix}.memorySearch.title`),
-    summary: translate(`${keyPrefix}.memorySearch.summary`, {
-      count: results.length
-    }),
-    detail: formatMemorySearchDetail(results)
-  });
-
-  return {
-    performed: true,
-    results
-  };
-}
-
-function removeMemorySearchDuplicates(memories, memorySearchResults) {
-  if (!Array.isArray(memories) || memories.length === 0) {
-    return [];
-  }
-  if (!Array.isArray(memorySearchResults) || memorySearchResults.length === 0) {
-    return memories;
-  }
-
-  const explicitKeys = new Set(memorySearchResults.map(getMemoryIdentity).filter(Boolean));
-  return memories.filter((memory) => !explicitKeys.has(getMemoryIdentity(memory)));
-}
-
-function shouldSearchMemory(prompt, settings) {
-  if (!settings.memoryEnabled || !settings.memoryAgentSearchEnabled) {
-    return false;
-  }
-
-  const text = String(prompt || "").replace(/\s+/g, " ").trim();
-  if (!text) {
-    return false;
-  }
-
-  return MEMORY_LOOKUP_PATTERNS.some((pattern) => pattern.test(text));
-}
-
-function getMemoryIdentity(memory) {
-  return memory?.key || memory?.id || "";
-}
-
-function formatMemorySearchDetail(results) {
-  if (!Array.isArray(results) || results.length === 0) {
-    return "- No matching local memory was found.";
-  }
-  return results.map(formatMemoryLine).join("\n");
-}
-
-module.exports = {
-  getExplicitMemorySearch,
-  removeMemorySearchDuplicates,
-  shouldSearchMemory,
-  _test: {
-    formatMemorySearchDetail,
-    MEMORY_LOOKUP_PATTERNS
-  }
-};
-
-},
 "src/agents/shared/memoryNotices.js": function(module, exports, __require) {
 const { formatMemoryLine } = __require("src/storage/MemoryStore.js");
+const { formatAuditDate } = __require("src/agents/shared/auditFormatting.js");
 
 function emitMemoryNotice(onUpdate, memories, translate, keyPrefix = "cursor") {
   if (!Array.isArray(memories) || memories.length === 0) {
@@ -7977,6 +7936,8 @@ function buildReferencedMemoryAuditItems(memories, translate, keyPrefix = "curso
       fields: [
         createField(translate(`${keyPrefix}.memoryAudit.field.reason`), formatReferenceReason(item, translate, keyPrefix)),
         createField(translate(`${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(`${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(item.createdAt)),
+        createField(translate(`${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(item.updatedAt)),
         createField(translate(`${keyPrefix}.memoryAudit.field.content`), item.text),
         createField(translate(`${keyPrefix}.memoryAudit.field.scope`), item.scope),
         createField(translate(`${keyPrefix}.memoryAudit.field.kind`), item.kind),
@@ -8004,6 +7965,8 @@ function buildReferencedDeepMemoryAuditItems(memories, translate, keyPrefix = "c
           translate(`${keyPrefix}.memoryAudit.reason.deepMemoryReferenced`)
         ),
         createField(translate(`${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(`${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(item.createdAt)),
+        createField(translate(`${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(item.updatedAt)),
         createField(translate(`${keyPrefix}.memoryAudit.field.summary`), item.summary),
         createField(translate(`${keyPrefix}.memoryAudit.field.why`), item.whyItMatters),
         createField(translate(`${keyPrefix}.memoryAudit.field.feltSense`), item.feltSense),
@@ -8149,6 +8112,103 @@ module.exports = {
   emitContextCompressedNotice,
   emitMemoryNotice,
   formatMemoryNoticeSummary
+};
+
+},
+"src/agents/shared/memorySearch.js": function(module, exports, __require) {
+const { formatMemoryLine } = __require("src/storage/MemoryStore.js");
+const { buildReferencedMemoryAuditItems } = __require("src/agents/shared/memoryNotices.js");
+
+const MEMORY_SEARCH_LIMIT = 5;
+
+const MEMORY_LOOKUP_PATTERNS = [
+  /(?:之前|以前|过去|上次|曾经).{0,24}(?:说过|说的|提过|聊过|记录|记得|偏好|要求|方案|感觉)/,
+  /(?:之前|以前|过去|上次|曾经|上回|前面|刚才).{0,24}(?:定的|约定|决定|选的|用的|习惯|风格|规则|结论)/,
+  /(?:按|照|根据).{0,12}(?:之前|以前|上次|上回|过去).{0,24}(?:习惯|偏好|要求|约定|方案|规则|结论)/,
+  /(?:回忆|想起来|记一下|翻一下|看一下).{0,16}(?:记忆|记录|历史|之前|以前|上次|上回|约定)/,
+  /(?:查|找|搜索|看看).{0,12}(?:记忆|记录|历史)/,
+  /(?:有没有|是否).{0,16}(?:记录|记得|保存).{0,24}(?:不想|不要|偏好|要求|方案)/,
+  /(?:有没有|是否).{0,16}(?:保存|记录|记住|提过).{0,24}(?:约定|决定|结论|习惯|规则|风格)/,
+  /(?:记得|记住|想起来).{0,24}(?:那个|这种|这种感觉|感觉|不要太刻意|不刻意|自然|连续)/,
+  /(?:do you remember|did i mention|previously|before|earlier|past).{0,48}(?:preference|requirement|decision|memory|note|said|mentioned)/i,
+  /(?:preference|requirement|decision|agreement|convention|rule|style|habit|memory|note|said|mentioned).{0,48}(?:previously|before|earlier|past|last time)/i,
+  /(?:previously|before|earlier|past|last time).{0,48}(?:agreement|convention|rule|style|habit|choice|decision)/i,
+  /(?:search|check|look up|find).{0,24}(?:memory|memories|previous notes|past notes|history)/i
+];
+
+async function getExplicitMemorySearch(memoryStore, prompt, settings, onUpdate, translate, keyPrefix) {
+  if (!shouldSearchMemory(prompt, settings)) {
+    return {
+      performed: false,
+      results: []
+    };
+  }
+
+  const results = await memoryStore.searchMemories(prompt, settings, {
+    limit: MEMORY_SEARCH_LIMIT
+  });
+
+  onUpdate({
+    kind: "notice",
+    noticeType: "memory_search",
+    title: translate(`${keyPrefix}.memorySearch.title`),
+    summary: translate(`${keyPrefix}.memorySearch.summary`, {
+      count: results.length
+    }),
+    detail: formatMemorySearchDetail(results),
+    auditItems: buildReferencedMemoryAuditItems(results, translate, keyPrefix)
+  });
+
+  return {
+    performed: true,
+    results
+  };
+}
+
+function removeMemorySearchDuplicates(memories, memorySearchResults) {
+  if (!Array.isArray(memories) || memories.length === 0) {
+    return [];
+  }
+  if (!Array.isArray(memorySearchResults) || memorySearchResults.length === 0) {
+    return memories;
+  }
+
+  const explicitKeys = new Set(memorySearchResults.map(getMemoryIdentity).filter(Boolean));
+  return memories.filter((memory) => !explicitKeys.has(getMemoryIdentity(memory)));
+}
+
+function shouldSearchMemory(prompt, settings) {
+  if (!settings.memoryEnabled || !settings.memoryAgentSearchEnabled) {
+    return false;
+  }
+
+  const text = String(prompt || "").replace(/\s+/g, " ").trim();
+  if (!text) {
+    return false;
+  }
+
+  return MEMORY_LOOKUP_PATTERNS.some((pattern) => pattern.test(text));
+}
+
+function getMemoryIdentity(memory) {
+  return memory?.key || memory?.id || "";
+}
+
+function formatMemorySearchDetail(results) {
+  if (!Array.isArray(results) || results.length === 0) {
+    return "- No matching local memory was found.";
+  }
+  return results.map(formatMemoryLine).join("\n");
+}
+
+module.exports = {
+  getExplicitMemorySearch,
+  removeMemorySearchDuplicates,
+  shouldSearchMemory,
+  _test: {
+    formatMemorySearchDetail,
+    MEMORY_LOOKUP_PATTERNS
+  }
 };
 
 },
@@ -11017,9 +11077,11 @@ const {
 
 const MAX_EXCERPT_CHARS = 260;
 
-const DEEP_MEMORY_PREFERENCE_PATTERN = /(希望|想要|最好|需要|能不能|可以).*?(真的|真正|像人|人类|深刻|重要|珍惜|记住|记得|记忆|连续|在场|陪伴|关系|默契|主体|人格|余温|important moments|deep memor|really remember|continuity|presence|relationship|felt)/i;
-const RELATIONSHIP_REFLECTION_PATTERN = /(深刻记忆|重要时刻|真的记得|像人类一样|关系记忆|情感连续|人格连续|在场感|被看见|陪伴感|默契|主体感|felt sense|meaningful prior collaboration|important moments|relationship memory|emotional continuity|presence)/i;
-const STRONG_ENCOURAGEMENT_PATTERN = /(你.*?(做得|说得|讲得|回答得|处理得).*?(很好|很棒|真好|特别好|舒服|清楚|到位|有温度|有在场感)|我.*?(喜欢|欣赏|珍惜).*?(你这样|这种|这个方式|你的表达|你的判断)|继续这样|就是这个感觉|这很重要|这对我很重要|被你.*?(接住|看见)|nailed it|this matters to me|i appreciate how you|i like the way you|keep doing this|this feels right)/i;
+const DEEP_MEMORY_PREFERENCE_PATTERN = /(?:(?:希望|想要|最好|需要|能不能|可以).*?(?:真的|真正|像人|人类|深刻|重要|珍惜|记住|记得|记忆|连续|在场|陪伴|关系|默契|主体|人格|余温)|(?:(?:i|we)\s+(?:want|hope|need|prefer|would like)|(?:please\s+)?(?:can|could|would)\s+you|please).{0,80}(?:really remember|remember|preserve|keep).{0,60}(?:important moments?|meaningful prior collaboration|continuity|relationship memor|emotional continuity|felt sense))/i;
+const RELATIONSHIP_REFLECTION_PATTERN = /(深刻记忆|重要时刻|真的记得|像人类一样|关系记忆|情感连续|人格连续|在场感|被看见|陪伴感|默契|主体感|deep memor(?:y|ies)|felt sense|meaningful prior collaboration|important moments|relationship memory|emotional continuity|presence)/i;
+const DEEP_MEMORY_META_PATTERN = /(?:提示词|规则|本地规则|实现机制|代码|测试|阈值|审计|候选|提取器|正则|关键词|字段|协议|\b(?:schema|prompts?|local rules?|implementation|code|tests?|threshold|audit|candidates?|extractor|regex|keywords?|fields?|protocol)\b)/i;
+const DEEP_MEMORY_OPT_OUT_PATTERN = /(不要|不必|无需|别|禁止).{0,18}(记住|记得|保存|存储|存成|记录|写入|进入).{0,18}(深刻记忆|记忆)?/i;
+const STRONG_ENCOURAGEMENT_PATTERN = /(你.*?(做得|说得|讲得|回答得|处理得).*?(很好|很棒|真好|特别好|舒服|清楚|到位|有温度|有在场感)|我.*?(喜欢|欣赏|珍惜).*?(你这样|这种|这个方式|你的表达|你的判断)|继续这样|就是这个感觉|这很重要|这对我很重要|被你.*?(接住|看见)|(?:让我|使我).*?(?:感觉|觉得).*?(?:被)?(?:接住|看见)|nailed it|this matters to me|i appreciate how you|i like the way you|keep doing this|this feels right)/i;
 const TURNING_POINT_PATTERN = /(刚才|这次|现在).*?(修正|调整|改变|改回来|校准|抓住了|对了|方向对了|终于对了|corrected|calibrated|got it right)/i;
 const BEAUTY_MOMENT_PATTERN = /(夕阳|晚霞|月光|风景|美|漂亮|诗意|氛围|动人|感动|sunset|beautiful|poetic|atmosphere|moving)/i;
 const HARD_WON_ACHIEVEMENT_PATTERN = /(终于|总算|做成|搞定|修好|跑通|完成|很难|困难|攻下来|hard-won|finally|fixed|shipped|made it work|got it working)/i;
@@ -11043,13 +11105,20 @@ function extractDeepMemoryCandidates(turn, options = {}) {
   if (GENERIC_THANKS_PATTERN.test(prompt)) {
     return [];
   }
+  if (DEEP_MEMORY_OPT_OUT_PATTERN.test(prompt)) {
+    return [];
+  }
 
   const candidates = [];
+  const metaDiscussion = isDeepMemoryMetaDiscussion(prompt);
   for (const signal of normalizeAgentDockSignals(turn?.agentDockSignals)) {
     if (signal.type !== "deep_memory") {
       continue;
     }
     if (signal.phase === "appraisal") {
+      continue;
+    }
+    if (metaDiscussion) {
       continue;
     }
     if (signal.envelope === "reflection_v1" && !hasGroundedAgentSignal(signal, signalEvidenceContext)) {
@@ -11074,7 +11143,7 @@ function extractDeepMemoryCandidates(turn, options = {}) {
     }, turn, now));
   }
 
-  if (DEEP_MEMORY_PREFERENCE_PATTERN.test(prompt) || RELATIONSHIP_REFLECTION_PATTERN.test(prompt)) {
+  if (!metaDiscussion && DEEP_MEMORY_PREFERENCE_PATTERN.test(prompt)) {
     candidates.push(createCandidate({
       kind: "relationship_insight",
       summary: "User wants Agent Dock to preserve a small number of meaningful moments so the assistant can feel like it genuinely remembers important prior collaboration.",
@@ -11083,7 +11152,7 @@ function extractDeepMemoryCandidates(turn, options = {}) {
       prompt,
       response,
       previousAssistantResponse,
-      importance: RELATIONSHIP_REFLECTION_PATTERN.test(prompt) ? 0.86 : 0.78,
+      importance: 0.78,
       confidence: 0.78,
       salienceAxes: ["care", "repair", "curiosity"],
       topics: ["deep_memory", "continuity", "relationship"]
@@ -11278,8 +11347,11 @@ function applySalienceBoost(candidate, personaProfile) {
 
 function scoreSignalImportance(value) {
   const aiImportance = Math.max(0, Math.min(1, Number(value) || 0));
-  const aiBoost = Math.max(0, aiImportance - 0.6) * 0.18;
-  return Math.min(1, 0.7 + aiBoost);
+  return Math.min(1, 0.56 + aiImportance * 0.18);
+}
+
+function isDeepMemoryMetaDiscussion(text) {
+  return RELATIONSHIP_REFLECTION_PATTERN.test(text) && DEEP_MEMORY_META_PATTERN.test(text);
 }
 
 function createDeepMemoryKey(kind, summary, excerpt) {
@@ -11325,6 +11397,8 @@ module.exports = {
   extractDeepMemoryCandidates,
   _test: {
     GENERIC_THANKS_PATTERN,
+    DEEP_MEMORY_META_PATTERN,
+    DEEP_MEMORY_OPT_OUT_PATTERN,
     RELATIONSHIP_REFLECTION_PATTERN,
     STRONG_ENCOURAGEMENT_PATTERN,
     TURNING_POINT_PATTERN,
@@ -11334,6 +11408,7 @@ module.exports = {
     applySalienceBoost,
     applySalienceObservationBoost,
     getSalienceObservation,
+    isDeepMemoryMetaDiscussion,
     createDeepMemoryKey,
     scoreSignalImportance
   }

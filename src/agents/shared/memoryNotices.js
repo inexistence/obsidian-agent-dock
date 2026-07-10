@@ -1,4 +1,5 @@
 const { formatMemoryLine } = require("../../storage/MemoryStore");
+const { formatAuditDate } = require("./auditFormatting");
 
 function emitMemoryNotice(onUpdate, memories, translate, keyPrefix = "cursor") {
   if (!Array.isArray(memories) || memories.length === 0) {
@@ -69,6 +70,8 @@ function buildReferencedMemoryAuditItems(memories, translate, keyPrefix = "curso
       fields: [
         createField(translate(`${keyPrefix}.memoryAudit.field.reason`), formatReferenceReason(item, translate, keyPrefix)),
         createField(translate(`${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(`${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(item.createdAt)),
+        createField(translate(`${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(item.updatedAt)),
         createField(translate(`${keyPrefix}.memoryAudit.field.content`), item.text),
         createField(translate(`${keyPrefix}.memoryAudit.field.scope`), item.scope),
         createField(translate(`${keyPrefix}.memoryAudit.field.kind`), item.kind),
@@ -96,6 +99,8 @@ function buildReferencedDeepMemoryAuditItems(memories, translate, keyPrefix = "c
           translate(`${keyPrefix}.memoryAudit.reason.deepMemoryReferenced`)
         ),
         createField(translate(`${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(`${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(item.createdAt)),
+        createField(translate(`${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(item.updatedAt)),
         createField(translate(`${keyPrefix}.memoryAudit.field.summary`), item.summary),
         createField(translate(`${keyPrefix}.memoryAudit.field.why`), item.whyItMatters),
         createField(translate(`${keyPrefix}.memoryAudit.field.feltSense`), item.feltSense),

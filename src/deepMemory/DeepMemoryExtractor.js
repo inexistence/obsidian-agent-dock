@@ -7,9 +7,11 @@ const {
 
 const MAX_EXCERPT_CHARS = 260;
 
-const DEEP_MEMORY_PREFERENCE_PATTERN = /(希望|想要|最好|需要|能不能|可以).*?(真的|真正|像人|人类|深刻|重要|珍惜|记住|记得|记忆|连续|在场|陪伴|关系|默契|主体|人格|余温|important moments|deep memor|really remember|continuity|presence|relationship|felt)/i;
-const RELATIONSHIP_REFLECTION_PATTERN = /(深刻记忆|重要时刻|真的记得|像人类一样|关系记忆|情感连续|人格连续|在场感|被看见|陪伴感|默契|主体感|felt sense|meaningful prior collaboration|important moments|relationship memory|emotional continuity|presence)/i;
-const STRONG_ENCOURAGEMENT_PATTERN = /(你.*?(做得|说得|讲得|回答得|处理得).*?(很好|很棒|真好|特别好|舒服|清楚|到位|有温度|有在场感)|我.*?(喜欢|欣赏|珍惜).*?(你这样|这种|这个方式|你的表达|你的判断)|继续这样|就是这个感觉|这很重要|这对我很重要|被你.*?(接住|看见)|nailed it|this matters to me|i appreciate how you|i like the way you|keep doing this|this feels right)/i;
+const DEEP_MEMORY_PREFERENCE_PATTERN = /(?:(?:希望|想要|最好|需要|能不能|可以).*?(?:真的|真正|像人|人类|深刻|重要|珍惜|记住|记得|记忆|连续|在场|陪伴|关系|默契|主体|人格|余温)|(?:(?:i|we)\s+(?:want|hope|need|prefer|would like)|(?:please\s+)?(?:can|could|would)\s+you|please).{0,80}(?:really remember|remember|preserve|keep).{0,60}(?:important moments?|meaningful prior collaboration|continuity|relationship memor|emotional continuity|felt sense))/i;
+const RELATIONSHIP_REFLECTION_PATTERN = /(深刻记忆|重要时刻|真的记得|像人类一样|关系记忆|情感连续|人格连续|在场感|被看见|陪伴感|默契|主体感|deep memor(?:y|ies)|felt sense|meaningful prior collaboration|important moments|relationship memory|emotional continuity|presence)/i;
+const DEEP_MEMORY_META_PATTERN = /(?:提示词|规则|本地规则|实现机制|代码|测试|阈值|审计|候选|提取器|正则|关键词|字段|协议|\b(?:schema|prompts?|local rules?|implementation|code|tests?|threshold|audit|candidates?|extractor|regex|keywords?|fields?|protocol)\b)/i;
+const DEEP_MEMORY_OPT_OUT_PATTERN = /(不要|不必|无需|别|禁止).{0,18}(记住|记得|保存|存储|存成|记录|写入|进入).{0,18}(深刻记忆|记忆)?/i;
+const STRONG_ENCOURAGEMENT_PATTERN = /(你.*?(做得|说得|讲得|回答得|处理得).*?(很好|很棒|真好|特别好|舒服|清楚|到位|有温度|有在场感)|我.*?(喜欢|欣赏|珍惜).*?(你这样|这种|这个方式|你的表达|你的判断)|继续这样|就是这个感觉|这很重要|这对我很重要|被你.*?(接住|看见)|(?:让我|使我).*?(?:感觉|觉得).*?(?:被)?(?:接住|看见)|nailed it|this matters to me|i appreciate how you|i like the way you|keep doing this|this feels right)/i;
 const TURNING_POINT_PATTERN = /(刚才|这次|现在).*?(修正|调整|改变|改回来|校准|抓住了|对了|方向对了|终于对了|corrected|calibrated|got it right)/i;
 const BEAUTY_MOMENT_PATTERN = /(夕阳|晚霞|月光|风景|美|漂亮|诗意|氛围|动人|感动|sunset|beautiful|poetic|atmosphere|moving)/i;
 const HARD_WON_ACHIEVEMENT_PATTERN = /(终于|总算|做成|搞定|修好|跑通|完成|很难|困难|攻下来|hard-won|finally|fixed|shipped|made it work|got it working)/i;
@@ -33,13 +35,20 @@ function extractDeepMemoryCandidates(turn, options = {}) {
   if (GENERIC_THANKS_PATTERN.test(prompt)) {
     return [];
   }
+  if (DEEP_MEMORY_OPT_OUT_PATTERN.test(prompt)) {
+    return [];
+  }
 
   const candidates = [];
+  const metaDiscussion = isDeepMemoryMetaDiscussion(prompt);
   for (const signal of normalizeAgentDockSignals(turn?.agentDockSignals)) {
     if (signal.type !== "deep_memory") {
       continue;
     }
     if (signal.phase === "appraisal") {
+      continue;
+    }
+    if (metaDiscussion) {
       continue;
     }
     if (signal.envelope === "reflection_v1" && !hasGroundedAgentSignal(signal, signalEvidenceContext)) {
@@ -64,7 +73,7 @@ function extractDeepMemoryCandidates(turn, options = {}) {
     }, turn, now));
   }
 
-  if (DEEP_MEMORY_PREFERENCE_PATTERN.test(prompt) || RELATIONSHIP_REFLECTION_PATTERN.test(prompt)) {
+  if (!metaDiscussion && DEEP_MEMORY_PREFERENCE_PATTERN.test(prompt)) {
     candidates.push(createCandidate({
       kind: "relationship_insight",
       summary: "User wants Agent Dock to preserve a small number of meaningful moments so the assistant can feel like it genuinely remembers important prior collaboration.",
@@ -73,7 +82,7 @@ function extractDeepMemoryCandidates(turn, options = {}) {
       prompt,
       response,
       previousAssistantResponse,
-      importance: RELATIONSHIP_REFLECTION_PATTERN.test(prompt) ? 0.86 : 0.78,
+      importance: 0.78,
       confidence: 0.78,
       salienceAxes: ["care", "repair", "curiosity"],
       topics: ["deep_memory", "continuity", "relationship"]
@@ -268,8 +277,11 @@ function applySalienceBoost(candidate, personaProfile) {
 
 function scoreSignalImportance(value) {
   const aiImportance = Math.max(0, Math.min(1, Number(value) || 0));
-  const aiBoost = Math.max(0, aiImportance - 0.6) * 0.18;
-  return Math.min(1, 0.7 + aiBoost);
+  return Math.min(1, 0.56 + aiImportance * 0.18);
+}
+
+function isDeepMemoryMetaDiscussion(text) {
+  return RELATIONSHIP_REFLECTION_PATTERN.test(text) && DEEP_MEMORY_META_PATTERN.test(text);
 }
 
 function createDeepMemoryKey(kind, summary, excerpt) {
@@ -315,6 +327,8 @@ module.exports = {
   extractDeepMemoryCandidates,
   _test: {
     GENERIC_THANKS_PATTERN,
+    DEEP_MEMORY_META_PATTERN,
+    DEEP_MEMORY_OPT_OUT_PATTERN,
     RELATIONSHIP_REFLECTION_PATTERN,
     STRONG_ENCOURAGEMENT_PATTERN,
     TURNING_POINT_PATTERN,
@@ -324,6 +338,7 @@ module.exports = {
     applySalienceBoost,
     applySalienceObservationBoost,
     getSalienceObservation,
+    isDeepMemoryMetaDiscussion,
     createDeepMemoryKey,
     scoreSignalImportance
   }

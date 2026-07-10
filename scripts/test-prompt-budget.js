@@ -234,6 +234,12 @@ async function testAgentDockSignalPolicyFollowsDeepMemorySettings() {
   assert(!enabled.prompt.includes("Both envelopes are omitted by default"), "the prompt must not describe appraisal as omitted by default");
   assert(enabled.prompt.includes('"selfAwareness"'), "appraisal example should describe baseline-aware stance selection");
   assert(enabled.prompt.includes("deepMemory:{axes,importance,summary}"), "enabled deep memory should include a compact deep-memory field schema");
+  assert(enabled.prompt.includes("`deepMemory` is rare: lasting recognition"), "deep memory should use a compact high-bar semantic definition");
+  assert(enabled.prompt.includes("warmth/beauty"), "deep memory guidance should include rare warm and beauty moments");
+  assert(enabled.prompt.includes("grounded emotional turns"), "deep memory guidance should include grounded unusual affective turns");
+  assert(enabled.prompt.includes("trust/connection growth"), "deep memory guidance should include visibly relationship-deepening moments");
+  assert(enabled.prompt.includes("Exclude meta-discussion"), "deep memory guidance should reject mechanism discussion");
+  assert(enabled.prompt.includes("routine events, temporary mood"), "deep memory guidance should reject ordinary events and short-lived affect");
   assert(enabled.prompt.includes("memory:{kind,scope,confidence,summary}"), "enabled ordinary memory should include a compact memory field schema");
   assert(enabled.prompt.includes("interaction:{shapes,confidence,summary,patternCandidate?}"), "enabled interaction memory should include a compact interaction field schema");
   assert(enabled.prompt.includes("`patternCandidate`"), "interaction policy should allow a bounded long-term pattern nomination");

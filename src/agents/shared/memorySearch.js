@@ -1,4 +1,5 @@
 const { formatMemoryLine } = require("../../storage/MemoryStore");
+const { buildReferencedMemoryAuditItems } = require("./memoryNotices");
 
 const MEMORY_SEARCH_LIMIT = 5;
 
@@ -36,7 +37,8 @@ async function getExplicitMemorySearch(memoryStore, prompt, settings, onUpdate, 
     summary: translate(`${keyPrefix}.memorySearch.summary`, {
       count: results.length
     }),
-    detail: formatMemorySearchDetail(results)
+    detail: formatMemorySearchDetail(results),
+    auditItems: buildReferencedMemoryAuditItems(results, translate, keyPrefix)
   });
 
   return {
