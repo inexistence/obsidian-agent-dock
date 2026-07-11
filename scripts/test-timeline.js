@@ -1,4 +1,6 @@
 const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
 const Module = require("module");
 
 const originalLoad = Module._load;
@@ -24,6 +26,14 @@ const {
   MessageTimelineRenderer,
   _test: timelineRendererTest
 } = require("../src/view/timeline/MessageTimelineRenderer");
+
+{
+  const styles = fs.readFileSync(path.join(__dirname, "../styles.css"), "utf8");
+  const liveContentRule = styles.match(/\.codex-dock__process-group--live\s+\.codex-dock__processed-content\s*\{([^}]*)\}/);
+  assert(liveContentRule, "live processed content should override the full-width completed-process style");
+  assert(/justify-self:\s*start/.test(liveContentRule[1]), "live content must not stretch across the process grid");
+  assert(/width:\s*fit-content/.test(liveContentRule[1]), "live content should keep content-sized bubbles");
+}
 
 class FakeElement {
   constructor(tag = "div", options = {}) {
@@ -108,6 +118,23 @@ function contentEntries(message) {
 
 function reasoningEntries(message) {
   return message.timeline.filter((entry) => entry.kind === "reasoning");
+}
+
+{
+  const renderer = createRenderer();
+  const container = new FakeElement();
+  const message = {
+    role: "assistant",
+    isComplete: true,
+    timeline: [
+      { kind: "reasoning", title: "Thinking", detail: "plan" },
+      { kind: "content", text: "Final answer" }
+    ]
+  };
+  renderer.renderTimeline(container, message);
+  const processedGroup = container.findByClass("codex-dock__process-group--processed");
+  assert(processedGroup, "completed turns with process entries should render an 已处理 group");
+  assert.equal(processedGroup.open, false, "completed process groups should render collapsed immediately");
 }
 
 {

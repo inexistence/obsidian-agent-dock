@@ -43,23 +43,13 @@ class MessageTimelineRenderer {
       timeline,
       this.getDebugActivity()
     );
-    const animateProcessedCollapse = Boolean(
-      message._codexDockTimelineWasLive
-      && !message._codexDockProcessedCollapseAnimated
-      && !this.shouldReduceMotion()
-    );
-    if (animateProcessedCollapse) {
-      message._codexDockProcessedCollapseAnimated = true;
-    }
-
     if (processedEntries.length > 0) {
       this.renderProcessGroup(containerEl, message, {
         key: "process",
         label: this.translate("timeline.processed", { count: processedEntries.length }),
         entries: processedEntries,
         mode: "processed",
-        defaultOpen: Boolean(animateProcessedCollapse),
-        animateCollapse: animateProcessedCollapse,
+        defaultOpen: false,
         showDetails: true
       });
     }
@@ -77,7 +67,6 @@ class MessageTimelineRenderer {
       if (segment.type === "content") {
         this.renderTimelineEntry(containerEl, segment.entry);
       } else {
-        message._codexDockTimelineWasLive = true;
         this.renderProcessGroup(containerEl, message, {
           key: `live-process:${segment.firstIndex}`,
           label: this.translate("timeline.processing", { count: segment.entries.length }),
@@ -103,8 +92,7 @@ class MessageTimelineRenderer {
       cls: [
         "codex-dock__event-group",
         "codex-dock__process-group",
-        `codex-dock__process-group--${mode}`,
-        options.animateCollapse ? "is-auto-collapsing" : ""
+        `codex-dock__process-group--${mode}`
       ].filter(Boolean).join(" "),
       defaultOpen: Boolean(options.defaultOpen)
     });
@@ -127,20 +115,6 @@ class MessageTimelineRenderer {
       });
     }
     this.prepareAnimatedDetails(details, summary, body, message, key);
-    if (options.animateCollapse) {
-      this.scheduleProcessedCollapse(details, body, message);
-    }
-  }
-
-  scheduleProcessedCollapse(details, body, message) {
-    window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => {
-        if (!details.isConnected || !details.open) {
-          return;
-        }
-        this.toggleDetailsAnimated(details, body, message, "process");
-      });
-    });
   }
 
   renderProcessItem(containerEl, message, item, options = {}) {
@@ -746,7 +720,6 @@ class MessageTimelineRenderer {
 
   clearDetailsAnimation(details, body) {
     details.classList.remove("is-animating");
-    details.classList.remove("is-auto-collapsing");
     delete details.dataset.codexDockAnimating;
     body.style.maxHeight = "";
     body.style.overflow = "";
