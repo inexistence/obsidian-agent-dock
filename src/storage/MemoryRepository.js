@@ -1,6 +1,7 @@
 const { normalizePath } = require("obsidian");
 
 const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = require("./localDataPath");
+const { writeJsonAtomically } = require("./atomicJson");
 
 const MEMORY_DIR_NAME = "memory";
 const MEMORY_FILE_NAME = "memory.json";
@@ -46,7 +47,7 @@ class MemoryRepository {
     }
     await ensureLocalDataPath(this.plugin, this.adapter, this.baseDir);
     const normalized = normalizeMemory(memory);
-    await this.adapter.write(this.memoryPath, `${JSON.stringify(normalized, null, 2)}\n`);
+    await writeJsonAtomically(this.adapter, this.memoryPath, normalized);
     this.cache = normalized;
   }
 

@@ -15,6 +15,7 @@ const { InteractionMemoryStore } = require("./interaction/InteractionMemoryStore
 const { normalizePluginData } = require("./settings");
 const { AgentDockSettingTab } = require("./settingsTab");
 const { ChatStorage } = require("./storage/ChatStorage");
+const { ChatSaveCoordinator } = require("./storage/ChatSaveCoordinator");
 const { MemoryStore } = require("./storage/MemoryStore");
 const { AgentDockView } = require("./view/AgentDockView");
 const {
@@ -32,10 +33,9 @@ module.exports = class AgentDockPlugin extends Plugin {
       : resetAffectState(this.settings);
     this.chatSaveTimer = null;
     this.pendingChatSessionState = null;
-    this.chatSaveInFlight = false;
-    this.chatSaveRequested = false;
     this.chatSaveFailureNotified = false;
     this.chatStorage = new ChatStorage(this);
+    this.chatSaveCoordinator = new ChatSaveCoordinator((state) => this.writeChatSessions(state));
     this.memoryStore = new MemoryStore(this);
     this.interactionMemoryStore = new InteractionMemoryStore(this);
     this.deepMemoryStore = new DeepMemoryStore(this);
@@ -106,9 +106,7 @@ module.exports = class AgentDockPlugin extends Plugin {
       window.clearTimeout(this.chatSaveTimer);
       this.chatSaveTimer = null;
     }
-    if (this.pendingChatSessionState) {
-      await this.saveChatSessions(this.pendingChatSessionState);
-    }
+    await this.chatSaveCoordinator.flush(this.pendingChatSessionState);
   }
 
   async saveChatSessions(sessionState) {
@@ -117,29 +115,19 @@ module.exports = class AgentDockPlugin extends Plugin {
     }
 
     this.pendingChatSessionState = sessionState;
-    if (this.chatSaveInFlight) {
-      this.chatSaveRequested = true;
-      return;
-    }
+    return this.chatSaveCoordinator.request(sessionState);
+  }
 
-    this.chatSaveInFlight = true;
+  async writeChatSessions(sessionState) {
     try {
-      do {
-        this.chatSaveRequested = false;
-        try {
-          await this.chatStorage.saveSessions(this.pendingChatSessionState, this.settings);
-          this.chatSaveFailureNotified = false;
-        } catch (error) {
-          console.warn("Agent Dock could not save chat history:", error);
-          if (!this.chatSaveFailureNotified) {
-            this.chatSaveFailureNotified = true;
-            new Notice(t(this.settings, "notice.saveChatHistoryFailed"));
-          }
-          this.chatSaveRequested = false;
-        }
-      } while (this.chatSaveRequested);
-    } finally {
-      this.chatSaveInFlight = false;
+      await this.chatStorage.saveSessions(sessionState, this.settings);
+      this.chatSaveFailureNotified = false;
+    } catch (error) {
+      console.warn("Agent Dock could not save chat history:", error);
+      if (!this.chatSaveFailureNotified) {
+        this.chatSaveFailureNotified = true;
+        new Notice(t(this.settings, "notice.saveChatHistoryFailed"));
+      }
     }
   }
 

@@ -870,6 +870,19 @@ function testOldInteractionMemoryNormalizesNewFields() {
   assert.equal(normalized.episodes[0].aiReflectionContribution, null, "old episodes should not invent AI reflection provenance");
 }
 
+async function testUnreadableInteractionMemoryIsWriteProtected() {
+  const { adapter, store } = createStore();
+  adapter.files.set(store.memoryPath, "{broken json");
+  const memory = await store.loadMemory();
+  assert.deepEqual(memory.episodes, [], "unreadable storage should expose a safe empty in-memory view");
+  await assert.rejects(
+    () => store.saveMemory(memory),
+    /write-protected/,
+    "unreadable interaction memory must block later automatic writes"
+  );
+  assert.equal(adapter.files.get(store.memoryPath), "{broken json");
+}
+
 testEpisodeClosureAndStance()
   .then(testPromptIntegrationAndSensitiveFiltering)
   .then(testReactionClassification)
@@ -886,6 +899,7 @@ testEpisodeClosureAndStance()
   .then(testAssistantInteractionSignalOnlySupplementsPendingEpisode)
   .then(testAiPatternCandidatesRequireRepeatedPositiveEvidence)
   .then(testOldInteractionMemoryNormalizesNewFields)
+  .then(testUnreadableInteractionMemoryIsWriteProtected)
   .then(() => {
     console.log("Interaction memory tests passed.");
   })

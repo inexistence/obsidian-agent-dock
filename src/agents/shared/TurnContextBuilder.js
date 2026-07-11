@@ -35,42 +35,56 @@ async function buildAgentTurnContext({
   const activeFile = plugin.app.workspace.getActiveFile();
   const activeFilePath = activeFile?.path || "";
   const activeNoteEvidence = await readActiveNoteEvidence(plugin.app, activeFile);
-  const memories = await plugin.memoryStore.getRelevantMemories(prompt, settings, {
-    activeFilePath,
-    activeFileContent: activeNoteEvidence,
-    workingDirectory: cwd
-  });
-  const memorySearch = await getExplicitMemorySearch(
-    plugin.memoryStore,
-    prompt,
-    settings,
-    onUpdate,
-    translate,
-    keyPrefix,
-    {
-      activeFilePath,
-      activeFileContent: activeNoteEvidence
-    }
-  );
   const conversationText = Array.isArray(conversation)
     ? conversation.slice(-8).map((message) => message?.content || "").filter(Boolean).join("\n")
     : "";
-  const interactionPatternCandidates = typeof plugin.interactionMemoryStore.getPatternCandidateRegistry === "function"
-    ? await plugin.interactionMemoryStore.getPatternCandidateRegistry(settings)
-    : [];
-  const promptSignals = planPromptSignals({
-    memories: removeMemorySearchDuplicates(memories, memorySearch.results),
-    deepMemories: await plugin.deepMemoryStore.getPromptMemories(prompt, settings, {
+  const interactionContext = buildPromptInteractionContext(prompt, conversation);
+  const [
+    memories,
+    memorySearch,
+    interactionPatternCandidates,
+    deepMemories,
+    interactionStance,
+    memoryTrace,
+    collaborationOmissions
+  ] = await Promise.all([
+    plugin.memoryStore.getRelevantMemories(prompt, settings, {
+      activeFilePath,
+      activeFileContent: activeNoteEvidence,
+      workingDirectory: cwd
+    }),
+    getExplicitMemorySearch(
+      plugin.memoryStore,
+      prompt,
+      settings,
+      onUpdate,
+      translate,
+      keyPrefix,
+      { activeFilePath, activeFileContent: activeNoteEvidence }
+    ),
+    typeof plugin.interactionMemoryStore.getPatternCandidateRegistry === "function"
+      ? plugin.interactionMemoryStore.getPatternCandidateRegistry(settings)
+      : Promise.resolve([]),
+    plugin.deepMemoryStore.getPromptMemories(prompt, settings, {
       activeFilePath,
       workingDirectory: cwd,
       conversationText
     }),
+    plugin.interactionMemoryStore.getPromptStance(settings, interactionContext),
+    getPreviousAnswerMemoryTrace(plugin.memoryStore, prompt, conversation),
+    typeof plugin.memoryStore.getCollaborationOmissions === "function"
+      ? plugin.memoryStore.getCollaborationOmissions(settings, {
+        activeFilePath,
+        activeFileContent: activeNoteEvidence
+      })
+      : Promise.resolve([])
+  ]);
+  const promptSignals = planPromptSignals({
+    memories: removeMemorySearchDuplicates(memories, memorySearch.results),
+    deepMemories,
     memorySearchResults: memorySearch.results,
     memorySearchPerformed: memorySearch.performed,
-    interactionStance: await plugin.interactionMemoryStore.getPromptStance(
-      settings,
-      buildPromptInteractionContext(prompt, conversation)
-    ),
+    interactionStance,
     personaProfile: getPersonaProfile(settings),
     workingAffect: plugin.getPromptWorkingAffect(prompt)
   });
@@ -87,17 +101,6 @@ async function buildAgentTurnContext({
   promptSignals.memories = automaticPacket.items;
   promptSignals.memorySearchResults = explicitPacket.items;
   let memoryRecallManifest = Object.assign({}, automaticPacket.manifest, explicitPacket.manifest);
-  const memoryTrace = await getPreviousAnswerMemoryTrace(
-    plugin.memoryStore,
-    prompt,
-    conversation
-  );
-  const collaborationOmissions = typeof plugin.memoryStore.getCollaborationOmissions === "function"
-    ? await plugin.memoryStore.getCollaborationOmissions(settings, {
-      activeFilePath,
-      activeFileContent: activeNoteEvidence
-    })
-    : [];
   const expressionPolicy = planExpressionPolicy({
     prompt,
     conversationText,

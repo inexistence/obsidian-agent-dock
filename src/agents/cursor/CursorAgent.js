@@ -12,22 +12,7 @@ const { expandHomePath } = require("../../cli/paths");
 const { escapeAppleScriptString, shellQuote } = require("../../cli/shell");
 const { t } = require("../../i18n");
 const { DEFAULT_SETTINGS } = require("../../settings");
-const {
-  extractAgentDockSignals,
-  formatInvalidAgentDockSignalActivity,
-  formatAgentDockSignalNotice,
-  formatAgentDockReflectionNotice
-} = require("../shared/agentSignals");
-const {
-  buildDeepMemoryAuditItems,
-  buildInteractionMemoryAuditItems,
-  buildMemoryUpdateAuditItems,
-  formatDeepMemoryUpdateSummary,
-  formatInteractionMemoryUpdateKind,
-  formatInteractionMemoryUpdateSummary,
-  formatInteractionMemoryUpdateTitle,
-  formatMemoryUpdateSummary
-} = require("../shared/captureNotices");
+const { extractAgentDockSignals } = require("../shared/agentSignals");
 const { AcpClient } = require("./AcpClient");
 const { acpUpdateToEvents } = require("./acpEvents");
 const { toCursorMode } = require("./modes");
@@ -37,6 +22,13 @@ const {
   createSignalEvidenceContext,
   mergeSignalEvidenceContexts
 } = require("../shared/signalEvidence");
+const {
+  appendToolResultEvidence,
+  captureTurnContinuity,
+  emitAgentDockSignalNotices,
+  emitInvalidAgentDockSignalActivity,
+  getPreviousAssistantResponse
+} = require("../shared/TurnCompletion");
 
 const CONNECTION_IDLE_MS = 30 * 60 * 1000;
 
@@ -381,7 +373,7 @@ class CursorAgent {
     );
     const visibleOutput = signalResult.visibleText.trim();
 
-    await this.captureMemory({
+    await captureTurnContinuity(this.plugin, {
       prompt,
       response: visibleOutput,
       agentDockSignals: signalResult.signals,
@@ -392,31 +384,10 @@ class CursorAgent {
       userMessageId: options.userMessageId || "",
       assistantMessageId: options.assistantMessageId || "",
       memoryRecallManifest
-    }, settings, emitUpdate);
-    await this.captureInteractionMemory({
-      prompt,
-      response: visibleOutput,
-      agentDockSignals: signalResult.signals,
-      signalEvidenceContext,
-      previousAssistantResponse: getPreviousAssistantResponse(conversation),
-      activeFilePath,
-      sessionId: options.sessionId || "",
-      userMessageId: options.userMessageId || "",
-      assistantMessageId: options.assistantMessageId || "",
-      memoryRecallManifest
-    }, settings, emitUpdate);
-    await this.captureDeepMemory({
-      prompt,
-      response: visibleOutput,
-      agentDockSignals: signalResult.signals,
-      signalEvidenceContext,
-      previousAssistantResponse: getPreviousAssistantResponse(conversation),
-      activeFilePath,
-      sessionId: options.sessionId || "",
-      userMessageId: options.userMessageId || "",
-      assistantMessageId: options.assistantMessageId || "",
-      memoryRecallManifest
-    }, settings, emitUpdate);
+    }, settings, emitUpdate, {
+      keyPrefix: "cursor",
+      translate: t
+    });
 
     return visibleOutput;
   }
@@ -582,134 +553,6 @@ class CursorAgent {
     return this.plugin.settings.workingDirectory || this.plugin.app.vault.adapter.basePath;
   }
 
-  async captureMemory(turn, settings, onUpdate) {
-    try {
-      const saved = await this.plugin.memoryStore.captureTurn(turn, settings);
-      if (saved.length > 0) {
-        onUpdate({
-          kind: "notice",
-          noticeType: "memory_updated",
-          insertBeforeLastContent: true,
-          title: t(settings, "cursor.memoryUpdated.title"),
-          summary: formatMemoryUpdateSummary(settings, "cursor", t, saved),
-          auditItems: buildMemoryUpdateAuditItems(saved, settings, "cursor", t)
-        });
-      }
-    } catch (error) {
-      console.warn("Agent Dock could not update memory:", error);
-      onUpdate({
-        kind: "notice",
-        noticeType: "memory_skipped",
-        insertBeforeLastContent: true,
-        title: t(settings, "cursor.memorySkipped.title"),
-        summary: t(settings, "cursor.memorySkipped.summary")
-      });
-    }
-  }
-
-  async captureInteractionMemory(turn, settings, onUpdate) {
-    try {
-      const result = await this.plugin.interactionMemoryStore.captureTurn(turn, settings);
-      if (result.closedEpisodes.length > 0) {
-        onUpdate({
-          kind: formatInteractionMemoryUpdateKind(result),
-          noticeType: "interaction_memory_updated",
-          insertBeforeLastContent: true,
-          title: formatInteractionMemoryUpdateTitle(settings, "cursor", t, result),
-          summary: formatInteractionMemoryUpdateSummary(settings, "cursor", t, result),
-          auditItems: buildInteractionMemoryAuditItems(result, settings, "cursor", t)
-        });
-      }
-    } catch (error) {
-      console.warn("Agent Dock could not update interaction memory:", error);
-      onUpdate({
-        kind: "notice",
-        noticeType: "interaction_memory_skipped",
-        insertBeforeLastContent: true,
-        title: t(settings, "cursor.interactionMemorySkipped.title"),
-        summary: t(settings, "cursor.interactionMemorySkipped.summary")
-      });
-    }
-  }
-
-  async captureDeepMemory(turn, settings, onUpdate) {
-    try {
-      const saved = await this.plugin.deepMemoryStore.captureTurn(turn, settings);
-      if (saved.length > 0) {
-        onUpdate({
-          kind: "notice",
-          noticeType: "deep_memory_updated",
-          insertBeforeLastContent: true,
-          title: t(settings, "cursor.deepMemoryUpdated.title"),
-          summary: formatDeepMemoryUpdateSummary(settings, "cursor", t, saved),
-          auditItems: buildDeepMemoryAuditItems(saved, settings, "cursor", t)
-        });
-      }
-    } catch (error) {
-      console.warn("Agent Dock could not update deep memory:", error);
-      onUpdate({
-        kind: "notice",
-        noticeType: "deep_memory_skipped",
-        insertBeforeLastContent: true,
-        title: t(settings, "cursor.deepMemorySkipped.title"),
-        summary: t(settings, "cursor.deepMemorySkipped.summary")
-      });
-    }
-  }
-}
-
-function emitAgentDockSignalNotices(
-  signals,
-  settings,
-  keyPrefix,
-  translate,
-  onUpdate,
-  reflectionFilter,
-  signalEvidenceContext
-) {
-  const reflectionNotice = formatAgentDockReflectionNotice(
-    signals.filter((signal) => !reflectionFilter?.hasEmitted(signal)),
-    settings,
-    keyPrefix,
-    translate
-  );
-  if (reflectionNotice) {
-    reflectionNotice.signalEvidenceContext = signalEvidenceContext;
-    onUpdate(reflectionNotice);
-  }
-  for (const signal of signals.filter((item) => item?.envelope !== "reflection_v1")) {
-    const notice = formatAgentDockSignalNotice(signal, settings, keyPrefix, translate);
-    if (notice) {
-      onUpdate(notice);
-    }
-  }
-}
-
-function appendToolResultEvidence(existing, update) {
-  return mergeSignalEvidenceContexts(
-    { tool_result: existing },
-    { tool_result: [update?.title, update?.summary, update?.detail].filter(Boolean).join("\n") }
-  ).tool_result;
-}
-
-function emitInvalidAgentDockSignalActivity(signalResult, onUpdate) {
-  const activity = formatInvalidAgentDockSignalActivity(signalResult);
-  if (activity) {
-    onUpdate(activity);
-  }
-}
-
-function getPreviousAssistantResponse(conversation) {
-  if (!Array.isArray(conversation)) {
-    return "";
-  }
-  for (let index = conversation.length - 2; index >= 0; index -= 1) {
-    const message = conversation[index];
-    if (message?.role === "assistant" && message.content) {
-      return message.content;
-    }
-  }
-  return "";
 }
 
 function emitCursorAuthenticationNoticeIfNeeded(client, emitUpdate, translate) {

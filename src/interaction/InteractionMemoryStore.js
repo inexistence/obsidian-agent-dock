@@ -12,6 +12,7 @@ const {
   sameCandidateDefinition
 } = require("./InteractionPatternCandidates");
 const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = require("../storage/localDataPath");
+const { writeJsonAtomically } = require("../storage/atomicJson");
 
 const INTERACTION_DIR_NAME = "interaction";
 const INTERACTION_FILE_NAME = "interaction-memory.json";
@@ -28,6 +29,7 @@ class InteractionMemoryStore {
     this.legacyMemoryPath = getLegacyPluginPath(plugin, INTERACTION_DIR_NAME, INTERACTION_FILE_NAME);
     this.legacyProfilePath = getLegacyPluginPath(plugin, LEGACY_PROFILE_DIR_NAME, LEGACY_PROFILE_FILE_NAME);
     this.cache = null;
+    this.storageError = null;
     this.writeQueue = Promise.resolve();
   }
 
@@ -117,7 +119,6 @@ class InteractionMemoryStore {
 
   async clearMemory() {
     return this.enqueueWrite(async () => {
-      this.cache = createEmptyInteractionMemory();
       try {
         if (await this.adapter.exists(this.memoryPath)) {
           await this.adapter.remove(this.memoryPath);
@@ -129,8 +130,11 @@ class InteractionMemoryStore {
           await this.adapter.remove(this.legacyProfilePath);
         }
       } catch (error) {
-        console.warn("Agent Dock could not clear interaction memory:", error);
+        this.cache = null;
+        throw error;
       }
+      this.storageError = null;
+      this.cache = createEmptyInteractionMemory();
     });
   }
 
@@ -143,17 +147,26 @@ class InteractionMemoryStore {
       this.cache = normalizeInteractionMemory(JSON.parse(raw));
       this.cache.pendingEpisodes = limitPendingEpisodes(this.cache.pendingEpisodes);
       return this.cache;
-    } catch {
+    } catch (error) {
+      if (await this.hasStoredMemoryFile()) {
+        this.storageError = error;
+        console.warn("Agent Dock could not read interaction memory; writes are disabled to preserve the existing file:", error);
+      }
       this.cache = createEmptyInteractionMemory();
       return this.cache;
     }
   }
 
   async saveMemory(memory) {
+    if (this.storageError) {
+      throw new Error("Interaction memory storage is write-protected because the existing file could not be read.", {
+        cause: this.storageError
+      });
+    }
     await this.ensureInteractionDir();
     this.cache = normalizeInteractionMemory(memory);
     this.cache.pendingEpisodes = limitPendingEpisodes(this.cache.pendingEpisodes);
-    await this.adapter.write(this.memoryPath, `${JSON.stringify(this.cache, null, 2)}\n`);
+    await writeJsonAtomically(this.adapter, this.memoryPath, this.cache);
   }
 
   async ensureInteractionDir() {
@@ -165,6 +178,11 @@ class InteractionMemoryStore {
       return this.adapter.read(this.memoryPath);
     }
     return this.adapter.read(this.legacyMemoryPath);
+  }
+
+  async hasStoredMemoryFile() {
+    return await this.adapter.exists(this.memoryPath)
+      || await this.adapter.exists(this.legacyMemoryPath);
   }
 
   enqueueWrite(operation) {

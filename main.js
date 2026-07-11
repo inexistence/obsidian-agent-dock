@@ -4090,741 +4090,6 @@ module.exports = {
 };
 
 },
-"src/agents/shared/auditFormatting.js": function(module, exports, __require) {
-function formatAuditDate(value, options = {}) {
-  const timestamp = Number(value);
-  if (!Number.isFinite(timestamp) || timestamp <= 0) {
-    return "";
-  }
-  const date = new Date(timestamp);
-  if (!Number.isFinite(date.getTime())) {
-    return "";
-  }
-  if (options.timeZone) {
-    const parts = new Intl.DateTimeFormat("en-US", {
-      timeZone: options.timeZone,
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit"
-    }).formatToParts(date);
-    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
-    return `${values.year}-${values.month}-${values.day}`;
-  }
-  return [
-    date.getFullYear(),
-    String(date.getMonth() + 1).padStart(2, "0"),
-    String(date.getDate()).padStart(2, "0")
-  ].join("-");
-}
-
-module.exports = {
-  formatAuditDate
-};
-
-},
-"src/storage/MemoryReliability.js": function(module, exports, __require) {
-const HIGH_SUPPORT_THRESHOLD = 0.78;
-const MEDIUM_SUPPORT_THRESHOLD = 0.5;
-
-const SOURCE_BASE_SCORES = Object.freeze({
-  user_message: 0.82,
-  active_note: 0.78,
-  assistant_message: 0.62,
-  recalled_memory: 0.58,
-  assistant_reflection: 0.52,
-  local_rules: 0.46,
-  legacy_summary: 0.5,
-  tool_result: 0.68,
-  unknown: 0.38
-});
-
-function evaluateMemoryReliability(item, options = {}) {
-  const now = Number(options.now) || Date.now();
-  const evidence = Array.isArray(item?.evidenceRefs) ? item.evidenceRefs : [];
-  const strongest = evidence.reduce((best, entry) => (
-    Math.max(best, SOURCE_BASE_SCORES[entry?.origin] ?? SOURCE_BASE_SCORES.unknown)
-  ), SOURCE_BASE_SCORES[item?.source] ?? SOURCE_BASE_SCORES.unknown);
-  const reasons = [];
-  let score = strongest;
-
-  const exactEvidenceCount = evidence.filter((entry) => entry?.quote && entry.origin !== "legacy_summary").length;
-  if (exactEvidenceCount > 0) {
-    score += 0.08;
-    reasons.push("exact_visible_evidence");
-  } else {
-    reasons.push("summary_only");
-  }
-  if (new Set(evidence.map((entry) => `${entry.origin}:${entry.sourceMessageId || entry.filePath || entry.sourceSessionId}`)).size >= 2) {
-    score += 0.05;
-    reasons.push("multiple_sources");
-  }
-  const activeNoteEvidence = evidence.filter((entry) => (
-    entry.origin === "active_note"
-    && options.activeFilePath
-    && entry.filePath === options.activeFilePath
-  ));
-  if (activeNoteEvidence.length > 0 && typeof options.activeFileContent === "string") {
-    if (activeNoteEvidence.some((entry) => evidenceMatchesContent(entry, options.activeFileContent))) {
-      score += 0.06;
-      reasons.push("current_file_matches");
-    } else {
-      score -= 0.25;
-      reasons.push("current_file_changed");
-    }
-  }
-  const evidenceFileContents = options.evidenceFileContents && typeof options.evidenceFileContents === "object"
-    ? options.evidenceFileContents
-    : {};
-  const checkedFileEvidence = evidence.filter((entry) => (
-    entry.origin === "active_note"
-    && entry.filePath
-    && Object.prototype.hasOwnProperty.call(evidenceFileContents, entry.filePath)
-    && entry.filePath !== options.activeFilePath
-  ));
-  if (checkedFileEvidence.some((entry) => !evidenceMatchesContent(
-    entry,
-    evidenceFileContents[entry.filePath]
-  ))) {
-    score -= 0.25;
-    reasons.push("stored_file_changed");
-  } else if (checkedFileEvidence.length > 0) {
-    score += 0.04;
-    reasons.push("stored_files_match");
-  }
-
-  const captureConfidence = clampUnit(item?.captureConfidence ?? item?.confidence, 0.6);
-  score += (captureConfidence - 0.5) * 0.12;
-
-  const temporal = normalizeTemporal(item?.temporal, item?.kind);
-  const ageDays = Math.max(0, (now - normalizeTimestamp(item?.updatedAt, now)) / 86400000);
-  const agePenalty = getAgePenalty(temporal.class, ageDays);
-  if (agePenalty > 0) {
-    score -= agePenalty;
-    reasons.push("aged_evidence");
-  }
-
-  const expired = isExpired(item, now, temporal);
-  const contested = item?.status === "contested" || (Array.isArray(item?.conflictIds) && item.conflictIds.length > 0);
-  if (expired) {
-    reasons.push("expired");
-  }
-  if (contested) {
-    reasons.push("conflicting_evidence");
-  }
-  const retired = item?.status === "corrected" || item?.status === "superseded";
-  if (retired) {
-    reasons.push(item.status);
-    score = Math.min(score, 0.3);
-  }
-
-  score = clampUnit(score, 0.4);
-  if (evidence.length > 0 && evidence.every((entry) => entry.origin === "legacy_summary")) {
-    score = Math.min(score, 0.7);
-    reasons.push("legacy_support_cap");
-  }
-  if (item?.source === "ai" && !evidence.some((entry) => containsComparableText(entry.quote, item.text))) {
-    score = Math.min(score, 0.74);
-    reasons.push("ai_summary_support_cap");
-  }
-  let level = score >= HIGH_SUPPORT_THRESHOLD
-    ? "high"
-    : score >= MEDIUM_SUPPORT_THRESHOLD ? "medium" : "low";
-  if (retired) {
-    level = "low";
-  } else if (contested) {
-    level = "contested";
-  } else if (expired) {
-    level = "expired";
-  }
-
-  return {
-    score,
-    level,
-    reasons,
-    stale: expired || agePenalty >= 0.18,
-    contested,
-    expired
-  };
-}
-
-function evidenceMatchesContent(evidence, content) {
-  const quote = String(evidence?.quote || "");
-  if (!quote) {
-    return false;
-  }
-  const comparableQuote = evidence?.truncated === true && quote.endsWith("...")
-    ? quote.slice(0, -3)
-    : quote;
-  return Boolean(comparableQuote && String(content || "").includes(comparableQuote));
-}
-
-function containsComparableText(container, candidate) {
-  const normalize = (value) => String(value || "")
-    .toLowerCase()
-    .replace(/[^\p{L}\p{N}]+/gu, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-  const left = normalize(container);
-  const right = normalize(candidate);
-  return Boolean(left && right && left.includes(right));
-}
-
-function normalizeTemporal(value, kind) {
-  const source = value && typeof value === "object" ? value : {};
-  const allowed = ["durable", "project", "state", "event"];
-  return {
-    class: allowed.includes(source.class) ? source.class : inferTemporalClass(kind),
-    validFrom: normalizeTimestamp(source.validFrom, 0),
-    validUntil: normalizeTimestamp(source.validUntil, 0),
-    containsRelativeTime: source.containsRelativeTime === true
-  };
-}
-
-function inferTemporalClass(kind) {
-  if (["preference", "identity", "shared"].includes(kind)) {
-    return "durable";
-  }
-  if (kind === "task") {
-    return "state";
-  }
-  return "project";
-}
-
-function isExpired(item, now, temporal = normalizeTemporal(item?.temporal, item?.kind)) {
-  if (item?.status === "expired") {
-    return true;
-  }
-  if (temporal.validUntil > 0 && temporal.validUntil < now) {
-    return true;
-  }
-  const ageMs = now - normalizeTimestamp(item?.updatedAt, now);
-  if (temporal.class === "state" && temporal.containsRelativeTime && ageMs > 48 * 3600000) {
-    return true;
-  }
-  if (
-    temporal.class === "event"
-    && ["planned", "active"].includes(item?.event?.status)
-    && ageMs > (temporal.containsRelativeTime ? 48 * 3600000 : 7 * 86400000)
-  ) {
-    return true;
-  }
-  return temporal.class === "state" && ageMs > 30 * 86400000;
-}
-
-function getAgePenalty(temporalClass, ageDays) {
-  if (temporalClass === "durable") {
-    return Math.min(0.1, ageDays / 3650);
-  }
-  if (temporalClass === "project") {
-    return Math.min(0.22, ageDays / 820);
-  }
-  if (temporalClass === "event") {
-    return Math.min(0.3, ageDays / 300);
-  }
-  return Math.min(0.45, ageDays / 90);
-}
-
-function clampUnit(value, fallback) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) {
-    return fallback;
-  }
-  return Math.max(0, Math.min(1, number));
-}
-
-function normalizeTimestamp(value, fallback) {
-  const timestamp = Number(value);
-  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : fallback;
-}
-
-module.exports = {
-  evaluateMemoryReliability,
-  inferTemporalClass,
-  isExpired,
-  normalizeTemporal,
-  _test: {
-    evidenceMatchesContent
-  }
-};
-
-},
-"src/agents/shared/captureNotices.js": function(module, exports, __require) {
-const { formatAuditDate } = __require("src/agents/shared/auditFormatting.js");
-const { evaluateMemoryReliability } = __require("src/storage/MemoryReliability.js");
-
-const MAX_NOTICE_ITEMS = 3;
-const MAX_NOTICE_TEXT_CHARS = 180;
-const MAX_AUDIT_TEXT_CHARS = 1400;
-
-function formatMemoryUpdateSummary(settings, keyPrefix, translate, saved) {
-  const count = saved.length;
-  return translate(settings, `${keyPrefix}.memoryUpdated.summary`, {
-    count,
-    noteLabel: count === 1 ? "note" : "notes"
-  });
-}
-
-function formatDeepMemoryUpdateSummary(settings, keyPrefix, translate, saved) {
-  const count = saved.length;
-  const aiCount = saved.filter(isAiReflectionDeepMemory).length;
-  const base = translate(settings, `${keyPrefix}.deepMemoryUpdated.summary`, { count });
-  if (aiCount <= 0) {
-    return base;
-  }
-  return `${base}\n${translate(settings, `${keyPrefix}.deepMemoryUpdated.aiReflectionCount`, { count: aiCount })}`;
-}
-
-function formatInteractionMemoryUpdateSummary(settings, keyPrefix, translate, result) {
-  const closedEpisodes = Array.isArray(result?.closedEpisodes) ? result.closedEpisodes : [];
-  const changed = []
-    .concat((Array.isArray(result?.updatedPatterns) ? result.updatedPatterns : []).map((item) => ({
-      type: item.generatedBy === "ai"
-        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiPatternLabel`)
-        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`),
-      text: item.summary,
-      evidenceCount: item.evidenceCount
-    })))
-    .concat((Array.isArray(result?.updatedTensions) ? result.updatedTensions : []).map((item) => ({
-      type: translate(settings, `${keyPrefix}.interactionMemoryUpdated.tensionLabel`),
-      text: item.resolutionStyle,
-      evidenceCount: item.evidenceCount
-    })))
-    .concat((Array.isArray(result?.updatedStableImpressions) ? result.updatedStableImpressions : []).map((item) => ({
-      type: item.generatedBy === "ai"
-        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiImpressionLabel`)
-        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.impressionLabel`),
-      text: item.text,
-      evidenceCount: item.evidenceCount
-    })));
-
-  const base = translate(settings, `${keyPrefix}.interactionMemoryUpdated.summary`, {
-    count: closedEpisodes.length
-  });
-  const sections = [];
-  if (closedEpisodes.length > 0) {
-    sections.push(translate(settings, `${keyPrefix}.interactionMemoryUpdated.episodes`, {
-      items: formatItemList(closedEpisodes, formatInteractionEpisode)
-    }));
-  }
-  if (changed.length > 0) {
-    sections.push(translate(settings, `${keyPrefix}.interactionMemoryUpdated.changed`, {
-      items: formatItemList(changed, (item) => formatInteractionChange(settings, keyPrefix, translate, item))
-    }));
-  } else if (closedEpisodes.length > 0) {
-    sections.push(translate(settings, `${keyPrefix}.interactionMemoryUpdated.unchanged`));
-  }
-  return [base].concat(sections).filter(Boolean).join("\n");
-}
-
-function formatInteractionMemoryUpdateTitle(settings, keyPrefix, translate, result) {
-  return translate(settings, hasInteractionDerivedChanges(result)
-    ? `${keyPrefix}.interactionMemoryUpdated.title`
-    : `${keyPrefix}.interactionMemoryUpdated.episodeTitle`);
-}
-
-function formatInteractionMemoryUpdateKind(result) {
-  return hasInteractionDerivedChanges(result) ? "notice" : "activity";
-}
-
-function buildMemoryUpdateAuditItems(saved, settings, keyPrefix, translate) {
-  return (Array.isArray(saved) ? saved : []).map((item, index) => {
-    const type = translate(settings, `${keyPrefix}.memoryAudit.type.memory`);
-    const evidence = Array.isArray(item.evidenceRefs) ? item.evidenceRefs : [];
-    const source = item.source === "ai"
-      ? translateMemorySource(settings, keyPrefix, translate, item.source)
-      : (evidence.find((entry) => entry.origin === "user_message") || evidence[0])?.origin
-        || translateMemorySource(settings, keyPrefix, translate, item.source);
-    const reliability = evaluateMemoryReliability(item);
-    return {
-      title: formatAuditItemTitle(type, index),
-      summary: truncateNoticeText(item.text),
-      type,
-      source,
-      badges: [item.scope, item.kind, source].filter(Boolean),
-      fields: [
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatUpdateReason(item, settings, keyPrefix, translate)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(item.createdAt)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(item.updatedAt)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.content`), item.text),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.scope`), item.scope),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.kind`), item.kind),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.confidence`), formatNumber(item.captureConfidence ?? item.confidence)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.support`), `${reliability.level} (${formatNumber(reliability.score)})`),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.status`), item.status || "active"),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.evidence`), evidence.map((entry) => (
-          `[${entry.origin}; speaker=${entry.speaker}] “${entry.quote}”`
-        )).join("\n"))
-      ].filter(Boolean)
-    };
-  });
-}
-
-function formatUpdateReason(item, settings, keyPrefix, translate) {
-  const audit = item?.updateAudit || {};
-  if (audit.reasonCode === "existing_memory_refreshed") {
-    return translate(settings, `${keyPrefix}.memoryAudit.reason.existingMemoryRefreshed`, {
-      kind: item.kind || audit.kind || "",
-      confidence: formatNumber(item.confidence || audit.confidence)
-    });
-  }
-  if (audit.reasonCode === "ai_signal_capture") {
-    return translate(settings, `${keyPrefix}.memoryAudit.reason.aiSignalCapture`, {
-      kind: item.kind || audit.kind || "",
-      confidence: formatNumber(item.confidence || audit.confidence)
-    });
-  }
-  return translate(settings, `${keyPrefix}.memoryAudit.reason.localRuleCapture`, {
-    kind: item.kind || audit.kind || "",
-    confidence: formatNumber(item.confidence || audit.confidence)
-  });
-}
-
-function buildDeepMemoryAuditItems(saved, settings, keyPrefix, translate) {
-  return (Array.isArray(saved) ? saved : []).map((item, index) => {
-    const type = translate(settings, `${keyPrefix}.memoryAudit.type.deepMemory`);
-    const source = isAiReflectionDeepMemory(item)
-      ? translate(settings, `${keyPrefix}.deepMemoryUpdated.aiReflectionSource`)
-      : translate(settings, `${keyPrefix}.memoryAudit.source.localRules`);
-    return {
-      title: formatAuditItemTitle(type, index),
-      summary: truncateNoticeText(item.summary),
-      type,
-      source,
-      badges: [item.kind, source].concat(item.salienceAxes || []).filter(Boolean),
-      fields: [
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatDeepMemoryReason(item, source, settings, keyPrefix, translate)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(item.createdAt)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(item.updatedAt)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.summary`), item.summary),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.why`), item.whyItMatters),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.feltSense`), item.feltSense),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.userExcerpt`), item.userExcerpt),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.assistantExcerpt`), item.assistantExcerpt),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.importance`), formatNumber(item.importance)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.confidence`), formatNumber(item.confidence))
-      ].filter(Boolean)
-    };
-  });
-}
-
-function buildInteractionMemoryAuditItems(result, settings, keyPrefix, translate) {
-  const closedEpisodes = Array.isArray(result?.closedEpisodes) ? result.closedEpisodes : [];
-  const items = closedEpisodes.map((item, index) => {
-    const type = translate(settings, `${keyPrefix}.memoryAudit.type.interactionEpisode`);
-    const source = item.aiReflectionContribution
-      ? translate(settings, `${keyPrefix}.memoryAudit.source.localRulesAndAiReflection`)
-      : translate(settings, `${keyPrefix}.memoryAudit.source.localRules`);
-    const affectedItems = getInteractionChangesForEpisode(result, item, settings, keyPrefix, translate);
-    const patternCandidateUpdate = (Array.isArray(result?.patternCandidateUpdates) ? result.patternCandidateUpdates : [])
-      .find((entry) => entry.episodeId === item.id);
-    return {
-      title: formatAuditItemTitle(type, index),
-      summary: truncateNoticeText([item.userExcerpt, item.reaction?.excerpt || item.outcomeHint].filter(Boolean).join(" -> ")),
-      type,
-      source,
-      badges: [item.context, item.phase, item.memoryRole].filter(Boolean),
-      fields: [
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatInteractionEpisodeReason(item, settings, keyPrefix, translate)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(item.createdAt)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(item.updatedAt)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.userExcerpt`), item.userExcerpt),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.assistantExcerpt`), item.assistantExcerpt),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reaction`), item.reaction?.excerpt || item.outcomeHint),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reactionType`), formatInteractionReaction(item, settings, keyPrefix, translate)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.aiReflection`), formatAiReflectionContribution(item.aiReflectionContribution, settings, keyPrefix, translate)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.patternCandidate`), formatPatternCandidateUpdate(patternCandidateUpdate, settings, keyPrefix, translate)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.effect`), formatInteractionEpisodeEffect(item, affectedItems, settings, keyPrefix, translate)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.role`), item.memoryRole),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.weight`), formatNumber(item.eventWeight))
-      ].filter(Boolean)
-    };
-  });
-
-  const changed = []
-    .concat((Array.isArray(result?.updatedPatterns) ? result.updatedPatterns : []).map((item) => ({
-      item,
-      type: item.generatedBy === "ai"
-        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiPatternLabel`)
-        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`),
-      text: item.summary,
-      source: item.generatedBy === "ai"
-        ? translate(settings, `${keyPrefix}.memoryAudit.source.aiReflectionPromotedLocally`)
-        : translate(settings, `${keyPrefix}.memoryAudit.source.localRules`)
-    })))
-    .concat((Array.isArray(result?.updatedTensions) ? result.updatedTensions : []).map((item) => ({
-      item,
-      type: translate(settings, `${keyPrefix}.interactionMemoryUpdated.tensionLabel`),
-      text: item.resolutionStyle
-    })))
-    .concat((Array.isArray(result?.updatedStableImpressions) ? result.updatedStableImpressions : []).map((item) => ({
-      item,
-      type: item.generatedBy === "ai"
-        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiImpressionLabel`)
-        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.impressionLabel`),
-      text: item.text,
-      source: item.generatedBy === "ai"
-        ? translate(settings, `${keyPrefix}.memoryAudit.source.aiReflection`)
-        : translate(settings, `${keyPrefix}.memoryAudit.source.localRules`)
-    })));
-
-  for (const [index, entry] of changed.entries()) {
-    const source = entry.source || translate(settings, `${keyPrefix}.memoryAudit.source.localRules`);
-    items.push({
-      title: formatAuditItemTitle(entry.type, index),
-      summary: truncateNoticeText(entry.text),
-      type: entry.type,
-      source,
-      badges: [
-        entry.type,
-        entry.item.evidenceCount ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.evidenceLabel`, {
-          count: entry.item.evidenceCount
-        }) : ""
-      ].filter(Boolean),
-      fields: [
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatInteractionChangeReason(entry, settings, keyPrefix, translate)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(entry.item.createdAt)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(entry.item.updatedAt)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.content`), entry.text),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.evidenceCount`), entry.item.evidenceCount),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.confidence`), formatNumber(entry.item.confidence)),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.strength`), formatNumber(entry.item.strength))
-      ].filter(Boolean)
-    });
-  }
-
-  return items;
-}
-
-function formatAiReflectionContribution(contribution, settings, keyPrefix, translate) {
-  if (!contribution) {
-    return "";
-  }
-  return translate(settings, `${keyPrefix}.memoryAudit.effect.aiReflectionContribution`, {
-    summary: contribution.summary || "",
-    shapes: (Array.isArray(contribution.shapes) ? contribution.shapes : []).join(", "),
-    confidence: formatNumber(contribution.confidence),
-    weight: formatNumber(contribution.weight)
-  });
-}
-
-function formatPatternCandidateUpdate(update, settings, keyPrefix, translate) {
-  if (!update) {
-    return "";
-  }
-  return translate(settings, `${keyPrefix}.memoryAudit.patternCandidate.${update.status}`, {
-    key: update.key,
-    axis: update.axis,
-    summary: update.summary,
-    canonicalSummary: update.canonicalSummary,
-    evidenceQuote: update.evidenceQuote,
-    evidenceCount: update.evidenceCount,
-    minEvidence: update.minEvidence
-  });
-}
-
-function hasInteractionDerivedChanges(result) {
-  return [result?.updatedPatterns, result?.updatedTensions, result?.updatedStableImpressions]
-    .some((items) => Array.isArray(items) && items.length > 0);
-}
-
-function formatDeepMemoryReason(item, source, settings, keyPrefix, translate) {
-  if (item?.whyItMatters) {
-    return item.whyItMatters;
-  }
-  if (isAiReflectionDeepMemory(item)) {
-    return translate(settings, `${keyPrefix}.memoryAudit.reason.deepMemoryAiReflection`, { source });
-  }
-  return translate(settings, `${keyPrefix}.memoryAudit.reason.deepMemoryLocalRules`, {
-    kind: item?.kind || "",
-    importance: formatNumber(item?.importance),
-    confidence: formatNumber(item?.confidence)
-  });
-}
-
-function formatInteractionEpisodeReason(item, settings, keyPrefix, translate) {
-  if (item?.repairPath) {
-    return translate(settings, `${keyPrefix}.memoryAudit.reason.interactionRepairEpisode`, {
-      context: item.context || "",
-      phase: item.phase || "",
-      role: item.memoryRole || "",
-      weight: formatNumber(item.eventWeight)
-    });
-  }
-  return translate(settings, `${keyPrefix}.memoryAudit.reason.interactionClosedEpisode`, {
-    context: item?.context || "",
-    phase: item?.phase || "",
-    role: item?.memoryRole || "",
-    weight: formatNumber(item?.eventWeight)
-  });
-}
-
-function formatInteractionReaction(item, settings, keyPrefix, translate) {
-  const code = item?.reaction?.outcomeHint || item?.outcomeHint || item?.reaction?.kind || "";
-  if (!code) {
-    return "";
-  }
-  const label = translate(settings, `${keyPrefix}.memoryAudit.reaction.${code}`);
-  return label && label !== `${keyPrefix}.memoryAudit.reaction.${code}`
-    ? `${code} — ${label}`
-    : code;
-}
-
-function formatInteractionEpisodeEffect(item, affectedItems, settings, keyPrefix, translate) {
-  if (!Array.isArray(affectedItems) || affectedItems.length === 0) {
-    return translate(settings, `${keyPrefix}.memoryAudit.effect.interactionEpisodeOnly`, {
-      role: item?.memoryRole || "short_term_episode"
-    });
-  }
-  const labels = affectedItems.map((entry) => entry.type).filter(Boolean).join("、");
-  return translate(settings, `${keyPrefix}.memoryAudit.effect.interactionDerivedChanged`, {
-    count: affectedItems.length,
-    items: labels
-  });
-}
-
-function getInteractionChangesForEpisode(result, episode, settings, keyPrefix, translate) {
-  const entries = []
-    .concat((Array.isArray(result?.updatedPatterns) ? result.updatedPatterns : []).map((item) => ({
-      item,
-      type: item.generatedBy === "ai"
-        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiPatternLabel`)
-        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`)
-    })))
-    .concat((Array.isArray(result?.updatedTensions) ? result.updatedTensions : []).map((item) => ({
-      item,
-      type: translate(settings, `${keyPrefix}.interactionMemoryUpdated.tensionLabel`)
-    })))
-    .concat((Array.isArray(result?.updatedStableImpressions) ? result.updatedStableImpressions : []).map((item) => ({
-      item,
-      type: item.generatedBy === "ai"
-        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiImpressionLabel`)
-        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.impressionLabel`)
-    })));
-  return entries.filter((entry) => (
-    Array.isArray(entry.item?.evidenceEpisodeIds)
-    && entry.item.evidenceEpisodeIds.includes(episode?.id)
-  ));
-}
-
-function formatInteractionChangeReason(entry, settings, keyPrefix, translate) {
-  const evidenceCount = entry?.item?.evidenceCount || 0;
-  const confidence = formatNumber(entry?.item?.confidence);
-  const strength = formatNumber(entry?.item?.strength);
-  if (entry?.source === translate(settings, `${keyPrefix}.memoryAudit.source.aiReflection`)) {
-    return translate(settings, `${keyPrefix}.memoryAudit.reason.interactionAiImpression`, {
-      type: entry.type || "",
-      evidenceCount,
-      confidence,
-      strength
-    });
-  }
-  return translate(settings, `${keyPrefix}.memoryAudit.reason.interactionEvidenceUpdate`, {
-    type: entry?.type || "",
-    evidenceCount,
-    confidence,
-    strength
-  });
-}
-
-function formatAuditItemTitle(type, index) {
-  const label = String(type || "").trim();
-  const number = Number.isFinite(index) ? index + 1 : 1;
-  return label ? `${label} ${number}` : `Item ${number}`;
-}
-
-function formatItemList(items, formatter) {
-  const visible = items.slice(0, MAX_NOTICE_ITEMS)
-    .map((item) => formatter(item))
-    .filter(Boolean);
-  const remaining = Math.max(0, items.length - visible.length);
-  if (remaining > 0) {
-    visible.push(`- ... +${remaining}`);
-  }
-  return visible.join("\n");
-}
-
-function formatInteractionEpisode(item) {
-  const parts = [
-    item.userExcerpt,
-    item.reaction?.excerpt || item.outcomeHint
-  ].map((part) => truncateNoticeText(part)).filter(Boolean);
-  return parts.length > 1 ? `- ${parts[0]} -> ${parts[1]}` : `- ${parts[0] || item.context || item.phase}`;
-}
-
-function formatInteractionChange(settings, keyPrefix, translate, item) {
-  const label = [
-    item.type,
-    item.evidenceCount ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.evidenceLabel`, {
-      count: item.evidenceCount
-    }) : ""
-  ].filter(Boolean).join(", ");
-  const text = truncateNoticeText(item.text);
-  return label ? `- [${label}] ${text}` : `- ${text}`;
-}
-
-function isAiReflectionDeepMemory(item) {
-  return item?.kind === "visible_reflection"
-    || (Array.isArray(item?.topics) && item.topics.includes("agent_dock_signal"));
-}
-
-function translateMemorySource(settings, keyPrefix, translate, source) {
-  const normalized = String(source || "").trim();
-  if (normalized === "user") {
-    return translate(settings, `${keyPrefix}.memoryAudit.source.user`);
-  }
-  if (normalized === "ai") {
-    return translate(settings, `${keyPrefix}.memoryAudit.source.aiReflection`);
-  }
-  return translate(settings, `${keyPrefix}.memoryAudit.source.localRules`);
-}
-
-function createField(label, value) {
-  const text = String(value === undefined || value === null ? "" : value).replace(/\s+/g, " ").trim();
-  if (!label || !text) {
-    return null;
-  }
-  return {
-    label,
-    value: truncateAuditText(text)
-  };
-}
-
-function formatNumber(value) {
-  const number = Number(value);
-  if (!Number.isFinite(number)) {
-    return "";
-  }
-  return number.toFixed(2).replace(/\.?0+$/, "");
-}
-
-function truncateNoticeText(text, maxChars = MAX_NOTICE_TEXT_CHARS) {
-  const compact = String(text || "").replace(/\s+/g, " ").trim();
-  if (compact.length <= maxChars) {
-    return compact;
-  }
-  return `${compact.slice(0, maxChars - 1)}...`;
-}
-
-function truncateAuditText(text) {
-  return truncateNoticeText(text, MAX_AUDIT_TEXT_CHARS);
-}
-
-module.exports = {
-  buildDeepMemoryAuditItems,
-  buildInteractionMemoryAuditItems,
-  buildMemoryUpdateAuditItems,
-  formatDeepMemoryUpdateSummary,
-  formatInteractionMemoryUpdateKind,
-  formatInteractionMemoryUpdateSummary,
-  formatInteractionMemoryUpdateTitle,
-  formatMemoryUpdateSummary
-};
-
-},
 "src/interaction/LocalSignalExtractor.js": function(module, exports, __require) {
 const { containsSensitiveText, redactSensitiveText } = __require("src/storage/sensitiveText.js");
 const {
@@ -5634,6 +4899,232 @@ module.exports = {
     formatSalienceLine,
     formatStanceLines,
     formatToneLine
+  }
+};
+
+},
+"src/storage/MemoryReliability.js": function(module, exports, __require) {
+const HIGH_SUPPORT_THRESHOLD = 0.78;
+const MEDIUM_SUPPORT_THRESHOLD = 0.5;
+
+const SOURCE_BASE_SCORES = Object.freeze({
+  user_message: 0.82,
+  active_note: 0.78,
+  assistant_message: 0.62,
+  recalled_memory: 0.58,
+  assistant_reflection: 0.52,
+  local_rules: 0.46,
+  legacy_summary: 0.5,
+  tool_result: 0.68,
+  unknown: 0.38
+});
+
+function evaluateMemoryReliability(item, options = {}) {
+  const now = Number(options.now) || Date.now();
+  const evidence = Array.isArray(item?.evidenceRefs) ? item.evidenceRefs : [];
+  const strongest = evidence.reduce((best, entry) => (
+    Math.max(best, SOURCE_BASE_SCORES[entry?.origin] ?? SOURCE_BASE_SCORES.unknown)
+  ), SOURCE_BASE_SCORES[item?.source] ?? SOURCE_BASE_SCORES.unknown);
+  const reasons = [];
+  let score = strongest;
+
+  const exactEvidenceCount = evidence.filter((entry) => entry?.quote && entry.origin !== "legacy_summary").length;
+  if (exactEvidenceCount > 0) {
+    score += 0.08;
+    reasons.push("exact_visible_evidence");
+  } else {
+    reasons.push("summary_only");
+  }
+  if (new Set(evidence.map((entry) => `${entry.origin}:${entry.sourceMessageId || entry.filePath || entry.sourceSessionId}`)).size >= 2) {
+    score += 0.05;
+    reasons.push("multiple_sources");
+  }
+  const activeNoteEvidence = evidence.filter((entry) => (
+    entry.origin === "active_note"
+    && options.activeFilePath
+    && entry.filePath === options.activeFilePath
+  ));
+  if (activeNoteEvidence.length > 0 && typeof options.activeFileContent === "string") {
+    if (activeNoteEvidence.some((entry) => evidenceMatchesContent(entry, options.activeFileContent))) {
+      score += 0.06;
+      reasons.push("current_file_matches");
+    } else {
+      score -= 0.25;
+      reasons.push("current_file_changed");
+    }
+  }
+  const evidenceFileContents = options.evidenceFileContents && typeof options.evidenceFileContents === "object"
+    ? options.evidenceFileContents
+    : {};
+  const checkedFileEvidence = evidence.filter((entry) => (
+    entry.origin === "active_note"
+    && entry.filePath
+    && Object.prototype.hasOwnProperty.call(evidenceFileContents, entry.filePath)
+    && entry.filePath !== options.activeFilePath
+  ));
+  if (checkedFileEvidence.some((entry) => !evidenceMatchesContent(
+    entry,
+    evidenceFileContents[entry.filePath]
+  ))) {
+    score -= 0.25;
+    reasons.push("stored_file_changed");
+  } else if (checkedFileEvidence.length > 0) {
+    score += 0.04;
+    reasons.push("stored_files_match");
+  }
+
+  const captureConfidence = clampUnit(item?.captureConfidence ?? item?.confidence, 0.6);
+  score += (captureConfidence - 0.5) * 0.12;
+
+  const temporal = normalizeTemporal(item?.temporal, item?.kind);
+  const ageDays = Math.max(0, (now - normalizeTimestamp(item?.updatedAt, now)) / 86400000);
+  const agePenalty = getAgePenalty(temporal.class, ageDays);
+  if (agePenalty > 0) {
+    score -= agePenalty;
+    reasons.push("aged_evidence");
+  }
+
+  const expired = isExpired(item, now, temporal);
+  const contested = item?.status === "contested" || (Array.isArray(item?.conflictIds) && item.conflictIds.length > 0);
+  if (expired) {
+    reasons.push("expired");
+  }
+  if (contested) {
+    reasons.push("conflicting_evidence");
+  }
+  const retired = item?.status === "corrected" || item?.status === "superseded";
+  if (retired) {
+    reasons.push(item.status);
+    score = Math.min(score, 0.3);
+  }
+
+  score = clampUnit(score, 0.4);
+  if (evidence.length > 0 && evidence.every((entry) => entry.origin === "legacy_summary")) {
+    score = Math.min(score, 0.7);
+    reasons.push("legacy_support_cap");
+  }
+  if (item?.source === "ai" && !evidence.some((entry) => containsComparableText(entry.quote, item.text))) {
+    score = Math.min(score, 0.74);
+    reasons.push("ai_summary_support_cap");
+  }
+  let level = score >= HIGH_SUPPORT_THRESHOLD
+    ? "high"
+    : score >= MEDIUM_SUPPORT_THRESHOLD ? "medium" : "low";
+  if (retired) {
+    level = "low";
+  } else if (contested) {
+    level = "contested";
+  } else if (expired) {
+    level = "expired";
+  }
+
+  return {
+    score,
+    level,
+    reasons,
+    stale: expired || agePenalty >= 0.18,
+    contested,
+    expired
+  };
+}
+
+function evidenceMatchesContent(evidence, content) {
+  const quote = String(evidence?.quote || "");
+  if (!quote) {
+    return false;
+  }
+  const comparableQuote = evidence?.truncated === true && quote.endsWith("...")
+    ? quote.slice(0, -3)
+    : quote;
+  return Boolean(comparableQuote && String(content || "").includes(comparableQuote));
+}
+
+function containsComparableText(container, candidate) {
+  const normalize = (value) => String(value || "")
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  const left = normalize(container);
+  const right = normalize(candidate);
+  return Boolean(left && right && left.includes(right));
+}
+
+function normalizeTemporal(value, kind) {
+  const source = value && typeof value === "object" ? value : {};
+  const allowed = ["durable", "project", "state", "event"];
+  return {
+    class: allowed.includes(source.class) ? source.class : inferTemporalClass(kind),
+    validFrom: normalizeTimestamp(source.validFrom, 0),
+    validUntil: normalizeTimestamp(source.validUntil, 0),
+    containsRelativeTime: source.containsRelativeTime === true
+  };
+}
+
+function inferTemporalClass(kind) {
+  if (["preference", "identity", "shared"].includes(kind)) {
+    return "durable";
+  }
+  if (kind === "task") {
+    return "state";
+  }
+  return "project";
+}
+
+function isExpired(item, now, temporal = normalizeTemporal(item?.temporal, item?.kind)) {
+  if (item?.status === "expired") {
+    return true;
+  }
+  if (temporal.validUntil > 0 && temporal.validUntil < now) {
+    return true;
+  }
+  const ageMs = now - normalizeTimestamp(item?.updatedAt, now);
+  if (temporal.class === "state" && temporal.containsRelativeTime && ageMs > 48 * 3600000) {
+    return true;
+  }
+  if (
+    temporal.class === "event"
+    && ["planned", "active"].includes(item?.event?.status)
+    && ageMs > (temporal.containsRelativeTime ? 48 * 3600000 : 7 * 86400000)
+  ) {
+    return true;
+  }
+  return temporal.class === "state" && ageMs > 30 * 86400000;
+}
+
+function getAgePenalty(temporalClass, ageDays) {
+  if (temporalClass === "durable") {
+    return Math.min(0.1, ageDays / 3650);
+  }
+  if (temporalClass === "project") {
+    return Math.min(0.22, ageDays / 820);
+  }
+  if (temporalClass === "event") {
+    return Math.min(0.3, ageDays / 300);
+  }
+  return Math.min(0.45, ageDays / 90);
+}
+
+function clampUnit(value, fallback) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return fallback;
+  }
+  return Math.max(0, Math.min(1, number));
+}
+
+function normalizeTimestamp(value, fallback) {
+  const timestamp = Number(value);
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : fallback;
+}
+
+module.exports = {
+  evaluateMemoryReliability,
+  inferTemporalClass,
+  isExpired,
+  normalizeTemporal,
+  _test: {
+    evidenceMatchesContent
   }
 };
 
@@ -8317,10 +7808,39 @@ module.exports = {
 };
 
 },
+"src/storage/atomicJson.js": function(module, exports, __require) {
+async function writeJsonAtomically(adapter, path, value) {
+  const content = `${JSON.stringify(value, null, 2)}\n`;
+  if (typeof adapter.rename !== "function") {
+    await adapter.write(path, content);
+    return;
+  }
+  const temporaryPath = `${path}.tmp-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+  await adapter.write(temporaryPath, content);
+  try {
+    await adapter.rename(temporaryPath, path);
+  } catch (error) {
+    try {
+      if (await adapter.exists(temporaryPath)) {
+        await adapter.remove(temporaryPath);
+      }
+    } catch {
+      // Preserve the original replacement failure.
+    }
+    throw error;
+  }
+}
+
+module.exports = {
+  writeJsonAtomically
+};
+
+},
 "src/storage/MemoryRepository.js": function(module, exports, __require) {
 const { normalizePath } = require("obsidian");
 
 const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = __require("src/storage/localDataPath.js");
+const { writeJsonAtomically } = __require("src/storage/atomicJson.js");
 
 const MEMORY_DIR_NAME = "memory";
 const MEMORY_FILE_NAME = "memory.json";
@@ -8366,7 +7886,7 @@ class MemoryRepository {
     }
     await ensureLocalDataPath(this.plugin, this.adapter, this.baseDir);
     const normalized = normalizeMemory(memory);
-    await this.adapter.write(this.memoryPath, `${JSON.stringify(normalized, null, 2)}\n`);
+    await writeJsonAtomically(this.adapter, this.memoryPath, normalized);
     this.cache = normalized;
   }
 
@@ -9353,6 +8873,38 @@ module.exports = {
 };
 
 },
+"src/agents/shared/auditFormatting.js": function(module, exports, __require) {
+function formatAuditDate(value, options = {}) {
+  const timestamp = Number(value);
+  if (!Number.isFinite(timestamp) || timestamp <= 0) {
+    return "";
+  }
+  const date = new Date(timestamp);
+  if (!Number.isFinite(date.getTime())) {
+    return "";
+  }
+  if (options.timeZone) {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: options.timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit"
+    }).formatToParts(date);
+    const values = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    return `${values.year}-${values.month}-${values.day}`;
+  }
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, "0"),
+    String(date.getDate()).padStart(2, "0")
+  ].join("-");
+}
+
+module.exports = {
+  formatAuditDate
+};
+
+},
 "src/agents/shared/memoryNotices.js": function(module, exports, __require) {
 const { formatMemoryLine } = __require("src/storage/MemoryStore.js");
 const { formatAuditDate } = __require("src/agents/shared/auditFormatting.js");
@@ -9956,42 +9508,56 @@ async function buildAgentTurnContext({
   const activeFile = plugin.app.workspace.getActiveFile();
   const activeFilePath = activeFile?.path || "";
   const activeNoteEvidence = await readActiveNoteEvidence(plugin.app, activeFile);
-  const memories = await plugin.memoryStore.getRelevantMemories(prompt, settings, {
-    activeFilePath,
-    activeFileContent: activeNoteEvidence,
-    workingDirectory: cwd
-  });
-  const memorySearch = await getExplicitMemorySearch(
-    plugin.memoryStore,
-    prompt,
-    settings,
-    onUpdate,
-    translate,
-    keyPrefix,
-    {
-      activeFilePath,
-      activeFileContent: activeNoteEvidence
-    }
-  );
   const conversationText = Array.isArray(conversation)
     ? conversation.slice(-8).map((message) => message?.content || "").filter(Boolean).join("\n")
     : "";
-  const interactionPatternCandidates = typeof plugin.interactionMemoryStore.getPatternCandidateRegistry === "function"
-    ? await plugin.interactionMemoryStore.getPatternCandidateRegistry(settings)
-    : [];
-  const promptSignals = planPromptSignals({
-    memories: removeMemorySearchDuplicates(memories, memorySearch.results),
-    deepMemories: await plugin.deepMemoryStore.getPromptMemories(prompt, settings, {
+  const interactionContext = buildPromptInteractionContext(prompt, conversation);
+  const [
+    memories,
+    memorySearch,
+    interactionPatternCandidates,
+    deepMemories,
+    interactionStance,
+    memoryTrace,
+    collaborationOmissions
+  ] = await Promise.all([
+    plugin.memoryStore.getRelevantMemories(prompt, settings, {
+      activeFilePath,
+      activeFileContent: activeNoteEvidence,
+      workingDirectory: cwd
+    }),
+    getExplicitMemorySearch(
+      plugin.memoryStore,
+      prompt,
+      settings,
+      onUpdate,
+      translate,
+      keyPrefix,
+      { activeFilePath, activeFileContent: activeNoteEvidence }
+    ),
+    typeof plugin.interactionMemoryStore.getPatternCandidateRegistry === "function"
+      ? plugin.interactionMemoryStore.getPatternCandidateRegistry(settings)
+      : Promise.resolve([]),
+    plugin.deepMemoryStore.getPromptMemories(prompt, settings, {
       activeFilePath,
       workingDirectory: cwd,
       conversationText
     }),
+    plugin.interactionMemoryStore.getPromptStance(settings, interactionContext),
+    getPreviousAnswerMemoryTrace(plugin.memoryStore, prompt, conversation),
+    typeof plugin.memoryStore.getCollaborationOmissions === "function"
+      ? plugin.memoryStore.getCollaborationOmissions(settings, {
+        activeFilePath,
+        activeFileContent: activeNoteEvidence
+      })
+      : Promise.resolve([])
+  ]);
+  const promptSignals = planPromptSignals({
+    memories: removeMemorySearchDuplicates(memories, memorySearch.results),
+    deepMemories,
     memorySearchResults: memorySearch.results,
     memorySearchPerformed: memorySearch.performed,
-    interactionStance: await plugin.interactionMemoryStore.getPromptStance(
-      settings,
-      buildPromptInteractionContext(prompt, conversation)
-    ),
+    interactionStance,
     personaProfile: getPersonaProfile(settings),
     workingAffect: plugin.getPromptWorkingAffect(prompt)
   });
@@ -10008,17 +9574,6 @@ async function buildAgentTurnContext({
   promptSignals.memories = automaticPacket.items;
   promptSignals.memorySearchResults = explicitPacket.items;
   let memoryRecallManifest = Object.assign({}, automaticPacket.manifest, explicitPacket.manifest);
-  const memoryTrace = await getPreviousAnswerMemoryTrace(
-    plugin.memoryStore,
-    prompt,
-    conversation
-  );
-  const collaborationOmissions = typeof plugin.memoryStore.getCollaborationOmissions === "function"
-    ? await plugin.memoryStore.getCollaborationOmissions(settings, {
-      activeFilePath,
-      activeFileContent: activeNoteEvidence
-    })
-    : [];
   const expressionPolicy = planExpressionPolicy({
     prompt,
     conversationText,
@@ -10559,6 +10114,641 @@ module.exports = {
 };
 
 },
+"src/agents/shared/captureNotices.js": function(module, exports, __require) {
+const { formatAuditDate } = __require("src/agents/shared/auditFormatting.js");
+const { evaluateMemoryReliability } = __require("src/storage/MemoryReliability.js");
+
+const MAX_NOTICE_ITEMS = 3;
+const MAX_NOTICE_TEXT_CHARS = 180;
+const MAX_AUDIT_TEXT_CHARS = 1400;
+
+function formatMemoryUpdateSummary(settings, keyPrefix, translate, saved) {
+  const count = saved.length;
+  return translate(settings, `${keyPrefix}.memoryUpdated.summary`, {
+    count,
+    noteLabel: count === 1 ? "note" : "notes"
+  });
+}
+
+function formatDeepMemoryUpdateSummary(settings, keyPrefix, translate, saved) {
+  const count = saved.length;
+  const aiCount = saved.filter(isAiReflectionDeepMemory).length;
+  const base = translate(settings, `${keyPrefix}.deepMemoryUpdated.summary`, { count });
+  if (aiCount <= 0) {
+    return base;
+  }
+  return `${base}\n${translate(settings, `${keyPrefix}.deepMemoryUpdated.aiReflectionCount`, { count: aiCount })}`;
+}
+
+function formatInteractionMemoryUpdateSummary(settings, keyPrefix, translate, result) {
+  const closedEpisodes = Array.isArray(result?.closedEpisodes) ? result.closedEpisodes : [];
+  const changed = []
+    .concat((Array.isArray(result?.updatedPatterns) ? result.updatedPatterns : []).map((item) => ({
+      type: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiPatternLabel`)
+        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`),
+      text: item.summary,
+      evidenceCount: item.evidenceCount
+    })))
+    .concat((Array.isArray(result?.updatedTensions) ? result.updatedTensions : []).map((item) => ({
+      type: translate(settings, `${keyPrefix}.interactionMemoryUpdated.tensionLabel`),
+      text: item.resolutionStyle,
+      evidenceCount: item.evidenceCount
+    })))
+    .concat((Array.isArray(result?.updatedStableImpressions) ? result.updatedStableImpressions : []).map((item) => ({
+      type: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiImpressionLabel`)
+        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.impressionLabel`),
+      text: item.text,
+      evidenceCount: item.evidenceCount
+    })));
+
+  const base = translate(settings, `${keyPrefix}.interactionMemoryUpdated.summary`, {
+    count: closedEpisodes.length
+  });
+  const sections = [];
+  if (closedEpisodes.length > 0) {
+    sections.push(translate(settings, `${keyPrefix}.interactionMemoryUpdated.episodes`, {
+      items: formatItemList(closedEpisodes, formatInteractionEpisode)
+    }));
+  }
+  if (changed.length > 0) {
+    sections.push(translate(settings, `${keyPrefix}.interactionMemoryUpdated.changed`, {
+      items: formatItemList(changed, (item) => formatInteractionChange(settings, keyPrefix, translate, item))
+    }));
+  } else if (closedEpisodes.length > 0) {
+    sections.push(translate(settings, `${keyPrefix}.interactionMemoryUpdated.unchanged`));
+  }
+  return [base].concat(sections).filter(Boolean).join("\n");
+}
+
+function formatInteractionMemoryUpdateTitle(settings, keyPrefix, translate, result) {
+  return translate(settings, hasInteractionDerivedChanges(result)
+    ? `${keyPrefix}.interactionMemoryUpdated.title`
+    : `${keyPrefix}.interactionMemoryUpdated.episodeTitle`);
+}
+
+function formatInteractionMemoryUpdateKind(result) {
+  return hasInteractionDerivedChanges(result) ? "notice" : "activity";
+}
+
+function buildMemoryUpdateAuditItems(saved, settings, keyPrefix, translate) {
+  return (Array.isArray(saved) ? saved : []).map((item, index) => {
+    const type = translate(settings, `${keyPrefix}.memoryAudit.type.memory`);
+    const evidence = Array.isArray(item.evidenceRefs) ? item.evidenceRefs : [];
+    const source = item.source === "ai"
+      ? translateMemorySource(settings, keyPrefix, translate, item.source)
+      : (evidence.find((entry) => entry.origin === "user_message") || evidence[0])?.origin
+        || translateMemorySource(settings, keyPrefix, translate, item.source);
+    const reliability = evaluateMemoryReliability(item);
+    return {
+      title: formatAuditItemTitle(type, index),
+      summary: truncateNoticeText(item.text),
+      type,
+      source,
+      badges: [item.scope, item.kind, source].filter(Boolean),
+      fields: [
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatUpdateReason(item, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(item.createdAt)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(item.updatedAt)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.content`), item.text),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.scope`), item.scope),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.kind`), item.kind),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.confidence`), formatNumber(item.captureConfidence ?? item.confidence)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.support`), `${reliability.level} (${formatNumber(reliability.score)})`),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.status`), item.status || "active"),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.evidence`), evidence.map((entry) => (
+          `[${entry.origin}; speaker=${entry.speaker}] “${entry.quote}”`
+        )).join("\n"))
+      ].filter(Boolean)
+    };
+  });
+}
+
+function formatUpdateReason(item, settings, keyPrefix, translate) {
+  const audit = item?.updateAudit || {};
+  if (audit.reasonCode === "existing_memory_refreshed") {
+    return translate(settings, `${keyPrefix}.memoryAudit.reason.existingMemoryRefreshed`, {
+      kind: item.kind || audit.kind || "",
+      confidence: formatNumber(item.confidence || audit.confidence)
+    });
+  }
+  if (audit.reasonCode === "ai_signal_capture") {
+    return translate(settings, `${keyPrefix}.memoryAudit.reason.aiSignalCapture`, {
+      kind: item.kind || audit.kind || "",
+      confidence: formatNumber(item.confidence || audit.confidence)
+    });
+  }
+  return translate(settings, `${keyPrefix}.memoryAudit.reason.localRuleCapture`, {
+    kind: item.kind || audit.kind || "",
+    confidence: formatNumber(item.confidence || audit.confidence)
+  });
+}
+
+function buildDeepMemoryAuditItems(saved, settings, keyPrefix, translate) {
+  return (Array.isArray(saved) ? saved : []).map((item, index) => {
+    const type = translate(settings, `${keyPrefix}.memoryAudit.type.deepMemory`);
+    const source = isAiReflectionDeepMemory(item)
+      ? translate(settings, `${keyPrefix}.deepMemoryUpdated.aiReflectionSource`)
+      : translate(settings, `${keyPrefix}.memoryAudit.source.localRules`);
+    return {
+      title: formatAuditItemTitle(type, index),
+      summary: truncateNoticeText(item.summary),
+      type,
+      source,
+      badges: [item.kind, source].concat(item.salienceAxes || []).filter(Boolean),
+      fields: [
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatDeepMemoryReason(item, source, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(item.createdAt)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(item.updatedAt)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.summary`), item.summary),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.why`), item.whyItMatters),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.feltSense`), item.feltSense),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.userExcerpt`), item.userExcerpt),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.assistantExcerpt`), item.assistantExcerpt),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.importance`), formatNumber(item.importance)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.confidence`), formatNumber(item.confidence))
+      ].filter(Boolean)
+    };
+  });
+}
+
+function buildInteractionMemoryAuditItems(result, settings, keyPrefix, translate) {
+  const closedEpisodes = Array.isArray(result?.closedEpisodes) ? result.closedEpisodes : [];
+  const items = closedEpisodes.map((item, index) => {
+    const type = translate(settings, `${keyPrefix}.memoryAudit.type.interactionEpisode`);
+    const source = item.aiReflectionContribution
+      ? translate(settings, `${keyPrefix}.memoryAudit.source.localRulesAndAiReflection`)
+      : translate(settings, `${keyPrefix}.memoryAudit.source.localRules`);
+    const affectedItems = getInteractionChangesForEpisode(result, item, settings, keyPrefix, translate);
+    const patternCandidateUpdate = (Array.isArray(result?.patternCandidateUpdates) ? result.patternCandidateUpdates : [])
+      .find((entry) => entry.episodeId === item.id);
+    return {
+      title: formatAuditItemTitle(type, index),
+      summary: truncateNoticeText([item.userExcerpt, item.reaction?.excerpt || item.outcomeHint].filter(Boolean).join(" -> ")),
+      type,
+      source,
+      badges: [item.context, item.phase, item.memoryRole].filter(Boolean),
+      fields: [
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatInteractionEpisodeReason(item, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(item.createdAt)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(item.updatedAt)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.userExcerpt`), item.userExcerpt),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.assistantExcerpt`), item.assistantExcerpt),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reaction`), item.reaction?.excerpt || item.outcomeHint),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reactionType`), formatInteractionReaction(item, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.aiReflection`), formatAiReflectionContribution(item.aiReflectionContribution, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.patternCandidate`), formatPatternCandidateUpdate(patternCandidateUpdate, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.effect`), formatInteractionEpisodeEffect(item, affectedItems, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.role`), item.memoryRole),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.weight`), formatNumber(item.eventWeight))
+      ].filter(Boolean)
+    };
+  });
+
+  const changed = []
+    .concat((Array.isArray(result?.updatedPatterns) ? result.updatedPatterns : []).map((item) => ({
+      item,
+      type: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiPatternLabel`)
+        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`),
+      text: item.summary,
+      source: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.memoryAudit.source.aiReflectionPromotedLocally`)
+        : translate(settings, `${keyPrefix}.memoryAudit.source.localRules`)
+    })))
+    .concat((Array.isArray(result?.updatedTensions) ? result.updatedTensions : []).map((item) => ({
+      item,
+      type: translate(settings, `${keyPrefix}.interactionMemoryUpdated.tensionLabel`),
+      text: item.resolutionStyle
+    })))
+    .concat((Array.isArray(result?.updatedStableImpressions) ? result.updatedStableImpressions : []).map((item) => ({
+      item,
+      type: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiImpressionLabel`)
+        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.impressionLabel`),
+      text: item.text,
+      source: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.memoryAudit.source.aiReflection`)
+        : translate(settings, `${keyPrefix}.memoryAudit.source.localRules`)
+    })));
+
+  for (const [index, entry] of changed.entries()) {
+    const source = entry.source || translate(settings, `${keyPrefix}.memoryAudit.source.localRules`);
+    items.push({
+      title: formatAuditItemTitle(entry.type, index),
+      summary: truncateNoticeText(entry.text),
+      type: entry.type,
+      source,
+      badges: [
+        entry.type,
+        entry.item.evidenceCount ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.evidenceLabel`, {
+          count: entry.item.evidenceCount
+        }) : ""
+      ].filter(Boolean),
+      fields: [
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.reason`), formatInteractionChangeReason(entry, settings, keyPrefix, translate)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.source`), source),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.createdAt`), formatAuditDate(entry.item.createdAt)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.updatedAt`), formatAuditDate(entry.item.updatedAt)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.content`), entry.text),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.evidenceCount`), entry.item.evidenceCount),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.confidence`), formatNumber(entry.item.confidence)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.strength`), formatNumber(entry.item.strength))
+      ].filter(Boolean)
+    });
+  }
+
+  return items;
+}
+
+function formatAiReflectionContribution(contribution, settings, keyPrefix, translate) {
+  if (!contribution) {
+    return "";
+  }
+  return translate(settings, `${keyPrefix}.memoryAudit.effect.aiReflectionContribution`, {
+    summary: contribution.summary || "",
+    shapes: (Array.isArray(contribution.shapes) ? contribution.shapes : []).join(", "),
+    confidence: formatNumber(contribution.confidence),
+    weight: formatNumber(contribution.weight)
+  });
+}
+
+function formatPatternCandidateUpdate(update, settings, keyPrefix, translate) {
+  if (!update) {
+    return "";
+  }
+  return translate(settings, `${keyPrefix}.memoryAudit.patternCandidate.${update.status}`, {
+    key: update.key,
+    axis: update.axis,
+    summary: update.summary,
+    canonicalSummary: update.canonicalSummary,
+    evidenceQuote: update.evidenceQuote,
+    evidenceCount: update.evidenceCount,
+    minEvidence: update.minEvidence
+  });
+}
+
+function hasInteractionDerivedChanges(result) {
+  return [result?.updatedPatterns, result?.updatedTensions, result?.updatedStableImpressions]
+    .some((items) => Array.isArray(items) && items.length > 0);
+}
+
+function formatDeepMemoryReason(item, source, settings, keyPrefix, translate) {
+  if (item?.whyItMatters) {
+    return item.whyItMatters;
+  }
+  if (isAiReflectionDeepMemory(item)) {
+    return translate(settings, `${keyPrefix}.memoryAudit.reason.deepMemoryAiReflection`, { source });
+  }
+  return translate(settings, `${keyPrefix}.memoryAudit.reason.deepMemoryLocalRules`, {
+    kind: item?.kind || "",
+    importance: formatNumber(item?.importance),
+    confidence: formatNumber(item?.confidence)
+  });
+}
+
+function formatInteractionEpisodeReason(item, settings, keyPrefix, translate) {
+  if (item?.repairPath) {
+    return translate(settings, `${keyPrefix}.memoryAudit.reason.interactionRepairEpisode`, {
+      context: item.context || "",
+      phase: item.phase || "",
+      role: item.memoryRole || "",
+      weight: formatNumber(item.eventWeight)
+    });
+  }
+  return translate(settings, `${keyPrefix}.memoryAudit.reason.interactionClosedEpisode`, {
+    context: item?.context || "",
+    phase: item?.phase || "",
+    role: item?.memoryRole || "",
+    weight: formatNumber(item?.eventWeight)
+  });
+}
+
+function formatInteractionReaction(item, settings, keyPrefix, translate) {
+  const code = item?.reaction?.outcomeHint || item?.outcomeHint || item?.reaction?.kind || "";
+  if (!code) {
+    return "";
+  }
+  const label = translate(settings, `${keyPrefix}.memoryAudit.reaction.${code}`);
+  return label && label !== `${keyPrefix}.memoryAudit.reaction.${code}`
+    ? `${code} — ${label}`
+    : code;
+}
+
+function formatInteractionEpisodeEffect(item, affectedItems, settings, keyPrefix, translate) {
+  if (!Array.isArray(affectedItems) || affectedItems.length === 0) {
+    return translate(settings, `${keyPrefix}.memoryAudit.effect.interactionEpisodeOnly`, {
+      role: item?.memoryRole || "short_term_episode"
+    });
+  }
+  const labels = affectedItems.map((entry) => entry.type).filter(Boolean).join("、");
+  return translate(settings, `${keyPrefix}.memoryAudit.effect.interactionDerivedChanged`, {
+    count: affectedItems.length,
+    items: labels
+  });
+}
+
+function getInteractionChangesForEpisode(result, episode, settings, keyPrefix, translate) {
+  const entries = []
+    .concat((Array.isArray(result?.updatedPatterns) ? result.updatedPatterns : []).map((item) => ({
+      item,
+      type: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiPatternLabel`)
+        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.patternLabel`)
+    })))
+    .concat((Array.isArray(result?.updatedTensions) ? result.updatedTensions : []).map((item) => ({
+      item,
+      type: translate(settings, `${keyPrefix}.interactionMemoryUpdated.tensionLabel`)
+    })))
+    .concat((Array.isArray(result?.updatedStableImpressions) ? result.updatedStableImpressions : []).map((item) => ({
+      item,
+      type: item.generatedBy === "ai"
+        ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.aiImpressionLabel`)
+        : translate(settings, `${keyPrefix}.interactionMemoryUpdated.impressionLabel`)
+    })));
+  return entries.filter((entry) => (
+    Array.isArray(entry.item?.evidenceEpisodeIds)
+    && entry.item.evidenceEpisodeIds.includes(episode?.id)
+  ));
+}
+
+function formatInteractionChangeReason(entry, settings, keyPrefix, translate) {
+  const evidenceCount = entry?.item?.evidenceCount || 0;
+  const confidence = formatNumber(entry?.item?.confidence);
+  const strength = formatNumber(entry?.item?.strength);
+  if (entry?.source === translate(settings, `${keyPrefix}.memoryAudit.source.aiReflection`)) {
+    return translate(settings, `${keyPrefix}.memoryAudit.reason.interactionAiImpression`, {
+      type: entry.type || "",
+      evidenceCount,
+      confidence,
+      strength
+    });
+  }
+  return translate(settings, `${keyPrefix}.memoryAudit.reason.interactionEvidenceUpdate`, {
+    type: entry?.type || "",
+    evidenceCount,
+    confidence,
+    strength
+  });
+}
+
+function formatAuditItemTitle(type, index) {
+  const label = String(type || "").trim();
+  const number = Number.isFinite(index) ? index + 1 : 1;
+  return label ? `${label} ${number}` : `Item ${number}`;
+}
+
+function formatItemList(items, formatter) {
+  const visible = items.slice(0, MAX_NOTICE_ITEMS)
+    .map((item) => formatter(item))
+    .filter(Boolean);
+  const remaining = Math.max(0, items.length - visible.length);
+  if (remaining > 0) {
+    visible.push(`- ... +${remaining}`);
+  }
+  return visible.join("\n");
+}
+
+function formatInteractionEpisode(item) {
+  const parts = [
+    item.userExcerpt,
+    item.reaction?.excerpt || item.outcomeHint
+  ].map((part) => truncateNoticeText(part)).filter(Boolean);
+  return parts.length > 1 ? `- ${parts[0]} -> ${parts[1]}` : `- ${parts[0] || item.context || item.phase}`;
+}
+
+function formatInteractionChange(settings, keyPrefix, translate, item) {
+  const label = [
+    item.type,
+    item.evidenceCount ? translate(settings, `${keyPrefix}.interactionMemoryUpdated.evidenceLabel`, {
+      count: item.evidenceCount
+    }) : ""
+  ].filter(Boolean).join(", ");
+  const text = truncateNoticeText(item.text);
+  return label ? `- [${label}] ${text}` : `- ${text}`;
+}
+
+function isAiReflectionDeepMemory(item) {
+  return item?.kind === "visible_reflection"
+    || (Array.isArray(item?.topics) && item.topics.includes("agent_dock_signal"));
+}
+
+function translateMemorySource(settings, keyPrefix, translate, source) {
+  const normalized = String(source || "").trim();
+  if (normalized === "user") {
+    return translate(settings, `${keyPrefix}.memoryAudit.source.user`);
+  }
+  if (normalized === "ai") {
+    return translate(settings, `${keyPrefix}.memoryAudit.source.aiReflection`);
+  }
+  return translate(settings, `${keyPrefix}.memoryAudit.source.localRules`);
+}
+
+function createField(label, value) {
+  const text = String(value === undefined || value === null ? "" : value).replace(/\s+/g, " ").trim();
+  if (!label || !text) {
+    return null;
+  }
+  return {
+    label,
+    value: truncateAuditText(text)
+  };
+}
+
+function formatNumber(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return "";
+  }
+  return number.toFixed(2).replace(/\.?0+$/, "");
+}
+
+function truncateNoticeText(text, maxChars = MAX_NOTICE_TEXT_CHARS) {
+  const compact = String(text || "").replace(/\s+/g, " ").trim();
+  if (compact.length <= maxChars) {
+    return compact;
+  }
+  return `${compact.slice(0, maxChars - 1)}...`;
+}
+
+function truncateAuditText(text) {
+  return truncateNoticeText(text, MAX_AUDIT_TEXT_CHARS);
+}
+
+module.exports = {
+  buildDeepMemoryAuditItems,
+  buildInteractionMemoryAuditItems,
+  buildMemoryUpdateAuditItems,
+  formatDeepMemoryUpdateSummary,
+  formatInteractionMemoryUpdateKind,
+  formatInteractionMemoryUpdateSummary,
+  formatInteractionMemoryUpdateTitle,
+  formatMemoryUpdateSummary
+};
+
+},
+"src/agents/shared/TurnCompletion.js": function(module, exports, __require) {
+const {
+  formatInvalidAgentDockSignalActivity,
+  formatAgentDockSignalNotice,
+  formatAgentDockReflectionNotice
+} = __require("src/agents/shared/agentSignals.js");
+const {
+  buildDeepMemoryAuditItems,
+  buildInteractionMemoryAuditItems,
+  buildMemoryUpdateAuditItems,
+  formatDeepMemoryUpdateSummary,
+  formatInteractionMemoryUpdateKind,
+  formatInteractionMemoryUpdateSummary,
+  formatInteractionMemoryUpdateTitle,
+  formatMemoryUpdateSummary
+} = __require("src/agents/shared/captureNotices.js");
+const { mergeSignalEvidenceContexts } = __require("src/agents/shared/signalEvidence.js");
+
+async function captureTurnContinuity(plugin, turn, settings, onUpdate, options) {
+  const { keyPrefix, translate } = options;
+  await captureOrdinaryMemory(plugin, turn, settings, onUpdate, keyPrefix, translate);
+  await captureInteractionMemory(plugin, turn, settings, onUpdate, keyPrefix, translate);
+  await captureDeepMemory(plugin, turn, settings, onUpdate, keyPrefix, translate);
+}
+
+async function captureOrdinaryMemory(plugin, turn, settings, onUpdate, keyPrefix, translate) {
+  const tr = (key, params) => translate(settings, key, params);
+  try {
+    const saved = await plugin.memoryStore.captureTurn(turn, settings);
+    if (saved.length > 0) {
+      onUpdate({
+        kind: "notice",
+        noticeType: "memory_updated",
+        insertBeforeLastContent: true,
+        title: tr(`${keyPrefix}.memoryUpdated.title`),
+        summary: formatMemoryUpdateSummary(settings, keyPrefix, translate, saved),
+        auditItems: buildMemoryUpdateAuditItems(saved, settings, keyPrefix, translate)
+      });
+    }
+  } catch (error) {
+    console.warn("Agent Dock could not update memory:", error);
+    onUpdate({
+      kind: "notice",
+      noticeType: "memory_skipped",
+      insertBeforeLastContent: true,
+      title: tr(`${keyPrefix}.memorySkipped.title`),
+      summary: tr(`${keyPrefix}.memorySkipped.summary`)
+    });
+  }
+}
+
+async function captureInteractionMemory(plugin, turn, settings, onUpdate, keyPrefix, translate) {
+  const tr = (key, params) => translate(settings, key, params);
+  try {
+    const result = await plugin.interactionMemoryStore.captureTurn(turn, settings);
+    if (result.closedEpisodes.length > 0) {
+      onUpdate({
+        kind: formatInteractionMemoryUpdateKind(result),
+        noticeType: "interaction_memory_updated",
+        insertBeforeLastContent: true,
+        title: formatInteractionMemoryUpdateTitle(settings, keyPrefix, translate, result),
+        summary: formatInteractionMemoryUpdateSummary(settings, keyPrefix, translate, result),
+        auditItems: buildInteractionMemoryAuditItems(result, settings, keyPrefix, translate)
+      });
+    }
+  } catch (error) {
+    console.warn("Agent Dock could not update interaction memory:", error);
+    onUpdate({
+      kind: "notice",
+      noticeType: "interaction_memory_skipped",
+      insertBeforeLastContent: true,
+      title: tr(`${keyPrefix}.interactionMemorySkipped.title`),
+      summary: tr(`${keyPrefix}.interactionMemorySkipped.summary`)
+    });
+  }
+}
+
+async function captureDeepMemory(plugin, turn, settings, onUpdate, keyPrefix, translate) {
+  const tr = (key, params) => translate(settings, key, params);
+  try {
+    const saved = await plugin.deepMemoryStore.captureTurn(turn, settings);
+    if (saved.length > 0) {
+      onUpdate({
+        kind: "notice",
+        noticeType: "deep_memory_updated",
+        insertBeforeLastContent: true,
+        title: tr(`${keyPrefix}.deepMemoryUpdated.title`),
+        summary: formatDeepMemoryUpdateSummary(settings, keyPrefix, translate, saved),
+        auditItems: buildDeepMemoryAuditItems(saved, settings, keyPrefix, translate)
+      });
+    }
+  } catch (error) {
+    console.warn("Agent Dock could not update deep memory:", error);
+    onUpdate({
+      kind: "notice",
+      noticeType: "deep_memory_skipped",
+      insertBeforeLastContent: true,
+      title: tr(`${keyPrefix}.deepMemorySkipped.title`),
+      summary: tr(`${keyPrefix}.deepMemorySkipped.summary`)
+    });
+  }
+}
+
+function emitAgentDockSignalNotices(signals, settings, keyPrefix, translate, onUpdate, reflectionFilter, signalEvidenceContext) {
+  const reflectionNotice = formatAgentDockReflectionNotice(
+    signals.filter((signal) => !reflectionFilter?.hasEmitted(signal)),
+    settings,
+    keyPrefix,
+    translate
+  );
+  if (reflectionNotice) {
+    reflectionNotice.signalEvidenceContext = signalEvidenceContext;
+    onUpdate(reflectionNotice);
+  }
+  for (const signal of signals.filter((item) => item?.envelope !== "reflection_v1")) {
+    const notice = formatAgentDockSignalNotice(signal, settings, keyPrefix, translate);
+    if (notice) {
+      onUpdate(notice);
+    }
+  }
+}
+
+function appendToolResultEvidence(existing, update) {
+  return mergeSignalEvidenceContexts(
+    { tool_result: existing },
+    { tool_result: [update?.title, update?.summary, update?.detail].filter(Boolean).join("\n") }
+  ).tool_result;
+}
+
+function emitInvalidAgentDockSignalActivity(signalResult, onUpdate) {
+  const activity = formatInvalidAgentDockSignalActivity(signalResult);
+  if (activity) {
+    onUpdate(activity);
+  }
+}
+
+function getPreviousAssistantResponse(conversation) {
+  if (!Array.isArray(conversation)) {
+    return "";
+  }
+  for (let index = conversation.length - 2; index >= 0; index -= 1) {
+    const message = conversation[index];
+    if (message?.role === "assistant" && message.content) {
+      return message.content;
+    }
+  }
+  return "";
+}
+
+module.exports = {
+  appendToolResultEvidence,
+  captureTurnContinuity,
+  emitAgentDockSignalNotices,
+  emitInvalidAgentDockSignalActivity,
+  getPreviousAssistantResponse
+};
+
+},
 "src/agents/codex/jsonEvents.js": function(module, exports, __require) {
 function codexJsonEventToUpdates(event, translate = defaultTranslate) {
   if (!event || typeof event !== "object") {
@@ -10848,22 +11038,7 @@ const { escapeAppleScriptString, shellQuote } = __require("src/cli/shell.js");
 const { t } = __require("src/i18n/index.js");
 const { applyModeArgs } = __require("src/modes.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
-const {
-  extractAgentDockSignals,
-  formatInvalidAgentDockSignalActivity,
-  formatAgentDockSignalNotice,
-  formatAgentDockReflectionNotice
-} = __require("src/agents/shared/agentSignals.js");
-const {
-  buildDeepMemoryAuditItems,
-  buildInteractionMemoryAuditItems,
-  buildMemoryUpdateAuditItems,
-  formatDeepMemoryUpdateSummary,
-  formatInteractionMemoryUpdateKind,
-  formatInteractionMemoryUpdateSummary,
-  formatInteractionMemoryUpdateTitle,
-  formatMemoryUpdateSummary
-} = __require("src/agents/shared/captureNotices.js");
+const { extractAgentDockSignals } = __require("src/agents/shared/agentSignals.js");
 const {
   buildAgentTurnContext,
   emitDebugPromptActivity
@@ -10871,6 +11046,13 @@ const {
 const { ReflectionContentFilter } = __require("src/agents/shared/ReflectionContentFilter.js");
 const { mergeSignalEvidenceContexts } = __require("src/agents/shared/signalEvidence.js");
 const { emitClaimedMemoryProvenance } = __require("src/agents/shared/memoryProvenance.js");
+const {
+  appendToolResultEvidence,
+  captureTurnContinuity,
+  emitAgentDockSignalNotices,
+  emitInvalidAgentDockSignalActivity,
+  getPreviousAssistantResponse
+} = __require("src/agents/shared/TurnCompletion.js");
 const { codexJsonEventToUpdates } = __require("src/agents/codex/jsonEvents.js");
 
 class CodexAgent {
@@ -11075,7 +11257,7 @@ class CodexAgent {
             signalEvidenceContext
           );
           const visibleOutput = signalResult.visibleText.trim();
-          await this.captureMemory({
+          await captureTurnContinuity(this.plugin, {
             prompt,
             response: visibleOutput,
             agentDockSignals: signalResult.signals,
@@ -11086,31 +11268,7 @@ class CodexAgent {
             userMessageId: options.userMessageId || "",
             assistantMessageId: options.assistantMessageId || "",
             memoryRecallManifest: turnContext.memoryRecallManifest
-          }, settings, onUpdate);
-          await this.captureInteractionMemory({
-            prompt,
-            response: visibleOutput,
-            agentDockSignals: signalResult.signals,
-            signalEvidenceContext,
-            previousAssistantResponse: getPreviousAssistantResponse(conversation),
-            activeFilePath,
-            sessionId: options.sessionId || "",
-            userMessageId: options.userMessageId || "",
-            assistantMessageId: options.assistantMessageId || "",
-            memoryRecallManifest: turnContext.memoryRecallManifest
-          }, settings, onUpdate);
-          await this.captureDeepMemory({
-            prompt,
-            response: visibleOutput,
-            agentDockSignals: signalResult.signals,
-            signalEvidenceContext,
-            previousAssistantResponse: getPreviousAssistantResponse(conversation),
-            activeFilePath,
-            sessionId: options.sessionId || "",
-            userMessageId: options.userMessageId || "",
-            assistantMessageId: options.assistantMessageId || "",
-            memoryRecallManifest: turnContext.memoryRecallManifest
-          }, settings, onUpdate);
+          }, settings, onUpdate, { keyPrefix: "codex", translate: t });
           settle(resolve, visibleOutput);
           return;
         }
@@ -11177,114 +11335,6 @@ class CodexAgent {
     return this.plugin.settings.workingDirectory || this.plugin.app.vault.adapter.basePath;
   }
 
-  async captureMemory(turn, settings, onUpdate) {
-    try {
-      const saved = await this.plugin.memoryStore.captureTurn(turn, settings);
-      if (saved.length > 0) {
-        onUpdate({
-          kind: "notice",
-          noticeType: "memory_updated",
-          insertBeforeLastContent: true,
-          title: t(settings, "codex.memoryUpdated.title"),
-          summary: formatMemoryUpdateSummary(settings, "codex", t, saved),
-          auditItems: buildMemoryUpdateAuditItems(saved, settings, "codex", t)
-        });
-      }
-    } catch (error) {
-      console.warn("Agent Dock could not update memory:", error);
-        onUpdate({
-        kind: "notice",
-        noticeType: "memory_skipped",
-        insertBeforeLastContent: true,
-          title: t(settings, "codex.memorySkipped.title"),
-          summary: t(settings, "codex.memorySkipped.summary")
-      });
-    }
-  }
-
-  async captureInteractionMemory(turn, settings, onUpdate) {
-    try {
-      const result = await this.plugin.interactionMemoryStore.captureTurn(turn, settings);
-      if (result.closedEpisodes.length > 0) {
-        onUpdate({
-          kind: formatInteractionMemoryUpdateKind(result),
-          noticeType: "interaction_memory_updated",
-          insertBeforeLastContent: true,
-          title: formatInteractionMemoryUpdateTitle(settings, "codex", t, result),
-          summary: formatInteractionMemoryUpdateSummary(settings, "codex", t, result),
-          auditItems: buildInteractionMemoryAuditItems(result, settings, "codex", t)
-        });
-      }
-    } catch (error) {
-      console.warn("Agent Dock could not update interaction memory:", error);
-      onUpdate({
-        kind: "notice",
-        noticeType: "interaction_memory_skipped",
-        insertBeforeLastContent: true,
-        title: t(settings, "codex.interactionMemorySkipped.title"),
-        summary: t(settings, "codex.interactionMemorySkipped.summary")
-      });
-    }
-  }
-
-  async captureDeepMemory(turn, settings, onUpdate) {
-    try {
-      const saved = await this.plugin.deepMemoryStore.captureTurn(turn, settings);
-      if (saved.length > 0) {
-        onUpdate({
-          kind: "notice",
-          noticeType: "deep_memory_updated",
-          insertBeforeLastContent: true,
-          title: t(settings, "codex.deepMemoryUpdated.title"),
-          summary: formatDeepMemoryUpdateSummary(settings, "codex", t, saved),
-          auditItems: buildDeepMemoryAuditItems(saved, settings, "codex", t)
-        });
-      }
-    } catch (error) {
-      console.warn("Agent Dock could not update deep memory:", error);
-      onUpdate({
-        kind: "notice",
-        noticeType: "deep_memory_skipped",
-        insertBeforeLastContent: true,
-        title: t(settings, "codex.deepMemorySkipped.title"),
-        summary: t(settings, "codex.deepMemorySkipped.summary")
-      });
-    }
-  }
-}
-
-function emitAgentDockSignalNotices(
-  signals,
-  settings,
-  keyPrefix,
-  translate,
-  onUpdate,
-  reflectionFilter,
-  signalEvidenceContext
-) {
-  const reflectionNotice = formatAgentDockReflectionNotice(
-    signals.filter((signal) => !reflectionFilter?.hasEmitted(signal)),
-    settings,
-    keyPrefix,
-    translate
-  );
-  if (reflectionNotice) {
-    reflectionNotice.signalEvidenceContext = signalEvidenceContext;
-    onUpdate(reflectionNotice);
-  }
-  for (const signal of signals.filter((item) => item?.envelope !== "reflection_v1")) {
-    const notice = formatAgentDockSignalNotice(signal, settings, keyPrefix, translate);
-    if (notice) {
-      onUpdate(notice);
-    }
-  }
-}
-
-function appendToolResultEvidence(existing, update) {
-  return mergeSignalEvidenceContexts(
-    { tool_result: existing },
-    { tool_result: [update?.title, update?.summary, update?.detail].filter(Boolean).join("\n") }
-  ).tool_result;
 }
 
 function emitFilteredAgentMessage(update, reflectionFilter, onUpdate) {
@@ -11306,25 +11356,6 @@ function emitFilteredAgentMessage(update, reflectionFilter, onUpdate) {
   reflectionFilter.endSource();
 }
 
-function emitInvalidAgentDockSignalActivity(signalResult, onUpdate) {
-  const activity = formatInvalidAgentDockSignalActivity(signalResult);
-  if (activity) {
-    onUpdate(activity);
-  }
-}
-
-function getPreviousAssistantResponse(conversation) {
-  if (!Array.isArray(conversation)) {
-    return "";
-  }
-  for (let index = conversation.length - 2; index >= 0; index -= 1) {
-    const message = conversation[index];
-    if (message?.role === "assistant" && message.content) {
-      return message.content;
-    }
-  }
-  return "";
-}
 
 async function readOutputFile(outputPath) {
   try {
@@ -12073,22 +12104,7 @@ const { expandHomePath } = __require("src/cli/paths.js");
 const { escapeAppleScriptString, shellQuote } = __require("src/cli/shell.js");
 const { t } = __require("src/i18n/index.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
-const {
-  extractAgentDockSignals,
-  formatInvalidAgentDockSignalActivity,
-  formatAgentDockSignalNotice,
-  formatAgentDockReflectionNotice
-} = __require("src/agents/shared/agentSignals.js");
-const {
-  buildDeepMemoryAuditItems,
-  buildInteractionMemoryAuditItems,
-  buildMemoryUpdateAuditItems,
-  formatDeepMemoryUpdateSummary,
-  formatInteractionMemoryUpdateKind,
-  formatInteractionMemoryUpdateSummary,
-  formatInteractionMemoryUpdateTitle,
-  formatMemoryUpdateSummary
-} = __require("src/agents/shared/captureNotices.js");
+const { extractAgentDockSignals } = __require("src/agents/shared/agentSignals.js");
 const { AcpClient } = __require("src/agents/cursor/AcpClient.js");
 const { acpUpdateToEvents } = __require("src/agents/cursor/acpEvents.js");
 const { toCursorMode } = __require("src/agents/cursor/modes.js");
@@ -12098,6 +12114,13 @@ const {
   createSignalEvidenceContext,
   mergeSignalEvidenceContexts
 } = __require("src/agents/shared/signalEvidence.js");
+const {
+  appendToolResultEvidence,
+  captureTurnContinuity,
+  emitAgentDockSignalNotices,
+  emitInvalidAgentDockSignalActivity,
+  getPreviousAssistantResponse
+} = __require("src/agents/shared/TurnCompletion.js");
 
 const CONNECTION_IDLE_MS = 30 * 60 * 1000;
 
@@ -12442,7 +12465,7 @@ class CursorAgent {
     );
     const visibleOutput = signalResult.visibleText.trim();
 
-    await this.captureMemory({
+    await captureTurnContinuity(this.plugin, {
       prompt,
       response: visibleOutput,
       agentDockSignals: signalResult.signals,
@@ -12453,31 +12476,10 @@ class CursorAgent {
       userMessageId: options.userMessageId || "",
       assistantMessageId: options.assistantMessageId || "",
       memoryRecallManifest
-    }, settings, emitUpdate);
-    await this.captureInteractionMemory({
-      prompt,
-      response: visibleOutput,
-      agentDockSignals: signalResult.signals,
-      signalEvidenceContext,
-      previousAssistantResponse: getPreviousAssistantResponse(conversation),
-      activeFilePath,
-      sessionId: options.sessionId || "",
-      userMessageId: options.userMessageId || "",
-      assistantMessageId: options.assistantMessageId || "",
-      memoryRecallManifest
-    }, settings, emitUpdate);
-    await this.captureDeepMemory({
-      prompt,
-      response: visibleOutput,
-      agentDockSignals: signalResult.signals,
-      signalEvidenceContext,
-      previousAssistantResponse: getPreviousAssistantResponse(conversation),
-      activeFilePath,
-      sessionId: options.sessionId || "",
-      userMessageId: options.userMessageId || "",
-      assistantMessageId: options.assistantMessageId || "",
-      memoryRecallManifest
-    }, settings, emitUpdate);
+    }, settings, emitUpdate, {
+      keyPrefix: "cursor",
+      translate: t
+    });
 
     return visibleOutput;
   }
@@ -12643,134 +12645,6 @@ class CursorAgent {
     return this.plugin.settings.workingDirectory || this.plugin.app.vault.adapter.basePath;
   }
 
-  async captureMemory(turn, settings, onUpdate) {
-    try {
-      const saved = await this.plugin.memoryStore.captureTurn(turn, settings);
-      if (saved.length > 0) {
-        onUpdate({
-          kind: "notice",
-          noticeType: "memory_updated",
-          insertBeforeLastContent: true,
-          title: t(settings, "cursor.memoryUpdated.title"),
-          summary: formatMemoryUpdateSummary(settings, "cursor", t, saved),
-          auditItems: buildMemoryUpdateAuditItems(saved, settings, "cursor", t)
-        });
-      }
-    } catch (error) {
-      console.warn("Agent Dock could not update memory:", error);
-      onUpdate({
-        kind: "notice",
-        noticeType: "memory_skipped",
-        insertBeforeLastContent: true,
-        title: t(settings, "cursor.memorySkipped.title"),
-        summary: t(settings, "cursor.memorySkipped.summary")
-      });
-    }
-  }
-
-  async captureInteractionMemory(turn, settings, onUpdate) {
-    try {
-      const result = await this.plugin.interactionMemoryStore.captureTurn(turn, settings);
-      if (result.closedEpisodes.length > 0) {
-        onUpdate({
-          kind: formatInteractionMemoryUpdateKind(result),
-          noticeType: "interaction_memory_updated",
-          insertBeforeLastContent: true,
-          title: formatInteractionMemoryUpdateTitle(settings, "cursor", t, result),
-          summary: formatInteractionMemoryUpdateSummary(settings, "cursor", t, result),
-          auditItems: buildInteractionMemoryAuditItems(result, settings, "cursor", t)
-        });
-      }
-    } catch (error) {
-      console.warn("Agent Dock could not update interaction memory:", error);
-      onUpdate({
-        kind: "notice",
-        noticeType: "interaction_memory_skipped",
-        insertBeforeLastContent: true,
-        title: t(settings, "cursor.interactionMemorySkipped.title"),
-        summary: t(settings, "cursor.interactionMemorySkipped.summary")
-      });
-    }
-  }
-
-  async captureDeepMemory(turn, settings, onUpdate) {
-    try {
-      const saved = await this.plugin.deepMemoryStore.captureTurn(turn, settings);
-      if (saved.length > 0) {
-        onUpdate({
-          kind: "notice",
-          noticeType: "deep_memory_updated",
-          insertBeforeLastContent: true,
-          title: t(settings, "cursor.deepMemoryUpdated.title"),
-          summary: formatDeepMemoryUpdateSummary(settings, "cursor", t, saved),
-          auditItems: buildDeepMemoryAuditItems(saved, settings, "cursor", t)
-        });
-      }
-    } catch (error) {
-      console.warn("Agent Dock could not update deep memory:", error);
-      onUpdate({
-        kind: "notice",
-        noticeType: "deep_memory_skipped",
-        insertBeforeLastContent: true,
-        title: t(settings, "cursor.deepMemorySkipped.title"),
-        summary: t(settings, "cursor.deepMemorySkipped.summary")
-      });
-    }
-  }
-}
-
-function emitAgentDockSignalNotices(
-  signals,
-  settings,
-  keyPrefix,
-  translate,
-  onUpdate,
-  reflectionFilter,
-  signalEvidenceContext
-) {
-  const reflectionNotice = formatAgentDockReflectionNotice(
-    signals.filter((signal) => !reflectionFilter?.hasEmitted(signal)),
-    settings,
-    keyPrefix,
-    translate
-  );
-  if (reflectionNotice) {
-    reflectionNotice.signalEvidenceContext = signalEvidenceContext;
-    onUpdate(reflectionNotice);
-  }
-  for (const signal of signals.filter((item) => item?.envelope !== "reflection_v1")) {
-    const notice = formatAgentDockSignalNotice(signal, settings, keyPrefix, translate);
-    if (notice) {
-      onUpdate(notice);
-    }
-  }
-}
-
-function appendToolResultEvidence(existing, update) {
-  return mergeSignalEvidenceContexts(
-    { tool_result: existing },
-    { tool_result: [update?.title, update?.summary, update?.detail].filter(Boolean).join("\n") }
-  ).tool_result;
-}
-
-function emitInvalidAgentDockSignalActivity(signalResult, onUpdate) {
-  const activity = formatInvalidAgentDockSignalActivity(signalResult);
-  if (activity) {
-    onUpdate(activity);
-  }
-}
-
-function getPreviousAssistantResponse(conversation) {
-  if (!Array.isArray(conversation)) {
-    return "";
-  }
-  for (let index = conversation.length - 2; index >= 0; index -= 1) {
-    const message = conversation[index];
-    if (message?.role === "assistant" && message.content) {
-      return message.content;
-    }
-  }
-  return "";
 }
 
 function emitCursorAuthenticationNoticeIfNeeded(client, emitUpdate, translate) {
@@ -12965,26 +12839,35 @@ module.exports = {
 const { CodexAgent } = __require("src/agents/codex/CodexAgent.js");
 const { CursorAgent } = __require("src/agents/cursor/CursorAgent.js");
 
-function createAgent(plugin) {
-  switch (plugin.settings.agentId) {
-    case "cursor":
-      return new CursorAgent(plugin);
-    case "codex":
-    default:
-      return new CodexAgent(plugin);
-  }
-}
-
-const AGENT_OPTIONS = {
+const AGENT_DESCRIPTORS = {
   codex: {
     label: "Codex",
-    description: "OpenAI Codex CLI"
+    description: "OpenAI Codex CLI",
+    create: (plugin) => new CodexAgent(plugin)
   },
   cursor: {
     label: "Cursor",
-    description: "Cursor CLI via ACP"
+    description: "Cursor CLI via ACP",
+    create: (plugin) => new CursorAgent(plugin)
   }
 };
+
+const AGENT_OPTIONS = Object.fromEntries(
+  Object.entries(AGENT_DESCRIPTORS).map(([id, descriptor]) => [id, {
+    label: descriptor.label,
+    description: descriptor.description
+  }])
+);
+
+function createAgent(plugin) {
+  const descriptor = AGENT_DESCRIPTORS[plugin.settings.agentId]
+    || AGENT_DESCRIPTORS.codex;
+  const agent = descriptor.create(plugin);
+  if (!agent || typeof agent.run !== "function" || typeof agent.openInteractive !== "function") {
+    throw new Error(`Invalid agent adapter: ${plugin.settings.agentId || "codex"}`);
+  }
+  return agent;
+}
 
 module.exports = {
   AGENT_OPTIONS,
@@ -13348,6 +13231,7 @@ const { getPersonaProfile } = __require("src/persona/PersonaProfile.js");
 const { expandSearchText } = __require("src/storage/searchQuery.js");
 const { containsSensitiveText } = __require("src/storage/sensitiveText.js");
 const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = __require("src/storage/localDataPath.js");
+const { writeJsonAtomically } = __require("src/storage/atomicJson.js");
 
 const DEEP_MEMORY_VERSION = 1;
 const DEEP_MEMORY_DIR_NAME = "deep-memory";
@@ -13399,6 +13283,7 @@ class DeepMemoryStore {
     this.memoryPath = normalizePath(`${this.baseDir}/${DEEP_MEMORY_FILE_NAME}`);
     this.legacyMemoryPath = getLegacyPluginPath(plugin, DEEP_MEMORY_DIR_NAME, DEEP_MEMORY_FILE_NAME);
     this.cache = null;
+    this.storageError = null;
     this.extractor = options.extractor || { extractTurn: extractDeepMemoryCandidates };
     this.writeQueue = Promise.resolve();
   }
@@ -13504,7 +13389,6 @@ class DeepMemoryStore {
 
   async clearMemory() {
     return this.enqueueWrite(async () => {
-      this.cache = createEmptyDeepMemory();
       try {
         if (await this.adapter.exists(this.memoryPath)) {
           await this.adapter.remove(this.memoryPath);
@@ -13513,8 +13397,11 @@ class DeepMemoryStore {
           await this.adapter.remove(this.legacyMemoryPath);
         }
       } catch (error) {
-        console.warn("Agent Dock could not clear deep memory:", error);
+        this.cache = null;
+        throw error;
       }
+      this.storageError = null;
+      this.cache = createEmptyDeepMemory();
     });
   }
 
@@ -13526,16 +13413,25 @@ class DeepMemoryStore {
       const raw = await this.readMemoryFile();
       this.cache = normalizeDeepMemory(JSON.parse(raw));
       return this.cache;
-    } catch {
+    } catch (error) {
+      if (await this.hasStoredMemoryFile()) {
+        this.storageError = error;
+        console.warn("Agent Dock could not read deep memory; writes are disabled to preserve the existing file:", error);
+      }
       this.cache = createEmptyDeepMemory();
       return this.cache;
     }
   }
 
   async saveMemory(memory) {
+    if (this.storageError) {
+      throw new Error("Deep memory storage is write-protected because the existing file could not be read.", {
+        cause: this.storageError
+      });
+    }
     await this.ensureDeepMemoryDir();
     this.cache = normalizeDeepMemory(memory);
-    await this.adapter.write(this.memoryPath, `${JSON.stringify(this.cache, null, 2)}\n`);
+    await writeJsonAtomically(this.adapter, this.memoryPath, this.cache);
   }
 
   async ensureDeepMemoryDir() {
@@ -13547,6 +13443,11 @@ class DeepMemoryStore {
       return this.adapter.read(this.memoryPath);
     }
     return this.adapter.read(this.legacyMemoryPath);
+  }
+
+  async hasStoredMemoryFile() {
+    return await this.adapter.exists(this.memoryPath)
+      || await this.adapter.exists(this.legacyMemoryPath);
   }
 
   async markRecalled(items, now) {
@@ -14993,6 +14894,7 @@ const {
   sameCandidateDefinition
 } = __require("src/interaction/InteractionPatternCandidates.js");
 const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = __require("src/storage/localDataPath.js");
+const { writeJsonAtomically } = __require("src/storage/atomicJson.js");
 
 const INTERACTION_DIR_NAME = "interaction";
 const INTERACTION_FILE_NAME = "interaction-memory.json";
@@ -15009,6 +14911,7 @@ class InteractionMemoryStore {
     this.legacyMemoryPath = getLegacyPluginPath(plugin, INTERACTION_DIR_NAME, INTERACTION_FILE_NAME);
     this.legacyProfilePath = getLegacyPluginPath(plugin, LEGACY_PROFILE_DIR_NAME, LEGACY_PROFILE_FILE_NAME);
     this.cache = null;
+    this.storageError = null;
     this.writeQueue = Promise.resolve();
   }
 
@@ -15098,7 +15001,6 @@ class InteractionMemoryStore {
 
   async clearMemory() {
     return this.enqueueWrite(async () => {
-      this.cache = createEmptyInteractionMemory();
       try {
         if (await this.adapter.exists(this.memoryPath)) {
           await this.adapter.remove(this.memoryPath);
@@ -15110,8 +15012,11 @@ class InteractionMemoryStore {
           await this.adapter.remove(this.legacyProfilePath);
         }
       } catch (error) {
-        console.warn("Agent Dock could not clear interaction memory:", error);
+        this.cache = null;
+        throw error;
       }
+      this.storageError = null;
+      this.cache = createEmptyInteractionMemory();
     });
   }
 
@@ -15124,17 +15029,26 @@ class InteractionMemoryStore {
       this.cache = normalizeInteractionMemory(JSON.parse(raw));
       this.cache.pendingEpisodes = limitPendingEpisodes(this.cache.pendingEpisodes);
       return this.cache;
-    } catch {
+    } catch (error) {
+      if (await this.hasStoredMemoryFile()) {
+        this.storageError = error;
+        console.warn("Agent Dock could not read interaction memory; writes are disabled to preserve the existing file:", error);
+      }
       this.cache = createEmptyInteractionMemory();
       return this.cache;
     }
   }
 
   async saveMemory(memory) {
+    if (this.storageError) {
+      throw new Error("Interaction memory storage is write-protected because the existing file could not be read.", {
+        cause: this.storageError
+      });
+    }
     await this.ensureInteractionDir();
     this.cache = normalizeInteractionMemory(memory);
     this.cache.pendingEpisodes = limitPendingEpisodes(this.cache.pendingEpisodes);
-    await this.adapter.write(this.memoryPath, `${JSON.stringify(this.cache, null, 2)}\n`);
+    await writeJsonAtomically(this.adapter, this.memoryPath, this.cache);
   }
 
   async ensureInteractionDir() {
@@ -15146,6 +15060,11 @@ class InteractionMemoryStore {
       return this.adapter.read(this.memoryPath);
     }
     return this.adapter.read(this.legacyMemoryPath);
+  }
+
+  async hasStoredMemoryFile() {
+    return await this.adapter.exists(this.memoryPath)
+      || await this.adapter.exists(this.legacyMemoryPath);
   }
 
   enqueueWrite(operation) {
@@ -16019,6 +15938,7 @@ const { normalizePath } = require("obsidian");
 const { normalizeProviderState, serializeProviderState } = __require("src/storage/providerState.js");
 const { redactSensitiveText } = __require("src/storage/sensitiveText.js");
 const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = __require("src/storage/localDataPath.js");
+const { writeJsonAtomically } = __require("src/storage/atomicJson.js");
 
 const CHAT_STATE_VERSION = 2;
 const SESSION_DIR_NAME = "sessions";
@@ -16098,8 +16018,6 @@ class ChatStorage {
       await this.writeJson(this.getSessionPath(session.id), persistedSession);
     }
 
-    await this.pruneSessionFiles(keepFileNames);
-
     this.plugin.chatState = {
       activeSessionId: limitedSessions.some((session) => session.id === sessionState.activeSessionId)
         ? sessionState.activeSessionId
@@ -16107,6 +16025,7 @@ class ChatStorage {
       sessionIndex
     };
     await this.plugin.savePluginData();
+    await this.pruneSessionFiles(keepFileNames);
   }
 
   async deleteSession(sessionId) {
@@ -16188,7 +16107,7 @@ class ChatStorage {
   }
 
   async writeJson(path, value) {
-    await this.adapter.write(path, `${JSON.stringify(value, null, 2)}\n`);
+    await writeJsonAtomically(this.adapter, path, value);
   }
 
   getSessionPath(sessionId) {
@@ -16611,6 +16530,58 @@ function normalizePastedImagePaths(paths) {
 
 module.exports = {
   ChatStorage
+};
+
+},
+"src/storage/ChatSaveCoordinator.js": function(module, exports, __require) {
+class ChatSaveCoordinator {
+  constructor(save) {
+    this.save = save;
+    this.pendingState = null;
+    this.running = null;
+  }
+
+  request(state) {
+    if (!state) {
+      return this.running || Promise.resolve();
+    }
+    this.pendingState = state;
+    if (!this.running) {
+      this.running = this.drain();
+    }
+    return this.running;
+  }
+
+  async flush(state = null) {
+    if (state) {
+      this.pendingState = state;
+    }
+    while (this.pendingState || this.running) {
+      if (!this.running) {
+        this.running = this.drain();
+      }
+      await this.running;
+    }
+  }
+
+  async drain() {
+    try {
+      while (this.pendingState) {
+        const state = this.pendingState;
+        this.pendingState = null;
+        await this.save(state);
+      }
+    } finally {
+      this.running = null;
+      if (this.pendingState) {
+        this.running = this.drain();
+      }
+    }
+  }
+}
+
+module.exports = {
+  ChatSaveCoordinator
 };
 
 },
@@ -25436,6 +25407,7 @@ const { InteractionMemoryStore } = __require("src/interaction/InteractionMemoryS
 const { normalizePluginData } = __require("src/settings.js");
 const { AgentDockSettingTab } = __require("src/settingsTab.js");
 const { ChatStorage } = __require("src/storage/ChatStorage.js");
+const { ChatSaveCoordinator } = __require("src/storage/ChatSaveCoordinator.js");
 const { MemoryStore } = __require("src/storage/MemoryStore.js");
 const { AgentDockView } = __require("src/view/AgentDockView.js");
 const {
@@ -25453,10 +25425,9 @@ module.exports = class AgentDockPlugin extends Plugin {
       : resetAffectState(this.settings);
     this.chatSaveTimer = null;
     this.pendingChatSessionState = null;
-    this.chatSaveInFlight = false;
-    this.chatSaveRequested = false;
     this.chatSaveFailureNotified = false;
     this.chatStorage = new ChatStorage(this);
+    this.chatSaveCoordinator = new ChatSaveCoordinator((state) => this.writeChatSessions(state));
     this.memoryStore = new MemoryStore(this);
     this.interactionMemoryStore = new InteractionMemoryStore(this);
     this.deepMemoryStore = new DeepMemoryStore(this);
@@ -25527,9 +25498,7 @@ module.exports = class AgentDockPlugin extends Plugin {
       window.clearTimeout(this.chatSaveTimer);
       this.chatSaveTimer = null;
     }
-    if (this.pendingChatSessionState) {
-      await this.saveChatSessions(this.pendingChatSessionState);
-    }
+    await this.chatSaveCoordinator.flush(this.pendingChatSessionState);
   }
 
   async saveChatSessions(sessionState) {
@@ -25538,29 +25507,19 @@ module.exports = class AgentDockPlugin extends Plugin {
     }
 
     this.pendingChatSessionState = sessionState;
-    if (this.chatSaveInFlight) {
-      this.chatSaveRequested = true;
-      return;
-    }
+    return this.chatSaveCoordinator.request(sessionState);
+  }
 
-    this.chatSaveInFlight = true;
+  async writeChatSessions(sessionState) {
     try {
-      do {
-        this.chatSaveRequested = false;
-        try {
-          await this.chatStorage.saveSessions(this.pendingChatSessionState, this.settings);
-          this.chatSaveFailureNotified = false;
-        } catch (error) {
-          console.warn("Agent Dock could not save chat history:", error);
-          if (!this.chatSaveFailureNotified) {
-            this.chatSaveFailureNotified = true;
-            new Notice(t(this.settings, "notice.saveChatHistoryFailed"));
-          }
-          this.chatSaveRequested = false;
-        }
-      } while (this.chatSaveRequested);
-    } finally {
-      this.chatSaveInFlight = false;
+      await this.chatStorage.saveSessions(sessionState, this.settings);
+      this.chatSaveFailureNotified = false;
+    } catch (error) {
+      console.warn("Agent Dock could not save chat history:", error);
+      if (!this.chatSaveFailureNotified) {
+        this.chatSaveFailureNotified = true;
+        new Notice(t(this.settings, "notice.saveChatHistoryFailed"));
+      }
     }
   }
 

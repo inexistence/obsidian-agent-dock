@@ -532,6 +532,19 @@ async function testAssistantContentCanProvideOutcomeEvidence() {
   assert(intjSaved[0].assistantExcerpt.includes("测试通过"), "assistant excerpt should preserve visible final content evidence");
 }
 
+async function testUnreadableDeepMemoryIsWriteProtected() {
+  const { adapter, store } = createStore();
+  adapter.files.set(store.memoryPath, "{broken json");
+  const memory = await store.loadMemory();
+  assert.deepEqual(memory.items, [], "unreadable storage should expose a safe empty in-memory view");
+  await assert.rejects(
+    () => store.saveMemory(memory),
+    /write-protected/,
+    "unreadable deep memory must block later automatic writes"
+  );
+  assert.equal(adapter.files.get(store.memoryPath), "{broken json");
+}
+
 Promise.resolve()
   .then(testExtractorCapturesImportantMomentPreference)
   .then(testExtractorSkipsGenericThanksAndSensitiveText)
@@ -549,6 +562,7 @@ Promise.resolve()
   .then(testDeepMemoryRecallsSubtleParaphrase)
   .then(testSaliencePresetInfluencesCapture)
   .then(testAssistantContentCanProvideOutcomeEvidence)
+  .then(testUnreadableDeepMemoryIsWriteProtected)
   .then(() => {
     console.log("Deep memory tests passed.");
   })

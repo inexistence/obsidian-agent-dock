@@ -5,6 +5,7 @@ const { getPersonaProfile } = require("../persona/PersonaProfile");
 const { expandSearchText } = require("../storage/searchQuery");
 const { containsSensitiveText } = require("../storage/sensitiveText");
 const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = require("../storage/localDataPath");
+const { writeJsonAtomically } = require("../storage/atomicJson");
 
 const DEEP_MEMORY_VERSION = 1;
 const DEEP_MEMORY_DIR_NAME = "deep-memory";
@@ -56,6 +57,7 @@ class DeepMemoryStore {
     this.memoryPath = normalizePath(`${this.baseDir}/${DEEP_MEMORY_FILE_NAME}`);
     this.legacyMemoryPath = getLegacyPluginPath(plugin, DEEP_MEMORY_DIR_NAME, DEEP_MEMORY_FILE_NAME);
     this.cache = null;
+    this.storageError = null;
     this.extractor = options.extractor || { extractTurn: extractDeepMemoryCandidates };
     this.writeQueue = Promise.resolve();
   }
@@ -161,7 +163,6 @@ class DeepMemoryStore {
 
   async clearMemory() {
     return this.enqueueWrite(async () => {
-      this.cache = createEmptyDeepMemory();
       try {
         if (await this.adapter.exists(this.memoryPath)) {
           await this.adapter.remove(this.memoryPath);
@@ -170,8 +171,11 @@ class DeepMemoryStore {
           await this.adapter.remove(this.legacyMemoryPath);
         }
       } catch (error) {
-        console.warn("Agent Dock could not clear deep memory:", error);
+        this.cache = null;
+        throw error;
       }
+      this.storageError = null;
+      this.cache = createEmptyDeepMemory();
     });
   }
 
@@ -183,16 +187,25 @@ class DeepMemoryStore {
       const raw = await this.readMemoryFile();
       this.cache = normalizeDeepMemory(JSON.parse(raw));
       return this.cache;
-    } catch {
+    } catch (error) {
+      if (await this.hasStoredMemoryFile()) {
+        this.storageError = error;
+        console.warn("Agent Dock could not read deep memory; writes are disabled to preserve the existing file:", error);
+      }
       this.cache = createEmptyDeepMemory();
       return this.cache;
     }
   }
 
   async saveMemory(memory) {
+    if (this.storageError) {
+      throw new Error("Deep memory storage is write-protected because the existing file could not be read.", {
+        cause: this.storageError
+      });
+    }
     await this.ensureDeepMemoryDir();
     this.cache = normalizeDeepMemory(memory);
-    await this.adapter.write(this.memoryPath, `${JSON.stringify(this.cache, null, 2)}\n`);
+    await writeJsonAtomically(this.adapter, this.memoryPath, this.cache);
   }
 
   async ensureDeepMemoryDir() {
@@ -204,6 +217,11 @@ class DeepMemoryStore {
       return this.adapter.read(this.memoryPath);
     }
     return this.adapter.read(this.legacyMemoryPath);
+  }
+
+  async hasStoredMemoryFile() {
+    return await this.adapter.exists(this.memoryPath)
+      || await this.adapter.exists(this.legacyMemoryPath);
   }
 
   async markRecalled(items, now) {

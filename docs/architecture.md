@@ -83,7 +83,7 @@ src/
     AgentRegistry.js                provider registry
     codex/                          Codex CLI adapter
     cursor/                         Cursor ACP adapter
-    shared/                         provider-shared turn prompt context, notices, and memory search
+    shared/                         provider-shared prompt context, completion capture, notices, and memory search
   cli/                              CLI args, env, path, shell helpers
   storage/                          chat and memory persistence
   interaction/                      interaction memory pipeline
@@ -110,14 +110,19 @@ clients, sending the final prompt, handling provider-specific session state, and
 normalizing provider output. Shared prompt context preparation lives in
 `src/agents/shared/TurnContextBuilder.js`, which gathers local memory, explicit
 memory search, deep memory, interaction stance, working affect, prompt signal planning,
-prompt construction, and memory/context notices.
+prompt construction, and memory/context notices. Independent local retrievals
+run concurrently after active-note evidence is available. Shared successful-turn
+continuity capture and reflection notices live in
+`src/agents/shared/TurnCompletion.js` so providers do not duplicate memory,
+interaction-memory, and deep-memory completion policy.
 
 Current providers:
 
 - Codex: `src/agents/codex/CodexAgent.js`
 - Cursor ACP: `src/agents/cursor/CursorAgent.js`
 
-Provider registration lives in `src/agents/AgentRegistry.js`. To add a future
+Provider registration lives in a single descriptor map in
+`src/agents/AgentRegistry.js`. To add a future
 provider such as Claude Code:
 
 1. Add an adapter under `src/agents/<provider>/`.
@@ -273,6 +278,10 @@ Persistence model:
   reasoning, tool, error, notice, and debug-only `activity` entries. Persisted
   `activity` entries remain hidden unless Debug activity is enabled, and
   persisted timeline details are filtered for obvious secrets.
+- Session saves are serialized through a drainable queue, so view/plugin close
+  waits for both the active write and the newest queued state. JSON bodies use
+  temporary-file replacement when the vault adapter supports rename; obsolete
+  session files are pruned only after the new session index is saved.
 
 Timeline rendering rules:
 
@@ -364,6 +373,8 @@ Main files:
 - `src/storage/MemoryStore.js`: capture/retrieval orchestration and prompt selection.
 - `src/storage/MemoryRepository.js`: memory file IO, cache, write serialization,
   clear semantics, and write protection after unreadable/corrupt storage.
+- `src/storage/atomicJson.js`: temporary-file JSON replacement shared by chat,
+  ordinary memory, deep memory, and interaction memory persistence.
 - `src/storage/MemoryRelationshipReducer.js`: event continuation,
   supersession, correction, and conflict relationships.
 - `src/storage/MemoryEventClassifier.js`: event topic/status classification and
@@ -544,7 +555,8 @@ permissions, or hard prompt rules.
 Main files:
 
 - `src/interaction/InteractionMemoryStore.js`: episode persistence, pending
-  episode closure, and prompt stance retrieval.
+  episode closure, prompt stance retrieval, and write protection after an
+  unreadable/corrupt interaction-memory file.
 - `src/interaction/LocalSignalExtractor.js`: deterministic local signal,
   context, assistant-shape, and reaction extraction. Signal rules separate
   strong matches, context-bound weak matches, and blocked phrases so vocabulary
@@ -615,7 +627,8 @@ frequency than interaction memory.
 Main files:
 
 - `src/deepMemory/DeepMemoryStore.js`: persistence, thresholding, recall
-  ranking, recall cooldown, and clearing.
+  ranking, recall cooldown, clearing, and write protection after an
+  unreadable/corrupt deep-memory file.
 - `src/deepMemory/DeepMemoryExtractor.js`: deterministic local extraction for
   important moments and relationship-continuity requests.
 - `src/continuity/ContinuityPromptFormatter.js`: prompt formatting with

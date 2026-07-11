@@ -2,6 +2,7 @@ const { normalizePath } = require("obsidian");
 const { normalizeProviderState, serializeProviderState } = require("./providerState");
 const { redactSensitiveText } = require("./sensitiveText");
 const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = require("./localDataPath");
+const { writeJsonAtomically } = require("./atomicJson");
 
 const CHAT_STATE_VERSION = 2;
 const SESSION_DIR_NAME = "sessions";
@@ -81,8 +82,6 @@ class ChatStorage {
       await this.writeJson(this.getSessionPath(session.id), persistedSession);
     }
 
-    await this.pruneSessionFiles(keepFileNames);
-
     this.plugin.chatState = {
       activeSessionId: limitedSessions.some((session) => session.id === sessionState.activeSessionId)
         ? sessionState.activeSessionId
@@ -90,6 +89,7 @@ class ChatStorage {
       sessionIndex
     };
     await this.plugin.savePluginData();
+    await this.pruneSessionFiles(keepFileNames);
   }
 
   async deleteSession(sessionId) {
@@ -171,7 +171,7 @@ class ChatStorage {
   }
 
   async writeJson(path, value) {
-    await this.adapter.write(path, `${JSON.stringify(value, null, 2)}\n`);
+    await writeJsonAtomically(this.adapter, path, value);
   }
 
   getSessionPath(sessionId) {

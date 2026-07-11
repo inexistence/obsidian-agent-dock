@@ -343,11 +343,52 @@ async function testLegacySessionPathFallback() {
   assert.strictEqual(restored.sessions[0].messages[0].content, "restored from old path");
 }
 
+async function testPruningWaitsForSessionIndexCommit() {
+  const baseDir = ".obsidian/plugins/agent-dock/.agent-dock-local/sessions";
+  const files = new Map([[`${baseDir}/old.json`, JSON.stringify({ id: "old", messages: [] })]]);
+  const adapter = {
+    async exists(path) {
+      return path.includes(".agent-dock-local") || files.has(path);
+    },
+    async mkdir() {},
+    async list() {
+      return { files: [...files.keys()], folders: [] };
+    },
+    async read(path) {
+      return files.get(path);
+    },
+    async write(path, content) {
+      files.set(path, content);
+    },
+    async remove(path) {
+      files.delete(path);
+    }
+  };
+  const storage = new ChatStorage({
+    manifest: { id: "agent-dock", dir: ".obsidian/plugins/agent-dock" },
+    app: { vault: { adapter } },
+    async savePluginData() {
+      throw new Error("index write failed");
+    }
+  });
+
+  await assert.rejects(() => storage.saveSessions({
+    activeSessionId: "new",
+    sessions: [{ id: "new", title: "New", messages: [], createdAt: 1, updatedAt: 2 }]
+  }, {
+    persistChatHistory: true,
+    maxPersistedMessagesPerSession: 20,
+    maxPersistedSessions: 10
+  }), /index write failed/);
+  assert(files.has(`${baseDir}/old.json`), "old sessions must remain until the new index commits");
+}
+
 Promise.resolve()
   .then(testPruneDeletesAssociatedPastedImages)
   .then(testAssistantTimelinePersistsAcrossSaveLoad)
   .then(testAssistantTimelineRedactsAndTruncatesDetails)
   .then(testLegacySessionPathFallback)
+  .then(testPruningWaitsForSessionIndexCommit)
   .then(() => {
     console.log("chat storage tests passed");
   })
