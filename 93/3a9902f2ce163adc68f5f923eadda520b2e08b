@@ -1,0 +1,39 @@
+styles.css
+  s_3af48da6f241d4::t_1b86b38206c00c 2372-2377
+  s_3af48da6f241d4::t_5c29925c302e42 1901
+  s_137a3ece11099b::t_f1dc13da44d990 2378-2379
+src/view/timeline/MessageTimelineRenderer.js
+  s_3af48da6f241d4::t_5c29925c302e42 52,95
+scripts/test-timeline.js
+  s_3af48da6f241d4::t_f9c6318d3dc9f2 124-137,139
+  s_3af48da6f241d4::t_1b86b38206c00c 32-35
+  s_3af48da6f241d4::t_b9680083733281 2-3,30-31,36,121,123
+  s_137a3ece11099b::t_ec187032616429 37,138
+main.js
+  s_3af48da6f241d4::t_e46c32426c48ac 21500,21543
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "933a9902f2ce163adc68f5f923eadda520b2e08b",
+  "prompts": {},
+  "logical_commit_id": "933a9902f2ce163adc68f5f923eadda520b2e08b",
+  "sessions": {
+    "s_137a3ece11099b": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4dcf-547d-7301-877f-d2c9b63cbe84",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    },
+    "s_3af48da6f241d4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4ffa-e985-7670-829c-101e4d38eba2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
