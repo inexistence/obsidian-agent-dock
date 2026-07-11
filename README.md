@@ -100,8 +100,9 @@ memory, disable automatic extraction, disable explicit lookup, adjust limits, or
 clear saved memory.
 
 The compact format defaults to four automatic references and 1600 characters.
-Existing installations still carrying the former unmodified defaults of 12 and
-8000 are migrated once; explicitly changed values are preserved.
+Existing installations retain their persisted limits, including the former
+12-item/8000-character defaults, so upgrades never overwrite an explicit user
+choice.
 
 Proactive collaboration follow-ups are also enabled by default. Local code may
 surface up to three overdue, due-soon, stalled, or changed-file-evidence signals

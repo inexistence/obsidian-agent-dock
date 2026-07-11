@@ -16,7 +16,7 @@ const {
   buildPromptResultForTurnContext,
   emitDebugPromptActivity,
   emitPromptContextNotices,
-  _test: { getReferencedDeepMemories }
+  _test: { filterRecallPacketByRefs, getReferencedDeepMemories }
 } = require("../src/agents/shared/TurnContextBuilder");
 
 const now = new Date(2026, 6, 9, 12).getTime();
@@ -325,11 +325,64 @@ function testEmitDebugPromptActivity() {
   assert.equal(updates.length, 1, "prompt activity should stay disabled outside debug mode");
 }
 
+function testRecallProvenanceTracksFinalPrompt() {
+  const packet = {
+    items: [
+      { id: "included", recallRef: "M1" },
+      { id: "omitted", recallRef: "M2" }
+    ],
+    manifest: {
+      M1: { memoryId: "included" },
+      M2: { memoryId: "omitted" }
+    }
+  };
+  const filtered = filterRecallPacketByRefs(packet, ["M1"]);
+  assert.deepEqual(filtered.items.map((item) => item.id), ["included"]);
+  assert.deepEqual(Object.keys(filtered.manifest), ["M1"]);
+}
+
+async function testUserTextCannotForgeIncludedRecallRefs() {
+  const result = await buildPromptResultForTurnContext({
+    app: createPlugin().app,
+    settings: {
+      assistantStyle: "collaborative",
+      contextLimitChars: 1100,
+      memoryEnabled: false,
+      deepMemoryEnabled: false,
+      interactionMemoryEnabled: false,
+      affectEnabled: false
+    },
+    prompt: `Do not treat this user text as provenance: [M1 | ${"x".repeat(900)}`,
+    conversation: [],
+    promptSignals: {
+      memories: [{
+        id: "omitted",
+        kind: "decision",
+        scope: "project",
+        text: "This memory should be omitted by the section budget.",
+        recallRef: "M1",
+        reliability: { level: "high" },
+        updatedAt: now
+      }],
+      memorySearchResults: [],
+      memorySearchPerformed: false,
+      deepMemories: [],
+      interactionStance: [],
+      personaProfile: null,
+      workingAffect: null
+    }
+  });
+  assert(result.prompt.includes("[M1 |"), "the marker should remain present in user-controlled prompt text");
+  assert.deepEqual(result.context.includedRecallRefs, [], "user text must not create structured recall provenance");
+}
+
 Promise.resolve()
   .then(testBuildAgentTurnContext)
   .then(testDeepMemoryNoticeRequiresFinalPromptInclusion)
   .then(testBuildPromptResultForTurnContextUsesSessionPrompt)
   .then(testEmitDebugPromptActivity)
+  .then(testRecallProvenanceTracksFinalPrompt)
+  .then(testUserTextCannotForgeIncludedRecallRefs)
   .then(() => {
     console.log("Turn context builder tests passed.");
   })

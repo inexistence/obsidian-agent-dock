@@ -367,7 +367,7 @@ Main files:
 - `src/storage/MemoryRelationshipReducer.js`: event continuation,
   supersession, correction, and conflict relationships.
 - `src/storage/MemoryEventClassifier.js`: event topic/status classification and
-  same-day timeline instance keys.
+  dated timeline instance keys.
 - `src/storage/memoryEvidence.js`: bounded evidence normalization, speaker
   derivation, source locators, truncation metadata, merging, and sensitive filtering.
 - `src/storage/MemoryReliability.js`: deterministic runtime support, staleness,
@@ -416,8 +416,9 @@ Automatic recall defaults to four compact items and 1600 characters. It omits
 full evidence excerpts. Explicit search has a separate bounded allowance and may
 include one excerpt and locator per result. This preserves prompt size while
 keeping the full evidence chain locally available.
-The hidden `memoryPromptFormatVersion` setting migrates only the former default
-12-item/8000-character pair; other user-configured limits are preserved.
+The hidden `memoryPromptFormatVersion` records the prompt format version without
+rewriting persisted item or character limits. Existing installations therefore
+retain the former 12-item/8000-character values unless the user changes them.
 
 Each injected item receives a turn-local M1/M2 or S1/S2 ref. The recall manifest
 maps that ref to a memory id while retaining evidence locally for validation. A reflection may attach the supplied ref to
@@ -428,8 +429,10 @@ you say that?” turn can therefore expose a source chain without claiming that
 every memory made available to the model was actually used.
 
 Transient facts and tasks receive state/event temporal classes. Relative-time
-states expire deterministically. Same-day commute/travel updates share a dated
-event instance and incrementing sequence. Generic work topics require substantive
+states expire deterministically. Commute/travel updates normally share a dated
+event instance; a planned or active event may also continue across midnight for
+up to 18 hours when the new status is a forward transition. A new planned event
+remains separate so target changes do not overwrite an active journey. Generic work topics require substantive
 text overlap instead of matching by topic alone; completed/cancelled updates supersede earlier planned or
 active states without deleting their evidence. Explicit corrections mark older
 records corrected, while supported contradictions remain contested.

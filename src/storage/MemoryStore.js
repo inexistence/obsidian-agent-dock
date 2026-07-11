@@ -207,7 +207,7 @@ class MemoryStore {
       return;
     }
     return this.enqueueWrite(async () => {
-      const memory = await this.loadMemory();
+      const memory = await this.loadMemoryForWrite();
       let changed = false;
       for (const item of memory.items) {
         if (!ids.has(item.id)) {
@@ -232,7 +232,7 @@ class MemoryStore {
   }
 
   async captureTurnUnlocked(turn, settings) {
-    const memory = await this.loadMemory();
+    const memory = await this.loadMemoryForWrite();
     const extracted = this.extractor.extractTurn(turn)
       .filter((item) => item.text && !containsSensitiveText(item.text))
       .filter((item) => item.persistence !== "current_turn")
@@ -325,6 +325,10 @@ class MemoryStore {
 
   async saveMemory(memory) {
     return this.repository.save(memory, normalizeMemory);
+  }
+
+  async loadMemoryForWrite() {
+    return cloneMemory(await this.loadMemory());
   }
 
   enqueueWrite(operation) {
@@ -715,6 +719,10 @@ function createEmptyMemory() {
 
 function createMemoryId() {
   return `mem-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function cloneMemory(memory) {
+  return JSON.parse(JSON.stringify(memory));
 }
 
 function createMemoryKey(kind, text) {

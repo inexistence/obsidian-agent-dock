@@ -2887,8 +2887,6 @@ const ASSISTANT_DISPLAY_NAME_MAX_CHARS = 80;
 const AFFECT_HALF_LIFE_MINUTES_MIN = 5;
 const AFFECT_HALF_LIFE_MINUTES_MAX = 1440;
 const MEMORY_PROMPT_FORMAT_VERSION = 2;
-const LEGACY_MEMORY_MAX_PROMPT_ITEMS = 12;
-const LEGACY_MEMORY_MAX_PROMPT_CHARS = 8000;
 
 const ASSISTANT_STYLE_OPTIONS = {
   concise: {
@@ -2967,19 +2965,6 @@ const DEFAULT_SETTINGS = {
 function normalizeSettings(savedSettings) {
   const settings = Object.assign({}, DEFAULT_SETTINGS, savedSettings || {});
 
-  const savedMemoryPromptFormatVersion = Number(savedSettings?.memoryPromptFormatVersion);
-  if (
-    savedSettings
-    && (!Number.isFinite(savedMemoryPromptFormatVersion)
-      || savedMemoryPromptFormatVersion < MEMORY_PROMPT_FORMAT_VERSION)
-  ) {
-    if (Number(savedSettings.memoryMaxPromptItems) === LEGACY_MEMORY_MAX_PROMPT_ITEMS) {
-      settings.memoryMaxPromptItems = DEFAULT_SETTINGS.memoryMaxPromptItems;
-    }
-    if (Number(savedSettings.memoryMaxPromptChars) === LEGACY_MEMORY_MAX_PROMPT_CHARS) {
-      settings.memoryMaxPromptChars = DEFAULT_SETTINGS.memoryMaxPromptChars;
-    }
-  }
   settings.memoryPromptFormatVersion = MEMORY_PROMPT_FORMAT_VERSION;
 
   if (savedSettings && savedSettings.command && !savedSettings.codexPath) {
@@ -6863,6 +6848,7 @@ function buildPromptResult(
   const prompt = limitPrompt(rawPrompt, contextLimit, protectedPrefix, protectedSuffix);
   const omittedSections = sectionPlan?.droppedSections || [];
   const truncatedSections = sectionPlan?.truncatedSections || [];
+  const includedRecallRefs = getIncludedRecallRefs(sectionPlan);
   const originalChars = rawPrompt.length
     + (sectionPlan?.removedChars || 0)
     + Math.max(0, Number(additionalRemovedChars) || 0);
@@ -6873,6 +6859,7 @@ function buildPromptResult(
       originalChars,
       promptChars: prompt.length,
       memoryCount: memories.length,
+      includedRecallRefs,
       omittedSections,
       truncatedSections,
       compressed: (
@@ -6883,6 +6870,24 @@ function buildPromptResult(
       )
     }
   };
+}
+
+function getIncludedRecallRefs(sectionPlan) {
+  const recallSections = new Set(["memory", "memory_search"]);
+  const refs = [];
+  const seen = new Set();
+  for (const section of sectionPlan?.sections || []) {
+    if (!recallSections.has(section.name)) {
+      continue;
+    }
+    for (const match of String(section.text || "").matchAll(/\[([MS]\d+) \|/g)) {
+      if (!seen.has(match[1])) {
+        seen.add(match[1]);
+        refs.push(match[1]);
+      }
+    }
+  }
+  return refs;
 }
 
 async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
@@ -8465,12 +8470,41 @@ function isSameEventInstance(previous, next, overlap) {
     return true;
   }
   if (isTimelineEventTopic(next.topic)) {
-    return Boolean(previous.instanceKey && previous.instanceKey === next.instanceKey);
+    if (previous.instanceKey && previous.instanceKey === next.instanceKey) {
+      return isForwardTimelineStatus(previous.status, next.status)
+        || (previous.status === next.status && overlap >= 2);
+    }
+    return isNearbyOpenTimelineTransition(previous, next);
   }
   if (isGenericEventTopic(next.topic)) {
     return overlap >= 3;
   }
   return overlap >= 1;
+}
+
+function isNearbyOpenTimelineTransition(previous, next) {
+  if (!["planned", "active"].includes(previous?.status)) {
+    return false;
+  }
+  const previousAt = Number(previous?.occurredAt) || 0;
+  const nextAt = Number(next?.occurredAt) || 0;
+  if (!previousAt || !nextAt || nextAt < previousAt) {
+    return false;
+  }
+  if (nextAt - previousAt > 18 * 3600000) {
+    return false;
+  }
+  return isForwardTimelineStatus(previous.status, next.status);
+}
+
+function isForwardTimelineStatus(previousStatus, nextStatus) {
+  if (previousStatus === "planned") {
+    return ["active", "completed", "cancelled"].includes(nextStatus);
+  }
+  if (previousStatus === "active") {
+    return ["completed", "cancelled"].includes(nextStatus);
+  }
+  return false;
 }
 
 function isEventTransition(previous, next) {
@@ -8773,7 +8807,7 @@ class MemoryStore {
       return;
     }
     return this.enqueueWrite(async () => {
-      const memory = await this.loadMemory();
+      const memory = await this.loadMemoryForWrite();
       let changed = false;
       for (const item of memory.items) {
         if (!ids.has(item.id)) {
@@ -8798,7 +8832,7 @@ class MemoryStore {
   }
 
   async captureTurnUnlocked(turn, settings) {
-    const memory = await this.loadMemory();
+    const memory = await this.loadMemoryForWrite();
     const extracted = this.extractor.extractTurn(turn)
       .filter((item) => item.text && !containsSensitiveText(item.text))
       .filter((item) => item.persistence !== "current_turn")
@@ -8891,6 +8925,10 @@ class MemoryStore {
 
   async saveMemory(memory) {
     return this.repository.save(memory, normalizeMemory);
+  }
+
+  async loadMemoryForWrite() {
+    return cloneMemory(await this.loadMemory());
   }
 
   enqueueWrite(operation) {
@@ -9281,6 +9319,10 @@ function createEmptyMemory() {
 
 function createMemoryId() {
   return `mem-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function cloneMemory(memory) {
+  return JSON.parse(JSON.stringify(memory));
 }
 
 function createMemoryKey(kind, text) {
@@ -9965,7 +10007,7 @@ async function buildAgentTurnContext({
   });
   promptSignals.memories = automaticPacket.items;
   promptSignals.memorySearchResults = explicitPacket.items;
-  const memoryRecallManifest = Object.assign({}, automaticPacket.manifest, explicitPacket.manifest);
+  let memoryRecallManifest = Object.assign({}, automaticPacket.manifest, explicitPacket.manifest);
   const memoryTrace = await getPreviousAnswerMemoryTrace(
     plugin.memoryStore,
     prompt,
@@ -9996,6 +10038,16 @@ async function buildAgentTurnContext({
     collaborationOmissions,
     useFullPrompt
   });
+  const includedRecallRefs = promptResult?.context?.includedRecallRefs || [];
+  const includedAutomaticPacket = filterRecallPacketByRefs(automaticPacket, includedRecallRefs);
+  const includedExplicitPacket = filterRecallPacketByRefs(explicitPacket, includedRecallRefs);
+  promptSignals.memories = includedAutomaticPacket.items;
+  promptSignals.memorySearchResults = includedExplicitPacket.items;
+  memoryRecallManifest = Object.assign(
+    {},
+    includedAutomaticPacket.manifest,
+    includedExplicitPacket.manifest
+  );
   const referencedDeepMemories = getReferencedDeepMemories(promptResult, promptSignals);
   if (referencedDeepMemories.length > 0 && typeof plugin.deepMemoryStore.markRecalled === "function") {
     await plugin.deepMemoryStore.markRecalled(referencedDeepMemories, Date.now());
@@ -10069,6 +10121,15 @@ function formatRecalledMemoryEvidence(promptSignals) {
     parts.push(item?.summary, item?.userExcerpt, item?.assistantExcerpt);
   }
   return parts.filter(Boolean).join("\n");
+}
+
+function filterRecallPacketByRefs(packet, refs) {
+  const includedRefs = new Set(Array.isArray(refs) ? refs : []);
+  const items = (Array.isArray(packet?.items) ? packet.items : [])
+    .filter((item) => includedRefs.has(item?.recallRef));
+  const manifest = Object.fromEntries(Object.entries(packet?.manifest || {})
+    .filter(([ref]) => includedRefs.has(ref)));
+  return { items, manifest };
 }
 
 async function buildPromptResultForTurnContext({
@@ -10189,6 +10250,7 @@ module.exports = {
   emitDebugPromptActivity,
   emitPromptContextNotices,
   _test: {
+    filterRecallPacketByRefs,
     formatRecalledMemoryEvidence,
     getReferencedDeepMemories,
     readActiveNoteEvidence

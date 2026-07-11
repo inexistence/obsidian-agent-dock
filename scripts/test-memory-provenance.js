@@ -31,13 +31,20 @@ const { buildPromptWithMetadata } = require("../src/prompt");
 class MemoryAdapter {
   constructor(files = {}) {
     this.files = new Map(Object.entries(files));
+    this.failNextJsonWrite = false;
   }
   async exists(path) { return this.files.has(path); }
   async read(path) {
     if (!this.files.has(path)) throw new Error(`Missing file: ${path}`);
     return this.files.get(path);
   }
-  async write(path, content) { this.files.set(path, content); }
+  async write(path, content) {
+    if (this.failNextJsonWrite && path.endsWith("memory.json")) {
+      this.failNextJsonWrite = false;
+      throw new Error("simulated memory write failure");
+    }
+    this.files.set(path, content);
+  }
   async mkdir(path) { this.files.set(path, this.files.get(path) || ""); }
   async remove(path) { this.files.delete(path); }
 }
@@ -60,8 +67,8 @@ function createStore(rawMemory) {
     memoryMaxPromptItems: 12,
     memoryMaxPromptChars: 8000
   });
-  assert.equal(migratedSettings.memoryMaxPromptItems, 4);
-  assert.equal(migratedSettings.memoryMaxPromptChars, 1600);
+  assert.equal(migratedSettings.memoryMaxPromptItems, 12, "explicit legacy-sized limits should be preserved");
+  assert.equal(migratedSettings.memoryMaxPromptChars, 8000, "explicit legacy-sized limits should be preserved");
   assert.equal(migratedSettings.memoryPromptFormatVersion, 2);
 
   const evidence = normalizeMemoryEvidence([{
@@ -393,6 +400,7 @@ async function testMigrationAndEventTimeline() {
   await timeline.store.captureTurn({
     prompt: "今晚准备早下班回家",
     response: "好。",
+    observedAt: Date.UTC(2026, 6, 10, 23, 55),
     sessionId: "session-event",
     userMessageId: "user-1",
     assistantMessageId: "assistant-1"
@@ -400,6 +408,7 @@ async function testMigrationAndEventTimeline() {
   await timeline.store.captureTurn({
     prompt: "我已经离开公司回家了",
     response: "路上注意安全。",
+    observedAt: Date.UTC(2026, 6, 11, 0, 5),
     sessionId: "session-event",
     userMessageId: "user-2",
     assistantMessageId: "assistant-2"
@@ -407,6 +416,7 @@ async function testMigrationAndEventTimeline() {
   await timeline.store.captureTurn({
     prompt: "我到家了",
     response: "好。",
+    observedAt: Date.UTC(2026, 6, 11, 0, 20),
     sessionId: "session-event",
     userMessageId: "user-3",
     assistantMessageId: "assistant-3"
@@ -420,6 +430,43 @@ async function testMigrationAndEventTimeline() {
   assert.equal(new Set(events.map((item) => item.event.id)).size, 1, "event updates should share one local timeline id");
   assert.deepEqual(events.map((item) => item.status), ["superseded", "superseded", "active"]);
   assert.equal(events[2].event.status, "completed");
+}
+
+async function testChangedTravelTargetStartsNewEvent() {
+  const timeline = createStore();
+  const settings = { memoryEnabled: true, memoryAutoCapture: true, memoryMaxItems: 20 };
+  await timeline.store.captureTurn({
+    prompt: "I am currently on the way to Shanghai",
+    response: "好。",
+    observedAt: Date.UTC(2026, 6, 10, 8)
+  }, settings);
+  await timeline.store.captureTurn({
+    prompt: "I am planning to arrive in Beijing tomorrow",
+    response: "好。",
+    observedAt: Date.UTC(2026, 6, 10, 14)
+  }, settings);
+  const memory = await timeline.store.loadMemory();
+  const events = memory.items.filter((item) => item.event?.topic === "travel");
+  assert.equal(events.length, 2);
+  assert.equal(new Set(events.map((item) => item.event.id)).size, 2, "a new planned target must start a separate event");
+  assert.deepEqual(events.map((item) => item.status), ["active", "active"]);
+}
+
+async function testFailedWriteDoesNotChangeCachedMemory() {
+  const source = createStore();
+  const settings = { memoryEnabled: true, memoryAutoCapture: true, memoryMaxItems: 20 };
+  const initial = await source.store.loadMemory();
+  assert.equal(initial.items.length, 0);
+  source.adapter.failNextJsonWrite = true;
+  await assert.rejects(
+    source.store.captureTurn({
+      prompt: "记住：写入失败的数据不能进入召回缓存",
+      response: "已记录。"
+    }, settings),
+    /simulated memory write failure/
+  );
+  const afterFailure = await source.store.loadMemory();
+  assert.equal(afterFailure.items.length, 0, "failed writes must leave the last committed cache intact");
 }
 
 async function testConcurrentCapturesAreSerialized() {
@@ -547,7 +594,9 @@ async function testEvidenceTraceSurvivesPromptCompression() {
 Promise.resolve()
   .then(testTrace)
   .then(testMigrationAndEventTimeline)
+  .then(testChangedTravelTargetStartsNewEvent)
   .then(testConcurrentCapturesAreSerialized)
+  .then(testFailedWriteDoesNotChangeCachedMemory)
   .then(testRetentionKeepsLatestActiveEventState)
   .then(testExplicitCorrectionPreservesRevisionHistory)
   .then(testOmissionPromptAndCooldownPersistence)

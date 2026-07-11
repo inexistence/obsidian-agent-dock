@@ -86,7 +86,7 @@ async function buildAgentTurnContext({
   });
   promptSignals.memories = automaticPacket.items;
   promptSignals.memorySearchResults = explicitPacket.items;
-  const memoryRecallManifest = Object.assign({}, automaticPacket.manifest, explicitPacket.manifest);
+  let memoryRecallManifest = Object.assign({}, automaticPacket.manifest, explicitPacket.manifest);
   const memoryTrace = await getPreviousAnswerMemoryTrace(
     plugin.memoryStore,
     prompt,
@@ -117,6 +117,16 @@ async function buildAgentTurnContext({
     collaborationOmissions,
     useFullPrompt
   });
+  const includedRecallRefs = promptResult?.context?.includedRecallRefs || [];
+  const includedAutomaticPacket = filterRecallPacketByRefs(automaticPacket, includedRecallRefs);
+  const includedExplicitPacket = filterRecallPacketByRefs(explicitPacket, includedRecallRefs);
+  promptSignals.memories = includedAutomaticPacket.items;
+  promptSignals.memorySearchResults = includedExplicitPacket.items;
+  memoryRecallManifest = Object.assign(
+    {},
+    includedAutomaticPacket.manifest,
+    includedExplicitPacket.manifest
+  );
   const referencedDeepMemories = getReferencedDeepMemories(promptResult, promptSignals);
   if (referencedDeepMemories.length > 0 && typeof plugin.deepMemoryStore.markRecalled === "function") {
     await plugin.deepMemoryStore.markRecalled(referencedDeepMemories, Date.now());
@@ -190,6 +200,15 @@ function formatRecalledMemoryEvidence(promptSignals) {
     parts.push(item?.summary, item?.userExcerpt, item?.assistantExcerpt);
   }
   return parts.filter(Boolean).join("\n");
+}
+
+function filterRecallPacketByRefs(packet, refs) {
+  const includedRefs = new Set(Array.isArray(refs) ? refs : []);
+  const items = (Array.isArray(packet?.items) ? packet.items : [])
+    .filter((item) => includedRefs.has(item?.recallRef));
+  const manifest = Object.fromEntries(Object.entries(packet?.manifest || {})
+    .filter(([ref]) => includedRefs.has(ref)));
+  return { items, manifest };
 }
 
 async function buildPromptResultForTurnContext({
@@ -310,6 +329,7 @@ module.exports = {
   emitDebugPromptActivity,
   emitPromptContextNotices,
   _test: {
+    filterRecallPacketByRefs,
     formatRecalledMemoryEvidence,
     getReferencedDeepMemories,
     readActiveNoteEvidence

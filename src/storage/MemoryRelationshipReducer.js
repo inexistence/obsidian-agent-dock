@@ -59,12 +59,41 @@ function isSameEventInstance(previous, next, overlap) {
     return true;
   }
   if (isTimelineEventTopic(next.topic)) {
-    return Boolean(previous.instanceKey && previous.instanceKey === next.instanceKey);
+    if (previous.instanceKey && previous.instanceKey === next.instanceKey) {
+      return isForwardTimelineStatus(previous.status, next.status)
+        || (previous.status === next.status && overlap >= 2);
+    }
+    return isNearbyOpenTimelineTransition(previous, next);
   }
   if (isGenericEventTopic(next.topic)) {
     return overlap >= 3;
   }
   return overlap >= 1;
+}
+
+function isNearbyOpenTimelineTransition(previous, next) {
+  if (!["planned", "active"].includes(previous?.status)) {
+    return false;
+  }
+  const previousAt = Number(previous?.occurredAt) || 0;
+  const nextAt = Number(next?.occurredAt) || 0;
+  if (!previousAt || !nextAt || nextAt < previousAt) {
+    return false;
+  }
+  if (nextAt - previousAt > 18 * 3600000) {
+    return false;
+  }
+  return isForwardTimelineStatus(previous.status, next.status);
+}
+
+function isForwardTimelineStatus(previousStatus, nextStatus) {
+  if (previousStatus === "planned") {
+    return ["active", "completed", "cancelled"].includes(nextStatus);
+  }
+  if (previousStatus === "active") {
+    return ["completed", "cancelled"].includes(nextStatus);
+  }
+  return false;
 }
 
 function isEventTransition(previous, next) {

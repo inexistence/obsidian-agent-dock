@@ -774,6 +774,7 @@ function buildPromptResult(
   const prompt = limitPrompt(rawPrompt, contextLimit, protectedPrefix, protectedSuffix);
   const omittedSections = sectionPlan?.droppedSections || [];
   const truncatedSections = sectionPlan?.truncatedSections || [];
+  const includedRecallRefs = getIncludedRecallRefs(sectionPlan);
   const originalChars = rawPrompt.length
     + (sectionPlan?.removedChars || 0)
     + Math.max(0, Number(additionalRemovedChars) || 0);
@@ -784,6 +785,7 @@ function buildPromptResult(
       originalChars,
       promptChars: prompt.length,
       memoryCount: memories.length,
+      includedRecallRefs,
       omittedSections,
       truncatedSections,
       compressed: (
@@ -794,6 +796,24 @@ function buildPromptResult(
       )
     }
   };
+}
+
+function getIncludedRecallRefs(sectionPlan) {
+  const recallSections = new Set(["memory", "memory_search"]);
+  const refs = [];
+  const seen = new Set();
+  for (const section of sectionPlan?.sections || []) {
+    if (!recallSections.has(section.name)) {
+      continue;
+    }
+    for (const match of String(section.text || "").matchAll(/\[([MS]\d+) \|/g)) {
+      if (!seen.has(match[1])) {
+        seen.add(match[1]);
+        refs.push(match[1]);
+      }
+    }
+  }
+  return refs;
 }
 
 async function buildTurnContextPrompt(app, settings, prompt, options = {}) {
