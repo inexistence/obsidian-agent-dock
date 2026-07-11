@@ -1061,7 +1061,7 @@ class AgentDockView extends ItemView {
       if (!result.final && result.holdFinalStatus) {
         this.holdTurnStatusUntilFinalFeedback(message);
       }
-      if (!result.final && message?.isComplete) {
+      if (!result.final && message?.isComplete && !result.holdFinalStatus) {
         return;
       }
       if (result.final) {
@@ -1070,7 +1070,10 @@ class AgentDockView extends ItemView {
         }
         this.prepareTurnFeedback(session, result.status || "success");
       }
-      if (this.hasActiveTransientFeedback(session)) {
+      if (
+        this.hasActiveTransientFeedback(session)
+        && this.isActiveTransientFeedback(message)
+      ) {
         this.pendingRenderAfterTransient = true;
         return;
       }
@@ -1149,7 +1152,10 @@ class AgentDockView extends ItemView {
         return;
       }
       this.prepareTurnFeedback(session, status);
-      if (this.hasActiveTransientFeedback(session)) {
+      if (
+        this.hasActiveTransientFeedback(session)
+        && this.isActiveTransientFeedback(message)
+      ) {
         this.pendingRenderAfterTransient = true;
         return;
       }
@@ -1268,7 +1274,10 @@ class AgentDockView extends ItemView {
       this.pendingMessageRenderSessionId = "";
       this.pendingMessageRenderTarget = null;
       if (renderSession && renderSession.id === this.activeSessionId) {
-        if (this.hasActiveTransientFeedback(renderSession)) {
+        if (
+          this.hasActiveTransientFeedback(renderSession)
+          && (!renderMessage || this.isActiveTransientFeedback(renderMessage))
+        ) {
           this.pendingRenderAfterTransient = true;
           return;
         }

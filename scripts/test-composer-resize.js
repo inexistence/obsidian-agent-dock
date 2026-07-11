@@ -190,4 +190,69 @@ assert.deepStrictEqual(renderComposerWithScrollPosition(false), {
   scrollCount: 0
 });
 
+{
+  const previousWindow = global.window;
+  global.window = { requestAnimationFrame, cancelAnimationFrame };
+  const staleFeedbackMessage = {
+    role: "assistant",
+    emotiveFeedback: { kind: "success", played: true }
+  };
+  const liveMessage = { role: "assistant", isLoading: true };
+  const session = { id: "active", messages: [staleFeedbackMessage, liveMessage] };
+  let renderedMessage = null;
+  const view = {
+    sessions: [session],
+    activeSessionId: session.id,
+    pendingMessageRenderFrame: null,
+    pendingMessageRenderSessionId: "",
+    pendingMessageRenderTarget: null,
+    pendingRenderAfterTransient: false,
+    hasActiveTransientFeedback: AgentDockView.prototype.hasActiveTransientFeedback,
+    isActiveTransientFeedback: AgentDockView.prototype.isActiveTransientFeedback,
+    renderMessageIfMounted(message) {
+      renderedMessage = message;
+      return true;
+    },
+    renderMessages() {
+      throw new Error("targeted live rendering should not require a full rerender");
+    }
+  };
+
+  AgentDockView.prototype.scheduleSessionRenderIfActive.call(view, session, liveMessage);
+  runFrames();
+  assert.strictEqual(renderedMessage, liveMessage, "stale feedback on an older message must not block live turn updates");
+  assert.equal(view.pendingRenderAfterTransient, false);
+  global.window = previousWindow;
+}
+
+{
+  const staleFeedbackMessage = {
+    role: "assistant",
+    emotiveFeedback: { kind: "success", played: true }
+  };
+  const message = { role: "assistant", isComplete: true };
+  const session = { id: "active", messages: [staleFeedbackMessage, message] };
+  let renderCount = 0;
+  const view = {
+    activeSessionId: session.id,
+    clearTurnStatusFinalHold: () => {},
+    holdTurnStatusUntilFinalFeedback: () => {},
+    hasActiveTransientFeedback: AgentDockView.prototype.hasActiveTransientFeedback,
+    isActiveTransientFeedback: AgentDockView.prototype.isActiveTransientFeedback,
+    cancelPendingMessageRender: () => {},
+    renderMessageIfMounted() {
+      renderCount += 1;
+      return true;
+    },
+    renderSessionIfActive: () => {}
+  };
+
+  AgentDockView.prototype.handleTurnFinished.call(view, session, {
+    final: false,
+    status: "success",
+    holdFinalStatus: true
+  });
+  assert.equal(renderCount, 1, "final content should render before completion feedback settles");
+}
+
 console.log("composer resize tests passed");

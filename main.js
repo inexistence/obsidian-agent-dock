@@ -11061,7 +11061,10 @@ const { escapeAppleScriptString, shellQuote } = __require("src/cli/shell.js");
 const { t } = __require("src/i18n/index.js");
 const { applyModeArgs } = __require("src/modes.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
-const { extractAgentDockSignals } = __require("src/agents/shared/agentSignals.js");
+const {
+  extractAgentDockSignals,
+  formatAgentDockReflectionNotice
+} = __require("src/agents/shared/agentSignals.js");
 const {
   buildAgentTurnContext,
   emitDebugPromptActivity
@@ -12127,7 +12130,10 @@ const { expandHomePath } = __require("src/cli/paths.js");
 const { escapeAppleScriptString, shellQuote } = __require("src/cli/shell.js");
 const { t } = __require("src/i18n/index.js");
 const { DEFAULT_SETTINGS } = __require("src/settings.js");
-const { extractAgentDockSignals } = __require("src/agents/shared/agentSignals.js");
+const {
+  extractAgentDockSignals,
+  formatAgentDockReflectionNotice
+} = __require("src/agents/shared/agentSignals.js");
 const { AcpClient } = __require("src/agents/cursor/AcpClient.js");
 const { acpUpdateToEvents } = __require("src/agents/cursor/acpEvents.js");
 const { toCursorMode } = __require("src/agents/cursor/modes.js");
@@ -25006,7 +25012,7 @@ class AgentDockView extends ItemView {
       if (!result.final && result.holdFinalStatus) {
         this.holdTurnStatusUntilFinalFeedback(message);
       }
-      if (!result.final && message?.isComplete) {
+      if (!result.final && message?.isComplete && !result.holdFinalStatus) {
         return;
       }
       if (result.final) {
@@ -25015,7 +25021,10 @@ class AgentDockView extends ItemView {
         }
         this.prepareTurnFeedback(session, result.status || "success");
       }
-      if (this.hasActiveTransientFeedback(session)) {
+      if (
+        this.hasActiveTransientFeedback(session)
+        && this.isActiveTransientFeedback(message)
+      ) {
         this.pendingRenderAfterTransient = true;
         return;
       }
@@ -25094,7 +25103,10 @@ class AgentDockView extends ItemView {
         return;
       }
       this.prepareTurnFeedback(session, status);
-      if (this.hasActiveTransientFeedback(session)) {
+      if (
+        this.hasActiveTransientFeedback(session)
+        && this.isActiveTransientFeedback(message)
+      ) {
         this.pendingRenderAfterTransient = true;
         return;
       }
@@ -25213,7 +25225,10 @@ class AgentDockView extends ItemView {
       this.pendingMessageRenderSessionId = "";
       this.pendingMessageRenderTarget = null;
       if (renderSession && renderSession.id === this.activeSessionId) {
-        if (this.hasActiveTransientFeedback(renderSession)) {
+        if (
+          this.hasActiveTransientFeedback(renderSession)
+          && (!renderMessage || this.isActiveTransientFeedback(renderMessage))
+        ) {
           this.pendingRenderAfterTransient = true;
           return;
         }

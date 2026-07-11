@@ -1,4 +1,6 @@
 const assert = require("assert");
+const fs = require("fs");
+const path = require("path");
 
 const {
   extractAgentDockSignals,
@@ -6,6 +8,18 @@ const {
   formatAgentDockSignalNotice,
   formatAgentDockReflectionNotice
 } = require("../src/agents/shared/agentSignals");
+
+for (const providerPath of [
+  "../src/agents/codex/CodexAgent.js",
+  "../src/agents/cursor/CursorAgent.js"
+]) {
+  const source = fs.readFileSync(path.join(__dirname, providerPath), "utf8");
+  const agentSignalsImport = source.match(/const\s*\{([\s\S]*?)\}\s*=\s*require\("\.\.\/shared\/agentSignals"\);/);
+  assert(
+    agentSignalsImport?.[1].includes("formatAgentDockReflectionNotice"),
+    `${providerPath} must import the reflection notice formatter it calls`
+  );
+}
 const { ReflectionContentFilter } = require("../src/agents/shared/ReflectionContentFilter");
 const { hasGroundedAgentSignal } = require("../src/agents/shared/signalEvidence");
 

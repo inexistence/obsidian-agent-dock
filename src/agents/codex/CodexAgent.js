@@ -10,7 +10,10 @@ const { escapeAppleScriptString, shellQuote } = require("../../cli/shell");
 const { t } = require("../../i18n");
 const { applyModeArgs } = require("../../modes");
 const { DEFAULT_SETTINGS } = require("../../settings");
-const { extractAgentDockSignals } = require("../shared/agentSignals");
+const {
+  extractAgentDockSignals,
+  formatAgentDockReflectionNotice
+} = require("../shared/agentSignals");
 const {
   buildAgentTurnContext,
   emitDebugPromptActivity

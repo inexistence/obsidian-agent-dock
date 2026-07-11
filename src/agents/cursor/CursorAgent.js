@@ -12,7 +12,10 @@ const { expandHomePath } = require("../../cli/paths");
 const { escapeAppleScriptString, shellQuote } = require("../../cli/shell");
 const { t } = require("../../i18n");
 const { DEFAULT_SETTINGS } = require("../../settings");
-const { extractAgentDockSignals } = require("../shared/agentSignals");
+const {
+  extractAgentDockSignals,
+  formatAgentDockReflectionNotice
+} = require("../shared/agentSignals");
 const { AcpClient } = require("./AcpClient");
 const { acpUpdateToEvents } = require("./acpEvents");
 const { toCursorMode } = require("./modes");
