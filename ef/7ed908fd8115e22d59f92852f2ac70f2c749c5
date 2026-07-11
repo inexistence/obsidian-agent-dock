@@ -1,0 +1,52 @@
+src/prompt.js
+  s_716585bc9640e4::t_feeadad5463415 777,788,799-816
+  s_716585bc9640e4::t_1a4f8257fdf9e3 817-818
+src/agents/shared/TurnContextBuilder.js
+  s_716585bc9640e4::t_feeadad5463415 120-122,205-206,332
+  s_716585bc9640e4::t_baead40dbdc578 89,123-129,203-204,207-211
+  s_716585bc9640e4::t_27529ebe99afd7 212-213
+scripts/test-turn-context-builder.js
+  s_716585bc9640e4::t_9d3cdfe98925f4 328-338,340-343,384
+  s_716585bc9640e4::t_fd3a2f1f45c1c2 344-378,385
+  s_716585bc9640e4::t_feeadad5463415 19,339
+scripts/test-memory-provenance.js
+  s_716585bc9640e4::t_feeadad5463415 435-438,440-443,445-454,597
+  s_716585bc9640e4::t_fd3a2f1f45c1c2 444
+  s_716585bc9640e4::t_9d3cdfe98925f4 34,41-47,70-71,403,411,419,433-434,455-469,599
+  s_716585bc9640e4::t_354e39497520be 439
+  s_716585bc9640e4::t_7dbd6ef5511a87 470-471
+README.md
+  s_716585bc9640e4::t_9e54b84f074f01 103-105
+docs/architecture.md
+  s_716585bc9640e4::t_9e54b84f074f01 419-421
+  s_716585bc9640e4::t_feeadad5463415 370,432-435
+main.js
+  s_716585bc9640e4::t_3ae9d94a8686a0 6851,6862,6873-6890,6892,8474-8475,8492-8494,8496-8502,8504-8507,10041-10043,10126-10127,10253
+  s_716585bc9640e4::t_06e5cad9535433 8473,8476-8477,8483-8491,8495,8503,8810,8835,8928-8931,8933,9324-9327,10010,10044-10050,10124-10125,10128-10132
+  s_716585bc9640e4::t_663da73be1a873 6891,8508-8509,8932,10133-10134
+src/storage/MemoryStore.js
+  s_716585bc9640e4::t_baead40dbdc578 210,235,330-333,722-725
+  s_716585bc9640e4::t_138dfe93df14b3 726-727
+src/storage/MemoryRelationshipReducer.js
+  s_716585bc9640e4::t_feeadad5463415 83-96
+  s_716585bc9640e4::t_b179087d10a678 63-64
+  s_716585bc9640e4::t_baead40dbdc578 62,65-66,72-82
+  s_716585bc9640e4::t_bf641ba2374cdf 97-98
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "ef7ed908fd8115e22d59f92852f2ac70f2c749c5",
+  "prompts": {},
+  "logical_commit_id": "ef7ed908fd8115e22d59f92852f2ac70f2c749c5",
+  "sessions": {
+    "s_716585bc9640e4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4fa7-fa05-7552-b153-fa89c5b0fee1",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
