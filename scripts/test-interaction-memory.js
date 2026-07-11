@@ -61,6 +61,17 @@ class MemoryAdapter {
     this.files.set(path, content);
   }
 
+  async rename(from, to) {
+    if (this.files.has(to)) {
+      throw new Error(`Destination already exists: ${to}`);
+    }
+    if (!this.files.has(from)) {
+      throw new Error(`Missing file: ${from}`);
+    }
+    this.files.set(to, this.files.get(from));
+    this.files.delete(from);
+  }
+
   async mkdir(path) {
     this.files.set(path, this.files.get(path) || "");
   }
