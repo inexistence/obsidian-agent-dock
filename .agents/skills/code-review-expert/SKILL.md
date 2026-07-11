@@ -1,13 +1,20 @@
 ---
 name: code-review-expert
-description: "Expert code review of current git changes with a senior engineer lens. Detects SOLID violations, security risks, and proposes actionable improvements."
+description: "Perform a formal, structured review of current git changes with a senior engineer lens, covering SOLID, architecture, security, reliability, performance, and removal candidates. Use when the user explicitly asks for a code review, review report, or severity-ranked findings; do not invoke merely because implementation or commit preparation includes a normal self-check."
 ---
 
 # Code Review Expert
 
 ## Overview
 
-Perform a structured review of the current git changes with focus on SOLID, architecture, removal candidates, and security risks. Default to review-only output unless the user asks to implement changes.
+Perform a structured review of the current git changes with focus on SOLID, architecture, removal candidates, and security risks.
+
+## Select the operating mode
+
+- If the user asks only to review, audit, inspect, or assess, remain read-only and request authorization before implementing findings.
+- If the user already asks to review and fix, resolve, or address findings, treat that as implementation authorization. Validate findings first, then use the `resolve-code-issues` workflow without asking for duplicate confirmation.
+- Stop for a user decision when remediation requires a material product, architecture, compatibility, migration, destructive, or scope-expanding choice.
+- Do not invoke this formal review workflow during ordinary implementation or commit preparation unless the user requested it or a serious issue requires a dedicated report.
 
 ## Severity Levels
 
@@ -108,11 +115,9 @@ Structure your review as follows:
 (optional improvements, not blocking)
 ```
 
-**Inline comments**: Use this format for file-specific findings:
+**Inline comments**: When the client supports Codex code comments, emit one single-line directive per actionable finding using absolute paths and tight line ranges:
 ```
-::code-comment{file="path/to/file.ts" line="42" severity="P1"}
-Description of the issue and suggested fix.
-::
+::code-comment{title="[P1] Brief title" body="Description of the issue and suggested fix." file="/absolute/path/to/file.ts" start=42 end=42 priority=1}
 ```
 
 **Clean review**: If no issues found, explicitly state:
@@ -120,9 +125,9 @@ Description of the issue and suggested fix.
 - Any areas not covered (e.g., "Did not verify database migrations")
 - Residual risks or recommended follow-up tests
 
-### 7) Next steps confirmation
+### 7) Next steps
 
-After presenting findings, ask user how to proceed:
+For review-only requests, ask how the user wants to proceed after presenting findings:
 
 ```markdown
 ---
@@ -141,7 +146,7 @@ I found X issues (P0: _, P1: _, P2: _, P3: _).
 Please choose an option or provide specific instructions.
 ```
 
-**Important**: Do NOT implement any changes until user explicitly confirms. This is a review-first workflow.
+If the original request already authorized fixes, omit this confirmation menu, resolve confirmed findings, verify the result, and report both the review classifications and implemented corrections.
 
 ## Resources
 

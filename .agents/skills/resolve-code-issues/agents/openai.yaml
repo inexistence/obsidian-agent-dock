@@ -1,0 +1,4 @@
+interface:
+  display_name: "Resolve Code Issues"
+  short_description: "Validate findings, fix root causes, and remove repair debt"
+  default_prompt: "Use $resolve-code-issues to validate and resolve these code issues, then run project-defined verification."

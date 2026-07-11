@@ -32,6 +32,7 @@ const {
 } = require("../shared/TurnContextBuilder");
 const { ReflectionContentFilter } = require("../shared/ReflectionContentFilter");
 const { mergeSignalEvidenceContexts } = require("../shared/signalEvidence");
+const { emitClaimedMemoryProvenance } = require("../shared/memoryProvenance");
 const { codexJsonEventToUpdates } = require("./jsonEvents");
 
 class CodexAgent {
@@ -220,6 +221,11 @@ class CodexAgent {
         if (code === 0) {
           const signalResult = extractAgentDockSignals(finalOutput.trim());
           const signalEvidenceContext = getSignalEvidenceContext();
+          emitClaimedMemoryProvenance(
+            onUpdate,
+            signalResult.signals,
+            turnContext.memoryRecallManifest
+          );
           emitInvalidAgentDockSignalActivity(signalResult, onUpdate);
           emitAgentDockSignalNotices(
             signalResult.signals,
@@ -238,7 +244,10 @@ class CodexAgent {
             signalEvidenceContext,
             previousAssistantResponse: getPreviousAssistantResponse(conversation),
             activeFilePath,
-            sessionId: options.sessionId || ""
+            sessionId: options.sessionId || "",
+            userMessageId: options.userMessageId || "",
+            assistantMessageId: options.assistantMessageId || "",
+            memoryRecallManifest: turnContext.memoryRecallManifest
           }, settings, onUpdate);
           await this.captureInteractionMemory({
             prompt,
@@ -247,7 +256,10 @@ class CodexAgent {
             signalEvidenceContext,
             previousAssistantResponse: getPreviousAssistantResponse(conversation),
             activeFilePath,
-            sessionId: options.sessionId || ""
+            sessionId: options.sessionId || "",
+            userMessageId: options.userMessageId || "",
+            assistantMessageId: options.assistantMessageId || "",
+            memoryRecallManifest: turnContext.memoryRecallManifest
           }, settings, onUpdate);
           await this.captureDeepMemory({
             prompt,
@@ -256,7 +268,10 @@ class CodexAgent {
             signalEvidenceContext,
             previousAssistantResponse: getPreviousAssistantResponse(conversation),
             activeFilePath,
-            sessionId: options.sessionId || ""
+            sessionId: options.sessionId || "",
+            userMessageId: options.userMessageId || "",
+            assistantMessageId: options.assistantMessageId || "",
+            memoryRecallManifest: turnContext.memoryRecallManifest
           }, settings, onUpdate);
           settle(resolve, visibleOutput);
           return;

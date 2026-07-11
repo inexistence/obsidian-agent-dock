@@ -38,7 +38,16 @@ should stay ready for other agent CLIs such as Claude Code or Cursor.
 - `src/promptBudget.js`: prompt section budget arbitration; protects high-priority sections and omits/truncates optional soft sections before conversation compression.
 - `src/cli/*.js`: CLI argument/env/shell helpers.
 - `src/storage/ChatStorage.js`: persisted chat session index/body storage.
-- `src/storage/MemoryStore.js`: automatic local memory extraction, storage, and retrieval.
+- `src/storage/MemoryStore.js`: automatic local memory orchestration and retrieval.
+- `src/storage/MemoryRepository.js`: memory file IO, cache, serialized writes, clear semantics, and unreadable-file write protection.
+- `src/storage/MemoryRelationshipReducer.js`: event continuation, supersession, correction, and conflict relationships.
+- `src/storage/MemoryEventClassifier.js`: deterministic event topic, status, and timeline-instance classification.
+- `src/storage/memoryEvidence.js`: bounded memory evidence normalization, provenance locators, truncation metadata, and sensitive filtering.
+- `src/storage/MemoryReliability.js`: deterministic answer-time memory support, staleness, conflict, and expiry evaluation.
+- `src/storage/MemoryRecallPacket.js`: compact M1/S1 recall references and per-turn manifests.
+- `src/storage/MemoryOmissionPlanner.js`: bounded proactive project follow-up detection and cooldown planning.
+- `src/agents/shared/memoryTrace.js`: on-demand evidence-chain context for “why did you say that?” follow-ups.
+- `src/agents/shared/memoryProvenance.js`: validates recalled-memory refs and records claimed-used references.
 - `src/deepMemory/DeepMemoryStore.js`: high-importance relationship memory extraction, storage, recall cooldown, and retrieval.
 - `src/deepMemory/DeepMemoryExtractor.js`: deterministic deep-memory candidate extraction from user messages and low-weight visible final-answer outcome evidence.
 - `src/continuity/ContinuityPromptFormatter.js`: merges deep memory, working affect, interaction stance, and persona salience hints into one compact prompt section.
@@ -51,6 +60,8 @@ should stay ready for other agent CLIs such as Claude Code or Cursor.
 - `src/interaction/InteractionPromptFormatter.js`: formats long-term persona and turn-relevant stance prompt sections.
 - `.agents/skills/code-review-expert/`: project-local reusable code review skill.
 - `.agents/skills/commit-hygiene/`: reusable pre-commit review, docs, verification, and Conventional Commit workflow.
+- `.agents/skills/design-aware-development/`: proportionate design workflow with explicit anti-overengineering guardrails.
+- `.agents/skills/resolve-code-issues/`: issue validation, root-cause repair, focused cleanup, and regression verification workflow.
 - `docs/architecture.md`: maintainer overview of runtime modules, data boundaries, and extension points.
 - `styles.css`: Obsidian plugin styles.
 - `scripts/build-main.js`: zero-dependency bundler for `main.js`.
@@ -210,6 +221,15 @@ Users can change this in plugin settings.
   de-duplicate them from the automatic relevant memory section by key/id.
 - Emit concise `notice` events when relevant memory is included or automatic
   memory is searched, included, or updated.
+- Ordinary memory stores compact summaries separately from bounded exact
+  evidence. Runtime support levels are computed locally and must distinguish
+  extraction confidence from current factual support.
+- Automatic prompt recall defaults to four items and 1600 characters; exact
+  evidence stays local unless explicit lookup or provenance tracing needs it.
+- Proactive collaboration follow-ups must remain local, bounded, cooldown-aware,
+  user-disableable, and non-authoritative. Do not crawl the vault or call the
+  agent recursively to detect overdue, due-soon, stalled, or changed-file
+  evidence.
 
 ## Deep Memory
 

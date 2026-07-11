@@ -59,7 +59,9 @@ function formatMemoryNoticeSummary(memories, translate, keyPrefix = "cursor") {
 
 function buildReferencedMemoryAuditItems(memories, translate, keyPrefix = "cursor") {
   return (Array.isArray(memories) ? memories : []).map((item, index) => {
-    const source = translateMemorySource(translate, keyPrefix, item.source);
+    const source = item.source === "ai"
+      ? translateMemorySource(translate, keyPrefix, item.source)
+      : getMemoryEvidenceSource(item) || translateMemorySource(translate, keyPrefix, item.source);
     const type = translate(`${keyPrefix}.memoryAudit.type.memory`);
     return {
       title: formatAuditItemTitle(type, index),
@@ -75,10 +77,35 @@ function buildReferencedMemoryAuditItems(memories, translate, keyPrefix = "curso
         createField(translate(`${keyPrefix}.memoryAudit.field.content`), item.text),
         createField(translate(`${keyPrefix}.memoryAudit.field.scope`), item.scope),
         createField(translate(`${keyPrefix}.memoryAudit.field.kind`), item.kind),
-        createField(translate(`${keyPrefix}.memoryAudit.field.confidence`), formatDecimal(item.confidence))
+        createField(translate(`${keyPrefix}.memoryAudit.field.confidence`), formatDecimal(item.captureConfidence ?? item.confidence)),
+        createField(translate(`${keyPrefix}.memoryAudit.field.support`), formatSupport(item)),
+        createField(translate(`${keyPrefix}.memoryAudit.field.status`), item.status || "active"),
+        createField(translate(`${keyPrefix}.memoryAudit.field.evidence`), formatMemoryEvidence(item))
       ].filter(Boolean)
     };
   });
+}
+
+function getMemoryEvidenceSource(item) {
+  const evidence = Array.isArray(item?.evidenceRefs) ? item.evidenceRefs : [];
+  return (evidence.find((entry) => entry.origin === "user_message") || evidence[0])?.origin || "";
+}
+
+function formatSupport(item) {
+  const reliability = item?.reliability || {};
+  if (!reliability.level) {
+    return "";
+  }
+  return `${reliability.level} (${formatDecimal(reliability.score)})`;
+}
+
+function formatMemoryEvidence(item) {
+  return (Array.isArray(item?.evidenceRefs) ? item.evidenceRefs : [])
+    .map((entry) => {
+      const locator = entry.sourceMessageId || entry.sourceMemoryId || entry.filePath || entry.sourceSessionId || "";
+      return `[${entry.origin}; speaker=${entry.speaker}${locator ? `; ${locator}` : ""}] “${entry.quote}”`;
+    })
+    .join("\n");
 }
 
 function buildReferencedDeepMemoryAuditItems(memories, translate, keyPrefix = "cursor") {

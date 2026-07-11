@@ -11,6 +11,7 @@ const {
 
 function createUserMessage(prompt, createdAt) {
   return {
+    id: createMessageId("user"),
     role: "user",
     content: prompt,
     createdAt,
@@ -20,6 +21,7 @@ function createUserMessage(prompt, createdAt) {
 
 function createAssistantMessage(createdAt, agentId) {
   return {
+    id: createMessageId("assistant"),
     role: "assistant",
     agentId: String(agentId || ""),
     content: "",
@@ -69,6 +71,7 @@ async function runChatTurn({
     persistChatSessions({ immediate: true });
 
     const conversation = session.messages.slice(0, -1);
+    const userMessage = conversation[conversation.length - 1];
     const finalContent = await runAgent(prompt, (update) => {
       if (assistantMessage.isComplete || session.currentRun !== run) {
         return;
@@ -87,6 +90,16 @@ async function runChatTurn({
           assistantMessage.signalEvidenceContext,
           update.signalEvidenceContext
         );
+      }
+      if (update.memoryProvenance) {
+        assistantMessage.memoryProvenance = mergeMemoryProvenance(
+          assistantMessage.memoryProvenance,
+          update.memoryProvenance
+        );
+      }
+      if (update.internalOnly === true) {
+        onTurnUpdate(session, assistantMessage);
+        return;
       }
 
       if (update.kind === "content") {
@@ -110,7 +123,9 @@ async function runChatTurn({
     }, conversation, {
       signal: run.abortController.signal,
       sessionId: session.id,
-      dockSession: session
+      dockSession: session,
+      userMessageId: userMessage?.id || "",
+      assistantMessageId: assistantMessage.id
     });
 
     if (typeof finalContent === "string" && finalContent !== assistantMessage.content) {
@@ -179,6 +194,28 @@ async function runChatTurn({
     onComposerChanged(session);
     await persistChatSessions({ immediate: true });
   }
+}
+
+function mergeMemoryProvenance(existing, incoming) {
+  const left = existing && typeof existing === "object" ? existing : {};
+  const right = incoming && typeof incoming === "object" ? incoming : {};
+  const availableByRef = new Map();
+  for (const item of [...(left.available || []), ...(right.available || [])]) {
+    if (item?.ref) {
+      availableByRef.set(item.ref, Object.assign({}, availableByRef.get(item.ref), item));
+    }
+  }
+  return {
+    available: Array.from(availableByRef.values()).slice(0, 12),
+    claimedUsedRefs: [...new Set([
+      ...(left.claimedUsedRefs || []),
+      ...(right.claimedUsedRefs || [])
+    ])].slice(0, 12)
+  };
+}
+
+function createMessageId(role) {
+  return `msg-${role}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
 
 async function tryUpdateWorkingAffect(updateWorkingAffect, turn, context = {}) {

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Design-Aware Development"
+  short_description: "用最小充分设计实现清晰、可扩展且不过度抽象的代码工作流"
+  default_prompt: "Use $design-aware-development to implement this change with proportionate design and verification."

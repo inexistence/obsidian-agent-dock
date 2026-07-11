@@ -361,11 +361,29 @@ Memory is local and deterministic by default.
 
 Main files:
 
-- `src/storage/MemoryStore.js`: storage, retrieval, and prompt selection.
+- `src/storage/MemoryStore.js`: capture/retrieval orchestration and prompt selection.
+- `src/storage/MemoryRepository.js`: memory file IO, cache, write serialization,
+  clear semantics, and write protection after unreadable/corrupt storage.
+- `src/storage/MemoryRelationshipReducer.js`: event continuation,
+  supersession, correction, and conflict relationships.
+- `src/storage/MemoryEventClassifier.js`: event topic/status classification and
+  same-day timeline instance keys.
+- `src/storage/memoryEvidence.js`: bounded evidence normalization, speaker
+  derivation, source locators, truncation metadata, merging, and sensitive filtering.
+- `src/storage/MemoryReliability.js`: deterministic runtime support, staleness,
+  conflict, and expiry evaluation.
+- `src/storage/MemoryRecallPacket.js`: compact M1/S1 prompt references and the
+  per-turn recall manifest.
+- `src/storage/MemoryOmissionPlanner.js`: deterministic overdue, due-soon,
+  stalled, and changed-file-evidence follow-up selection with cooldowns.
 - `src/storage/memoryExtraction/RuleBasedMemoryExtractor.js`: local candidate
   extraction and classification.
 - `src/agents/shared/memorySearch.js`: explicit recall request detection and
   local search.
+- `src/agents/shared/memoryTrace.js`: on-demand evidence-chain construction for
+  questions about the previous answer's source.
+- `src/agents/shared/memoryProvenance.js`: validates reflection recall refs and
+  records which supplied memories were explicitly cited.
 - `src/agents/shared/memoryNotices.js`: provider-shared memory notices.
 
 Stored file:
@@ -377,6 +395,53 @@ Stored file:
 Memory categories include user preferences, explicit remember requests, agent
 self notes, shared collaboration notes, project notes, recent tasks, and
 decision-like notes.
+
+Ordinary memory version 2 keeps `text` as the compact retrieval summary and adds
+bounded `evidenceRefs`, `captureConfidence`, persistence/temporal classification,
+status, supersession/conflict links, and optional event metadata. Evidence refs
+retain origin, locally derived speaker, exact visible excerpt, session/message or
+file locator, observation time, and whether the stored excerpt was truncated.
+Version 1 records are
+loaded as `legacy_summary` evidence and can never receive high support until new
+visible evidence is collected.
+
+`captureConfidence` describes extraction/classification confidence. It is not
+answer-time factual support. `MemoryReliability` recomputes support on every
+recall from source strength, exact evidence, independent sources, extraction
+confidence, age, current active-note agreement, temporal class, expiry, and
+known conflicts. The prompt receives only `high`, `medium`, `low`, `contested`,
+or `expired`; the numeric score and reasons remain available in local audits.
+
+Automatic recall defaults to four compact items and 1600 characters. It omits
+full evidence excerpts. Explicit search has a separate bounded allowance and may
+include one excerpt and locator per result. This preserves prompt size while
+keeping the full evidence chain locally available.
+The hidden `memoryPromptFormatVersion` setting migrates only the former default
+12-item/8000-character pair; other user-configured limits are preserved.
+
+Each injected item receives a turn-local M1/M2 or S1/S2 ref. The recall manifest
+maps that ref to a memory id while retaining evidence locally for validation. A reflection may attach the supplied ref to
+`recalled_memory` evidence; local validation accepts it only when both the ref and
+quote match the manifest. Assistant session messages persist bounded
+`available` refs separately from validated `claimedUsedRefs`. A later “why did
+you say that?” turn can therefore expose a source chain without claiming that
+every memory made available to the model was actually used.
+
+Transient facts and tasks receive state/event temporal classes. Relative-time
+states expire deterministically. Same-day commute/travel updates share a dated
+event instance and incrementing sequence. Generic work topics require substantive
+text overlap instead of matching by topic alone; completed/cancelled updates supersede earlier planned or
+active states without deleting their evidence. Explicit corrections mark older
+records corrected, while supported contradictions remain contested.
+
+The optional proactive follow-up planner scans active project state without a
+model call. It selects at most three overdue, due-soon, stalled, or active-note
+evidence-change signals, injects them as non-authoritative context, and updates a
+per-item cooldown only when the final prompt retained the whole section. Users
+can disable this behavior or adjust the cooldown in Memory settings.
+For file consistency it re-reads at most six vault files already named by stored
+active-note evidence; it does not crawl the vault or treat an unreadable file as
+a contradiction.
 
 Memory boundaries:
 
@@ -397,6 +462,9 @@ Memory boundaries:
   policy, or current user intent.
 - Local rule extraction remains the fallback; storage authority stays local
   when AI reflection proposes additional semantic candidates.
+- Exact evidence is stored locally but is not copied into ordinary automatic
+  prompts. Full evidence is injected only for explicit lookup, source tracing,
+  or another turn that genuinely requires verification.
 
 ## Affect Continuity System
 

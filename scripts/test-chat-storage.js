@@ -131,11 +131,21 @@ async function testAssistantTimelinePersistsAcrossSaveLoad() {
       createdAt: 1000,
       updatedAt: 2000,
       messages: [{
+        id: "msg-assistant-1",
         role: "assistant",
         content: "final answer",
         agentLabel: "Codex",
         agentId: "codex",
         createdAt: 1500,
+        memoryProvenance: {
+          available: [{
+            ref: "M1",
+            memoryId: "mem-1",
+            supportLevel: "high",
+            evidenceIds: ["ev-1"]
+          }],
+          claimedUsedRefs: ["M1", "M9"]
+        },
         timeline: [
           { kind: "reasoning", title: "Thinking", detail: "plan", transient: true },
           { kind: "tool", title: "Command", summary: "node test | exit 0", detail: "full output", toolCallId: "tool-1", toolType: "command" },
@@ -186,6 +196,8 @@ async function testAssistantTimelinePersistsAcrossSaveLoad() {
   const raw = JSON.parse(files.get(".obsidian/plugins/agent-dock/.agent-dock-local/sessions/session-a.json"));
   const persistedMessage = raw.messages[0];
   assert.strictEqual(persistedMessage.agentLabel, "Codex");
+  assert.strictEqual(persistedMessage.id, "msg-assistant-1");
+  assert.deepStrictEqual(persistedMessage.memoryProvenance.claimedUsedRefs, ["M1"]);
   assert.strictEqual(persistedMessage.timeline.length, 6);
   assert.strictEqual(persistedMessage.timeline[0].detail, "plan");
   assert.strictEqual(persistedMessage.timeline[0].transient, undefined);
@@ -200,6 +212,9 @@ async function testAssistantTimelinePersistsAcrossSaveLoad() {
   const restored = await storage.loadSessions(plugin.chatState, settings);
   const restoredMessage = restored.sessions[0].messages[0];
   assert.strictEqual(restoredMessage.agentLabel, "Codex");
+  assert.strictEqual(restoredMessage.id, "msg-assistant-1");
+  assert.strictEqual(restoredMessage.memoryProvenance.available[0].memoryId, "mem-1");
+  assert.deepStrictEqual(restoredMessage.memoryProvenance.claimedUsedRefs, ["M1"]);
   assert.deepStrictEqual(
     restoredMessage.timeline.map((entry) => entry.kind),
     ["reasoning", "tool", "content", "notice", "activity", "content"]

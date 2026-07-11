@@ -8,6 +8,9 @@ const CUSTOM_ASSISTANT_STYLE_MAX_CHARS = 4000;
 const ASSISTANT_DISPLAY_NAME_MAX_CHARS = 80;
 const AFFECT_HALF_LIFE_MINUTES_MIN = 5;
 const AFFECT_HALF_LIFE_MINUTES_MAX = 1440;
+const MEMORY_PROMPT_FORMAT_VERSION = 2;
+const LEGACY_MEMORY_MAX_PROMPT_ITEMS = 12;
+const LEGACY_MEMORY_MAX_PROMPT_CHARS = 8000;
 
 const ASSISTANT_STYLE_OPTIONS = {
   concise: {
@@ -56,9 +59,12 @@ const DEFAULT_SETTINGS = {
   memoryEnabled: true,
   memoryAutoCapture: true,
   memoryAgentSearchEnabled: true,
+  memoryProactiveOmissionsEnabled: true,
+  memoryOmissionCooldownDays: 3,
+  memoryPromptFormatVersion: MEMORY_PROMPT_FORMAT_VERSION,
   memoryMaxItems: 200,
-  memoryMaxPromptItems: 12,
-  memoryMaxPromptChars: 8000,
+  memoryMaxPromptItems: 4,
+  memoryMaxPromptChars: 1600,
   interactionMemoryEnabled: true,
   interactionMemoryAutoCapture: true,
   interactionMemoryMaxPromptItems: 6,
@@ -82,6 +88,21 @@ const DEFAULT_SETTINGS = {
 
 function normalizeSettings(savedSettings) {
   const settings = Object.assign({}, DEFAULT_SETTINGS, savedSettings || {});
+
+  const savedMemoryPromptFormatVersion = Number(savedSettings?.memoryPromptFormatVersion);
+  if (
+    savedSettings
+    && (!Number.isFinite(savedMemoryPromptFormatVersion)
+      || savedMemoryPromptFormatVersion < MEMORY_PROMPT_FORMAT_VERSION)
+  ) {
+    if (Number(savedSettings.memoryMaxPromptItems) === LEGACY_MEMORY_MAX_PROMPT_ITEMS) {
+      settings.memoryMaxPromptItems = DEFAULT_SETTINGS.memoryMaxPromptItems;
+    }
+    if (Number(savedSettings.memoryMaxPromptChars) === LEGACY_MEMORY_MAX_PROMPT_CHARS) {
+      settings.memoryMaxPromptChars = DEFAULT_SETTINGS.memoryMaxPromptChars;
+    }
+  }
+  settings.memoryPromptFormatVersion = MEMORY_PROMPT_FORMAT_VERSION;
 
   if (savedSettings && savedSettings.command && !savedSettings.codexPath) {
     settings.codexPath = savedSettings.command;
@@ -138,6 +159,11 @@ function normalizeSettings(savedSettings) {
   settings.memoryEnabled = settings.memoryEnabled !== false;
   settings.memoryAutoCapture = settings.memoryAutoCapture !== false;
   settings.memoryAgentSearchEnabled = settings.memoryAgentSearchEnabled !== false;
+  settings.memoryProactiveOmissionsEnabled = settings.memoryProactiveOmissionsEnabled !== false;
+  settings.memoryOmissionCooldownDays = normalizePositiveInteger(
+    settings.memoryOmissionCooldownDays,
+    DEFAULT_SETTINGS.memoryOmissionCooldownDays
+  );
   settings.memoryMaxItems = normalizePositiveInteger(
     settings.memoryMaxItems,
     DEFAULT_SETTINGS.memoryMaxItems

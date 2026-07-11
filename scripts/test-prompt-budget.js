@@ -213,9 +213,9 @@ async function testLocalContextBoundaryIsGlobalAndEmptySearchIsOmitted() {
   assert(result.prompt.includes("Explicit local memory search results"), "empty explicit memory search should still be included");
   assert(result.prompt.includes("No matching local memory was found"), "empty search should tell the agent no local memory matched");
   assert(result.prompt.includes("Relevant local memory:"), "non-empty automatic memory should still be included");
-  assert(result.prompt.includes("Every item is labeled with origin and speaker provenance"), "injected memories should explain provenance and quotation boundaries");
-  assert(result.prompt.includes("Interpret relative date words inside a memory"), "memory prompt should anchor relative dates to memory dates");
-  assert(result.prompt.includes("Interpret relative date words inside a result"), "explicit memory search prompt should anchor relative dates to result dates");
+  assert(result.prompt.includes("Each compact item has a local ref, source, support level, and date"), "injected memories should explain compact provenance and support labels");
+  assert(result.prompt.includes("Interpret relative date words relative to the memory's evidence date"), "memory prompt should anchor relative dates to evidence dates");
+  assert(result.prompt.includes("interpret relative dates from the evidence date"), "explicit memory search prompt should anchor relative dates to evidence dates");
   assert(result.prompt.includes("Assistant continuity context:"), "non-empty continuity should still be included");
 }
 

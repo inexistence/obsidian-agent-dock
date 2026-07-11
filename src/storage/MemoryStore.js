@@ -1,13 +1,26 @@
-const { normalizePath } = require("obsidian");
-
 const { RuleBasedMemoryExtractor } = require("./memoryExtraction/RuleBasedMemoryExtractor");
 const { expandSearchText } = require("./searchQuery");
 const { containsSensitiveText } = require("./sensitiveText");
-const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = require("./localDataPath");
+const {
+  createLegacySummaryEvidence,
+  mergeMemoryEvidence,
+  normalizeMemoryEvidence
+} = require("./memoryEvidence");
+const {
+  evaluateMemoryReliability,
+  inferTemporalClass,
+  normalizeTemporal
+} = require("./MemoryReliability");
+const { planCollaborationOmissions } = require("./MemoryOmissionPlanner");
+const { MemoryRepository } = require("./MemoryRepository");
+const {
+  applyMemoryRelationship: reduceMemoryRelationship,
+  mergeEvent: mergeMemoryEvent,
+  mergeTemporal,
+  normalizeMemoryEvent: normalizeMemoryEventValue
+} = require("./MemoryRelationshipReducer");
 
-const MEMORY_VERSION = 1;
-const MEMORY_DIR_NAME = "memory";
-const MEMORY_FILE_NAME = "memory.json";
+const MEMORY_VERSION = 2;
 const MAX_EXTRACTED_ITEMS_PER_TURN = 4;
 const DEFAULT_SEARCH_LIMIT = 5;
 const DEFAULT_SEARCH_MAX_CHARS = 3000;
@@ -45,12 +58,8 @@ const STOP_WORDS = new Set([
 class MemoryStore {
   constructor(plugin, options = {}) {
     this.plugin = plugin;
-    this.adapter = plugin.app.vault.adapter;
-    this.baseDir = getLocalDataPath(plugin, MEMORY_DIR_NAME);
-    this.memoryPath = normalizePath(`${this.baseDir}/${MEMORY_FILE_NAME}`);
-    this.legacyMemoryPath = getLegacyPluginPath(plugin, MEMORY_DIR_NAME, MEMORY_FILE_NAME);
-    this.cache = null;
     this.extractor = options.extractor || new RuleBasedMemoryExtractor();
+    this.repository = options.repository || new MemoryRepository(plugin);
   }
 
   async getRelevantMemories(query, settings, options = {}) {
@@ -70,7 +79,7 @@ class MemoryStore {
       { source: "workingDirectory", text: options.workingDirectory || "" }
     ]);
     const scored = items
-      .map((item) => scoreMemory(item, queryTokenInfo.tokens, queryTokenInfo.sources))
+      .map((item) => scoreMemory(item, queryTokenInfo.tokens, queryTokenInfo.sources, options))
       .filter((entry) => isAutomaticallyRelevant(entry))
       .sort(compareAutomaticallyRelevantMemories);
 
@@ -88,6 +97,7 @@ class MemoryStore {
         continue;
       }
       selected.push(Object.assign({}, entry.item, {
+        reliability: entry.reliability,
         referenceAudit: createReferenceAudit(entry)
       }));
       used += text.length + 1;
@@ -109,7 +119,7 @@ class MemoryStore {
 
     const queryTokenInfo = buildQueryTokenInfo([{ source: "prompt", text: query }]);
     const scored = items
-      .map((item) => scoreMemory(item, queryTokenInfo.tokens, queryTokenInfo.sources))
+      .map((item) => scoreMemory(item, queryTokenInfo.tokens, queryTokenInfo.sources, options))
       .filter((entry) => entry.matchScore > 0)
       .sort(compareScoredMemories);
 
@@ -129,6 +139,7 @@ class MemoryStore {
       selected.push(Object.assign({}, entry.item, {
         matchScore: entry.matchScore,
         score: entry.totalScore,
+        reliability: entry.reliability,
         referenceAudit: createReferenceAudit(entry)
       }));
       used += text.length + 1;
@@ -137,14 +148,94 @@ class MemoryStore {
     return selected;
   }
 
+  async getMemoriesByIds(ids, options = {}) {
+    const wanted = new Set((Array.isArray(ids) ? ids : []).filter(Boolean));
+    if (wanted.size === 0) {
+      return [];
+    }
+    const memory = await this.loadMemory();
+    return memory.items
+      .filter((item) => wanted.has(item.id))
+      .filter((item) => item.text && !containsSensitiveText(item.text))
+      .map((item) => Object.assign({}, item, {
+        reliability: evaluateMemoryReliability(item, options)
+      }));
+  }
+
+  async getCollaborationOmissions(settings, options = {}) {
+    if (!settings.memoryEnabled || settings.memoryProactiveOmissionsEnabled === false) {
+      return [];
+    }
+    const memory = await this.loadMemory();
+    const evidenceFileContents = await this.readEvidenceFileContents(memory.items);
+    return planCollaborationOmissions(memory.items, settings, Object.assign({}, options, {
+      evidenceFileContents
+    }));
+  }
+
+  async readEvidenceFileContents(items) {
+    const vault = this.plugin?.app?.vault;
+    if (typeof vault?.getAbstractFileByPath !== "function" || typeof vault?.cachedRead !== "function") {
+      return {};
+    }
+    const paths = [...new Set((Array.isArray(items) ? items : [])
+      .filter((item) => item?.scope === "project" && ["active", "contested"].includes(item.status || "active"))
+      .flatMap((item) => (item.evidenceRefs || [])
+        .filter((evidence) => evidence.origin === "active_note")
+        .map((evidence) => evidence.filePath))
+      .filter(Boolean))].slice(0, 6);
+    const entries = await Promise.all(paths.map(async (path) => {
+      const file = vault.getAbstractFileByPath(path);
+      if (!file || file.children) {
+        return null;
+      }
+      try {
+        return [path, await vault.cachedRead(file)];
+      } catch {
+        // A missing or temporarily unreadable file is not evidence of contradiction.
+        return null;
+      }
+    }));
+    return Object.fromEntries(entries.filter(Boolean));
+  }
+
+  async markOmissionsNotified(omissions, now = Date.now()) {
+    const ids = new Set((Array.isArray(omissions) ? omissions : [])
+      .map((omission) => omission?.item?.id)
+      .filter(Boolean));
+    if (ids.size === 0) {
+      return;
+    }
+    return this.enqueueWrite(async () => {
+      const memory = await this.loadMemory();
+      let changed = false;
+      for (const item of memory.items) {
+        if (!ids.has(item.id)) {
+          continue;
+        }
+        item.lastOmissionNoticedAt = now;
+        changed = true;
+      }
+      if (changed) {
+        memory.updatedAt = now;
+        await this.saveMemory(memory);
+      }
+    });
+  }
+
   async captureTurn(turn, settings) {
     if (!settings.memoryEnabled || !settings.memoryAutoCapture) {
       return [];
     }
 
+    return this.enqueueWrite(() => this.captureTurnUnlocked(turn, settings));
+  }
+
+  async captureTurnUnlocked(turn, settings) {
     const memory = await this.loadMemory();
     const extracted = this.extractor.extractTurn(turn)
       .filter((item) => item.text && !containsSensitiveText(item.text))
+      .filter((item) => item.persistence !== "current_turn")
       .slice(0, MAX_EXTRACTED_ITEMS_PER_TURN);
 
     if (extracted.length === 0) {
@@ -152,7 +243,9 @@ class MemoryStore {
     }
 
     const now = Date.now();
-    const existingByKey = new Map(memory.items.map((item) => [item.key, item]));
+    const existingByKey = new Map(memory.items
+      .filter((item) => item.status === "active" || item.status === "contested")
+      .map((item) => [item.key, item]));
     const saved = [];
 
     for (const item of extracted) {
@@ -162,7 +255,20 @@ class MemoryStore {
         previous.text = item.text;
         previous.kind = item.kind;
         previous.scope = item.scope || previous.scope || "project";
-        previous.confidence = Math.max(Number(previous.confidence) || 0, Number(item.confidence) || 0.6);
+        previous.captureConfidence = Math.max(
+          Number(previous.captureConfidence ?? previous.confidence) || 0,
+          Number(item.confidence) || 0.6
+        );
+        previous.confidence = previous.captureConfidence;
+        previous.evidenceRefs = mergeMemoryEvidence(previous.evidenceRefs, item.evidenceRefs, {
+          sourceSessionId: item.sourceSessionId || previous.sourceSessionId || "",
+          filePath: turn?.activeFilePath || "",
+          observedAt: now
+        });
+        previous.temporal = mergeTemporal(previous.temporal, item.temporal, item.kind);
+        previous.event = mergeEvent(previous.event, item.event, previous.id);
+        previous.persistence = item.persistence || previous.persistence || inferTemporalClass(item.kind);
+        previous.status = (previous.conflictIds || []).length > 0 ? "contested" : "active";
         previous.updatedAt = now;
         previous.sourceSessionId = item.sourceSessionId || previous.sourceSessionId || "";
         previous.source = item.source || previous.source || "auto";
@@ -171,19 +277,33 @@ class MemoryStore {
         continue;
       }
 
+      const nextId = createMemoryId();
       const next = {
-        id: createMemoryId(),
+        id: nextId,
         key,
         kind: item.kind,
         scope: item.scope || "project",
         text: item.text,
+        captureConfidence: Number(item.confidence) || 0.6,
         confidence: Number(item.confidence) || 0.6,
         source: item.source || "auto",
         sourceSessionId: item.sourceSessionId || "",
+        evidenceRefs: normalizeMemoryEvidence(item.evidenceRefs, {
+          sourceSessionId: item.sourceSessionId || turn?.sessionId || "",
+          filePath: turn?.activeFilePath || "",
+          observedAt: now
+        }),
+        persistence: item.persistence || inferTemporalClass(item.kind),
+        temporal: normalizeTemporal(item.temporal, item.kind),
+        event: normalizeMemoryEvent(item.event, item.kind, nextId),
+        status: "active",
+        supersedes: [],
+        conflictIds: [],
         createdAt: now,
         updatedAt: now,
         updateAudit: createUpdateAudit(item, false)
       };
+      applyMemoryRelationship(next, memory.items, now);
       memory.items.push(next);
       existingByKey.set(key, next);
       saved.push(next);
@@ -196,49 +316,19 @@ class MemoryStore {
   }
 
   async clearMemory() {
-    this.cache = createEmptyMemory();
-    try {
-      if (await this.adapter.exists(this.memoryPath)) {
-        await this.adapter.remove(this.memoryPath);
-      }
-      if (await this.adapter.exists(this.legacyMemoryPath)) {
-        await this.adapter.remove(this.legacyMemoryPath);
-      }
-    } catch (error) {
-      console.warn("Agent Dock could not clear memory:", error);
-    }
+    return this.enqueueWrite(() => this.repository.clear(createEmptyMemory));
   }
 
   async loadMemory() {
-    if (this.cache) {
-      return this.cache;
-    }
-
-    try {
-      const raw = await this.readMemoryFile();
-      this.cache = normalizeMemory(JSON.parse(raw));
-      return this.cache;
-    } catch {
-      this.cache = createEmptyMemory();
-      return this.cache;
-    }
+    return this.repository.load(normalizeMemory, createEmptyMemory);
   }
 
   async saveMemory(memory) {
-    await this.ensureMemoryDir();
-    this.cache = normalizeMemory(memory);
-    await this.adapter.write(this.memoryPath, `${JSON.stringify(this.cache, null, 2)}\n`);
+    return this.repository.save(memory, normalizeMemory);
   }
 
-  async ensureMemoryDir() {
-    await ensureLocalDataPath(this.plugin, this.adapter, this.baseDir);
-  }
-
-  async readMemoryFile() {
-    if (await this.adapter.exists(this.memoryPath)) {
-      return this.adapter.read(this.memoryPath);
-    }
-    return this.adapter.read(this.legacyMemoryPath);
+  enqueueWrite(operation) {
+    return this.repository.enqueueWrite(operation);
   }
 }
 
@@ -246,6 +336,10 @@ function limitMemoryItems(items, settings) {
   const maxItems = Number(settings.memoryMaxItems) || 200;
   return [...items]
     .sort((left, right) => {
+      const statusDelta = memoryStatusPriority(right.status) - memoryStatusPriority(left.status);
+      if (statusDelta !== 0) {
+        return statusDelta;
+      }
       const kindDelta = kindPriority(right.kind) - kindPriority(left.kind);
       if (kindDelta !== 0) {
         return kindDelta;
@@ -256,7 +350,28 @@ function limitMemoryItems(items, settings) {
     .sort((left, right) => normalizeTimestamp(left.createdAt, 0) - normalizeTimestamp(right.createdAt, 0));
 }
 
-function scoreMemory(item, queryTokens, queryTokenSources = new Map()) {
+function memoryStatusPriority(status) {
+  if (status === "active") {
+    return 4;
+  }
+  if (status === "contested") {
+    return 3;
+  }
+  if (status === "expired") {
+    return 2;
+  }
+  return 1;
+}
+
+function applyMemoryRelationship(next, existingItems, now) {
+  return reduceMemoryRelationship(next, existingItems, now, tokenize);
+}
+
+function mergeEvent(existing, incoming, seed) {
+  return mergeMemoryEvent(existing, incoming, seed, normalizeMemoryEvent);
+}
+
+function scoreMemory(item, queryTokens, queryTokenSources = new Map(), options = {}) {
   const itemTokens = tokenize(item.text);
   let matchScore = 0;
   let promptMatchScore = 0;
@@ -286,14 +401,19 @@ function scoreMemory(item, queryTokens, queryTokenSources = new Map()) {
     }
   }
   const priorityScore = kindPriority(item.kind);
+  const reliability = evaluateMemoryReliability(item, options);
   const ageDays = Math.max(0, (Date.now() - normalizeTimestamp(item.updatedAt, Date.now())) / 86400000);
   const recencyScore = Math.max(0, 2 - ageDays / 30);
-  const totalScore = matchScore + priorityScore + recencyScore;
+  const reliabilityScore = reliability.level === "high"
+    ? 1.2
+    : reliability.level === "medium" ? 0.5 : reliability.level === "contested" ? -0.2 : -1;
+  const totalScore = matchScore + priorityScore + recencyScore + reliabilityScore;
   const automaticScore = promptMatchScore
     + activeFilePathMatchScore
     + workingDirectoryMatchScore * WORKING_DIRECTORY_SCORE_WEIGHT
     + priorityScore
-    + recencyScore;
+    + recencyScore
+    + reliabilityScore;
   return {
     item,
     matchScore,
@@ -303,7 +423,8 @@ function scoreMemory(item, queryTokens, queryTokenSources = new Map()) {
     activeFilePathMatchScore,
     workingDirectoryMatchScore,
     matchedTokens,
-    matchedTokenSources
+    matchedTokenSources,
+    reliability
   };
 }
 
@@ -455,11 +576,16 @@ function formatMemoryLine(item) {
 }
 
 function formatMemoryProvenance(item) {
-  if (item?.scope === "user" || item?.source === "user") {
-    return "origin=user_message; speaker=user; local summary, not quote";
-  }
   if (item?.source === "ai") {
     return "origin=assistant_reflection; speaker=assistant; accepted summary, not user statement";
+  }
+  const evidence = Array.isArray(item?.evidenceRefs) ? item.evidenceRefs : [];
+  const primary = evidence.find((entry) => entry.origin === "user_message") || evidence[0];
+  if (primary) {
+    return `origin=${primary.origin}; speaker=${primary.speaker}; local summary, not quote`;
+  }
+  if (item?.scope === "user" || item?.source === "user") {
+    return "origin=user_message; speaker=user; legacy local summary, not quote";
   }
   return "origin=local_rules; speaker=none; synthesis, not quote";
 }
@@ -473,7 +599,11 @@ function formatMemoryDate(value) {
 }
 
 function isPromptSafeMemory(item) {
-  return item && item.text && !containsSensitiveText(item.text);
+  return item
+    && item.text
+    && !["corrected", "superseded"].includes(item.status)
+    && !containsSensitiveText(item.text)
+    && !(item.evidenceRefs || []).some((entry) => containsSensitiveText(entry.quote));
 }
 
 function normalizeMemory(raw) {
@@ -503,18 +633,69 @@ function normalizeMemoryItem(item) {
     ? item.kind
     : "fact";
 
+  const id = typeof item.id === "string" && item.id ? item.id : createMemoryId();
   return {
-    id: typeof item.id === "string" && item.id ? item.id : createMemoryId(),
+    id,
     key: typeof item.key === "string" && item.key ? item.key : createMemoryKey(kind, text),
     kind,
     scope: normalizeScope(item.scope),
     text,
-    confidence: Number.isFinite(Number(item.confidence)) ? Number(item.confidence) : 0.6,
+    captureConfidence: Number.isFinite(Number(item.captureConfidence ?? item.confidence))
+      ? Number(item.captureConfidence ?? item.confidence)
+      : 0.6,
+    confidence: Number.isFinite(Number(item.captureConfidence ?? item.confidence))
+      ? Number(item.captureConfidence ?? item.confidence)
+      : 0.6,
     source: typeof item.source === "string" && item.source ? item.source : "auto",
     sourceSessionId: typeof item.sourceSessionId === "string" ? item.sourceSessionId : "",
+    evidenceRefs: normalizePersistedEvidence(item),
+    persistence: normalizePersistence(item.persistence, kind),
+    temporal: normalizeTemporal(item.temporal, kind),
+    event: normalizeMemoryEvent(item.event, kind, id),
+    status: normalizeMemoryStatus(item.status),
+    supersedes: normalizeStringArray(item.supersedes),
+    conflictIds: normalizeStringArray(item.conflictIds),
+    lastOmissionNoticedAt: normalizeTimestamp(item.lastOmissionNoticedAt, 0),
     createdAt: normalizeTimestamp(item.createdAt, Date.now()),
     updatedAt: normalizeTimestamp(item.updatedAt, Date.now())
   };
+}
+
+function normalizeMemoryEvent(value, kind, seed = "") {
+  return normalizeMemoryEventValue(value, kind, seed, {
+    compactText,
+    createEventId,
+    normalizeTimestamp
+  });
+}
+
+function createEventId(seed) {
+  const value = compactText(seed).toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, "-").slice(0, 48);
+  return `event-${value || Date.now().toString(36)}`;
+}
+
+function normalizePersistedEvidence(item) {
+  const evidence = normalizeMemoryEvidence(item.evidenceRefs, {
+    sourceSessionId: item.sourceSessionId || "",
+    observedAt: item.updatedAt || item.createdAt || Date.now()
+  });
+  return evidence.length > 0 ? evidence : createLegacySummaryEvidence(item);
+}
+
+function normalizePersistence(value, kind) {
+  return ["durable", "project", "state", "current_turn"].includes(value)
+    ? value
+    : inferTemporalClass(kind);
+}
+
+function normalizeMemoryStatus(value) {
+  return ["active", "contested", "superseded", "expired", "corrected"].includes(value)
+    ? value
+    : "active";
+}
+
+function normalizeStringArray(value) {
+  return [...new Set((Array.isArray(value) ? value : []).map(compactText).filter(Boolean))].slice(0, 12);
 }
 
 function normalizeScope(scope) {

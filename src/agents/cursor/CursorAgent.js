@@ -32,6 +32,7 @@ const { AcpClient } = require("./AcpClient");
 const { acpUpdateToEvents } = require("./acpEvents");
 const { toCursorMode } = require("./modes");
 const { ReflectionContentFilter } = require("../shared/ReflectionContentFilter");
+const { emitClaimedMemoryProvenance } = require("../shared/memoryProvenance");
 const {
   createSignalEvidenceContext,
   mergeSignalEvidenceContexts
@@ -234,6 +235,8 @@ class CursorAgent {
             promptSignals,
             expressionPolicy,
             interactionPatternCandidates,
+            memoryTracePrompt: turnContext.memoryTrace?.prompt || "",
+            collaborationOmissions: turnContext.collaborationOmissions,
             useFullPrompt: true
           });
           emitPromptContextNotices(emitUpdate, reloadPromptResult, promptSignals, translate, "cursor");
@@ -264,7 +267,8 @@ class CursorAgent {
             throwIfAborted,
             flushContent,
             reflectionFilter,
-            getSignalEvidenceContext
+            getSignalEvidenceContext,
+            memoryRecallManifest: turnContext.memoryRecallManifest
           });
         }
       }
@@ -289,7 +293,8 @@ class CursorAgent {
         throwIfAborted,
         flushContent,
         reflectionFilter,
-        getSignalEvidenceContext
+        getSignalEvidenceContext,
+        memoryRecallManifest: turnContext.memoryRecallManifest
       });
     } catch (error) {
       if (aborted || error.name === "AbortError") {
@@ -343,7 +348,8 @@ class CursorAgent {
     throwIfAborted,
     flushContent,
     reflectionFilter,
-    getSignalEvidenceContext
+    getSignalEvidenceContext,
+    memoryRecallManifest
   }) {
     const resultText = extractPromptResultText(result);
     if (!finalOutput.trim() && resultText) {
@@ -357,6 +363,11 @@ class CursorAgent {
     const signalEvidenceContext = mergeSignalEvidenceContexts(
       getSignalEvidenceContext?.(),
       { user_message: prompt, assistant_message: signalResult.visibleText }
+    );
+    emitClaimedMemoryProvenance(
+      emitUpdate,
+      signalResult.signals,
+      memoryRecallManifest
     );
     emitInvalidAgentDockSignalActivity(signalResult, emitUpdate);
     emitAgentDockSignalNotices(
@@ -377,7 +388,10 @@ class CursorAgent {
       signalEvidenceContext,
       previousAssistantResponse: getPreviousAssistantResponse(conversation),
       activeFilePath,
-      sessionId: options.sessionId || ""
+      sessionId: options.sessionId || "",
+      userMessageId: options.userMessageId || "",
+      assistantMessageId: options.assistantMessageId || "",
+      memoryRecallManifest
     }, settings, emitUpdate);
     await this.captureInteractionMemory({
       prompt,
@@ -386,7 +400,10 @@ class CursorAgent {
       signalEvidenceContext,
       previousAssistantResponse: getPreviousAssistantResponse(conversation),
       activeFilePath,
-      sessionId: options.sessionId || ""
+      sessionId: options.sessionId || "",
+      userMessageId: options.userMessageId || "",
+      assistantMessageId: options.assistantMessageId || "",
+      memoryRecallManifest
     }, settings, emitUpdate);
     await this.captureDeepMemory({
       prompt,
@@ -395,7 +412,10 @@ class CursorAgent {
       signalEvidenceContext,
       previousAssistantResponse: getPreviousAssistantResponse(conversation),
       activeFilePath,
-      sessionId: options.sessionId || ""
+      sessionId: options.sessionId || "",
+      userMessageId: options.userMessageId || "",
+      assistantMessageId: options.assistantMessageId || "",
+      memoryRecallManifest
     }, settings, emitUpdate);
 
     return visibleOutput;

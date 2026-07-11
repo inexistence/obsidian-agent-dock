@@ -823,12 +823,107 @@ async function testCaptureAuditReason() {
   );
 }
 
+async function testEventRelationshipsStayScoped() {
+  const settings = {
+    memoryEnabled: true,
+    memoryAutoCapture: true,
+    memoryMaxItems: 200
+  };
+  const store = createMemoryStore([]);
+  await store.captureTurn({
+    prompt: "计划修复登录模块的严重 bug",
+    response: "好的，我会先定位登录模块并完成必要的修复和回归测试。",
+    observedAt: Date.UTC(2026, 6, 10, 9)
+  }, settings);
+  await store.captureTurn({
+    prompt: "已经完成记忆系统的完整测试",
+    response: "记忆系统的测试已经完成，相关结果也已经检查完毕。",
+    observedAt: Date.UTC(2026, 6, 10, 10)
+  }, settings);
+  const taskItems = (await store.loadMemory()).items.filter((item) => item.kind === "task");
+  assert.equal(taskItems.length, 2);
+  assert.notEqual(taskItems[0].event.id, taskItems[1].event.id, "generic work topics must not merge unrelated tasks");
+  assert.equal(taskItems[0].status, "active", "an unrelated completed task must not supersede the earlier task");
+
+  const commuteStore = createMemoryStore([]);
+  for (const [prompt, observedAt] of [
+    ["准备下班", new Date(2026, 6, 10, 17).getTime()],
+    ["离开公司", new Date(2026, 6, 10, 18).getTime()],
+    ["到家", new Date(2026, 6, 10, 19).getTime()]
+  ]) {
+    await commuteStore.captureTurn({ prompt, response: "收到。", observedAt }, settings);
+  }
+  const commuteItems = (await commuteStore.loadMemory()).items
+    .filter((item) => item.event?.topic === "commute_home")
+    .sort((left, right) => left.event.sequence - right.event.sequence);
+  assert.deepEqual(commuteItems.map((item) => item.event.sequence), [1, 2, 3]);
+  assert.equal(new Set(commuteItems.map((item) => item.event.id)).size, 1, "same-day commute updates should share an event id");
+
+  await commuteStore.captureTurn({
+    prompt: "准备下班",
+    response: "收到。",
+    observedAt: new Date(2026, 6, 11, 17).getTime()
+  }, settings);
+  const nextDay = (await commuteStore.loadMemory()).items
+    .filter((item) => item.event?.topic === "commute_home")
+    .find((item) => item.event.instanceKey.endsWith("2026-07-11"));
+  assert(nextDay, "the next-day commute should create another event instance");
+  assert.notEqual(nextDay.event.id, commuteItems[0].event.id);
+}
+
+async function testUnreadableMemoryIsWriteProtected() {
+  const memoryPath = "agent-dock/.agent-dock-local/memory/memory.json";
+  const adapter = new MemoryAdapter({ [memoryPath]: "{broken json" });
+  const store = new MemoryStore({
+    manifest: { dir: "agent-dock", id: "agent-dock" },
+    app: { vault: { adapter } }
+  }, {
+    extractor: {
+      extractTurn() {
+        return [{ kind: "decision", scope: "project", text: "Use protected writes", confidence: 0.8 }];
+      }
+    }
+  });
+  const originalWarn = console.warn;
+  console.warn = () => {};
+  const loaded = await store.loadMemory();
+  console.warn = originalWarn;
+  assert.deepEqual(loaded.items, [], "unreadable memory should degrade to an empty in-memory view");
+  await assert.rejects(() => store.captureTurn({}, {
+    memoryEnabled: true,
+    memoryAutoCapture: true
+  }), /write-protected/);
+  assert.equal(adapter.files.get(memoryPath), "{broken json", "capture must not overwrite an unreadable memory file");
+}
+
+async function testClearMemoryFailurePropagates() {
+  const memoryPath = "agent-dock/.agent-dock-local/memory/memory.json";
+  class FailingRemoveAdapter extends MemoryAdapter {
+    async remove() {
+      throw new Error("remove denied");
+    }
+  }
+  const adapter = new FailingRemoveAdapter({ [memoryPath]: JSON.stringify({ version: 2, items: [] }) });
+  const store = new MemoryStore({
+    manifest: { dir: "agent-dock", id: "agent-dock" },
+    app: { vault: { adapter } }
+  });
+  await assert.rejects(() => store.clearMemory(), /remove denied/);
+  assert.equal(adapter.files.has(memoryPath), true, "failed deletion must preserve the existing file");
+}
+
 testSearchMemories().then(() => {
   return testExplicitMemorySearchSurvivesCompression();
 }).then(() => {
   return testLegacyMemoryPathFallback();
 }).then(() => {
   return testCaptureAuditReason();
+}).then(() => {
+  return testEventRelationshipsStayScoped();
+}).then(() => {
+  return testUnreadableMemoryIsWriteProtected();
+}).then(() => {
+  return testClearMemoryFailurePropagates();
 }).then(() => {
   console.log("MemoryStore tests passed");
 }).catch((error) => {

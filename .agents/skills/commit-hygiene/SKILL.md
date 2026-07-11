@@ -13,6 +13,12 @@ reviewed, verified changes with an accurate Conventional Commit message.
 Default to acting: inspect, verify, stage, and commit when the user asked for a
 commit. Stop before committing only when a serious issue needs user attention.
 
+Use the focused checks in this skill for ordinary commit preparation. Do not
+invoke `code-review-expert` unless the user explicitly requested a formal code
+review or a serious finding needs a dedicated severity-ranked report. If a
+minor issue is safe to correct within the user's commit request, fix it without
+adding a duplicate review-confirmation step.
+
 ## Workflow
 
 1. Inspect repository state.

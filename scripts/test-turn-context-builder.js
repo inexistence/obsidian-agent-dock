@@ -46,6 +46,7 @@ function createPlugin() {
       }
     },
     memoryStore: {
+      markedOmissions: [],
       async getRelevantMemories() {
         return [
           createMemory("auto-duplicate", "Use compact final answers for this project.", "user"),
@@ -56,6 +57,20 @@ function createPlugin() {
         return [
           createMemory("explicit", "Use compact final answers for this project.", "user")
         ];
+      },
+      async getCollaborationOmissions() {
+        return [{
+          type: "overdue",
+          dueAt: now - 86400000,
+          reliability: { level: "expired", score: 0.4 },
+          item: Object.assign(createMemory("overdue-task", "Provider validation is still pending."), {
+            kind: "task",
+            status: "active"
+          })
+        }];
+      },
+      async markOmissionsNotified(omissions) {
+        this.markedOmissions.push(...omissions);
       }
     },
     interactionMemoryStore: {
@@ -133,6 +148,7 @@ async function testBuildAgentTurnContext() {
       contextLimitChars: 8000,
       memoryEnabled: true,
       memoryAgentSearchEnabled: true,
+      memoryProactiveOmissionsEnabled: true,
       deepMemoryEnabled: true,
       interactionMemoryEnabled: true,
       personaPreset: "INFP-ish"
@@ -158,6 +174,8 @@ async function testBuildAgentTurnContext() {
   assert.equal(result.interactionPatternCandidates[0].key, "concise_implementation_notes");
   assert(!result.promptResult.prompt.includes("Current turn tone signal"));
   assert(result.promptResult.prompt.includes("Meaningful recalled moment"));
+  assert(result.promptResult.prompt.includes("Local collaboration follow-up signals:"));
+  assert(result.promptResult.prompt.includes("Provider validation is still pending"));
   assert.deepEqual(
     result.promptSignals.memories.map((memory) => memory.id),
     ["auto-project"],
@@ -169,6 +187,8 @@ async function testBuildAgentTurnContext() {
   assert(result.signalEvidenceContext.active_note.includes("Active note evidence"));
   assert(notices.some((notice) => notice.noticeType === "memory_search"));
   assert(notices.some((notice) => notice.noticeType === "memory_referenced"));
+  assert(notices.some((notice) => notice.noticeType === "collaboration_omissions"));
+  assert.equal(plugin.memoryStore.markedOmissions.length, 1);
   const memorySearchNotice = notices.find((notice) => notice.noticeType === "memory_search");
   assert.equal(memorySearchNotice.auditItems.length, 1, "explicit memory search should expose structured audit details");
   const memorySearchFields = Object.fromEntries(memorySearchNotice.auditItems[0].fields.map((field) => [field.label, field.value]));

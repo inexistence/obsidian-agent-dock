@@ -3,7 +3,7 @@ const { normalizeProviderState, serializeProviderState } = require("./providerSt
 const { redactSensitiveText } = require("./sensitiveText");
 const { ensureLocalDataPath, getLegacyPluginPath, getLocalDataPath } = require("./localDataPath");
 
-const CHAT_STATE_VERSION = 1;
+const CHAT_STATE_VERSION = 2;
 const SESSION_DIR_NAME = "sessions";
 const PERSISTED_TIMELINE_KINDS = new Set(["message", "content", "reasoning", "tool", "error", "notice", "activity"]);
 const PERSISTED_TIMELINE_STRING_FIELDS = ["text", "title", "summary", "detail", "toolCallId", "toolType", "noticeType"];
@@ -230,6 +230,7 @@ function serializeMessage(message) {
   }
 
   const serialized = {
+    id: normalizeMessageId(message.id, message.role, message.createdAt),
     role: message.role,
     content,
     createdAt: normalizeTimestamp(message.createdAt, Date.now())
@@ -244,6 +245,10 @@ function serializeMessage(message) {
     }
     if (message.agentId) {
       serialized.agentId = String(message.agentId);
+    }
+    const memoryProvenance = normalizeMemoryProvenance(message.memoryProvenance);
+    if (memoryProvenance.available.length > 0 || memoryProvenance.claimedUsedRefs.length > 0) {
+      serialized.memoryProvenance = memoryProvenance;
     }
   }
   if (message.role === "system") {
@@ -302,6 +307,7 @@ function normalizePersistedMessage(message) {
   }
 
   const normalized = {
+    id: normalizeMessageId(message.id, message.role, message.createdAt),
     role: message.role,
     content,
     timeline: normalizePersistedTimeline(message.timeline, message.role, content),
@@ -312,6 +318,7 @@ function normalizePersistedMessage(message) {
   if (message.role === "assistant") {
     normalized.agentLabel = typeof message.agentLabel === "string" ? message.agentLabel : "";
     normalized.agentId = typeof message.agentId === "string" ? message.agentId : "";
+    normalized.memoryProvenance = normalizeMemoryProvenance(message.memoryProvenance);
   }
   if (message.role === "system") {
     normalized.kind = typeof message.kind === "string" ? message.kind : "notice";
@@ -323,6 +330,41 @@ function normalizePersistedMessage(message) {
     }
   }
   return normalized;
+}
+
+function normalizeMessageId(value, role, createdAt) {
+  if (typeof value === "string" && value) {
+    return value;
+  }
+  const timestamp = normalizeTimestamp(createdAt, Date.now()).toString(36);
+  const content = `${role || "message"}:${timestamp}`;
+  return `msg-legacy-${Buffer.from(content).toString("base64").replace(/[^a-z0-9]/gi, "").slice(0, 18)}`;
+}
+
+function normalizeMemoryProvenance(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const available = (Array.isArray(source.available) ? source.available : [])
+    .map((item) => {
+      if (!item || typeof item !== "object") {
+        return null;
+      }
+      const ref = String(item.ref || "").slice(0, 20);
+      const memoryId = String(item.memoryId || "").slice(0, 200);
+      if (!ref || !memoryId) {
+        return null;
+      }
+      return {
+        ref,
+        memoryId
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 12);
+  const availableRefs = new Set(available.map((item) => item.ref));
+  const claimedUsedRefs = [...new Set((Array.isArray(source.claimedUsedRefs) ? source.claimedUsedRefs : [])
+    .map((ref) => String(ref || "").slice(0, 20))
+    .filter((ref) => availableRefs.has(ref)))].slice(0, 12);
+  return { available, claimedUsedRefs };
 }
 
 function isPersistableMessageRole(role) {

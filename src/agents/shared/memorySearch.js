@@ -18,7 +18,7 @@ const MEMORY_LOOKUP_PATTERNS = [
   /(?:search|check|look up|find).{0,24}(?:memory|memories|previous notes|past notes|history)/i
 ];
 
-async function getExplicitMemorySearch(memoryStore, prompt, settings, onUpdate, translate, keyPrefix) {
+async function getExplicitMemorySearch(memoryStore, prompt, settings, onUpdate, translate, keyPrefix, options = {}) {
   if (!shouldSearchMemory(prompt, settings)) {
     return {
       performed: false,
@@ -27,7 +27,9 @@ async function getExplicitMemorySearch(memoryStore, prompt, settings, onUpdate, 
   }
 
   const results = await memoryStore.searchMemories(prompt, settings, {
-    limit: MEMORY_SEARCH_LIMIT
+    limit: MEMORY_SEARCH_LIMIT,
+    activeFilePath: options.activeFilePath || "",
+    activeFileContent: options.activeFileContent || ""
   });
 
   onUpdate({

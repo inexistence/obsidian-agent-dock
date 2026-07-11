@@ -1,4 +1,5 @@
 const { formatAuditDate } = require("./auditFormatting");
+const { evaluateMemoryReliability } = require("../../storage/MemoryReliability");
 
 const MAX_NOTICE_ITEMS = 3;
 const MAX_NOTICE_TEXT_CHARS = 180;
@@ -77,7 +78,12 @@ function formatInteractionMemoryUpdateKind(result) {
 function buildMemoryUpdateAuditItems(saved, settings, keyPrefix, translate) {
   return (Array.isArray(saved) ? saved : []).map((item, index) => {
     const type = translate(settings, `${keyPrefix}.memoryAudit.type.memory`);
-    const source = translateMemorySource(settings, keyPrefix, translate, item.source);
+    const evidence = Array.isArray(item.evidenceRefs) ? item.evidenceRefs : [];
+    const source = item.source === "ai"
+      ? translateMemorySource(settings, keyPrefix, translate, item.source)
+      : (evidence.find((entry) => entry.origin === "user_message") || evidence[0])?.origin
+        || translateMemorySource(settings, keyPrefix, translate, item.source);
+    const reliability = evaluateMemoryReliability(item);
     return {
       title: formatAuditItemTitle(type, index),
       summary: truncateNoticeText(item.text),
@@ -92,7 +98,12 @@ function buildMemoryUpdateAuditItems(saved, settings, keyPrefix, translate) {
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.content`), item.text),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.scope`), item.scope),
         createField(translate(settings, `${keyPrefix}.memoryAudit.field.kind`), item.kind),
-        createField(translate(settings, `${keyPrefix}.memoryAudit.field.confidence`), formatNumber(item.confidence))
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.confidence`), formatNumber(item.captureConfidence ?? item.confidence)),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.support`), `${reliability.level} (${formatNumber(reliability.score)})`),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.status`), item.status || "active"),
+        createField(translate(settings, `${keyPrefix}.memoryAudit.field.evidence`), evidence.map((entry) => (
+          `[${entry.origin}; speaker=${entry.speaker}] “${entry.quote}”`
+        )).join("\n"))
       ].filter(Boolean)
     };
   });

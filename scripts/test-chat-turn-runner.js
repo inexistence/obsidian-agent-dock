@@ -578,6 +578,57 @@ async function testStoppedTurnSettlesAffectDisplayWithoutUpdatingWorkingAffect()
   assert.deepStrictEqual(notified, ["agentStopped"]);
 }
 
+async function testMemoryProvenanceMetadataStaysOffTimeline() {
+  const session = {
+    id: "session-memory-provenance",
+    messages: [],
+    currentRun: null
+  };
+  let receivedOptions;
+  await runChatTurn({
+    session,
+    prompt: "why",
+    agentLabel: "Codex",
+    agentId: "codex",
+    runAgent: async (_prompt, onUpdate, _conversation, options) => {
+      receivedOptions = options;
+      onUpdate({
+        internalOnly: true,
+        memoryProvenance: {
+          available: [{ ref: "M1", memoryId: "mem-1", supportLevel: "high", evidenceIds: ["ev-1"] }],
+          claimedUsedRefs: []
+        }
+      });
+      onUpdate({
+        internalOnly: true,
+        memoryProvenance: {
+          available: [{ ref: "M1", memoryId: "mem-1", supportLevel: "high", evidenceIds: ["ev-1"] }],
+          claimedUsedRefs: ["M1"]
+        }
+      });
+      onUpdate({ kind: "content", text: "done" });
+      return "done";
+    },
+    translate,
+    touchSession: () => {},
+    onTurnStarted: () => {},
+    onTurnUpdate: () => {},
+    onTurnFinished: () => {},
+    onComposerChanged: () => {},
+    updateWorkingAffect: async () => {},
+    persistChatSessions: async () => {},
+    notify: () => {}
+  });
+
+  const userMessage = session.messages.find((message) => message.role === "user");
+  const assistantMessage = session.messages.find((message) => message.role === "assistant");
+  assert(userMessage.id && assistantMessage.id, "new messages should have stable ids");
+  assert.equal(receivedOptions.userMessageId, userMessage.id);
+  assert.equal(receivedOptions.assistantMessageId, assistantMessage.id);
+  assert.deepEqual(assistantMessage.memoryProvenance.claimedUsedRefs, ["M1"]);
+  assert.equal(assistantMessage.timeline.some((entry) => entry.internalOnly), false, "internal provenance metadata must not render in the timeline");
+}
+
 async function withCapturedWarnings(warnings, callback) {
   const originalWarn = console.warn;
   console.warn = (...args) => {
@@ -603,6 +654,7 @@ testAffectFailureDoesNotFailSuccessfulTurn()
   .then(() => testPostTurnMemoryNoticeDoesNotSplitCursorStream())
   .then(() => testFinalStatusHoldIsEmittedBeforeAffectUpdate())
   .then(() => testStoppedTurnSettlesAffectDisplayWithoutUpdatingWorkingAffect())
+  .then(() => testMemoryProvenanceMetadataStaysOffTimeline())
   .then(() => {
     console.log("ChatTurnRunner tests passed.");
   })

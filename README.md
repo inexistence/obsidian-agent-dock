@@ -72,11 +72,16 @@ details are bounded and filtered for obvious secrets.
 Memory is enabled by default. After a successful reply, Agent Dock saves a few
 concise local memories such as user preferences, explicit "remember" requests,
 agent identity notes, shared collaboration notes, recent tasks, and
-decision-like notes. Future prompts include relevant memories grouped as user,
-agent self, shared collaboration, and project memory within the configured
-memory prompt limit. Included memory lines show when each memory was last
-updated so the agent can treat older memories as less reliable and prefer newer
-memory when saved notes conflict. The default extractor is local and rule-based, with a
+decision-like notes. Ordinary memory uses a versioned summary-plus-evidence
+record: compact summaries support retrieval while bounded visible excerpts retain
+origin, speaker, session/message or file location, observation time, and a local
+content hash. Future prompts include compact M1/M2 references grouped as user,
+agent self, shared collaboration, and project memory. Each reference carries a
+source category, evidence date, and locally computed support level. High support
+may be stated directly, medium support requires qualified historical wording,
+and low, contested, or expired context must be verified or clearly qualified.
+Conflicts are not resolved merely by choosing the newest record. The default
+extractor is local and rule-based, with a
 candidate extraction and classification pipeline isolated from storage so a
 future model-assisted or multilingual provider can be added without changing
 memory persistence.
@@ -85,9 +90,24 @@ When explicit memory lookup is enabled, Agent Dock also searches local memory
 when the user asks about previous preferences, decisions, or notes. Matching
 results are included in a separate `Explicit local memory search results`
 prompt section, filtered for obvious secrets, and de-duplicated from the
-automatic relevant memory section. Settings -> Agent Dock -> Memory can disable
+automatic relevant memory section. Explicit results may include one bounded
+evidence excerpt and source locator. If the user asks why the previous answer
+said something, Agent Dock can expand the persisted M1/S1 references into an
+auditable evidence chain. It distinguishes references explicitly cited by the
+reflection metadata from memories that were merely available in the prompt.
+Settings -> Agent Dock -> Memory can disable
 memory, disable automatic extraction, disable explicit lookup, adjust limits, or
 clear saved memory.
+
+The compact format defaults to four automatic references and 1600 characters.
+Existing installations still carrying the former unmodified defaults of 12 and
+8000 are migrated once; explicitly changed values are preserved.
+
+Proactive collaboration follow-ups are also enabled by default. Local code may
+surface up to three overdue, due-soon, stalled, or changed-file-evidence signals
+as optional prompt context. Each item is support-labeled, must be verified before
+being stated as current, and has a configurable three-day default cooldown. This
+does not call the agent recursively or create external reminders.
 
 For every substantive turn, the assistant is prompted to generate a lightweight leading
 `<!-- agent-dock:reflection phase=appraisal | {...} -->` envelope before the
@@ -111,12 +131,15 @@ assistant identity note, or shared collaboration note. It cannot declare user
 preferences or user facts. Root-level `evidence` excerpts must connect the
 abstract summary to visible user or final-answer text before normal local
 filtering, confidence caps, de-duplication, and storage limits apply.
-New envelopes encode each evidence item as `{origin, speaker, quote}` so user
+New envelopes encode each evidence item as `{origin, speaker, quote, ref?}` so user
 messages, assistant messages, recalled memory, active-note text, and tool results
 cannot be silently conflated. Legacy string evidence remains readable as
 unknown-origin evidence. Prompt-injected ordinary memory, deep memory,
 interaction stance, affect, and salience also label whether content is a speaker
 quote, assistant reflection, local synthesis, or locally computed state.
+When recalled memory materially supports an answer, the optional `ref` must copy
+an M1/S1 identifier supplied in that turn. Local validation rejects invented refs
+or quotes that do not match the referenced summary/evidence.
 
 Deep memory is enabled by default. It stores a much smaller set of important
 relationship moments, such as explicit continuity wishes, strong encouragement,
@@ -227,6 +250,13 @@ src/
   storage/
     ChatStorage.js
     MemoryStore.js
+    MemoryRepository.js
+    MemoryRelationshipReducer.js
+    MemoryEventClassifier.js
+    MemoryReliability.js
+    MemoryRecallPacket.js
+    MemoryOmissionPlanner.js
+    memoryEvidence.js
   interaction/
     InteractionMemoryStore.js
     LocalSignalExtractor.js

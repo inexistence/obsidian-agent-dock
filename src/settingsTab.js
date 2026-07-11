@@ -584,6 +584,44 @@ class AgentDockSettingTab extends PluginSettingTab {
         }));
 
     new Setting(containerEl)
+      .setName(translate("settings.memoryProactiveOmissionsEnabled.name"))
+      .setDesc(translate("settings.memoryProactiveOmissionsEnabled.desc"))
+      .addToggle((toggle) => toggle
+        .setValue(this.plugin.settings.memoryProactiveOmissionsEnabled)
+        .onChange(async (value) => {
+          this.plugin.settings.memoryProactiveOmissionsEnabled = value;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.memoryOmissionCooldownDays.name"))
+      .setDesc(translate("settings.memoryOmissionCooldownDays.desc"))
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.memoryOmissionCooldownDays))
+        .setValue(String(this.plugin.settings.memoryOmissionCooldownDays))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.memoryOmissionCooldownDays = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.memoryOmissionCooldownDays;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
+      .setName(translate("settings.memoryMaxPromptItems.name"))
+      .setDesc(translate("settings.memoryMaxPromptItems.desc"))
+      .addText((text) => text
+        .setPlaceholder(String(DEFAULT_SETTINGS.memoryMaxPromptItems))
+        .setValue(String(this.plugin.settings.memoryMaxPromptItems))
+        .onChange(async (value) => {
+          const parsed = Number.parseInt(value, 10);
+          this.plugin.settings.memoryMaxPromptItems = Number.isFinite(parsed) && parsed > 0
+            ? parsed
+            : DEFAULT_SETTINGS.memoryMaxPromptItems;
+          await this.plugin.saveSettings();
+        }));
+
+    new Setting(containerEl)
       .setName(translate("settings.memoryMaxPromptChars.name"))
       .setDesc(translate("settings.memoryMaxPromptChars.desc"))
       .addText((text) => text
@@ -621,8 +659,13 @@ class AgentDockSettingTab extends PluginSettingTab {
           if (!window.confirm(translate("settings.clearMemory.confirm"))) {
             return;
           }
-          await this.plugin.clearMemory();
-          new Notice(translate("settings.clearMemory.done"));
+          try {
+            await this.plugin.clearMemory();
+            new Notice(translate("settings.clearMemory.done"));
+          } catch (error) {
+            console.warn("Agent Dock could not clear memory:", error);
+            new Notice(translate("settings.clearMemory.failed"));
+          }
         }));
   }
 }

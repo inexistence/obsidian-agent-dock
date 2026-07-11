@@ -17,6 +17,9 @@ const {
   emitMemoryNotice
 } = require("./memoryNotices");
 const { createSignalEvidenceContext } = require("./signalEvidence");
+const { buildMemoryRecallPacket } = require("../../storage/MemoryRecallPacket");
+const { getPreviousAnswerMemoryTrace } = require("./memoryTrace");
+const { formatCollaborationOmissionsPrompt } = require("../../storage/MemoryOmissionPlanner");
 
 async function buildAgentTurnContext({
   plugin,
@@ -34,6 +37,7 @@ async function buildAgentTurnContext({
   const activeNoteEvidence = await readActiveNoteEvidence(plugin.app, activeFile);
   const memories = await plugin.memoryStore.getRelevantMemories(prompt, settings, {
     activeFilePath,
+    activeFileContent: activeNoteEvidence,
     workingDirectory: cwd
   });
   const memorySearch = await getExplicitMemorySearch(
@@ -42,7 +46,11 @@ async function buildAgentTurnContext({
     settings,
     onUpdate,
     translate,
-    keyPrefix
+    keyPrefix,
+    {
+      activeFilePath,
+      activeFileContent: activeNoteEvidence
+    }
   );
   const conversationText = Array.isArray(conversation)
     ? conversation.slice(-8).map((message) => message?.content || "").filter(Boolean).join("\n")
@@ -66,6 +74,30 @@ async function buildAgentTurnContext({
     personaProfile: getPersonaProfile(settings),
     workingAffect: plugin.getPromptWorkingAffect(prompt)
   });
+  const automaticPacket = buildMemoryRecallPacket(promptSignals.memories, settings, {
+    refPrefix: "M"
+  });
+  const explicitPacket = buildMemoryRecallPacket(promptSignals.memorySearchResults, Object.assign({}, settings, {
+    memoryMaxPromptItems: 5,
+    memoryMaxPromptChars: 3000
+  }), {
+    explicit: true,
+    refPrefix: "S"
+  });
+  promptSignals.memories = automaticPacket.items;
+  promptSignals.memorySearchResults = explicitPacket.items;
+  const memoryRecallManifest = Object.assign({}, automaticPacket.manifest, explicitPacket.manifest);
+  const memoryTrace = await getPreviousAnswerMemoryTrace(
+    plugin.memoryStore,
+    prompt,
+    conversation
+  );
+  const collaborationOmissions = typeof plugin.memoryStore.getCollaborationOmissions === "function"
+    ? await plugin.memoryStore.getCollaborationOmissions(settings, {
+      activeFilePath,
+      activeFileContent: activeNoteEvidence
+    })
+    : [];
   const expressionPolicy = planExpressionPolicy({
     prompt,
     conversationText,
@@ -81,11 +113,24 @@ async function buildAgentTurnContext({
     promptSignals,
     expressionPolicy,
     interactionPatternCandidates,
+    memoryTracePrompt: memoryTrace?.prompt || "",
+    collaborationOmissions,
     useFullPrompt
   });
   const referencedDeepMemories = getReferencedDeepMemories(promptResult, promptSignals);
   if (referencedDeepMemories.length > 0 && typeof plugin.deepMemoryStore.markRecalled === "function") {
     await plugin.deepMemoryStore.markRecalled(referencedDeepMemories, Date.now());
+  }
+  if (
+    collaborationOmissions.length > 0
+    && isPromptSectionIncluded(promptResult, "collaboration_omissions")
+    && typeof plugin.memoryStore.markOmissionsNotified === "function"
+  ) {
+    try {
+      await plugin.memoryStore.markOmissionsNotified(collaborationOmissions, Date.now());
+    } catch (error) {
+      console.warn("Agent Dock could not update collaboration follow-up cooldown:", error);
+    }
   }
 
   emitPromptContextNotices(
@@ -96,6 +141,14 @@ async function buildAgentTurnContext({
     keyPrefix,
     referencedDeepMemories
   );
+  emitCollaborationOmissionNotice(
+    onUpdate,
+    promptResult,
+    collaborationOmissions,
+    translate,
+    keyPrefix
+  );
+  emitMemoryProvenanceMetadata(onUpdate, memoryRecallManifest);
 
   return {
     activeFilePath,
@@ -103,6 +156,9 @@ async function buildAgentTurnContext({
     promptSignals,
     expressionPolicy,
     interactionPatternCandidates,
+    memoryRecallManifest,
+    memoryTrace,
+    collaborationOmissions,
     signalEvidenceContext: createSignalEvidenceContext({
       user_message: prompt,
       recalled_memory: formatRecalledMemoryEvidence(promptSignals),
@@ -144,6 +200,8 @@ async function buildPromptResultForTurnContext({
   promptSignals,
   expressionPolicy,
   interactionPatternCandidates = [],
+  memoryTracePrompt = "",
+  collaborationOmissions = [],
   useFullPrompt = true
 }) {
   const options = {
@@ -155,13 +213,54 @@ async function buildPromptResultForTurnContext({
     memorySearchResults: promptSignals.memorySearchResults,
     memorySearchPerformed: promptSignals.memorySearchPerformed,
     expressionPolicy,
-    interactionPatternCandidates
+    interactionPatternCandidates,
+    memoryTracePrompt,
+    collaborationOmissions
   };
 
   if (useFullPrompt) {
     return buildPromptWithMetadata(app, settings, prompt, conversation, options);
   }
   return buildTurnContextPrompt(app, settings, prompt, options);
+}
+
+function isPromptSectionIncluded(promptResult, sectionName) {
+  return !((promptResult?.context?.omittedSections || []).includes(sectionName))
+    && !((promptResult?.context?.truncatedSections || []).includes(sectionName))
+    && String(promptResult?.prompt || "").includes("Local collaboration follow-up signals:");
+}
+
+function emitCollaborationOmissionNotice(onUpdate, promptResult, omissions, translate, keyPrefix) {
+  if (!isPromptSectionIncluded(promptResult, "collaboration_omissions") || omissions.length === 0) {
+    return;
+  }
+  onUpdate({
+    kind: "notice",
+    noticeType: "collaboration_omissions",
+    title: translate(`${keyPrefix}.collaborationOmissions.title`),
+    summary: translate(`${keyPrefix}.collaborationOmissions.summary`, { count: omissions.length }),
+    detail: formatCollaborationOmissionsPrompt(omissions)
+  });
+}
+
+function emitMemoryProvenanceMetadata(onUpdate, manifest) {
+  if (typeof onUpdate !== "function") {
+    return;
+  }
+  const available = Object.entries(manifest || {}).map(([ref, item]) => ({
+    ref,
+    memoryId: item.memoryId
+  }));
+  if (available.length === 0) {
+    return;
+  }
+  onUpdate({
+    internalOnly: true,
+    memoryProvenance: {
+      available,
+      claimedUsedRefs: []
+    }
+  });
 }
 
 function emitPromptContextNotices(onUpdate, promptResult, promptSignals, translate, keyPrefix, referencedDeepMemories = null) {

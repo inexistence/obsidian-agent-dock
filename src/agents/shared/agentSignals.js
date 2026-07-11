@@ -337,11 +337,16 @@ function normalizeEvidenceReference(value) {
     ? requestedOrigin
     : "unknown";
   const requestedSpeaker = compactText(value.speaker).toLowerCase();
-  return {
+  const normalized = {
     origin,
     speaker: getEvidenceSpeaker(origin, requestedSpeaker),
     quote
   };
+  const ref = compactText(value.ref).toUpperCase();
+  if (origin === "recalled_memory" && /^[A-Z]{1,2}\d{1,3}$/.test(ref)) {
+    normalized.ref = ref;
+  }
+  return normalized;
 }
 
 function getEvidenceSpeaker(origin, requestedSpeaker = "none") {
@@ -545,7 +550,8 @@ function formatReflectionList(value) {
 function formatReflectionEvidence(item, translate) {
   const origin = translate(`reflectionAudit.origin.${item.origin || "unknown"}`);
   const speaker = translate(`reflectionAudit.speaker.${item.speaker || "none"}`);
-  return `- [${origin}; ${translate("reflectionAudit.field.speaker")}: ${speaker}] ${item.quote}`;
+  const ref = item.ref ? `; ref=${item.ref}` : "";
+  return `- [${origin}; ${translate("reflectionAudit.field.speaker")}: ${speaker}${ref}] ${item.quote}`;
 }
 
 function normalizeType(value) {
