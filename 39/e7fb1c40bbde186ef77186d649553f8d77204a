@@ -1,0 +1,32 @@
+scripts/test-interaction-memory.js
+  s_3af48da6f241d4::t_7b178bb206e899 64-74
+src/storage/atomicJson.js
+  s_3af48da6f241d4::t_86519093218937 7-10,13-16,25-33
+  s_3af48da6f241d4::t_ae6b9ecbf01862 36-42
+  s_3af48da6f241d4::t_18665a1e53a66d 34
+  s_3af48da6f241d4::t_caf4c61e07666b 43
+main.js
+  s_3af48da6f241d4::t_6aa32b386a8a7b 7847-7853
+  s_3af48da6f241d4::t_2e30f929bd9d0b 7818-7821,7824-7827,7836-7844
+  s_3af48da6f241d4::t_a4327fa6b5eebd 7845,7854
+scripts/test-atomic-json.js
+  s_3af48da6f241d4::t_86519093218937 15-17,34-37,39-68,70
+  s_3af48da6f241d4::t_3ff85854b9952a 38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.3",
+  "base_commit_sha": "39e7fb1c40bbde186ef77186d649553f8d77204a",
+  "prompts": {},
+  "logical_commit_id": "39e7fb1c40bbde186ef77186d649553f8d77204a",
+  "sessions": {
+    "s_3af48da6f241d4": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f4ffa-e985-7670-829c-101e4d38eba2",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    }
+  }
+}
