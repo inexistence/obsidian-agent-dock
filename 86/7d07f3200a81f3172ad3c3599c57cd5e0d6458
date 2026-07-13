@@ -1,0 +1,82 @@
+scripts/test-memory-store.js
+  s_a4ea7b15562c8d::t_8294bec476f59c 375-379
+src/deepMemory/DeepMemoryStore.js
+  s_a4ea7b15562c8d::t_8294bec476f59c 389,395
+main.js
+  s_a4ea7b15562c8d::t_ccd2287bec62a5 9224,13660,13666
+  s_8c8dbbcb025d92::t_caf65a12dfee54 10881-10887,11055-11056,11091-11094,11139,11224-11225,11266,11283-11284,11301
+  s_8c8dbbcb025d92::t_162c083ab26a19 20523-20538,20634,20642,20655,20901
+  s_59901a76d5b6a7::t_a271cff7cffc82 20522
+scripts/test-codex-events.js
+  s_8c8dbbcb025d92::t_f3876f653f0d65 3-6,108-127
+scripts/test-deep-memory.js
+  s_a4ea7b15562c8d::t_a7c31107289820 598
+  s_a4ea7b15562c8d::t_8294bec476f59c 138-142,381-413
+scripts/test-chat-turn-runner.js
+  s_8c8dbbcb025d92::t_5366a571e87606 333-370,774
+  s_8c8dbbcb025d92::t_72cd8fba5088a8 282-285,329
+  s_8c8dbbcb025d92::t_01b811c338b071 293-328,330-332,773
+  s_b9c38f3d46c3ae::t_c6235c3091e66b 249-281,286-292,772
+src/agents/shared/memorySearch.js
+  s_a4ea7b15562c8d::t_8294bec476f59c 14
+src/view/session/ChatTurnRunner.js
+  s_8c8dbbcb025d92::t_72cd8fba5088a8 5,251
+src/agents/codex/CodexAgent.js
+  s_8c8dbbcb025d92::t_f3876f653f0d65 31-34,79,164-165,206,223-224,241
+scripts/test-timeline.js
+  s_8c8dbbcb025d92::t_72cd8fba5088a8 251-265
+src/agents/codex/jsonEvents.js
+  s_8c8dbbcb025d92::t_f3876f653f0d65 105-111,279-280
+src/view/timeline/timeline.js
+  s_8c8dbbcb025d92::t_01b811c338b071 51-52,57,59
+  s_8c8dbbcb025d92::t_07841388dab0cd 49
+  s_8c8dbbcb025d92::t_72cd8fba5088a8 45-48,50,53-56,58,60,156,164
+  s_8c8dbbcb025d92::t_1cdd9801eb9d86 44
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.12",
+  "base_commit_sha": "867d07f3200a81f3172ad3c3599c57cd5e0d6458",
+  "prompts": {},
+  "logical_commit_id": "867d07f3200a81f3172ad3c3599c57cd5e0d6458",
+  "sessions": {
+    "s_59901a76d5b6a7": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5b81-9a55-7953-8e10-a436354d9527",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>"
+    },
+    "s_8c8dbbcb025d92": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f5960-2a89-7480-9ccc-ea65d82bb711",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>",
+      "total_additions": 298,
+      "total_deletions": 113
+    },
+    "s_a4ea7b15562c8d": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f564c-c88e-7012-bbfa-19da8c1898a4",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>",
+      "total_additions": 50,
+      "total_deletions": 4
+    },
+    "s_b9c38f3d46c3ae": {
+      "agent_id": {
+        "tool": "codex",
+        "id": "019f591c-f840-7ef1-9569-ae2b04c56692",
+        "model": "gpt-5.6-sol"
+      },
+      "human_author": "Jianbin <inexistenceorz@gmail.com>",
+      "total_additions": 50,
+      "total_deletions": 2
+    }
+  }
+}
