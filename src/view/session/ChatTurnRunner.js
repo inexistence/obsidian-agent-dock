@@ -2,6 +2,7 @@ const {
   appendTimelineContent,
   appendTimelineReasoning,
   consolidateTimelineContent,
+  replaceAllTimelineContent,
   replaceTimelineFinalContent
 } = require("../timeline/timeline");
 const {
@@ -247,7 +248,7 @@ function finalizeAssistantMessage(message, options = {}) {
     message.content = options.content;
   }
   if (options.replaceContent) {
-    replaceTimelineFinalContent(message, message.content);
+    replaceAllTimelineContent(message, message.content);
   }
   consolidateTimelineContent(message);
   message.isLoading = false;

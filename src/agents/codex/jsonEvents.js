@@ -102,6 +102,13 @@ function codexJsonEventToUpdates(event, translate = defaultTranslate) {
   return [{ kind: "activity", title: type, detail: compactJson(event) }];
 }
 
+function updateLatestAgentMessageOutput(current, update) {
+  if (update?.kind !== "content" || update.agentMessagePhase === undefined) {
+    return String(current || "");
+  }
+  return String(update.text || "");
+}
+
 function extractText(value) {
   if (!value || typeof value !== "object") {
     return typeof value === "string" ? value : "";
@@ -269,5 +276,6 @@ function defaultTranslate(key, params = {}) {
 }
 
 module.exports = {
-  codexJsonEventToUpdates
+  codexJsonEventToUpdates,
+  updateLatestAgentMessageOutput
 };

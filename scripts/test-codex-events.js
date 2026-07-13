@@ -1,6 +1,9 @@
 const assert = require("assert");
 
-const { codexJsonEventToUpdates } = require("../src/agents/codex/jsonEvents");
+const {
+  codexJsonEventToUpdates,
+  updateLatestAgentMessageOutput
+} = require("../src/agents/codex/jsonEvents");
 
 const translate = (key, params = {}) => {
   const messages = {
@@ -102,4 +105,24 @@ const translate = (key, params = {}) => {
 
   assert.equal(update.kind, "content", "agent messages without a phase should remain backward compatible");
   assert.equal(update.agentMessagePhase, "");
+}
+
+{
+  const intermediate = {
+    kind: "content",
+    text: "我重新核对一下优先级。",
+    agentMessagePhase: "final_answer"
+  };
+  const finalAnswer = {
+    kind: "content",
+    text: "今天最适合做一个不影响明天封板的小闭环。",
+    agentMessagePhase: "final_answer"
+  };
+  let output = updateLatestAgentMessageOutput("", intermediate);
+  output = updateLatestAgentMessageOutput(output, finalAnswer);
+  assert.equal(
+    output,
+    finalAnswer.text,
+    "complete Codex agent messages must replace the final output instead of concatenating"
+  );
 }

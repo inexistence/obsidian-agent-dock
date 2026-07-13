@@ -372,6 +372,11 @@ assert.equal(
     "natural Chinese recall phrasing should trigger memory search"
   );
   assert.equal(
+    shouldSearchMemory("如果我提到太阳、下班，你有印象吗", settings),
+    true,
+    "a direct impression check should trigger explicit memory search"
+  );
+  assert.equal(
     shouldSearchMemory("Use the convention we agreed last time.", settings),
     true,
     "English prior convention recall should trigger memory search"

@@ -246,6 +246,128 @@ async function testReturnedFinalContentReplacesStreamedContent() {
   assert(!JSON.stringify(assistantMessage.timeline).includes("agent-dock:deep-memory"));
 }
 
+async function testTrimmedFinalContentPreservesInterleavedTimelineContent() {
+  const session = {
+    id: "session-trimmed-final-content",
+    messages: [],
+    currentRun: null
+  };
+
+  await runChatTurn({
+    session,
+    prompt: "hello",
+    agentLabel: "Codex",
+    agentId: "codex",
+    runAgent: async (_prompt, onUpdate) => {
+      onUpdate({ kind: "content", text: "First message." });
+      onUpdate({ kind: "reasoning", title: "Progress", detail: "Checking." });
+      onUpdate({ kind: "content", text: " Final answer.\n" });
+      return "First message. Final answer.";
+    },
+    translate,
+    touchSession: () => {},
+    onTurnStarted: () => {},
+    onTurnUpdate: () => {},
+    onTurnFinished: () => {},
+    onComposerChanged: () => {},
+    updateWorkingAffect: async () => {},
+    persistChatSessions: async () => {},
+    notify: () => {}
+  });
+
+  const assistantMessage = session.messages.find((message) => message.role === "assistant");
+  const contents = assistantMessage.timeline.filter((entry) => entry.kind === "content");
+  assert.equal(assistantMessage.content, "First message. Final answer.");
+  assert.equal(contents.length, 2, "boundary trimming must not collapse interleaved content entries");
+  assert.deepStrictEqual(contents.map((entry) => entry.text), [
+    "First message.",
+    "First message. Final answer."
+  ]);
+  assert.deepStrictEqual(
+    assistantMessage.timeline.map((entry) => entry.kind),
+    ["content", "reasoning", "content"],
+    "completed timeline should preserve the original stream order"
+  );
+}
+
+async function testStrippedReflectionPreservesInterleavedTimelineContent() {
+  const session = {
+    id: "session-stripped-reflection-content",
+    messages: [],
+    currentRun: null
+  };
+
+  await runChatTurn({
+    session,
+    prompt: "hello",
+    agentLabel: "Codex",
+    agentId: "codex",
+    runAgent: async (_prompt, onUpdate) => {
+      onUpdate({ kind: "content", text: "First message." });
+      onUpdate({ kind: "reasoning", title: "Progress", detail: "Checking." });
+      onUpdate({
+        kind: "content",
+        text: " Final answer.\n<!-- agent-dock:reflection phase=outcome | {} -->"
+      });
+      return "First message. Final answer.";
+    },
+    translate,
+    touchSession: () => {},
+    onTurnStarted: () => {},
+    onTurnUpdate: () => {},
+    onTurnFinished: () => {},
+    onComposerChanged: () => {},
+    updateWorkingAffect: async () => {},
+    persistChatSessions: async () => {},
+    notify: () => {}
+  });
+
+  const assistantMessage = session.messages.find((message) => message.role === "assistant");
+  const contents = assistantMessage.timeline.filter((entry) => entry.kind === "content");
+  assert.equal(contents.length, 2, "stripping a terminal reflection must preserve earlier content entries");
+  assert.equal(contents[0].text, "First message.");
+  assert.equal(contents[1].text, "First message. Final answer.");
+  assert(!JSON.stringify(assistantMessage.timeline).includes("agent-dock:reflection"));
+}
+
+async function testReturnedFinalMessageReplacesOnlyLastTimelineContent() {
+  const session = {
+    id: "session-final-message-content",
+    messages: [],
+    currentRun: null
+  };
+
+  await runChatTurn({
+    session,
+    prompt: "hello",
+    agentLabel: "Codex",
+    agentId: "codex",
+    runAgent: async (_prompt, onUpdate) => {
+      onUpdate({ kind: "content", text: "Intermediate answer" });
+      onUpdate({ kind: "reasoning", title: "Progress", detail: "Revising." });
+      onUpdate({ kind: "content", text: "Stale final answer" });
+      return "True final answer";
+    },
+    translate,
+    touchSession: () => {},
+    onTurnStarted: () => {},
+    onTurnUpdate: () => {},
+    onTurnFinished: () => {},
+    onComposerChanged: () => {},
+    updateWorkingAffect: async () => {},
+    persistChatSessions: async () => {},
+    notify: () => {}
+  });
+
+  const assistantMessage = session.messages.find((message) => message.role === "assistant");
+  const contents = assistantMessage.timeline.filter((entry) => entry.kind === "content");
+  assert.deepStrictEqual(contents.map((entry) => entry.text), [
+    "Intermediate answer",
+    "True final answer"
+  ]);
+  assert.equal(assistantMessage.content, "True final answer");
+}
+
 async function testAgentSignalMetadataReachesWorkingAffectUpdate() {
   const session = {
     id: "session-affect-signal",
@@ -647,6 +769,9 @@ testAffectFailureDoesNotFailSuccessfulTurn()
   .then(() => testBeforeAgentRunFailureClearsCurrentRun())
   .then(() => testWorkingAffectReceivesTurnContext())
   .then(() => testReturnedFinalContentReplacesStreamedContent())
+  .then(() => testTrimmedFinalContentPreservesInterleavedTimelineContent())
+  .then(() => testStrippedReflectionPreservesInterleavedTimelineContent())
+  .then(() => testReturnedFinalMessageReplacesOnlyLastTimelineContent())
   .then(() => testAgentSignalMetadataReachesWorkingAffectUpdate())
   .then(() => testCompleteReflectionSignalSetReachesWorkingAffectUpdate())
   .then(() => testReflectionPhasesMergeIntoOneTimelineNotice())

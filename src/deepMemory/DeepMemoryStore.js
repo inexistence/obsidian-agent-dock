@@ -386,13 +386,13 @@ function isPromptSafeDeepMemory(item) {
 
 function isExplicitDeepMemoryRecall(text) {
   const source = compactText(text);
-  return /你还?记得|还记得|记不记得|有没有印象|是否记得|能否回忆|回忆一下|想起来|记得.{0,24}(?:之前|以前|过去|上次|那次)|(?:查|找|搜索|看看|读取).{0,12}(?:深刻记忆|重要时刻|记忆|记录)|(?:之前|以前|过去|上次|那次).{0,24}(?:说过|提过|聊过|决定|约定|发生|完成)/.test(source)
+  return /你还?记得|还记得|记不记得|有没有印象|有印象(?:吗|么|嘛|\?|？|$)|是否记得|能否回忆|回忆一下|想起来|记得.{0,24}(?:之前|以前|过去|上次|那次)|(?:查|找|搜索|看看|读取).{0,12}(?:深刻记忆|重要时刻|记忆|记录)|(?:之前|以前|过去|上次|那次).{0,24}(?:说过|提过|聊过|决定|约定|发生|完成)/.test(source)
     || /(?:do you|can you|could you|what do you)\s+(?:still\s+)?(?:remember(?!\s+to\b)|recall)|(?:search|find|look up|check).{0,24}(?:memories?|past notes?|history)|(?:remember|recall).{0,32}(?:before|previously|last time|that time)/i.test(source);
 }
 
 function stripRecallLanguage(text) {
   return compactText(text)
-    .replace(/你还?记得|还记得|记不记得|有没有印象|是否记得|能否回忆|记得|记住|回忆(?:一下)?|想起来|(?:查|找|搜索|看看|读取|翻看)(?:一下)?|深刻记忆|重要时刻|记忆|记录|之前(?:说的|提过的)?|以前|过去|上次|那次|我(?:曾经|之前)?说的|那个|一些|关于|事情|内容|感觉|有没有|里|吗|呢|一下/gi, " ")
+    .replace(/你还?记得|还记得|记不记得|有没有印象|有印象|是否记得|能否回忆|记得|记住|回忆(?:一下)?|想起来|(?:查|找|搜索|看看|读取|翻看)(?:一下)?|深刻记忆|重要时刻|记忆|记录|之前(?:说的|提过的)?|以前|过去|上次|那次|我(?:曾经|之前)?说的|那个|一些|关于|事情|内容|感觉|有没有|里|吗|呢|一下/gi, " ")
     .replace(/\b(?:do you|can you|could you|what do you|please|still|remember|recall|search|find|look up|check|memories?|previous(?:ly)?|past|history|important moments?|the|that|thing|things|about|what|i|we|said|mentioned|last time)\b/gi, " ")
     .replace(/\s+/g, " ")
     .trim();

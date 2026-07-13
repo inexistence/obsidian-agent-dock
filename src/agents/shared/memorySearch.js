@@ -11,6 +11,7 @@ const MEMORY_LOOKUP_PATTERNS = [
   /(?:查|找|搜索|看看).{0,12}(?:记忆|记录|历史)/,
   /(?:有没有|是否).{0,16}(?:记录|记得|保存).{0,24}(?:不想|不要|偏好|要求|方案)/,
   /(?:有没有|是否).{0,16}(?:保存|记录|记住|提过).{0,24}(?:约定|决定|结论|习惯|规则|风格)/,
+  /有印象(?:吗|么|嘛|\?|？|$)/,
   /(?:记得|记住|想起来).{0,24}(?:那个|这种|这种感觉|感觉|不要太刻意|不刻意|自然|连续)/,
   /(?:do you remember|did i mention|previously|before|earlier|past).{0,48}(?:preference|requirement|decision|memory|note|said|mentioned)/i,
   /(?:preference|requirement|decision|agreement|convention|rule|style|habit|memory|note|said|mentioned).{0,48}(?:previously|before|earlier|past|last time)/i,

@@ -248,6 +248,21 @@ function reasoningEntries(message) {
 }
 
 {
+  const message = createMessage();
+  message.timeline = [
+    { kind: "content", text: "Intermediate answer" },
+    { kind: "reasoning", title: "Thinking", detail: "..." },
+    { kind: "content", text: "Stale final answer" }
+  ];
+  timelineTest.replaceTimelineFinalContent(message, "Authoritative final answer");
+  assert.deepStrictEqual(
+    contentEntries(message).map((entry) => entry.text),
+    ["Intermediate answer", "Authoritative final answer"],
+    "final reconciliation must preserve processed content and replace only the last content entry"
+  );
+}
+
+{
   const timeline = [
     { kind: "content", text: "First" },
     { kind: "reasoning", title: "Thinking", detail: "..." },

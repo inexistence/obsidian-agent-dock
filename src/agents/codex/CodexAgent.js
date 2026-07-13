@@ -28,7 +28,10 @@ const {
   emitInvalidAgentDockSignalActivity,
   getPreviousAssistantResponse
 } = require("../shared/TurnCompletion");
-const { codexJsonEventToUpdates } = require("./jsonEvents");
+const {
+  codexJsonEventToUpdates,
+  updateLatestAgentMessageOutput
+} = require("./jsonEvents");
 
 class CodexAgent {
   constructor(plugin) {
@@ -73,6 +76,7 @@ class CodexAgent {
 
     return new Promise((resolve, reject) => {
       let finalOutput = "";
+      let signalSourceOutput = "";
       let errorOutput = "";
       let stdoutBuffer = "";
       let settled = false;
@@ -157,7 +161,8 @@ class CodexAgent {
             }
             if (update.agentMessagePhase !== undefined) {
               if (update.kind === "content") {
-                finalOutput += update.text;
+                signalSourceOutput += update.text;
+                finalOutput = updateLatestAgentMessageOutput(finalOutput, update);
               }
               emitFilteredAgentMessage(update, reflectionFilter, onUpdate);
               continue;
@@ -198,6 +203,7 @@ class CodexAgent {
         const fileOutput = await readOutputFile(outputPath);
         if (!finalOutput.trim() && fileOutput) {
           finalOutput = fileOutput;
+          signalSourceOutput = fileOutput;
           reflectionFilter.beginSource("content");
           for (const visibleText of reflectionFilter.push(fileOutput)) {
             onUpdate({ kind: "content", text: visibleText });
@@ -214,7 +220,8 @@ class CodexAgent {
         }
 
         if (code === 0) {
-          const signalResult = extractAgentDockSignals(finalOutput.trim());
+          const signalResult = extractAgentDockSignals(signalSourceOutput.trim());
+          const finalVisibleOutput = extractAgentDockSignals(finalOutput).visibleText.trim();
           const signalEvidenceContext = getSignalEvidenceContext();
           emitClaimedMemoryProvenance(
             onUpdate,
@@ -231,7 +238,7 @@ class CodexAgent {
             reflectionFilter,
             signalEvidenceContext
           );
-          const visibleOutput = signalResult.visibleText.trim();
+          const visibleOutput = finalVisibleOutput;
           await captureTurnContinuity(this.plugin, {
             prompt,
             response: visibleOutput,

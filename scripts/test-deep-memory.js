@@ -135,6 +135,11 @@ function testExplicitRecallDetectionExcludesMechanismAndFutureCaptureTalk() {
     true,
     "a natural recollection question should bypass cooldown"
   );
+  assert.equal(
+    deepMemoryStoreTest.isExplicitDeepMemoryRecall("如果我提到太阳、下班，你有印象吗"),
+    true,
+    "a direct impression check with topical clues should bypass cooldown"
+  );
 }
 
 function testExtractorSkipsDeepMemoryMetaDiscussionAndOptOut() {
@@ -376,6 +381,39 @@ async function testConversationRecallWordsDoNotBypassCooldown() {
   );
 }
 
+async function testDirectImpressionCheckBypassesCooldown() {
+  const { store } = createStore();
+  const settings = createSettings();
+  await store.saveMemory({
+    version: 1,
+    updatedAt: now,
+    items: [{
+      id: "deep-sunset-off-work",
+      key: "sunset-off-work",
+      kind: "meaningful_episode",
+      summary: "用户赶在太阳落山前完成工作并下班。",
+      userExcerpt: "走了！下班了！",
+      importance: 0.8,
+      confidence: 0.8,
+      recallCount: 1,
+      lastRecalledAt: now,
+      createdAt: now,
+      updatedAt: now
+    }]
+  });
+
+  const recalled = await store.getPromptMemories(
+    "如果我提到太阳、下班，你有印象吗",
+    settings,
+    { now: now + 86400000 }
+  );
+  assert.equal(
+    recalled[0]?.id,
+    "deep-sunset-off-work",
+    "an explicit impression check should recall a topical deep memory during cooldown"
+  );
+}
+
 async function testGenericRecallCommandsReturnSalientMemories() {
   for (const prompt of [
     "看看深刻记忆",
@@ -557,6 +595,7 @@ Promise.resolve()
   .then(testStoreCapturesAndRecallsWithCooldown)
   .then(testSpecificExplicitRecallRejectsUnrelatedHighImportanceMemory)
   .then(testConversationRecallWordsDoNotBypassCooldown)
+  .then(testDirectImpressionCheckBypassesCooldown)
   .then(testGenericRecallCommandsReturnSalientMemories)
   .then(testCurrentRequestOutranksSupportingConversation)
   .then(testDeepMemoryRecallsSubtleParaphrase)

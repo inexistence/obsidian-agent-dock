@@ -41,6 +41,23 @@ function appendTimelineContent(message, text) {
 }
 
 function replaceTimelineFinalContent(message, text) {
+  const normalized = String(text || "");
+  const finalContentIndex = findLastContentIndex(message.timeline);
+  if (finalContentIndex === -1) {
+    if (normalized) {
+      message.timeline.push({ kind: "content", text: normalized });
+    }
+    return;
+  }
+
+  if (normalized) {
+    message.timeline[finalContentIndex].text = normalized;
+  } else {
+    message.timeline.splice(finalContentIndex, 1);
+  }
+}
+
+function replaceAllTimelineContent(message, text) {
   message.timeline = message.timeline.filter((entry) => entry.kind !== "content");
   const normalized = String(text || "");
   if (normalized) {
@@ -136,6 +153,7 @@ module.exports = {
   appendTimelineContent,
   appendTimelineReasoning,
   consolidateTimelineContent,
+  replaceAllTimelineContent,
   replaceTimelineFinalContent,
   getCompletedTimelineSections,
   shouldShowEvent,
@@ -143,6 +161,7 @@ module.exports = {
     appendTimelineContent,
     appendTimelineReasoning,
     consolidateTimelineContent,
+    replaceAllTimelineContent,
     replaceTimelineFinalContent,
     findLastContentIndex,
     getCompletedTimelineSections

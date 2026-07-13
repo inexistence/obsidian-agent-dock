@@ -9221,6 +9221,7 @@ const MEMORY_LOOKUP_PATTERNS = [
   /(?:查|找|搜索|看看).{0,12}(?:记忆|记录|历史)/,
   /(?:有没有|是否).{0,16}(?:记录|记得|保存).{0,24}(?:不想|不要|偏好|要求|方案)/,
   /(?:有没有|是否).{0,16}(?:保存|记录|记住|提过).{0,24}(?:约定|决定|结论|习惯|规则|风格)/,
+  /有印象(?:吗|么|嘛|\?|？|$)/,
   /(?:记得|记住|想起来).{0,24}(?:那个|这种|这种感觉|感觉|不要太刻意|不刻意|自然|连续)/,
   /(?:do you remember|did i mention|previously|before|earlier|past).{0,48}(?:preference|requirement|decision|memory|note|said|mentioned)/i,
   /(?:preference|requirement|decision|agreement|convention|rule|style|habit|memory|note|said|mentioned).{0,48}(?:previously|before|earlier|past|last time)/i,
@@ -10877,6 +10878,13 @@ function codexJsonEventToUpdates(event, translate = defaultTranslate) {
   return [{ kind: "activity", title: type, detail: compactJson(event) }];
 }
 
+function updateLatestAgentMessageOutput(current, update) {
+  if (update?.kind !== "content" || update.agentMessagePhase === undefined) {
+    return String(current || "");
+  }
+  return String(update.text || "");
+}
+
 function extractText(value) {
   if (!value || typeof value !== "object") {
     return typeof value === "string" ? value : "";
@@ -11044,7 +11052,8 @@ function defaultTranslate(key, params = {}) {
 }
 
 module.exports = {
-  codexJsonEventToUpdates
+  codexJsonEventToUpdates,
+  updateLatestAgentMessageOutput
 };
 
 },
@@ -11079,7 +11088,10 @@ const {
   emitInvalidAgentDockSignalActivity,
   getPreviousAssistantResponse
 } = __require("src/agents/shared/TurnCompletion.js");
-const { codexJsonEventToUpdates } = __require("src/agents/codex/jsonEvents.js");
+const {
+  codexJsonEventToUpdates,
+  updateLatestAgentMessageOutput
+} = __require("src/agents/codex/jsonEvents.js");
 
 class CodexAgent {
   constructor(plugin) {
@@ -11124,6 +11136,7 @@ class CodexAgent {
 
     return new Promise((resolve, reject) => {
       let finalOutput = "";
+      let signalSourceOutput = "";
       let errorOutput = "";
       let stdoutBuffer = "";
       let settled = false;
@@ -11208,7 +11221,8 @@ class CodexAgent {
             }
             if (update.agentMessagePhase !== undefined) {
               if (update.kind === "content") {
-                finalOutput += update.text;
+                signalSourceOutput += update.text;
+                finalOutput = updateLatestAgentMessageOutput(finalOutput, update);
               }
               emitFilteredAgentMessage(update, reflectionFilter, onUpdate);
               continue;
@@ -11249,6 +11263,7 @@ class CodexAgent {
         const fileOutput = await readOutputFile(outputPath);
         if (!finalOutput.trim() && fileOutput) {
           finalOutput = fileOutput;
+          signalSourceOutput = fileOutput;
           reflectionFilter.beginSource("content");
           for (const visibleText of reflectionFilter.push(fileOutput)) {
             onUpdate({ kind: "content", text: visibleText });
@@ -11265,7 +11280,8 @@ class CodexAgent {
         }
 
         if (code === 0) {
-          const signalResult = extractAgentDockSignals(finalOutput.trim());
+          const signalResult = extractAgentDockSignals(signalSourceOutput.trim());
+          const finalVisibleOutput = extractAgentDockSignals(finalOutput).visibleText.trim();
           const signalEvidenceContext = getSignalEvidenceContext();
           emitClaimedMemoryProvenance(
             onUpdate,
@@ -11282,7 +11298,7 @@ class CodexAgent {
             reflectionFilter,
             signalEvidenceContext
           );
-          const visibleOutput = signalResult.visibleText.trim();
+          const visibleOutput = finalVisibleOutput;
           await captureTurnContinuity(this.plugin, {
             prompt,
             response: visibleOutput,
@@ -13641,13 +13657,13 @@ function isPromptSafeDeepMemory(item) {
 
 function isExplicitDeepMemoryRecall(text) {
   const source = compactText(text);
-  return /你还?记得|还记得|记不记得|有没有印象|是否记得|能否回忆|回忆一下|想起来|记得.{0,24}(?:之前|以前|过去|上次|那次)|(?:查|找|搜索|看看|读取).{0,12}(?:深刻记忆|重要时刻|记忆|记录)|(?:之前|以前|过去|上次|那次).{0,24}(?:说过|提过|聊过|决定|约定|发生|完成)/.test(source)
+  return /你还?记得|还记得|记不记得|有没有印象|有印象(?:吗|么|嘛|\?|？|$)|是否记得|能否回忆|回忆一下|想起来|记得.{0,24}(?:之前|以前|过去|上次|那次)|(?:查|找|搜索|看看|读取).{0,12}(?:深刻记忆|重要时刻|记忆|记录)|(?:之前|以前|过去|上次|那次).{0,24}(?:说过|提过|聊过|决定|约定|发生|完成)/.test(source)
     || /(?:do you|can you|could you|what do you)\s+(?:still\s+)?(?:remember(?!\s+to\b)|recall)|(?:search|find|look up|check).{0,24}(?:memories?|past notes?|history)|(?:remember|recall).{0,32}(?:before|previously|last time|that time)/i.test(source);
 }
 
 function stripRecallLanguage(text) {
   return compactText(text)
-    .replace(/你还?记得|还记得|记不记得|有没有印象|是否记得|能否回忆|记得|记住|回忆(?:一下)?|想起来|(?:查|找|搜索|看看|读取|翻看)(?:一下)?|深刻记忆|重要时刻|记忆|记录|之前(?:说的|提过的)?|以前|过去|上次|那次|我(?:曾经|之前)?说的|那个|一些|关于|事情|内容|感觉|有没有|里|吗|呢|一下/gi, " ")
+    .replace(/你还?记得|还记得|记不记得|有没有印象|有印象|是否记得|能否回忆|记得|记住|回忆(?:一下)?|想起来|(?:查|找|搜索|看看|读取|翻看)(?:一下)?|深刻记忆|重要时刻|记忆|记录|之前(?:说的|提过的)?|以前|过去|上次|那次|我(?:曾经|之前)?说的|那个|一些|关于|事情|内容|感觉|有没有|里|吗|呢|一下/gi, " ")
     .replace(/\b(?:do you|can you|could you|what do you|please|still|remember|recall|search|find|look up|check|memories?|previous(?:ly)?|past|history|important moments?|the|that|thing|things|about|what|i|we|said|mentioned|last time)\b/gi, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -20503,6 +20519,23 @@ function appendTimelineContent(message, text) {
 }
 
 function replaceTimelineFinalContent(message, text) {
+  const normalized = String(text || "");
+  const finalContentIndex = findLastContentIndex(message.timeline);
+  if (finalContentIndex === -1) {
+    if (normalized) {
+      message.timeline.push({ kind: "content", text: normalized });
+    }
+    return;
+  }
+
+  if (normalized) {
+    message.timeline[finalContentIndex].text = normalized;
+  } else {
+    message.timeline.splice(finalContentIndex, 1);
+  }
+}
+
+function replaceAllTimelineContent(message, text) {
   message.timeline = message.timeline.filter((entry) => entry.kind !== "content");
   const normalized = String(text || "");
   if (normalized) {
@@ -20598,6 +20631,7 @@ module.exports = {
   appendTimelineContent,
   appendTimelineReasoning,
   consolidateTimelineContent,
+  replaceAllTimelineContent,
   replaceTimelineFinalContent,
   getCompletedTimelineSections,
   shouldShowEvent,
@@ -20605,6 +20639,7 @@ module.exports = {
     appendTimelineContent,
     appendTimelineReasoning,
     consolidateTimelineContent,
+    replaceAllTimelineContent,
     replaceTimelineFinalContent,
     findLastContentIndex,
     getCompletedTimelineSections
@@ -20617,6 +20652,7 @@ const {
   appendTimelineContent,
   appendTimelineReasoning,
   consolidateTimelineContent,
+  replaceAllTimelineContent,
   replaceTimelineFinalContent
 } = __require("src/view/timeline/timeline.js");
 const {
@@ -20862,7 +20898,7 @@ function finalizeAssistantMessage(message, options = {}) {
     message.content = options.content;
   }
   if (options.replaceContent) {
-    replaceTimelineFinalContent(message, message.content);
+    replaceAllTimelineContent(message, message.content);
   }
   consolidateTimelineContent(message);
   message.isLoading = false;
