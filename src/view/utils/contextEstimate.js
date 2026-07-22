@@ -2,7 +2,6 @@ const { CUSTOM_ASSISTANT_STYLE_MAX_CHARS, DEFAULT_SETTINGS } = require("../../se
 
 const BUILT_IN_ASSISTANT_STYLE_ESTIMATE_CHARS = 700;
 const ASSISTANT_STYLE_PROMPT_OVERHEAD_CHARS = 220;
-const ASSISTANT_CONTINUITY_ESTIMATE_CHARS = 1200;
 
 function estimateContextChars(messages, draft, settings) {
   const transcriptChars = messages.reduce((total, message) => {
@@ -12,21 +11,8 @@ function estimateContextChars(messages, draft, settings) {
     return total + String(message.content || "").length + 16;
   }, 0);
   const draftChars = String(draft || "").length + 16;
-  const memoryChars = settings.memoryEnabled
-    ? (Number(settings.memoryMaxPromptChars) || DEFAULT_SETTINGS.memoryMaxPromptChars)
-    : 0;
   const styleChars = estimateAssistantStyleChars(settings);
-  const continuityChars = hasContinuitySignals(settings)
-    ? ASSISTANT_CONTINUITY_ESTIMATE_CHARS
-    : 0;
-  return transcriptChars + draftChars + memoryChars + styleChars + continuityChars;
-}
-
-function hasContinuitySignals(settings) {
-  return (settings.affectEnabled && settings.affectCrossSessionEnabled)
-    || settings.interactionMemoryEnabled
-    || settings.deepMemoryEnabled
-    || (settings.personaPreset && settings.personaPreset !== "none");
+  return transcriptChars + draftChars + styleChars;
 }
 
 function estimateAssistantStyleChars(settings) {

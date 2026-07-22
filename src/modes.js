@@ -6,67 +6,68 @@ const MODE_OPTIONS = {
   },
   workspaceWrite: {
     label: "Workspace write",
-    description: "Allow edits inside the vault or working directory.",
+    description: "Allow edits inside the vault or configured working directory.",
     args: ["--sandbox", "workspace-write", "--skip-git-repo-check"]
-  },
-  fullAccess: {
-    label: "Full access",
-    description: "Allow broad local access. Use carefully.",
-    args: ["--sandbox", "danger-full-access", "--skip-git-repo-check"]
   }
 };
 
 function applyModeArgs(args, mode, defaultMode) {
-  const modeConfig = MODE_OPTIONS[mode] || MODE_OPTIONS[defaultMode];
-  const execIndex = args.indexOf("exec");
+  const modeConfig = MODE_OPTIONS[mode] || MODE_OPTIONS[defaultMode] || MODE_OPTIONS.readOnly;
+  const sanitizedArgs = stripUnsupportedAccessArgs(args);
+  const execIndex = sanitizedArgs.indexOf("exec");
   if (execIndex < 0) {
-    return args;
+    return ["exec", ...modeConfig.args, ...sanitizedArgs];
   }
 
   const additions = [];
-  const hasSandbox = args.includes("--sandbox") || args.includes("-s");
-  const hasDangerBypass = args.includes("--dangerously-bypass-approvals-and-sandbox");
-  const hasSkipGitRepoCheck = args.includes("--skip-git-repo-check");
+  const hasSkipGitRepoCheck = sanitizedArgs.includes("--skip-git-repo-check");
 
   for (let index = 0; index < modeConfig.args.length; index += 1) {
     const flag = modeConfig.args[index];
     const value = modeConfig.args[index + 1];
-
     if (flag === "--sandbox") {
-      if (!hasSandbox && !hasDangerBypass) {
-        additions.push(flag, value);
-      }
+      additions.push(flag, value);
       index += 1;
-      continue;
-    }
-
-    if (flag === "--skip-git-repo-check" && !hasSkipGitRepoCheck) {
+    } else if (flag === "--skip-git-repo-check" && !hasSkipGitRepoCheck) {
       additions.push(flag);
     }
   }
 
-  return [
-    ...args.slice(0, execIndex + 1),
-    ...additions,
-    ...args.slice(execIndex + 1)
-  ];
+  return [...sanitizedArgs.slice(0, execIndex + 1), ...additions, ...sanitizedArgs.slice(execIndex + 1)];
+}
+
+function stripUnsupportedAccessArgs(args) {
+  const result = [];
+  for (let index = 0; index < args.length; index += 1) {
+    const value = args[index];
+    if (
+      value === "--dangerously-bypass-approvals-and-sandbox"
+      || String(value).startsWith("--dangerously-bypass-approvals-and-sandbox=")
+      || value === "--yolo"
+      || value === "--full-auto"
+    ) {
+      continue;
+    }
+    if (value === "--sandbox" || value === "-s") {
+      index += 1;
+      continue;
+    }
+    if (String(value).startsWith("--sandbox=") || String(value).startsWith("-s=")) {
+      continue;
+    }
+    result.push(value);
+  }
+  return result;
 }
 
 function getModeLabel(mode, defaultMode, translate) {
-  const resolvedMode = MODE_OPTIONS[mode] ? mode : defaultMode;
-  const option = MODE_OPTIONS[resolvedMode] || MODE_OPTIONS.readOnly;
-  return translate ? translate(`mode.${resolvedMode}.label`) : option.label;
+  const resolved = MODE_OPTIONS[mode] ? mode : MODE_OPTIONS[defaultMode] ? defaultMode : "readOnly";
+  return translate ? translate(`mode.${resolved}.label`) : MODE_OPTIONS[resolved].label;
 }
 
 function getModeDescription(mode, defaultMode, translate) {
-  const resolvedMode = MODE_OPTIONS[mode] ? mode : defaultMode;
-  const option = MODE_OPTIONS[resolvedMode] || MODE_OPTIONS.readOnly;
-  return translate ? translate(`mode.${resolvedMode}.description`) : option.description;
+  const resolved = MODE_OPTIONS[mode] ? mode : MODE_OPTIONS[defaultMode] ? defaultMode : "readOnly";
+  return translate ? translate(`mode.${resolved}.description`) : MODE_OPTIONS[resolved].description;
 }
 
-module.exports = {
-  MODE_OPTIONS,
-  applyModeArgs,
-  getModeLabel,
-  getModeDescription
-};
+module.exports = { MODE_OPTIONS, applyModeArgs, getModeDescription, getModeLabel, _test: { stripUnsupportedAccessArgs } };

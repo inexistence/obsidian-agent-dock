@@ -5,10 +5,6 @@ const {
   replaceAllTimelineContent,
   replaceTimelineFinalContent
 } = require("../timeline/timeline");
-const {
-  mergeSignalEvidenceContexts,
-  normalizeAgentDockSignals
-} = require("../../agents/shared/signalEvidence");
 
 function createUserMessage(prompt, createdAt) {
   return {
@@ -43,17 +39,16 @@ async function runChatTurn({
   onBeforeAgentRun,
   onTurnStarted,
   onTurnUpdate,
-  updateTurnVisualAffect,
+  updateToneCapsule,
   onTurnFinished,
   onComposerChanged,
-  updateWorkingAffect,
-  settleAffectDisplay,
   persistChatSessions,
   notify
 }) {
   const now = Date.now();
   session.messages.push(createUserMessage(prompt, now));
   const assistantMessage = createAssistantMessage(now, agentId);
+  assistantMessage.toneCapsulePrompt = prompt;
   session.messages.push(assistantMessage);
 
   const run = {
@@ -78,26 +73,6 @@ async function runChatTurn({
         return;
       }
 
-      const structuredSignals = Array.isArray(update.agentDockSignals)
-        ? update.agentDockSignals
-        : update.agentDockSignal ? [update.agentDockSignal] : [];
-      if (structuredSignals.length > 0) {
-        assistantMessage.agentDockSignals = normalizeAgentDockSignals(
-          (assistantMessage.agentDockSignals || []).concat(structuredSignals)
-        );
-      }
-      if (update.signalEvidenceContext) {
-        assistantMessage.signalEvidenceContext = mergeSignalEvidenceContexts(
-          assistantMessage.signalEvidenceContext,
-          update.signalEvidenceContext
-        );
-      }
-      if (update.memoryProvenance) {
-        assistantMessage.memoryProvenance = mergeMemoryProvenance(
-          assistantMessage.memoryProvenance,
-          update.memoryProvenance
-        );
-      }
       if (update.internalOnly === true) {
         onTurnUpdate(session, assistantMessage);
         return;
@@ -117,8 +92,8 @@ async function runChatTurn({
       } else {
         assistantMessage.timeline.push(update);
       }
-      if (updateTurnVisualAffect) {
-        updateTurnVisualAffect(assistantMessage, update);
+      if (updateToneCapsule) {
+        updateToneCapsule(assistantMessage, update);
       }
       onTurnUpdate(session, assistantMessage);
     }, conversation, {
@@ -138,17 +113,6 @@ async function runChatTurn({
     }
     finalizeAssistantMessage(assistantMessage);
     onTurnFinished(session, { final: false, status: turnStatus, holdFinalStatus: true });
-    await tryUpdateWorkingAffect(updateWorkingAffect, {
-      sessionId: session.id,
-      prompt,
-      response: assistantMessage.content,
-      agentDockSignals: assistantMessage.agentDockSignals || [],
-      signalEvidenceContext: assistantMessage.signalEvidenceContext,
-      success: true
-    }, {
-      session,
-      assistantMessage
-    });
     touchSession(session);
     onTurnFinished(session, { final: false, status: turnStatus });
   } catch (error) {
@@ -168,22 +132,6 @@ async function runChatTurn({
       replaceContent: true
     });
     onTurnFinished(session, { final: false, status: turnStatus, holdFinalStatus: true });
-    if (!wasStopped) {
-      await tryUpdateWorkingAffect(updateWorkingAffect, {
-        sessionId: session.id,
-        prompt,
-        response: errorText,
-        success: false
-      }, {
-        session,
-        assistantMessage
-      });
-    } else {
-      await trySettleAffectDisplay(settleAffectDisplay, {
-        session,
-        assistantMessage
-      });
-    }
     touchSession(session);
     onTurnFinished(session, { final: false, status: turnStatus });
     notify(wasStopped ? "agentStopped" : "agentCommandFailed", session);
@@ -197,50 +145,8 @@ async function runChatTurn({
   }
 }
 
-function mergeMemoryProvenance(existing, incoming) {
-  const left = existing && typeof existing === "object" ? existing : {};
-  const right = incoming && typeof incoming === "object" ? incoming : {};
-  const availableByRef = new Map();
-  for (const item of [...(left.available || []), ...(right.available || [])]) {
-    if (item?.ref) {
-      availableByRef.set(item.ref, Object.assign({}, availableByRef.get(item.ref), item));
-    }
-  }
-  return {
-    available: Array.from(availableByRef.values()).slice(0, 12),
-    claimedUsedRefs: [...new Set([
-      ...(left.claimedUsedRefs || []),
-      ...(right.claimedUsedRefs || [])
-    ])].slice(0, 12)
-  };
-}
-
 function createMessageId(role) {
   return `msg-${role}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-async function tryUpdateWorkingAffect(updateWorkingAffect, turn, context = {}) {
-  if (!updateWorkingAffect) {
-    return;
-  }
-
-  try {
-    await updateWorkingAffect(turn, context);
-  } catch (error) {
-    console.warn("Agent Dock could not update affect continuity:", error);
-  }
-}
-
-async function trySettleAffectDisplay(settleAffectDisplay, context = {}) {
-  if (!settleAffectDisplay) {
-    return;
-  }
-
-  try {
-    await settleAffectDisplay(context);
-  } catch (error) {
-    console.warn("Agent Dock could not settle affect display:", error);
-  }
 }
 
 function finalizeAssistantMessage(message, options = {}) {
@@ -265,6 +171,9 @@ function mergeToolTimelineUpdate(assistantMessage, update) {
   existing.title = update.title || existing.title;
   if (update.toolType) {
     existing.toolType = update.toolType;
+  }
+  if (Array.isArray(update.paths) && update.paths.length > 0) {
+    existing.paths = [...new Set([...(existing.paths || []), ...update.paths])].slice(0, 20);
   }
   if (update.summary) {
     existing.summary = update.summary;

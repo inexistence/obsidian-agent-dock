@@ -1,7 +1,4 @@
 function shouldShowEvent(entry, debugActivity) {
-  if (entry?.noticeType === "reflection_candidate") {
-    return true;
-  }
   if (debugActivity) {
     return true;
   }

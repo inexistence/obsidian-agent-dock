@@ -1,22 +1,12 @@
 const { Notice, Plugin } = require("obsidian");
 
-const { AGENT_OPTIONS, createAgent } = require("./agents/AgentRegistry");
-const {
-  getEffectiveWorkingAffect,
-  getPromptWorkingAffect,
-  normalizeAffectState,
-  resetAffectState,
-  updateWorkingAffect
-} = require("./affect/WorkingAffectStore");
-const { DeepMemoryStore } = require("./deepMemory/DeepMemoryStore");
+const { AGENT_OPTIONS, createAgent, diagnoseAgent } = require("./agents/AgentRegistry");
 const { VIEW_TYPE_AGENT_DOCK } = require("./constants");
 const { t } = require("./i18n");
-const { InteractionMemoryStore } = require("./interaction/InteractionMemoryStore");
 const { normalizePluginData } = require("./settings");
 const { AgentDockSettingTab } = require("./settingsTab");
 const { ChatStorage } = require("./storage/ChatStorage");
 const { ChatSaveCoordinator } = require("./storage/ChatSaveCoordinator");
-const { MemoryStore } = require("./storage/MemoryStore");
 const { AgentDockView } = require("./view/AgentDockView");
 const {
   cleanupExpiredPastedImages,
@@ -28,17 +18,11 @@ module.exports = class AgentDockPlugin extends Plugin {
     const pluginData = normalizePluginData(await this.loadData());
     this.settings = pluginData.settings;
     this.chatState = pluginData.chatState;
-    this.affectState = this.settings.affectRestoreAfterRestart
-      ? pluginData.affectState
-      : resetAffectState(this.settings);
     this.chatSaveTimer = null;
     this.pendingChatSessionState = null;
     this.chatSaveFailureNotified = false;
     this.chatStorage = new ChatStorage(this);
     this.chatSaveCoordinator = new ChatSaveCoordinator((state) => this.writeChatSessions(state));
-    this.memoryStore = new MemoryStore(this);
-    this.interactionMemoryStore = new InteractionMemoryStore(this);
-    this.deepMemoryStore = new DeepMemoryStore(this);
     await this.cleanupPastedImageCache();
     this.refreshAgent();
 
@@ -53,12 +37,6 @@ module.exports = class AgentDockPlugin extends Plugin {
       name: t(this.settings, "command.openDock"),
       callback: () => this.activateView()
     });
-    this.addCommand({
-      id: "open-interactive-agent",
-      name: t(this.settings, "command.openInteractive"),
-      callback: () => this.openInteractiveAgent()
-    });
-
     this.addSettingTab(new AgentDockSettingTab(this.app, this));
   }
 
@@ -79,10 +57,9 @@ module.exports = class AgentDockPlugin extends Plugin {
 
   async savePluginData() {
     await this.saveData({
-      schemaVersion: 2,
+      schemaVersion: 3,
       settings: this.settings,
-      chatState: this.chatState,
-      affectState: normalizeAffectState(this.affectState)
+      chatState: this.chatState
     });
   }
 
@@ -160,37 +137,6 @@ module.exports = class AgentDockPlugin extends Plugin {
     await this.savePluginData();
   }
 
-  async clearMemory() {
-    await this.memoryStore.clearMemory();
-  }
-
-  async clearInteractionMemory() {
-    await this.interactionMemoryStore.clearMemory();
-  }
-
-  async clearDeepMemory() {
-    await this.deepMemoryStore.clearMemory();
-  }
-
-  getWorkingAffect() {
-    return getEffectiveWorkingAffect(this.settings, this.affectState);
-  }
-
-  getPromptWorkingAffect(prompt) {
-    return getPromptWorkingAffect(this.settings, this.affectState, prompt);
-  }
-
-  async updateWorkingAffect(turn) {
-    this.affectState = updateWorkingAffect(this.affectState, this.settings, turn);
-    await this.savePluginData();
-  }
-
-  async resetWorkingAffect() {
-    this.affectState = resetAffectState(this.settings);
-    await this.savePluginData();
-    this.refreshOpenViews();
-  }
-
   async activateView() {
     const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_AGENT_DOCK);
     let leaf = leaves[0];
@@ -207,8 +153,37 @@ module.exports = class AgentDockPlugin extends Plugin {
     return this.agent.run(prompt, onUpdate, conversation, options);
   }
 
-  async openInteractiveAgent() {
-    return this.agent.openInteractive();
+  async diagnoseAgent(agentId = this.settings.agentId) {
+    return diagnoseAgent(this, agentId);
+  }
+
+  async testAgentConnection() {
+    const previousMode = this.settings.mode;
+    const abortController = new AbortController();
+    const timeoutId = window.setTimeout(() => abortController.abort(), 20000);
+    this.settings.mode = "readOnly";
+    try {
+      const output = await this.agent.run(
+        "Connection test only. Do not inspect or modify files. Reply with exactly: Agent Dock ready.",
+        () => {},
+        [],
+        { signal: abortController.signal }
+      );
+      return {
+        ok: /agent dock ready/i.test(String(output || "")),
+        message: String(output || "").trim() || "No response."
+      };
+    } catch (error) {
+      return {
+        ok: false,
+        message: error.name === "AbortError"
+          ? "Connection test timed out. Check authentication, ACP health, and local permissions."
+          : error.message || String(error)
+      };
+    } finally {
+      window.clearTimeout(timeoutId);
+      this.settings.mode = previousMode;
+    }
   }
 
   async switchAgentProvider(agentId, options = {}) {

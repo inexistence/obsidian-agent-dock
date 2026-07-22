@@ -1,35 +1,30 @@
 const { MODE_OPTIONS } = require("./modes");
 const { DEFAULT_LANGUAGE, normalizeLanguage } = require("./i18n");
 const { expandHomePath } = require("./cli/paths");
-const { normalizeAffectState } = require("./affect/WorkingAffectStore");
-const { normalizePersonaPreset } = require("./persona/PersonaProfile");
 
 const CUSTOM_ASSISTANT_STYLE_MAX_CHARS = 4000;
 const ASSISTANT_DISPLAY_NAME_MAX_CHARS = 80;
-const AFFECT_HALF_LIFE_MINUTES_MIN = 5;
-const AFFECT_HALF_LIFE_MINUTES_MAX = 1440;
-const MEMORY_PROMPT_FORMAT_VERSION = 2;
 
 const ASSISTANT_STYLE_OPTIONS = {
   concise: {
     label: "Concise",
-    description: "Direct and economical. Leads with the answer or action taken, with only necessary explanation."
+    description: "Direct and economical. Lead with the answer or action taken."
   },
   collaborative: {
     label: "Collaborative",
-    description: "Warm, capable, and practical. Shares brief progress, makes decisions, and grounds the final answer in what was done."
+    description: "Warm, capable, and practical. Share brief progress and concrete outcomes."
   },
   teaching: {
     label: "Teaching",
-    description: "Patient and explanatory. Explains important choices, local concepts, tradeoffs, and useful examples."
+    description: "Patient and explanatory. Clarify important choices and concepts."
   },
   review: {
     label: "Review",
-    description: "Code-review posture. Prioritizes bugs, regressions, data loss, privacy or security risks, and missing verification."
+    description: "Prioritize correctness, risks, regressions, and missing verification."
   },
   custom: {
     label: "Custom",
-    description: "Uses your own style guidance below as tone and collaboration preference."
+    description: "Use the custom response-style guidance below."
   }
 };
 
@@ -38,225 +33,82 @@ const DEFAULT_SETTINGS = {
   agentId: "codex",
   codexPath: "/opt/homebrew/bin/codex",
   args: "exec {{prompt}}",
-  interactiveArgs: "",
   cursorPath: "~/.local/bin/agent",
   cursorExtraArgs: "",
-  cursorInteractiveArgs: "",
   cursorPermissionPolicy: "allow-once",
   mode: "readOnly",
   workingDirectory: "",
   assistantDisplayName: "",
   assistantStyle: "collaborative",
-  personaPreset: "none",
   customAssistantStyle: "",
+  showToneCapsule: true,
   debugActivity: false,
   contextLimitChars: 258000,
   persistChatHistory: true,
   maxPersistedSessions: 20,
   maxPersistedMessagesPerSession: 200,
-  memoryEnabled: true,
-  memoryAutoCapture: true,
-  memoryAgentSearchEnabled: true,
-  memoryProactiveOmissionsEnabled: true,
-  memoryOmissionCooldownDays: 3,
-  memoryPromptFormatVersion: MEMORY_PROMPT_FORMAT_VERSION,
-  memoryMaxItems: 200,
-  memoryMaxPromptItems: 4,
-  memoryMaxPromptChars: 1600,
-  interactionMemoryEnabled: true,
-  interactionMemoryAutoCapture: true,
-  interactionMemoryMaxPromptItems: 6,
-  interactionMemoryMaxPersonaItems: 2,
-  interactionMemoryMaxStanceItems: 4,
-  interactionMemoryMinEvidence: 2,
-  interactionMemoryHalfLifeDays: 30,
-  deepMemoryEnabled: true,
-  deepMemoryAutoCapture: true,
-  deepMemoryMaxItems: 80,
-  deepMemoryMaxPromptItems: 2,
-  deepMemoryImportanceThreshold: 0.68,
-  deepMemoryRecallCooldownDays: 3,
-  affectEnabled: true,
-  affectCrossSessionEnabled: true,
-  affectRestoreAfterRestart: true,
-  affectShowIndicator: true,
-  affectSensitivity: "normal",
-  affectHalfLifeMinutes: 45
+  onboardingCompleted: false,
+  workspaceWriteAcknowledged: false
 };
 
 function normalizeSettings(savedSettings) {
-  const settings = Object.assign({}, DEFAULT_SETTINGS, savedSettings || {});
+  const saved = savedSettings && typeof savedSettings === "object" ? savedSettings : {};
+  const settings = Object.assign({}, DEFAULT_SETTINGS);
 
-  settings.memoryPromptFormatVersion = MEMORY_PROMPT_FORMAT_VERSION;
-
-  if (savedSettings && savedSettings.command && !savedSettings.codexPath) {
-    settings.codexPath = savedSettings.command;
-  }
-
-  if (settings.mode === "ask") {
-    settings.mode = "readOnly";
-  }
-
-  if (!MODE_OPTIONS[settings.mode]) {
-    settings.mode = DEFAULT_SETTINGS.mode;
-  }
-
-  settings.language = normalizeLanguage(settings.language);
+  settings.language = normalizeLanguage(saved.language);
+  settings.agentId = saved.agentId === "cursor" ? "cursor" : "codex";
+  settings.codexPath = normalizeString(saved.codexPath || saved.command).trim() || DEFAULT_SETTINGS.codexPath;
+  settings.args = normalizeString(saved.args).trim() || DEFAULT_SETTINGS.args;
+  settings.cursorPath = expandHomePath(normalizeString(saved.cursorPath) || DEFAULT_SETTINGS.cursorPath);
+  settings.cursorExtraArgs = normalizeString(saved.cursorExtraArgs);
+  settings.cursorPermissionPolicy = normalizeCursorPermissionPolicy(saved.cursorPermissionPolicy);
+  settings.workspaceWriteAcknowledged = saved.workspaceWriteAcknowledged === true;
+  settings.mode = saved.mode === "workspaceWrite" && !settings.workspaceWriteAcknowledged
+    ? DEFAULT_SETTINGS.mode
+    : MODE_OPTIONS[saved.mode] ? saved.mode : DEFAULT_SETTINGS.mode;
+  settings.workingDirectory = normalizeString(saved.workingDirectory).trim();
   settings.assistantDisplayName = truncateString(
-    normalizeString(settings.assistantDisplayName).trim(),
+    normalizeString(saved.assistantDisplayName).trim(),
     ASSISTANT_DISPLAY_NAME_MAX_CHARS
   );
-
-  if (!settings.agentId) {
-    settings.agentId = DEFAULT_SETTINGS.agentId;
-  }
-
-  settings.cursorPath = expandHomePath(normalizeString(settings.cursorPath) || DEFAULT_SETTINGS.cursorPath);
-  settings.cursorExtraArgs = normalizeString(settings.cursorExtraArgs);
-  settings.cursorInteractiveArgs = normalizeString(settings.cursorInteractiveArgs);
-  settings.cursorPermissionPolicy = normalizeCursorPermissionPolicy(
-    settings.cursorPermissionPolicy,
-    DEFAULT_SETTINGS.cursorPermissionPolicy
-  );
-
-  if (!ASSISTANT_STYLE_OPTIONS[settings.assistantStyle]) {
-    settings.assistantStyle = DEFAULT_SETTINGS.assistantStyle;
-  }
-  settings.personaPreset = normalizePersonaPreset(settings.personaPreset);
+  settings.assistantStyle = ASSISTANT_STYLE_OPTIONS[saved.assistantStyle]
+    ? saved.assistantStyle
+    : DEFAULT_SETTINGS.assistantStyle;
   settings.customAssistantStyle = truncateString(
-    normalizeString(settings.customAssistantStyle),
+    normalizeString(saved.customAssistantStyle),
     CUSTOM_ASSISTANT_STYLE_MAX_CHARS
   );
-
-  settings.contextLimitChars = normalizePositiveInteger(
-    settings.contextLimitChars,
-    DEFAULT_SETTINGS.contextLimitChars
-  );
-  settings.persistChatHistory = settings.persistChatHistory !== false;
-  settings.maxPersistedSessions = normalizePositiveInteger(
-    settings.maxPersistedSessions,
-    DEFAULT_SETTINGS.maxPersistedSessions
-  );
+  settings.showToneCapsule = saved.showToneCapsule !== false;
+  settings.debugActivity = saved.debugActivity === true;
+  settings.contextLimitChars = normalizePositiveInteger(saved.contextLimitChars, DEFAULT_SETTINGS.contextLimitChars);
+  settings.persistChatHistory = saved.persistChatHistory !== false;
+  settings.maxPersistedSessions = normalizePositiveInteger(saved.maxPersistedSessions, DEFAULT_SETTINGS.maxPersistedSessions);
   settings.maxPersistedMessagesPerSession = normalizePositiveInteger(
-    settings.maxPersistedMessagesPerSession,
+    saved.maxPersistedMessagesPerSession,
     DEFAULT_SETTINGS.maxPersistedMessagesPerSession
   );
-  settings.memoryEnabled = settings.memoryEnabled !== false;
-  settings.memoryAutoCapture = settings.memoryAutoCapture !== false;
-  settings.memoryAgentSearchEnabled = settings.memoryAgentSearchEnabled !== false;
-  settings.memoryProactiveOmissionsEnabled = settings.memoryProactiveOmissionsEnabled !== false;
-  settings.memoryOmissionCooldownDays = normalizePositiveInteger(
-    settings.memoryOmissionCooldownDays,
-    DEFAULT_SETTINGS.memoryOmissionCooldownDays
-  );
-  settings.memoryMaxItems = normalizePositiveInteger(
-    settings.memoryMaxItems,
-    DEFAULT_SETTINGS.memoryMaxItems
-  );
-  settings.memoryMaxPromptItems = normalizePositiveInteger(
-    settings.memoryMaxPromptItems,
-    DEFAULT_SETTINGS.memoryMaxPromptItems
-  );
-  settings.memoryMaxPromptChars = normalizePositiveInteger(
-    settings.memoryMaxPromptChars,
-    DEFAULT_SETTINGS.memoryMaxPromptChars
-  );
-  settings.interactionMemoryEnabled = settings.interactionMemoryEnabled !== false;
-  settings.interactionMemoryAutoCapture = settings.interactionMemoryAutoCapture !== false;
-  settings.interactionMemoryMaxPromptItems = normalizePositiveInteger(
-    settings.interactionMemoryMaxPromptItems,
-    DEFAULT_SETTINGS.interactionMemoryMaxPromptItems
-  );
-  settings.interactionMemoryMaxPersonaItems = normalizeNonNegativeInteger(
-    settings.interactionMemoryMaxPersonaItems,
-    DEFAULT_SETTINGS.interactionMemoryMaxPersonaItems
-  );
-  settings.interactionMemoryMaxStanceItems = normalizeNonNegativeInteger(
-    settings.interactionMemoryMaxStanceItems,
-    DEFAULT_SETTINGS.interactionMemoryMaxStanceItems
-  );
-  settings.interactionMemoryMinEvidence = normalizePositiveInteger(
-    settings.interactionMemoryMinEvidence,
-    DEFAULT_SETTINGS.interactionMemoryMinEvidence
-  );
-  settings.interactionMemoryHalfLifeDays = normalizePositiveInteger(
-    settings.interactionMemoryHalfLifeDays,
-    DEFAULT_SETTINGS.interactionMemoryHalfLifeDays
-  );
-  settings.deepMemoryEnabled = settings.deepMemoryEnabled !== false;
-  settings.deepMemoryAutoCapture = settings.deepMemoryAutoCapture !== false;
-  settings.deepMemoryMaxItems = normalizePositiveInteger(
-    settings.deepMemoryMaxItems,
-    DEFAULT_SETTINGS.deepMemoryMaxItems
-  );
-  settings.deepMemoryMaxPromptItems = normalizePositiveInteger(
-    settings.deepMemoryMaxPromptItems,
-    DEFAULT_SETTINGS.deepMemoryMaxPromptItems
-  );
-  settings.deepMemoryImportanceThreshold = normalizeUnitNumber(
-    settings.deepMemoryImportanceThreshold,
-    DEFAULT_SETTINGS.deepMemoryImportanceThreshold
-  );
-  settings.deepMemoryRecallCooldownDays = normalizeNonNegativeNumber(
-    settings.deepMemoryRecallCooldownDays,
-    DEFAULT_SETTINGS.deepMemoryRecallCooldownDays
-  );
-  settings.affectEnabled = settings.affectEnabled !== false;
-  settings.affectCrossSessionEnabled = settings.affectCrossSessionEnabled !== false;
-  settings.affectRestoreAfterRestart = settings.affectRestoreAfterRestart !== false;
-  settings.affectShowIndicator = settings.affectShowIndicator !== false;
-  settings.affectSensitivity = normalizeAffectSensitivity(
-    settings.affectSensitivity,
-    DEFAULT_SETTINGS.affectSensitivity
-  );
-  settings.affectHalfLifeMinutes = normalizePositiveInteger(
-    settings.affectHalfLifeMinutes,
-    DEFAULT_SETTINGS.affectHalfLifeMinutes
-  );
-  settings.affectHalfLifeMinutes = clampNumber(
-    settings.affectHalfLifeMinutes,
-    AFFECT_HALF_LIFE_MINUTES_MIN,
-    AFFECT_HALF_LIFE_MINUTES_MAX
-  );
-
-  delete settings.command;
-  delete settings.includeActiveNote;
-  delete settings.activeNoteMaxChars;
-  delete settings.agentProfileEnabled;
-  delete settings.agentProfileAutoCapture;
-  delete settings.agentProfileMaxPromptTraits;
-  delete settings.agentProfileMinEvidence;
-  delete settings.agentProfileHalfLifeDays;
+  settings.onboardingCompleted = saved.onboardingCompleted === true;
   return settings;
 }
 
 function normalizePluginData(savedData) {
-  if (savedData && savedData.schemaVersion >= 2) {
-    return {
-      schemaVersion: 2,
-      settings: normalizeSettings(savedData.settings),
-      chatState: normalizeChatState(savedData.chatState),
-      affectState: normalizeAffectState(savedData.affectState)
-    };
-  }
-
+  const source = savedData && savedData.schemaVersion >= 2
+    ? savedData
+    : { settings: savedData };
   return {
-    schemaVersion: 2,
-    settings: normalizeSettings(savedData),
-    chatState: normalizeChatState(null),
-    affectState: normalizeAffectState(null)
+    schemaVersion: 3,
+    settings: normalizeSettings(source.settings),
+    chatState: normalizeChatState(source.chatState)
   };
 }
 
 function normalizeChatState(savedState) {
   const state = savedState && typeof savedState === "object" ? savedState : {};
-  const sessionIndex = Array.isArray(state.sessionIndex)
-    ? state.sessionIndex.map(normalizeSessionIndexEntry).filter(Boolean)
-    : [];
-
   return {
     activeSessionId: typeof state.activeSessionId === "string" ? state.activeSessionId : "",
-    sessionIndex
+    sessionIndex: Array.isArray(state.sessionIndex)
+      ? state.sessionIndex.map(normalizeSessionIndexEntry).filter(Boolean)
+      : []
   };
 }
 
@@ -264,19 +116,22 @@ function normalizeSessionIndexEntry(entry) {
   if (!entry || typeof entry !== "object" || typeof entry.id !== "string" || !entry.id) {
     return null;
   }
-
   return {
     id: entry.id,
     title: typeof entry.title === "string" && entry.title ? entry.title : "Chat",
     isUntitled: entry.isUntitled === true,
+    hasUnreadCompletion: entry.hasUnreadCompletion === true,
+    unreadTurnStatus: normalizeUnreadTurnStatus(entry.unreadTurnStatus, entry.hasUnreadCompletion),
     createdAt: normalizeTimestamp(entry.createdAt),
     updatedAt: normalizeTimestamp(entry.updatedAt)
   };
 }
 
-function normalizeTimestamp(value) {
-  const timestamp = Number(value);
-  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : Date.now();
+function normalizeUnreadTurnStatus(status, hasUnreadCompletion) {
+  if (status === "success" || status === "failed" || status === "stopped") {
+    return status;
+  }
+  return hasUnreadCompletion === true ? "success" : "";
 }
 
 function normalizePositiveInteger(value, fallback) {
@@ -284,23 +139,9 @@ function normalizePositiveInteger(value, fallback) {
   return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
 }
 
-function normalizeNonNegativeInteger(value, fallback) {
-  const parsed = Number.parseInt(value, 10);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
-}
-
-function normalizeNonNegativeNumber(value, fallback) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
-}
-
-function normalizeUnitNumber(value, fallback) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed > 0 ? Math.min(1, Math.max(0, parsed)) : fallback;
-}
-
-function clampNumber(value, min, max) {
-  return Math.min(max, Math.max(min, value));
+function normalizeTimestamp(value) {
+  const timestamp = Number(value);
+  return Number.isFinite(timestamp) && timestamp > 0 ? timestamp : Date.now();
 }
 
 function normalizeString(value) {
@@ -311,23 +152,11 @@ function truncateString(value, maxChars) {
   return value.length > maxChars ? value.slice(0, maxChars) : value;
 }
 
-function normalizeCursorPermissionPolicy(value, fallback) {
-  if (value === "allow-once" || value === "allow-always" || value === "reject-once") {
-    return value;
-  }
-  return fallback;
-}
-
-function normalizeAffectSensitivity(value, fallback) {
-  if (value === "low" || value === "normal" || value === "high") {
-    return value;
-  }
-  return fallback;
+function normalizeCursorPermissionPolicy(value) {
+  return value === "allow-always" || value === "reject-once" ? value : "allow-once";
 }
 
 module.exports = {
-  AFFECT_HALF_LIFE_MINUTES_MAX,
-  AFFECT_HALF_LIFE_MINUTES_MIN,
   ASSISTANT_DISPLAY_NAME_MAX_CHARS,
   ASSISTANT_STYLE_OPTIONS,
   CUSTOM_ASSISTANT_STYLE_MAX_CHARS,

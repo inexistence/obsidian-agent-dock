@@ -3,7 +3,7 @@
   "name": "Agent Dock",
   "version": "0.1.0",
   "minAppVersion": "1.5.0",
-  "description": "Open a Codex chat dock in the Obsidian sidebar.",
+  "description": "Use Codex and Cursor as a local Agent workspace for Obsidian notes and vaults.",
   "author": "Bigo",
   "authorUrl": "",
   "isDesktopOnly": true

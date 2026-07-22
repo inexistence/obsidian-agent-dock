@@ -212,6 +212,17 @@ function renderComposerContent(composer, options) {
     });
     optionButton.toggleClass("is-selected", value === plugin.settings.mode);
     optionButton.addEventListener("click", async () => {
+      if (
+        value === "workspaceWrite"
+        && !plugin.settings.workspaceWriteAcknowledged
+        && !window.confirm(translate("confirm.workspaceWrite"))
+      ) {
+        modePill.removeAttribute("open");
+        return;
+      }
+      if (value === "workspaceWrite") {
+        plugin.settings.workspaceWriteAcknowledged = true;
+      }
       plugin.settings.mode = value;
       modeLabel.setText(getModeLabel(value, DEFAULT_SETTINGS.mode, translate));
       modeSummary.setAttr("title", getModeDescription(value, DEFAULT_SETTINGS.mode, translate));

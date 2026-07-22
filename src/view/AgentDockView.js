@@ -4,9 +4,9 @@ const { VIEW_TYPE_AGENT_DOCK } = require("../constants");
 const { t } = require("../i18n");
 const { DEFAULT_SETTINGS } = require("../settings");
 const { AGENT_OPTIONS } = require("../agents/AgentRegistry");
-const { AffectIndicatorController } = require("./affect/AffectIndicatorController");
 const { EmotiveFeedbackController } = require("./EmotiveFeedbackController");
 const { ImagePreviewController } = require("./ImagePreviewController");
+const { OnboardingModal } = require("./OnboardingModal");
 const { renderComposerContent } = require("./composer/ComposerRenderer");
 const { ReferenceController } = require("./reference/ReferenceController");
 const { runChatTurn } = require("./session/ChatTurnRunner");
@@ -21,13 +21,12 @@ const {
 const { SessionStore } = require("./session/SessionStore");
 const { renderSessionSwitcher } = require("./session/SessionSwitcherRenderer");
 const { MessageTimelineRenderer } = require("./timeline/MessageTimelineRenderer");
-const { MemoryNoticeModal } = require("./timeline/MemoryNoticeModal");
 const { TurnStatusController } = require("./turn/TurnStatusController");
+const { createToneCapsule } = require("./turn/TurnToneCapsule");
 const { copyText } = require("./utils/clipboard");
 const { estimateContextChars, formatCompactNumber } = require("./utils/contextEstimate");
 const { decorateLocalFileLinks, normalizeLocalFileMarkdownLinks } = require("./utils/fileLinks");
 const { formatMessageTime, formatMessageTimeIso, formatMessageTimeTitle } = require("./utils/messageTime");
-const { toRestrictedMarkdown } = require("./utils/restrictedMarkdown");
 
 class AgentDockView extends ItemView {
   constructor(leaf, plugin) {
@@ -43,7 +42,7 @@ class AgentDockView extends ItemView {
       renderMarkdownContent: (containerEl, text, options) => this.renderMarkdownContent(containerEl, text, options),
       copyText: (text) => copyText(text),
       setIcon: (containerEl, iconName) => setIcon(containerEl, iconName),
-      openNoticeDetails: (entry) => this.openMemoryNoticeDetails(entry),
+      openFilePath: (path) => this.openVaultFilePath(path),
       prefersReducedMotion: () => this.prefersReducedMotion(),
       onDetailsToggleStart: (opening) => this.handleTimelineDetailsToggleStart(opening),
       onDetailsLayoutChanged: () => this.scrollMessagesToBottom()
@@ -53,15 +52,10 @@ class AgentDockView extends ItemView {
       getLayerRoot: () => this.containerEl,
       onTransientStatusRemoved: (messageEl) => this.renderMessageAfterTransientStatus(messageEl)
     });
-    this.affectIndicator = new AffectIndicatorController({
-      plugin: this.plugin,
-      translate: (key, params) => this.translate(key, params),
-      addGlobalPointerListener: (listener) => this.addGlobalPointerListener(listener),
-      removeGlobalPointerListener: (listener) => this.removeGlobalPointerListener(listener)
-    });
     this.turnStatus = new TurnStatusController({
       translate: (key, params) => this.translate(key, params),
-      getAffectToneLabel: (label) => this.getAffectToneLabel(label),
+      getToneCapsuleLabel: (label) => this.getToneCapsuleLabel(label),
+      isToneCapsuleEnabled: () => this.plugin.settings.showToneCapsule,
       prefersReducedMotion: () => this.prefersReducedMotion(),
       emotiveFeedback: this.emotiveFeedback
     });
@@ -125,23 +119,22 @@ class AgentDockView extends ItemView {
     return t(this.plugin.settings, key, params);
   }
 
-  openMemoryNoticeDetails(entry) {
-    new MemoryNoticeModal(this.app, {
-      entry,
-      debugActivity: this.plugin.settings.debugActivity,
-      translate: (key, params) => this.translate(key, params),
-      renderMarkdownContent: (containerEl, text, options) => this.renderMarkdownContent(containerEl, text, {
-        ...options,
-        skipTimelineScroll: true,
-        variant: "memoryNotice"
-      })
-    }).open();
+  async openVaultFilePath(path) {
+    const file = this.app.vault.getAbstractFileByPath(String(path || "").replace(/^\/+/, ""));
+    if (!file || file.children) {
+      new Notice(this.translate("notice.openFileLinkFailed", { path }));
+      return;
+    }
+    await this.app.workspace.getLeaf(false).openFile(file);
   }
 
   async onOpen() {
     await this.loadPersistedSessions();
     this.ensureActiveSession();
     this.render();
+    if (!this.plugin.settings.onboardingCompleted) {
+      new OnboardingModal(this.app, this.plugin, (key, params) => this.translate(key, params)).open();
+    }
   }
 
   async onClose() {
@@ -150,7 +143,6 @@ class AgentDockView extends ItemView {
     this.clearTurnVisualFinalDelayTimers();
     this.clearGlobalPointerListeners();
     this.closeImagePreview();
-    this.affectIndicator.clearChangeAnimation();
     this.cancelRunningSessions();
     await this.plugin.flushChatSessions();
   }
@@ -167,28 +159,10 @@ class AgentDockView extends ItemView {
     const header = containerEl.createDiv({ cls: "codex-dock__header" });
     const identity = header.createDiv({ cls: "codex-dock__identity" });
     identity.createDiv({ cls: "codex-dock__title", text: this.getAssistantDisplayName() });
-    this.affectIndicatorEl = identity.createDiv({ cls: "codex-dock__affect-slot" });
-    this.affectIndicator.setElement(this.affectIndicatorEl);
-    this.renderAffectIndicator();
 
     const actions = header.createDiv({ cls: "codex-dock__actions" });
     this.agentSwitcherEl = actions.createDiv({ cls: "codex-dock__agent-switcher-slot" });
     this.renderAgentSwitcher(this.agentSwitcherEl);
-    const terminalButton = actions.createEl("button", {
-      cls: "codex-dock__icon-button",
-      attr: {
-        "aria-label": this.translate("view.openInteractiveTerminal"),
-        title: this.translate("view.openInteractiveTerminal")
-      }
-    });
-    terminalButton.setText(this.translate("view.terminalButton"));
-    terminalButton.addEventListener("click", async () => {
-      try {
-        await this.plugin.openInteractiveAgent();
-      } catch (error) {
-        new Notice(this.translate("notice.openTerminalFailed", { message: error.message }));
-      }
-    });
 
     this.sessionBarEl = containerEl.createDiv({ cls: "codex-dock__session-bar" });
     this.renderSessionSwitcher();
@@ -336,7 +310,7 @@ class AgentDockView extends ItemView {
     });
     promptLabel.setAttr("aria-hidden", "true");
     for (const toneKind of this.turnStatus.getPromptTonePreviewKinds()) {
-      const toneLabel = this.getAffectToneLabel(toneKind);
+      const toneLabel = this.getToneCapsuleLabel(toneKind);
       const button = containerEl.createEl("button", {
         cls: "codex-dock__debug-feedback-button",
         text: toneLabel,
@@ -531,6 +505,29 @@ class AgentDockView extends ItemView {
       const empty = this.messageList.createDiv({ cls: "codex-dock__empty" });
       empty.createDiv({ text: this.translate("view.emptyLine1") });
       empty.createDiv({ text: this.translate("view.emptyLine2") });
+      const starters = empty.createDiv({ cls: "codex-dock__starters" });
+      this.renderStarterButton(starters, "view.starter.currentNote", () => {
+        const path = this.app.workspace.getActiveFile()?.path;
+        if (!path) {
+          new Notice(this.translate("notice.noActiveNote"));
+          return;
+        }
+        this.setComposerDraft(this.translate("view.starter.currentNotePrompt", { path: `[[${path}]]` }));
+      });
+      this.renderStarterButton(starters, "view.starter.searchVault", () => {
+        this.setComposerDraft(this.translate("view.starter.searchVaultPrompt"));
+      });
+      this.renderStarterButton(starters, "view.starter.organizeNote", () => {
+        const path = this.app.workspace.getActiveFile()?.path;
+        if (!path) {
+          new Notice(this.translate("notice.noActiveNote"));
+          return;
+        }
+        if (this.plugin.settings.mode === "readOnly") {
+          new Notice(this.translate("notice.workspaceWriteRequired"));
+        }
+        this.setComposerDraft(this.translate("view.starter.organizeNotePrompt", { path: `[[${path}]]` }));
+      });
       this.updateContextStatus();
       return;
     }
@@ -549,6 +546,22 @@ class AgentDockView extends ItemView {
       this.messageList.scrollTop = previousScrollTop;
     }
     this.updateContextStatus();
+  }
+
+  renderStarterButton(containerEl, key, onClick) {
+    const button = containerEl.createEl("button", {
+      cls: "codex-dock__starter",
+      text: this.translate(key),
+      attr: { type: "button" }
+    });
+    button.addEventListener("click", onClick);
+  }
+
+  setComposerDraft(value) {
+    const session = this.ensureActiveSession();
+    session.draft = String(value || "");
+    this.persistSessionChange(session);
+    this.renderComposerIfActive(session, { focusInput: true });
   }
 
   renderMessageItem(item, message) {
@@ -606,9 +619,6 @@ class AgentDockView extends ItemView {
     const noticeClass = noticeClasses.join(" ");
     const notice = item.createDiv({ cls: noticeClass });
     notice.createSpan({ cls: "codex-dock__system-notice-text", text: message.content || "" });
-    if (this.isAffectSystemMessage(message)) {
-      return;
-    }
     const displayTime = formatMessageTime(message.createdAt, {
       language: this.plugin.settings.language,
       now: Date.now()
@@ -628,10 +638,6 @@ class AgentDockView extends ItemView {
         attr
       });
     }
-  }
-
-  isAffectSystemMessage(message) {
-    return message?.kind === "affect_shift" || message?.kind === "affect_prompt";
   }
 
   renderMessageFooter(item, message) {
@@ -753,13 +759,12 @@ class AgentDockView extends ItemView {
       translate: (key, params) => this.translate(key, params),
       touchSession: (targetSession) => this.sessionStore.touchSession(targetSession),
       onBeforeAgentRun: (targetSession, assistantMessage) => {
-        const promptAffectNotice = this.affectIndicator.describePromptNotice(prompt);
-        if (promptAffectNotice) {
-          assistantMessage.loadingToneLabel = promptAffectNotice.label || "";
-          assistantMessage.loadingToneKind = promptAffectNotice.rawLabel || "";
-          assistantMessage.turnVisualAffect = promptAffectNotice.affect || null;
+        if (this.plugin.settings.showToneCapsule) {
+          assistantMessage.toneCapsule = createToneCapsule(prompt);
+          assistantMessage.loadingToneKind = assistantMessage.toneCapsule.id;
+          assistantMessage.loadingToneLabel = this.getToneCapsuleLabel(assistantMessage.toneCapsule.id);
           assistantMessage.turnVisualLastChangedAt = Date.now();
-          if (promptAffectNotice.rawLabel === "celebratory") {
+          if (assistantMessage.toneCapsule.id === "celebratory") {
             assistantMessage.emotiveCompletionKind = "celebrate";
           }
         }
@@ -773,22 +778,9 @@ class AgentDockView extends ItemView {
       onTurnUpdate: (targetSession, assistantMessage) => {
         this.scheduleSessionRenderIfActive(targetSession, assistantMessage);
       },
-      updateTurnVisualAffect: (assistantMessage, update) => this.turnStatus.updateAffect(assistantMessage, update),
+      updateToneCapsule: (assistantMessage, update) => this.turnStatus.updateToneCapsule(assistantMessage, update),
       onTurnFinished: (targetSession, result) => this.handleTurnFinished(targetSession, result),
       onComposerChanged: (targetSession) => this.renderComposerIfActive(targetSession),
-      updateWorkingAffect: async (turn, context = {}) => {
-        const previousAffect = this.plugin.getWorkingAffect();
-        await this.plugin.updateWorkingAffect(turn);
-        const nextAffect = this.plugin.getWorkingAffect();
-        const affectChanged = this.affectIndicator.hasVisibleShift(previousAffect, nextAffect);
-        const isActiveSession = context.session?.id === this.activeSessionId;
-        if (isActiveSession) {
-          this.renderAffectIndicator({ changed: affectChanged });
-        }
-      },
-      settleAffectDisplay: async (context = {}) => {
-        this.renderAffectIndicatorIfActive(context.session);
-      },
       persistChatSessions: (options) => this.persistChatSessions(options),
       notify: (noticeKey, targetSession) => {
         if (targetSession && targetSession.id !== this.activeSessionId) {
@@ -938,19 +930,10 @@ class AgentDockView extends ItemView {
     new Notice(this.translate("notice.markdownLivePreviewUnavailable"));
   }
 
-  renderAffectIndicator(options = {}) {
-    this.affectIndicator.render(options);
-  }
-
-  renderAffectIndicatorIfActive(session, options = {}) {
-    const isActiveSession = session?.id === this.activeSessionId;
-    if (isActiveSession) {
-      this.renderAffectIndicator(options);
-    }
-  }
-
-  getAffectToneLabel(label) {
-    return this.affectIndicator.getToneLabel(label);
+  getToneCapsuleLabel(label) {
+    const key = `toneCapsule.${label || "focused"}`;
+    const translated = this.translate(key);
+    return translated === key ? this.translate("toneCapsule.focused") : translated;
   }
 
   renderTimeline(containerEl, message) {
@@ -965,19 +948,14 @@ class AgentDockView extends ItemView {
   }
 
   renderMarkdownContent(containerEl, text, options = {}) {
-    const contentClass = options.variant === "memoryNotice"
-      ? "codex-dock__memory-modal-markdown markdown-rendered"
-      : options.compact
+    const contentClass = options.compact
       ? "codex-dock__processed-content markdown-rendered"
       : "codex-dock__content markdown-rendered";
     const contentEl = containerEl.createDiv({ cls: contentClass });
     const markdownEl = contentEl.createDiv({ cls: "codex-dock__content-body" });
     const sourcePath = this.app.workspace.getActiveFile()?.path || "";
     const normalizedText = normalizeLocalFileMarkdownLinks(text || "");
-    const renderText = options.restricted
-      ? toRestrictedMarkdown(normalizedText)
-      : normalizedText;
-    MarkdownRenderer.render(this.app, renderText, markdownEl, sourcePath, this).then(() => {
+    MarkdownRenderer.render(this.app, normalizedText, markdownEl, sourcePath, this).then(() => {
       decorateLocalFileLinks(markdownEl, this.app, {
         sourcePath,
         confirmExternalLocalFile: (path) => window.confirm(
@@ -1456,7 +1434,6 @@ class AgentDockView extends ItemView {
       document.removeEventListener("pointerdown", listener);
     }
     this.globalPointerListeners.clear();
-    this.affectIndicator.clearPanelCloseListener({ detach: false });
   }
 }
 

@@ -13,7 +13,7 @@ class MessageTimelineRenderer {
     this.renderMarkdownContent = options.renderMarkdownContent;
     this.copyText = options.copyText;
     this.setIcon = options.setIcon;
-    this.openNoticeDetails = options.openNoticeDetails;
+    this.openFilePath = options.openFilePath;
     this.prefersReducedMotion = options.prefersReducedMotion;
     this.onDetailsToggleStart = options.onDetailsToggleStart;
     this.onDetailsLayoutChanged = options.onDetailsLayoutChanged;
@@ -185,11 +185,6 @@ class MessageTimelineRenderer {
       return;
     }
 
-    if (item.entries.length === 1 && isAuditableNotice(entry)) {
-      this.renderAuditableProcessedNoticeRow(containerEl, entry, options);
-      return;
-    }
-
     const key = `processed-item:${item.firstIndex}:${item.kind}:${item.key}`;
     const details = this.renderDetails(containerEl, message, key, {
       cls: `codex-dock__processed-item codex-dock__processed-item--${item.kind}`,
@@ -227,11 +222,6 @@ class MessageTimelineRenderer {
 
   renderProcessedEventSubItems(containerEl, message, parentKey, item) {
     item.entries.forEach((entry, offset) => {
-      if (isAuditableNotice(entry)) {
-        this.renderProcessedSubItemTitleRow(containerEl, entry, { interactive: true });
-        return;
-      }
-
       const detail = this.getProcessedEntryDetail(entry);
       if (!detail) {
         this.renderProcessedSubItemTitleRow(containerEl, entry);
@@ -258,44 +248,9 @@ class MessageTimelineRenderer {
   }
 
   renderProcessedEntryBody(containerEl, entry, detail) {
-    if (isAuditableNotice(entry)) {
-      this.renderNoticePreview(containerEl, entry, detail);
-      return;
-    }
     containerEl.createEl("pre", { cls: "codex-dock__processed-item-detail", text: detail });
+    this.renderFileChangePaths(containerEl, entry);
     this.renderCopyButton(containerEl, detail, this.translate("view.copyEventText"));
-  }
-
-  renderAuditableProcessedNoticeRow(containerEl, entry, options = {}) {
-    if (!this.shouldShowEvent(entry)) {
-      return;
-    }
-
-    const row = containerEl.createDiv({
-      cls: [
-        "codex-dock__processed-item",
-        "codex-dock__processed-item--notice",
-        "codex-dock__notice-details-row",
-        options.currentItem ? "is-current" : ""
-      ].filter(Boolean).join(" ")
-    });
-    const summary = row.createDiv({
-      cls: "codex-dock__processed-item-summary codex-dock__notice-details-trigger",
-      attr: {
-        role: "button",
-        tabindex: "0",
-        title: this.translate("memoryNotice.viewDetails")
-      }
-    });
-    this.renderProcessIcon(summary, entry);
-    this.renderProcessTitleText(summary, {
-      cls: "codex-dock__processed-item-title",
-      text: this.getProcessedEntryTitle(entry),
-      currentItem: options.currentItem,
-      shimmerState: options.shimmerState
-    });
-    this.renderNoticeDetailsIcon(summary);
-    this.bindNoticeDetailsTrigger(summary, entry);
   }
 
   renderProcessedSubItemTitleRow(containerEl, entry, options = {}) {
@@ -306,33 +261,17 @@ class MessageTimelineRenderer {
     const row = containerEl.createDiv({
       cls: [
         "codex-dock__processed-subitem",
-        options.interactive ? "codex-dock__notice-details-row" : "codex-dock__processed-subitem--static",
+        "codex-dock__processed-subitem--static",
         `codex-dock__processed-subitem--${entry.kind || "activity"}`
       ].filter(Boolean).join(" ")
     });
-    const titleOptions = {
-      cls: [
-        "codex-dock__processed-subitem-summary",
-        options.interactive ? "codex-dock__notice-details-trigger" : ""
-      ].filter(Boolean).join(" ")
-    };
-    if (options.interactive) {
-      titleOptions.attr = {
-        role: "button",
-        tabindex: "0",
-        title: this.translate("memoryNotice.viewDetails")
-      };
-    }
+    const titleOptions = { cls: "codex-dock__processed-subitem-summary" };
     const title = row.createDiv(titleOptions);
     this.renderProcessIcon(title, entry);
     title.createSpan({
       cls: "codex-dock__processed-subitem-title",
       text: this.getProcessedEntryTitle(entry)
     });
-    if (options.interactive) {
-      this.renderNoticeDetailsIcon(title);
-      this.bindNoticeDetailsTrigger(title, entry);
-    }
   }
 
   getProcessedEntryDetail(entry) {
@@ -345,7 +284,13 @@ class MessageTimelineRenderer {
     const body = this.getDebugActivity()
       ? entry.detail || entry.summary || ""
       : entry.summary || entry.detail || "";
-    return String(body || "").trim();
+    const normalized = String(body || "").trim();
+    if (normalized) {
+      return normalized;
+    }
+    return entry.toolType === "file_change" && Array.isArray(entry.paths)
+      ? entry.paths.join("\n")
+      : "";
   }
 
   getProcessedEntryTitle(entry) {
@@ -492,14 +437,6 @@ class MessageTimelineRenderer {
     return chevron;
   }
 
-  renderNoticeDetailsIcon(containerEl) {
-    return containerEl.createSpan({
-      cls: "codex-dock__notice-details-icon",
-      text: "i",
-      attr: { "aria-hidden": "true" }
-    });
-  }
-
   renderProcessIcon(containerEl, entry) {
     const iconName = this.getProcessEntryIcon(entry);
     if (!iconName) {
@@ -529,26 +466,14 @@ class MessageTimelineRenderer {
       entry.detail
     ].map((part) => String(part || "").toLowerCase()).join("\n");
 
-    if (entry.noticeType === "memory_referenced") {
-      return "book-open";
-    }
-    if (entry.noticeType === "memory_updated" || entry.noticeType === "interaction_memory_updated") {
-      return "square-pen";
-    }
-    if (entry.noticeType === "memory_search") {
-      return "search";
-    }
     if (entry.toolType === "web_search") {
       return "search";
     }
+    if (entry.toolType === "file_change") {
+      return "file-pen-line";
+    }
     if (entry.toolType === "command") {
       return "terminal";
-    }
-    if (/local memory referenced|已引用本地记忆|referenced .*local historical|提示词中引用/.test(haystack)) {
-      return "book-open";
-    }
-    if (/memory updated|记忆已更新|profile updated|档案已更新|updated .*local historical|已为之后的聊天更新/.test(haystack)) {
-      return "square-pen";
     }
     if (/web search|网页搜索/.test(haystack)) {
       return "search";
@@ -756,21 +681,7 @@ class MessageTimelineRenderer {
     }
 
     const eventEl = containerEl.createDiv({ cls: `codex-dock__event codex-dock__event--${entry.kind || "activity"}` });
-    if (isAuditableNotice(entry)) {
-      const title = eventEl.createDiv({
-        cls: "codex-dock__event-title codex-dock__notice-details-trigger",
-        attr: {
-          role: "button",
-          tabindex: "0",
-          title: this.translate("memoryNotice.viewDetails")
-        }
-      });
-      title.createSpan({ cls: "codex-dock__notice-details-title", text: entry.title || this.translate("timeline.event") });
-      this.renderNoticeDetailsIcon(title);
-      this.bindNoticeDetailsTrigger(title, entry);
-    } else {
-      eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || this.translate("timeline.event") });
-    }
+    eventEl.createDiv({ cls: "codex-dock__event-title", text: entry.title || this.translate("timeline.event") });
     this.renderCopyButton(eventEl, entryToClipboardText(entry, this.getDebugActivity()), this.translate("view.copyEventText"));
 
     if (entry.kind === "reasoning") {
@@ -781,6 +692,7 @@ class MessageTimelineRenderer {
     if (entry.summary && !this.getDebugActivity()) {
       eventEl.createDiv({ cls: "codex-dock__event-summary", text: entry.summary });
     }
+    this.renderFileChangePaths(eventEl, entry);
     if (entry.detail && this.getDebugActivity()) {
       eventEl.createEl("pre", { cls: "codex-dock__event-detail", text: entry.detail });
     }
@@ -807,62 +719,20 @@ class MessageTimelineRenderer {
     return shouldShowEvent(entry, this.getDebugActivity());
   }
 
-  renderNoticePreview(containerEl, entry, text, options = {}) {
-    const preview = containerEl.createDiv({
-      cls: [
-        "codex-dock__processed-subitem-summary",
-        "codex-dock__notice-preview"
-      ].join(" "),
-      attr: {
-        role: "button",
-        tabindex: "0",
-        title: this.translate("memoryNotice.viewDetails")
-      }
-    });
-    this.renderProcessIcon(preview, entry);
-    preview.createSpan({
-      cls: "codex-dock__processed-subitem-title",
-      text: compactProcessedText(text || this.getProcessedEntryTitle(entry))
-    });
-    this.renderNoticeDetailsIcon(preview);
-    const openDetails = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (typeof this.openNoticeDetails === "function") {
-        this.openNoticeDetails(entry);
-      }
-    };
-    preview.addEventListener("click", openDetails);
-    preview.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") {
-        return;
-      }
-      openDetails(event);
-    });
+  renderFileChangePaths(containerEl, entry) {
+    if (entry?.toolType !== "file_change" || !Array.isArray(entry.paths) || entry.paths.length === 0) {
+      return;
+    }
+    const pathsEl = containerEl.createDiv({ cls: "codex-dock__file-change-paths" });
+    for (const path of entry.paths) {
+      const button = pathsEl.createEl("button", {
+        cls: "codex-dock__file-change-path",
+        text: path,
+        attr: { type: "button", title: path }
+      });
+      button.addEventListener("click", () => this.openFilePath?.(path));
+    }
   }
-
-  bindNoticeDetailsTrigger(triggerEl, entry) {
-    const openDetails = (event) => {
-      event.preventDefault();
-      event.stopPropagation();
-      if (typeof this.openNoticeDetails === "function") {
-        this.openNoticeDetails(entry);
-      }
-    };
-    triggerEl.addEventListener("click", openDetails);
-    triggerEl.addEventListener("keydown", (event) => {
-      if (event.key !== "Enter" && event.key !== " ") {
-        return;
-      }
-      openDetails(event);
-    });
-  }
-}
-
-function isAuditableNotice(entry) {
-  const supportedKind = entry?.kind === "notice"
-    || (entry?.kind === "activity" && entry?.noticeType === "reflection_candidate");
-  return supportedKind && Array.isArray(entry.auditItems) && entry.auditItems.length > 0;
 }
 
 function entryToClipboardText(entry, debugActivity) {

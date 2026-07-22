@@ -21,6 +21,19 @@ const {
 } = require("../src/storage/providerState");
 
 {
+  assert.strictEqual(
+    cursorAgentTest.resolvePermissionPolicy("readOnly", "allow-always"),
+    "reject-once",
+    "read-only Cursor sessions must reject permission requests regardless of the configured policy"
+  );
+  assert.strictEqual(
+    cursorAgentTest.resolvePermissionPolicy("workspaceWrite", "allow-always"),
+    "allow-always",
+    "workspace-write Cursor sessions should honor the configured permission policy"
+  );
+}
+
+{
   const home = expandHomePath("~/bin/agent");
   assert.ok(home.endsWith("/bin/agent"), "expandHomePath should expand ~/ prefix");
   assert.strictEqual(expandHomePath("/usr/local/bin/agent"), "/usr/local/bin/agent");
@@ -81,6 +94,19 @@ const {
   assert.strictEqual(started[0].toolType, "command");
   assert.strictEqual(updated[0].toolCallId, "tc-1");
   assert.strictEqual(updated[0].kind, "tool");
+}
+
+{
+  const [change] = acpUpdateToEvents({
+    sessionUpdate: "tool_call",
+    toolCallId: "tc-file",
+    title: "edit file",
+    kind: "apply_patch",
+    rawInput: { path: "Notes/Changed.md" },
+    locations: [{ path: "Notes/AlsoChanged.md" }]
+  });
+  assert.strictEqual(change.toolType, "file_change");
+  assert.deepStrictEqual(change.paths, ["Notes/Changed.md", "Notes/AlsoChanged.md"]);
 }
 
 {

@@ -1,7 +1,6 @@
 const CURSOR_MODE_BY_PLUGIN_MODE = {
   readOnly: "ask",
-  workspaceWrite: "agent",
-  fullAccess: "agent"
+  workspaceWrite: "agent"
 };
 
 function toCursorMode(pluginMode, defaultMode = "readOnly") {

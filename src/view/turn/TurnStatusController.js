@@ -1,35 +1,9 @@
-const { getTurnVisualAffect } = require("../../affect/WorkingAffectStore");
+const { CAPSULE_IDS, CAPSULE_PRIORITY, updateToneCapsule } = require("./TurnToneCapsule");
 
 const TURN_STATUS_PREVIEW_KINDS = ["thinking", "success", "celebrate", "error", "stopped"];
-const PROMPT_TONE_PREVIEW_KINDS = [
-  "alert",
-  "serious",
-  "reassuring",
-  "challenging",
-  "laughing",
-  "starry-eyed",
-  "excited-open",
-  "surprised",
-  "admiring",
-  "celebratory",
-  "playful",
-  "confident",
-  "absorbed",
-  "close",
-  "patient",
-  "restrained",
-  "composed",
-  "tense-focused",
-  "warm-focused",
-  "focused",
-  "warm-open",
-  "calm",
-  "steady"
-];
+const PROMPT_TONE_PREVIEW_KINDS = CAPSULE_IDS;
 const PROMPT_TONE_STATUS_META = {
   alert: { mode: "alert-loop", color: "#b45309" },
-  serious: { mode: "serious", color: "#6f5a4f" },
-  reassuring: { mode: "settle", color: "#4d7c5a" },
   challenging: { mode: "alert", color: "#7c5aa6" },
   laughing: { mode: "excited", color: "#d27a2f" },
   "starry-eyed": { mode: "starry", color: "#c18b1f" },
@@ -37,52 +11,20 @@ const PROMPT_TONE_STATUS_META = {
   surprised: { mode: "glint", color: "#7a9f32" },
   admiring: { mode: "warm", color: "#8b6f3f" },
   celebratory: { mode: "celebrate", color: "#d45f4f" },
-  playful: { mode: "glint", color: "#8a9635" },
-  confident: { mode: "lock", color: "#4f63b6" },
   absorbed: { mode: "absorbed", color: "#2f766f" },
-  close: { mode: "warm", color: "#b76e79" },
   patient: { mode: "warm-focus", color: "#5f8a72" },
-  restrained: { mode: "quiet", color: "#7b8190" },
   composed: { mode: "settle", color: "#3f7f88" },
-  "tense-focused": { mode: "focus-loop", color: "#6b7280" },
-  "warm-focused": { mode: "warm-focus", color: "#3f8f7a" },
-  focused: { mode: "focus-loop", color: "#2f78b7" },
-  "warm-open": { mode: "glint", color: "#7a9f32" },
-  calm: { mode: "quiet", color: "#6d8fa3" },
-  steady: { mode: "steady", color: "#65758b" }
+  focused: { mode: "focus-loop", color: "#2f78b7" }
 };
 const TURN_VISUAL_MIN_CHANGE_MS = 3600;
 const TURN_VISUAL_FAST_CHANGE_MS = 1800;
-const TURN_VISUAL_FAST_LABELS = new Set(["alert", "serious", "celebratory"]);
-const TURN_VISUAL_LABEL_PRIORITY = {
-  alert: 100,
-  serious: 92,
-  "tense-focused": 86,
-  celebratory: 78,
-  confident: 72,
-  "starry-eyed": 68,
-  challenging: 64,
-  laughing: 62,
-  absorbed: 60,
-  focused: 58,
-  "warm-focused": 56,
-  composed: 54,
-  reassuring: 50,
-  surprised: 46,
-  admiring: 44,
-  playful: 42,
-  "warm-open": 38,
-  patient: 36,
-  close: 34,
-  calm: 28,
-  restrained: 24,
-  steady: 0
-};
+const TURN_VISUAL_FAST_LABELS = new Set(["alert", "celebratory", "starry-eyed"]);
 
 class TurnStatusController {
   constructor(options) {
     this.translate = options.translate;
-    this.getAffectToneLabel = options.getAffectToneLabel;
+    this.getToneCapsuleLabel = options.getToneCapsuleLabel;
+    this.isToneCapsuleEnabled = options.isToneCapsuleEnabled;
     this.prefersReducedMotion = options.prefersReducedMotion;
     this.emotiveFeedback = options.emotiveFeedback;
   }
@@ -217,7 +159,9 @@ class TurnStatusController {
     if (message.isLoading || message.turnVisualAwaitingFinalFeedback) {
       return {
         kind: "thinking",
-        label: message.loadingToneLabel || this.translate("turnStatus.thinking"),
+        label: this.isToneCapsuleEnabled?.() !== false
+          ? message.loadingToneLabel || this.translate("turnStatus.thinking")
+          : this.translate("turnStatus.thinking"),
         toneKind: message.loadingToneKind || "",
         play: false
       };
@@ -254,20 +198,20 @@ class TurnStatusController {
   }
 
   getPromptToneStatusMeta(toneKind) {
-    return PROMPT_TONE_STATUS_META[toneKind] || PROMPT_TONE_STATUS_META.steady;
+    return PROMPT_TONE_STATUS_META[toneKind] || PROMPT_TONE_STATUS_META.focused;
   }
 
-  updateAffect(message, update) {
-    if (!message?.isLoading) {
+  updateToneCapsule(message, update) {
+    if (!message?.isLoading || this.isToneCapsuleEnabled?.() === false) {
       return;
     }
-    const nextAffect = getTurnVisualAffect(message.turnVisualAffect, update);
-    const label = nextAffect?.label || "";
+    const nextCapsule = updateToneCapsule(message.toneCapsule, update, message.toneCapsulePrompt);
+    const label = nextCapsule?.id || "";
     if (!label) {
       return;
     }
     const hadVisibleTone = Boolean(message.loadingToneKind);
-    message.turnVisualAffect = nextAffect;
+    message.toneCapsule = nextCapsule;
     if (!this.shouldApplyLabel(message, label)) {
       return;
     }
@@ -275,7 +219,7 @@ class TurnStatusController {
       message.turnVisualSuppressNextTransition = true;
     }
     message.loadingToneKind = label;
-    message.loadingToneLabel = this.getAffectToneLabel(label);
+    message.loadingToneLabel = this.getToneCapsuleLabel(label);
   }
 
   shouldApplyLabel(message, label) {
@@ -327,7 +271,7 @@ class TurnStatusController {
   }
 
   getLabelPriority(label) {
-    return TURN_VISUAL_LABEL_PRIORITY[label] ?? TURN_VISUAL_LABEL_PRIORITY.steady;
+    return CAPSULE_PRIORITY[label] ?? 0;
   }
 
   getStatusRenderKey(status) {

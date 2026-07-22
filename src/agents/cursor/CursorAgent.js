@@ -1,37 +1,15 @@
-const { Notice } = require("obsidian");
-const { spawn } = require("child_process");
-
 const {
   buildAgentTurnContext,
   buildPromptResultForTurnContext,
-  emitDebugPromptActivity,
-  emitPromptContextNotices
+  emitDebugPromptActivity
 } = require("../shared/TurnContextBuilder");
-const { buildCliPath } = require("../../cli/env");
+const { applyVisibleEventPolicy } = require("../shared/visibleEventPolicy");
 const { expandHomePath } = require("../../cli/paths");
-const { escapeAppleScriptString, shellQuote } = require("../../cli/shell");
 const { t } = require("../../i18n");
 const { DEFAULT_SETTINGS } = require("../../settings");
-const {
-  extractAgentDockSignals,
-  formatAgentDockReflectionNotice
-} = require("../shared/agentSignals");
 const { AcpClient } = require("./AcpClient");
 const { acpUpdateToEvents } = require("./acpEvents");
 const { toCursorMode } = require("./modes");
-const { ReflectionContentFilter } = require("../shared/ReflectionContentFilter");
-const { emitClaimedMemoryProvenance } = require("../shared/memoryProvenance");
-const {
-  createSignalEvidenceContext,
-  mergeSignalEvidenceContexts
-} = require("../shared/signalEvidence");
-const {
-  appendToolResultEvidence,
-  captureTurnContinuity,
-  emitAgentDockSignalNotices,
-  emitInvalidAgentDockSignalActivity,
-  getPreviousAssistantResponse
-} = require("../shared/TurnCompletion");
 
 const CONNECTION_IDLE_MS = 30 * 60 * 1000;
 
@@ -78,35 +56,6 @@ class CursorAgent {
     let finalOutput = "";
     let aborted = false;
     let client = null;
-    let toolResultEvidence = "";
-    let baseSignalEvidenceContext = createSignalEvidenceContext({ user_message: prompt });
-    const getSignalEvidenceContext = () => mergeSignalEvidenceContexts(
-      baseSignalEvidenceContext,
-      {
-        assistant_message: extractAgentDockSignals(finalOutput).visibleText,
-        tool_result: toolResultEvidence
-      }
-    );
-    const reflectionNoticeSignals = [];
-    const emitReflectionNotice = (signals) => {
-      reflectionNoticeSignals.push(...signals);
-      const notice = formatAgentDockReflectionNotice(
-        reflectionNoticeSignals,
-        settings,
-        "cursor",
-        translate
-      );
-      if (notice) {
-        notice.agentDockSignals = signals;
-        notice.signalEvidenceContext = getSignalEvidenceContext();
-        onUpdate(notice);
-      }
-    };
-    const reflectionFilter = new ReflectionContentFilter({
-      onAppraisal: emitReflectionNotice,
-      onOutcome: emitReflectionNotice,
-      onSourceComplete: () => emitReflectionNotice([])
-    });
 
     const existingConnection = this.connections.get(sessionKey);
     if (existingConnection && existingConnection.connectionKey !== connectionKey) {
@@ -114,24 +63,12 @@ class CursorAgent {
       useFullPrompt = true;
     }
 
-    const emitUpdate = (update) => {
-      if (update.kind === "tool") {
-        toolResultEvidence = appendToolResultEvidence(toolResultEvidence, update);
-      }
+    const emitUpdate = (rawUpdate) => {
+      const update = applyVisibleEventPolicy(rawUpdate, settings.mode, translate);
       if (update.kind === "content") {
         finalOutput += update.text;
-        for (const visibleText of reflectionFilter.push(update.text)) {
-          onUpdate(Object.assign({}, update, { text: visibleText }));
-        }
-        return;
       }
       onUpdate(update);
-    };
-    const flushContent = () => {
-      for (const visibleText of reflectionFilter.flush()) {
-        onUpdate({ kind: "content", text: visibleText });
-      }
-      reflectionFilter.endSource();
     };
 
     const throwIfAborted = () => {
@@ -170,11 +107,6 @@ class CursorAgent {
         useFullPrompt
       });
       const promptResult = turnContext.promptResult;
-      const promptSignals = turnContext.promptSignals;
-      const expressionPolicy = turnContext.expressionPolicy;
-      const interactionPatternCandidates = turnContext.interactionPatternCandidates;
-      const activeFilePath = turnContext.activeFilePath;
-      baseSignalEvidenceContext = turnContext.signalEvidenceContext;
       throwIfAborted();
 
       const promptText = promptResult.prompt;
@@ -227,14 +159,8 @@ class CursorAgent {
             settings,
             prompt,
             conversation,
-            promptSignals,
-            expressionPolicy,
-            interactionPatternCandidates,
-            memoryTracePrompt: turnContext.memoryTrace?.prompt || "",
-            collaborationOmissions: turnContext.collaborationOmissions,
             useFullPrompt: true
           });
-          emitPromptContextNotices(emitUpdate, reloadPromptResult, promptSignals, translate, "cursor");
           emitCursorAuthenticationNoticeIfNeeded(client, emitUpdate, translate);
           emitUpdate({
             kind: "notice",
@@ -254,16 +180,7 @@ class CursorAgent {
             result,
             finalOutput,
             emitUpdate,
-            prompt,
-            activeFilePath,
-            conversation,
-            options,
-            settings,
-            throwIfAborted,
-            flushContent,
-            reflectionFilter,
-            getSignalEvidenceContext,
-            memoryRecallManifest: turnContext.memoryRecallManifest
+            throwIfAborted
           });
         }
       }
@@ -280,16 +197,7 @@ class CursorAgent {
         result,
         finalOutput,
         emitUpdate,
-        prompt,
-        activeFilePath,
-        conversation,
-        options,
-        settings,
-        throwIfAborted,
-        flushContent,
-        reflectionFilter,
-        getSignalEvidenceContext,
-        memoryRecallManifest: turnContext.memoryRecallManifest
+        throwIfAborted
       });
     } catch (error) {
       if (aborted || error.name === "AbortError") {
@@ -335,16 +243,7 @@ class CursorAgent {
     result,
     finalOutput,
     emitUpdate,
-    prompt,
-    activeFilePath,
-    conversation,
-    options,
-    settings,
-    throwIfAborted,
-    flushContent,
-    reflectionFilter,
-    getSignalEvidenceContext,
-    memoryRecallManifest
+    throwIfAborted
   }) {
     const resultText = extractPromptResultText(result);
     if (!finalOutput.trim() && resultText) {
@@ -353,46 +252,7 @@ class CursorAgent {
     }
 
     throwIfAborted();
-    flushContent?.();
-    const signalResult = extractAgentDockSignals(finalOutput.trim());
-    const signalEvidenceContext = mergeSignalEvidenceContexts(
-      getSignalEvidenceContext?.(),
-      { user_message: prompt, assistant_message: signalResult.visibleText }
-    );
-    emitClaimedMemoryProvenance(
-      emitUpdate,
-      signalResult.signals,
-      memoryRecallManifest
-    );
-    emitInvalidAgentDockSignalActivity(signalResult, emitUpdate);
-    emitAgentDockSignalNotices(
-      signalResult.signals,
-      settings,
-      "cursor",
-      (key, params) => t(settings, key, params),
-      emitUpdate,
-      reflectionFilter,
-      signalEvidenceContext
-    );
-    const visibleOutput = signalResult.visibleText.trim();
-
-    await captureTurnContinuity(this.plugin, {
-      prompt,
-      response: visibleOutput,
-      agentDockSignals: signalResult.signals,
-      signalEvidenceContext,
-      previousAssistantResponse: getPreviousAssistantResponse(conversation),
-      activeFilePath,
-      sessionId: options.sessionId || "",
-      userMessageId: options.userMessageId || "",
-      assistantMessageId: options.assistantMessageId || "",
-      memoryRecallManifest
-    }, settings, emitUpdate, {
-      keyPrefix: "cursor",
-      translate: t
-    });
-
-    return visibleOutput;
+    return finalOutput.trim();
   }
 
   async getOrCreateClient(sessionKey, connectionKey, context) {
@@ -414,7 +274,10 @@ class CursorAgent {
       executablePath: expandHomePath(context.settings.cursorPath || DEFAULT_SETTINGS.cursorPath),
       extraArgs: splitExtraArgs(context.settings.cursorExtraArgs),
       cwd: context.cwd,
-      permissionPolicy: normalizePermissionPolicy(context.settings.cursorPermissionPolicy),
+      permissionPolicy: resolvePermissionPolicy(
+        context.settings.mode,
+        context.settings.cursorPermissionPolicy
+      ),
       onProcessClose: () => {
         this.connections.delete(sessionKey);
       }
@@ -508,50 +371,6 @@ class CursorAgent {
     this.connections.clear();
   }
 
-  async openInteractive() {
-    if (process.platform !== "darwin") {
-      new Notice(t(this.plugin.settings, "cursor.terminalMacOnly"));
-      return;
-    }
-
-    const settings = this.plugin.settings;
-    const cwd = this.getWorkingDirectory();
-    const executablePath = expandHomePath(settings.cursorPath || DEFAULT_SETTINGS.cursorPath);
-    const extraArgs = settings.cursorInteractiveArgs || settings.cursorExtraArgs || "";
-    const command = [
-      `cd ${shellQuote(cwd)}`,
-      `${shellQuote(executablePath)} ${extraArgs}`.trim()
-    ].join(" && ");
-    const script = [
-      "tell application \"Terminal\"",
-      "activate",
-      `do script "${escapeAppleScriptString(command)}"`,
-      "end tell"
-    ].join("\n");
-
-    await new Promise((resolve, reject) => {
-      const child = spawn("osascript", ["-e", script], {
-        env: Object.assign({}, process.env, {
-          PATH: buildCliPath(process.env.PATH)
-        }),
-        stdio: ["ignore", "pipe", "pipe"]
-      });
-
-      let errorOutput = "";
-      child.stderr.on("data", (data) => {
-        errorOutput += data.toString();
-      });
-      child.on("error", (error) => reject(error));
-      child.on("close", (code) => {
-        if (code === 0) {
-          resolve();
-          return;
-        }
-        reject(new Error(errorOutput.trim() || t(settings, "cursor.terminalExitedWithCode", { code })));
-      });
-    });
-  }
-
   getWorkingDirectory() {
     return this.plugin.settings.workingDirectory || this.plugin.app.vault.adapter.basePath;
   }
@@ -609,6 +428,13 @@ function normalizePermissionPolicy(value) {
     return value;
   }
   return "allow-once";
+}
+
+function resolvePermissionPolicy(mode, configuredPolicy) {
+  if (mode === "readOnly") {
+    return "reject-once";
+  }
+  return normalizePermissionPolicy(configuredPolicy);
 }
 
 function extractPromptResultText(result) {
@@ -739,6 +565,7 @@ module.exports = {
   CursorAgent,
   _test: {
     isStaleSessionError,
+    resolvePermissionPolicy,
     withSuppressedSessionUpdates: (client, callback) => (
       CursorAgent.prototype.withSuppressedSessionUpdates.call(null, client, callback)
     )

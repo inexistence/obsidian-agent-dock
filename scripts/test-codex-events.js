@@ -46,8 +46,24 @@ const translate = (key, params = {}) => {
 
   assert.equal(update.kind, "tool");
   assert.equal(update.toolType, "command");
+  assert.equal(update.exitCode, 0);
   assert(update.title.includes("已完成"), "completed command should keep completed title");
   assert(update.summary.includes("退出码：0"), "completed command should show exit code");
+}
+
+{
+  const [update] = codexJsonEventToUpdates({
+    type: "item.completed",
+    item: {
+      type: "patch",
+      changes: [{ path: "Notes/A.md" }, { file_path: "Notes/B.md" }],
+      summary: "Updated two notes"
+    }
+  }, translate);
+
+  assert.equal(update.kind, "tool");
+  assert.equal(update.toolType, "file_change");
+  assert.deepEqual(update.paths, ["Notes/A.md", "Notes/B.md"]);
 }
 
 {

@@ -2,10 +2,8 @@ const { Notice, PluginSettingTab, Setting } = require("obsidian");
 
 const { AGENT_OPTIONS } = require("./agents/AgentRegistry");
 const { LANGUAGE_OPTIONS, t } = require("./i18n");
-const { PERSONA_PRESET_OPTIONS } = require("./persona/PersonaProfile");
+const { MODE_OPTIONS } = require("./modes");
 const {
-  AFFECT_HALF_LIFE_MINUTES_MAX,
-  AFFECT_HALF_LIFE_MINUTES_MIN,
   ASSISTANT_DISPLAY_NAME_MAX_CHARS,
   ASSISTANT_STYLE_OPTIONS,
   CUSTOM_ASSISTANT_STYLE_MAX_CHARS,
@@ -20,662 +18,212 @@ class AgentDockSettingTab extends PluginSettingTab {
 
   display() {
     const { containerEl } = this;
-    const translate = (key, params) => t(this.plugin.settings, key, params);
+    const tr = (key, params) => t(this.plugin.settings, key, params);
     containerEl.empty();
-    containerEl.createEl("h2", { text: translate("settings.heading") });
+    containerEl.createEl("h2", { text: tr("settings.heading") });
+    containerEl.createEl("h3", { text: tr("settings.basic.heading") });
 
     new Setting(containerEl)
-      .setName(translate("settings.language.name"))
-      .setDesc(translate("settings.language.desc"))
+      .setName(tr("settings.language.name"))
+      .setDesc(tr("settings.language.desc"))
       .addDropdown((dropdown) => {
-        for (const [id, option] of Object.entries(LANGUAGE_OPTIONS)) {
-          dropdown.addOption(id, option.label);
-        }
-        dropdown
-          .setValue(this.plugin.settings.language)
-          .onChange(async (value) => {
-            this.plugin.settings.language = value;
-            await this.plugin.saveSettings();
-            this.plugin.refreshOpenViews();
-            this.display();
-          });
+        for (const [id, option] of Object.entries(LANGUAGE_OPTIONS)) dropdown.addOption(id, option.label);
+        dropdown.setValue(this.plugin.settings.language).onChange(async (value) => {
+          this.plugin.settings.language = value;
+          await this.plugin.saveSettings();
+          this.plugin.refreshOpenViews();
+          this.display();
+        });
       });
 
     new Setting(containerEl)
-      .setName(translate("settings.agentProvider.name"))
-      .setDesc(translate("settings.agentProvider.desc"))
+      .setName(tr("settings.agentProvider.name"))
+      .setDesc(tr("settings.agentProvider.desc"))
       .addDropdown((dropdown) => {
-        for (const [id, option] of Object.entries(AGENT_OPTIONS)) {
-          dropdown.addOption(id, option.label);
-        }
-        dropdown
-          .setValue(this.plugin.settings.agentId)
-          .onChange(async (value) => {
-            const result = await this.plugin.switchAgentProvider(value);
-            if (result.blocked) {
-              new Notice(translate("notice.agentStillWorking", { agent: result.agentLabel }));
-            }
-            this.display();
-          });
+        for (const [id, option] of Object.entries(AGENT_OPTIONS)) dropdown.addOption(id, option.label);
+        dropdown.setValue(this.plugin.settings.agentId).onChange(async (value) => {
+          const result = await this.plugin.switchAgentProvider(value);
+          if (result.blocked) new Notice(tr("notice.agentStillWorking", { agent: result.agentLabel }));
+          this.display();
+        });
       });
 
     if (this.plugin.settings.agentId === "codex") {
-      new Setting(containerEl)
-        .setName(translate("settings.codexPath.name"))
-        .setDesc(translate("settings.codexPath.desc"))
-        .addText((text) => text
-          .setPlaceholder("/opt/homebrew/bin/codex")
-          .setValue(this.plugin.settings.codexPath)
-          .onChange(async (value) => {
-            this.plugin.settings.codexPath = value.trim() || DEFAULT_SETTINGS.codexPath;
-            await this.plugin.saveSettings();
-          }));
-
-      new Setting(containerEl)
-        .setName(translate("settings.args.name"))
-        .setDesc(translate("settings.args.desc"))
-        .addText((text) => text
-          .setPlaceholder("exec {{prompt}}")
-          .setValue(this.plugin.settings.args)
-          .onChange(async (value) => {
-            this.plugin.settings.args = value.trim() || DEFAULT_SETTINGS.args;
-            await this.plugin.saveSettings();
-          }));
-
-      new Setting(containerEl)
-        .setName(translate("settings.interactiveArgs.name"))
-        .setDesc(translate("settings.interactiveArgs.desc"))
-        .addText((text) => text
-          .setPlaceholder("--sandbox workspace-write")
-          .setValue(this.plugin.settings.interactiveArgs)
-          .onChange(async (value) => {
-            this.plugin.settings.interactiveArgs = value.trim();
-            await this.plugin.saveSettings();
-          }));
-    }
-
-    if (this.plugin.settings.agentId === "cursor") {
-      new Setting(containerEl)
-        .setName(translate("settings.cursorPath.name"))
-        .setDesc(translate("settings.cursorPath.desc"))
-        .addText((text) => text
-          .setPlaceholder("~/.local/bin/agent")
-          .setValue(this.plugin.settings.cursorPath)
-          .onChange(async (value) => {
-            this.plugin.settings.cursorPath = value.trim() || DEFAULT_SETTINGS.cursorPath;
-            await this.plugin.saveSettings();
-          }));
-
-      new Setting(containerEl)
-        .setName(translate("settings.cursorExtraArgs.name"))
-        .setDesc(translate("settings.cursorExtraArgs.desc"))
-        .addText((text) => text
-          .setPlaceholder("--api-key $CURSOR_API_KEY")
-          .setValue(this.plugin.settings.cursorExtraArgs)
-          .onChange(async (value) => {
-            this.plugin.settings.cursorExtraArgs = value.trim();
-            await this.plugin.saveSettings();
-          }));
-
-      new Setting(containerEl)
-        .setName(translate("settings.cursorInteractiveArgs.name"))
-        .setDesc(translate("settings.cursorInteractiveArgs.desc"))
-        .addText((text) => text
-          .setPlaceholder("")
-          .setValue(this.plugin.settings.cursorInteractiveArgs)
-          .onChange(async (value) => {
-            this.plugin.settings.cursorInteractiveArgs = value.trim();
-            await this.plugin.saveSettings();
-          }));
-
-      new Setting(containerEl)
-        .setName(translate("settings.cursorPermissionPolicy.name"))
-        .setDesc(translate("settings.cursorPermissionPolicy.desc"))
-        .addDropdown((dropdown) => {
-          dropdown
-            .addOption("allow-once", translate("settings.cursorPermissionPolicy.allowOnce"))
-            .addOption("allow-always", translate("settings.cursorPermissionPolicy.allowAlways"))
-            .addOption("reject-once", translate("settings.cursorPermissionPolicy.rejectOnce"))
-            .setValue(this.plugin.settings.cursorPermissionPolicy)
-            .onChange(async (value) => {
-              this.plugin.settings.cursorPermissionPolicy = value || DEFAULT_SETTINGS.cursorPermissionPolicy;
-              await this.plugin.saveSettings();
-            });
+      addTextSetting(containerEl, tr("settings.codexPath.name"), tr("settings.codexPath.desc"),
+        this.plugin.settings.codexPath, DEFAULT_SETTINGS.codexPath, async (value) => {
+          this.plugin.settings.codexPath = value.trim() || DEFAULT_SETTINGS.codexPath;
+          await this.plugin.saveSettings();
+        });
+    } else {
+      addTextSetting(containerEl, tr("settings.cursorPath.name"), tr("settings.cursorPath.desc"),
+        this.plugin.settings.cursorPath, DEFAULT_SETTINGS.cursorPath, async (value) => {
+          this.plugin.settings.cursorPath = value.trim() || DEFAULT_SETTINGS.cursorPath;
+          await this.plugin.saveSettings();
         });
     }
 
     new Setting(containerEl)
-      .setName(translate("settings.workingDirectory.name"))
-      .setDesc(translate("settings.workingDirectory.desc"))
-      .addText((text) => text
-        .setPlaceholder("/path/to/project")
-        .setValue(this.plugin.settings.workingDirectory)
-        .onChange(async (value) => {
-          this.plugin.settings.workingDirectory = value.trim();
-          await this.plugin.saveSettings();
-        }));
+      .setName(tr("settings.diagnose.name"))
+      .setDesc(tr("settings.diagnose.desc"))
+      .addButton((button) => button.setButtonText(tr("settings.diagnose.button")).onClick(async () => {
+        button.setDisabled(true);
+        const result = await this.plugin.diagnoseAgent();
+        button.setDisabled(false);
+        new Notice(result.ok
+          ? tr("settings.diagnose.ok", {
+              version: result.version || result.executablePath,
+              auth: tr(`onboarding.auth.${result.authStatus || "unknown"}`),
+              message: result.message
+            })
+          : tr("settings.diagnose.failed", { message: result.message }));
+      }));
+
+    addTextSetting(containerEl, tr("settings.workingDirectory.name"), tr("settings.workingDirectory.desc"),
+      this.plugin.settings.workingDirectory, "/path/to/project", async (value) => {
+        this.plugin.settings.workingDirectory = value.trim();
+        await this.plugin.saveSettings();
+      });
 
     new Setting(containerEl)
-      .setName(translate("settings.assistantDisplayName.name"))
-      .setDesc(translate("settings.assistantDisplayName.desc"))
-      .addText((text) => text
-        .setPlaceholder(translate("view.aiAssistant"))
-        .setValue(this.plugin.settings.assistantDisplayName)
-        .onChange(async (value) => {
-          this.plugin.settings.assistantDisplayName = value
-            .trim()
-            .slice(0, ASSISTANT_DISPLAY_NAME_MAX_CHARS);
+      .setName(tr("settings.defaultMode.name"))
+      .setDesc(tr("settings.defaultMode.desc"))
+      .addDropdown((dropdown) => {
+        for (const id of Object.keys(MODE_OPTIONS)) dropdown.addOption(id, tr(`mode.${id}.label`));
+        dropdown.setValue(this.plugin.settings.mode).onChange(async (value) => {
+          if (value === "workspaceWrite" && !await confirmWorkspaceWrite(this.plugin, tr)) {
+            dropdown.setValue("readOnly");
+            return;
+          }
+          this.plugin.settings.mode = value;
           await this.plugin.saveSettings();
           this.plugin.refreshOpenViews();
-        }));
+        });
+      });
+
+    containerEl.createEl("h3", { text: tr("settings.response.heading") });
+    addTextSetting(containerEl, tr("settings.assistantDisplayName.name"), tr("settings.assistantDisplayName.desc"),
+      this.plugin.settings.assistantDisplayName, tr("view.aiAssistant"), async (value) => {
+        this.plugin.settings.assistantDisplayName = value.trim().slice(0, ASSISTANT_DISPLAY_NAME_MAX_CHARS);
+        await this.plugin.saveSettings();
+        this.plugin.refreshOpenViews();
+      });
 
     new Setting(containerEl)
-      .setName(translate("settings.assistantStyle.name"))
-      .setDesc(formatAssistantStyleDescription(this.plugin.settings.assistantStyle, translate))
+      .setName(tr("settings.assistantStyle.name"))
+      .setDesc(tr("settings.assistantStyle.desc"))
       .addDropdown((dropdown) => {
-        for (const [id, option] of Object.entries(ASSISTANT_STYLE_OPTIONS)) {
-          dropdown.addOption(id, translate(`assistantStyle.${id}.label`));
-        }
-        dropdown
-          .setValue(this.plugin.settings.assistantStyle)
-          .onChange(async (value) => {
-            this.plugin.settings.assistantStyle = ASSISTANT_STYLE_OPTIONS[value]
-              ? value
-              : DEFAULT_SETTINGS.assistantStyle;
-            await this.plugin.saveSettings();
-            this.display();
-          });
+        for (const id of Object.keys(ASSISTANT_STYLE_OPTIONS)) dropdown.addOption(id, tr(`assistantStyle.${id}.label`));
+        dropdown.setValue(this.plugin.settings.assistantStyle).onChange(async (value) => {
+          this.plugin.settings.assistantStyle = value;
+          await this.plugin.saveSettings();
+          this.display();
+        });
       });
 
     if (this.plugin.settings.assistantStyle === "custom") {
-      new Setting(containerEl)
-        .setName(translate("settings.customAssistantStyle.name"))
-        .setDesc(translate("settings.customAssistantStyle.desc", { max: CUSTOM_ASSISTANT_STYLE_MAX_CHARS }))
-        .addTextArea((text) => {
-          text
-            .setPlaceholder(translate("settings.customAssistantStyle.placeholder"))
-            .setValue(this.plugin.settings.customAssistantStyle)
-            .onChange(async (value) => {
-              this.plugin.settings.customAssistantStyle = value
-                .trim()
-                .slice(0, CUSTOM_ASSISTANT_STYLE_MAX_CHARS);
-              await this.plugin.saveSettings();
-            });
-          text.inputEl.rows = 5;
-          text.inputEl.addClass("agent-dock-settings-textarea");
+      addTextAreaSetting(containerEl, tr("settings.customAssistantStyle.name"),
+        tr("settings.customAssistantStyle.desc", { max: CUSTOM_ASSISTANT_STYLE_MAX_CHARS }),
+        this.plugin.settings.customAssistantStyle, async (value) => {
+          this.plugin.settings.customAssistantStyle = value.slice(0, CUSTOM_ASSISTANT_STYLE_MAX_CHARS);
+          await this.plugin.saveSettings();
         });
     }
 
     new Setting(containerEl)
-      .setName(translate("settings.debugActivity.name"))
-      .setDesc(translate("settings.debugActivity.desc"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.debugActivity)
-        .onChange(async (value) => {
-          this.plugin.settings.debugActivity = value;
-          await this.plugin.saveSettings();
-        }));
+      .setName(tr("settings.showToneCapsule.name"))
+      .setDesc(tr("settings.showToneCapsule.desc"))
+      .addToggle((toggle) => toggle.setValue(this.plugin.settings.showToneCapsule).onChange(async (value) => {
+        this.plugin.settings.showToneCapsule = value;
+        await this.plugin.saveSettings();
+        this.plugin.refreshOpenViews();
+      }));
 
-    new Setting(containerEl)
-      .setName(translate("settings.contextLimitChars.name"))
-      .setDesc(translate("settings.contextLimitChars.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.contextLimitChars))
-        .setValue(String(this.plugin.settings.contextLimitChars))
-        .onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.contextLimitChars = Number.isFinite(parsed) && parsed > 0
-            ? parsed
-            : DEFAULT_SETTINGS.contextLimitChars;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.persistChatHistory.name"))
-      .setDesc(translate("settings.persistChatHistory.desc"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.persistChatHistory)
-        .onChange(async (value) => {
-          this.plugin.settings.persistChatHistory = value;
-          if (!value) {
-            await this.plugin.clearPersistedChatHistory();
-            return;
-          }
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.maxPersistedSessions.name"))
-      .setDesc(translate("settings.maxPersistedSessions.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.maxPersistedSessions))
-        .setValue(String(this.plugin.settings.maxPersistedSessions))
-        .onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.maxPersistedSessions = Number.isFinite(parsed) && parsed > 0
-            ? parsed
-            : DEFAULT_SETTINGS.maxPersistedSessions;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.maxPersistedMessagesPerSession.name"))
-      .setDesc(translate("settings.maxPersistedMessagesPerSession.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.maxPersistedMessagesPerSession))
-        .setValue(String(this.plugin.settings.maxPersistedMessagesPerSession))
-        .onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.maxPersistedMessagesPerSession = Number.isFinite(parsed) && parsed > 0
-            ? parsed
-            : DEFAULT_SETTINGS.maxPersistedMessagesPerSession;
-          await this.plugin.saveSettings();
-        }));
-
-    containerEl.createEl("h3", { text: translate("settings.affect.heading") });
-
-    new Setting(containerEl)
-      .setName(translate("settings.affectEnabled.name"))
-      .setDesc(translate("settings.affectEnabled.desc"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.affectEnabled)
-        .onChange(async (value) => {
-          this.plugin.settings.affectEnabled = value;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.affectCrossSessionEnabled.name"))
-      .setDesc(translate("settings.affectCrossSessionEnabled.desc"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.affectCrossSessionEnabled)
-        .onChange(async (value) => {
-          this.plugin.settings.affectCrossSessionEnabled = value;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.affectRestoreAfterRestart.name"))
-      .setDesc(translate("settings.affectRestoreAfterRestart.desc"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.affectRestoreAfterRestart)
-        .onChange(async (value) => {
-          this.plugin.settings.affectRestoreAfterRestart = value;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.affectShowIndicator.name"))
-      .setDesc(translate("settings.affectShowIndicator.desc"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.affectShowIndicator)
-        .onChange(async (value) => {
-          this.plugin.settings.affectShowIndicator = value;
-          await this.plugin.saveSettings();
-          this.plugin.refreshOpenViews();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.affectSensitivity.name"))
-      .setDesc(translate("settings.affectSensitivity.desc"))
-      .addDropdown((dropdown) => dropdown
-        .addOption("low", translate("settings.affectSensitivity.low"))
-        .addOption("normal", translate("settings.affectSensitivity.normal"))
-        .addOption("high", translate("settings.affectSensitivity.high"))
-        .setValue(this.plugin.settings.affectSensitivity)
-        .onChange(async (value) => {
-          this.plugin.settings.affectSensitivity = value;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.affectHalfLifeMinutes.name"))
-      .setDesc(translate("settings.affectHalfLifeMinutes.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.affectHalfLifeMinutes))
-        .setValue(String(this.plugin.settings.affectHalfLifeMinutes))
-        .onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.affectHalfLifeMinutes = Number.isFinite(parsed) && parsed > 0
-            ? Math.min(AFFECT_HALF_LIFE_MINUTES_MAX, Math.max(AFFECT_HALF_LIFE_MINUTES_MIN, parsed))
-            : DEFAULT_SETTINGS.affectHalfLifeMinutes;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.resetAffect.name"))
-      .setDesc(translate("settings.resetAffect.desc"))
-      .addButton((button) => button
-        .setButtonText(translate("settings.resetAffect.button"))
-        .onClick(async () => {
-          await this.plugin.resetWorkingAffect();
-          new Notice(translate("settings.resetAffect.done"));
-        }));
-
-    containerEl.createEl("h3", { text: translate("settings.interactionMemory.heading") });
-
-    new Setting(containerEl)
-      .setName(translate("settings.interactionMemoryEnabled.name"))
-      .setDesc(translate("settings.interactionMemoryEnabled.desc"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.interactionMemoryEnabled)
-        .onChange(async (value) => {
-          this.plugin.settings.interactionMemoryEnabled = value;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.interactionMemoryAutoCapture.name"))
-      .setDesc(translate("settings.interactionMemoryAutoCapture.desc"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.interactionMemoryAutoCapture)
-        .onChange(async (value) => {
-          this.plugin.settings.interactionMemoryAutoCapture = value;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.interactionMemoryMaxPromptItems.name"))
-      .setDesc(translate("settings.interactionMemoryMaxPromptItems.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.interactionMemoryMaxPromptItems))
-        .setValue(String(this.plugin.settings.interactionMemoryMaxPromptItems))
-        .onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.interactionMemoryMaxPromptItems = Number.isFinite(parsed) && parsed > 0
-            ? parsed
-            : DEFAULT_SETTINGS.interactionMemoryMaxPromptItems;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.interactionMemoryMaxPersonaItems.name"))
-      .setDesc(translate("settings.interactionMemoryMaxPersonaItems.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.interactionMemoryMaxPersonaItems))
-        .setValue(String(this.plugin.settings.interactionMemoryMaxPersonaItems))
-        .onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.interactionMemoryMaxPersonaItems = Number.isFinite(parsed) && parsed >= 0
-            ? parsed
-            : DEFAULT_SETTINGS.interactionMemoryMaxPersonaItems;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.interactionMemoryMaxStanceItems.name"))
-      .setDesc(translate("settings.interactionMemoryMaxStanceItems.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.interactionMemoryMaxStanceItems))
-        .setValue(String(this.plugin.settings.interactionMemoryMaxStanceItems))
-        .onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.interactionMemoryMaxStanceItems = Number.isFinite(parsed) && parsed >= 0
-            ? parsed
-            : DEFAULT_SETTINGS.interactionMemoryMaxStanceItems;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.interactionMemoryMinEvidence.name"))
-      .setDesc(translate("settings.interactionMemoryMinEvidence.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.interactionMemoryMinEvidence))
-        .setValue(String(this.plugin.settings.interactionMemoryMinEvidence))
-        .onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.interactionMemoryMinEvidence = Number.isFinite(parsed) && parsed > 0
-            ? parsed
-            : DEFAULT_SETTINGS.interactionMemoryMinEvidence;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.interactionMemoryHalfLifeDays.name"))
-      .setDesc(translate("settings.interactionMemoryHalfLifeDays.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.interactionMemoryHalfLifeDays))
-        .setValue(String(this.plugin.settings.interactionMemoryHalfLifeDays))
-        .onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.interactionMemoryHalfLifeDays = Number.isFinite(parsed) && parsed > 0
-            ? parsed
-            : DEFAULT_SETTINGS.interactionMemoryHalfLifeDays;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.clearInteractionMemory.name"))
-      .setDesc(translate("settings.clearInteractionMemory.desc"))
-      .addButton((button) => button
-        .setButtonText(translate("settings.clearInteractionMemory.button"))
-        .setWarning()
-        .onClick(async () => {
-          if (!window.confirm(translate("settings.clearInteractionMemory.confirm"))) {
-            return;
-          }
-          await this.plugin.clearInteractionMemory();
-          new Notice(translate("settings.clearInteractionMemory.done"));
-        }));
-
-    containerEl.createEl("h3", { text: translate("settings.deepMemory.heading") });
-
-    new Setting(containerEl)
-      .setName(translate("settings.personaPreset.name"))
-      .setDesc(translate("settings.personaPreset.desc"))
-      .addDropdown((dropdown) => {
-        for (const [id, option] of Object.entries(PERSONA_PRESET_OPTIONS)) {
-          dropdown.addOption(id, translate(`settings.personaPreset.${id}`) || option.label);
-        }
-        dropdown
-          .setValue(this.plugin.settings.personaPreset)
-          .onChange(async (value) => {
-            this.plugin.settings.personaPreset = value;
-            await this.plugin.saveSettings();
-          });
+    containerEl.createEl("h3", { text: tr("settings.conversation.heading") });
+    addToggleSetting(containerEl, tr("settings.persistChatHistory.name"), tr("settings.persistChatHistory.desc"),
+      this.plugin.settings.persistChatHistory, async (value) => {
+        this.plugin.settings.persistChatHistory = value;
+        if (!value) await this.plugin.clearPersistedChatHistory();
+        else await this.plugin.saveSettings();
+      });
+    addNumberSetting(containerEl, tr("settings.maxPersistedSessions.name"), tr("settings.maxPersistedSessions.desc"),
+      this.plugin.settings.maxPersistedSessions, DEFAULT_SETTINGS.maxPersistedSessions, async (value) => {
+        this.plugin.settings.maxPersistedSessions = value;
+        await this.plugin.saveSettings();
+      });
+    addNumberSetting(containerEl, tr("settings.maxPersistedMessagesPerSession.name"), tr("settings.maxPersistedMessagesPerSession.desc"),
+      this.plugin.settings.maxPersistedMessagesPerSession, DEFAULT_SETTINGS.maxPersistedMessagesPerSession, async (value) => {
+        this.plugin.settings.maxPersistedMessagesPerSession = value;
+        await this.plugin.saveSettings();
       });
 
-    new Setting(containerEl)
-      .setName(translate("settings.deepMemoryEnabled.name"))
-      .setDesc(translate("settings.deepMemoryEnabled.desc"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.deepMemoryEnabled)
-        .onChange(async (value) => {
-          this.plugin.settings.deepMemoryEnabled = value;
+    containerEl.createEl("h3", { text: tr("settings.advanced.heading") });
+    if (this.plugin.settings.agentId === "codex") {
+      addTextSetting(containerEl, tr("settings.args.name"), tr("settings.args.desc"),
+        this.plugin.settings.args, DEFAULT_SETTINGS.args, async (value) => {
+          this.plugin.settings.args = value.trim() || DEFAULT_SETTINGS.args;
           await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.deepMemoryAutoCapture.name"))
-      .setDesc(translate("settings.deepMemoryAutoCapture.desc"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.deepMemoryAutoCapture)
-        .onChange(async (value) => {
-          this.plugin.settings.deepMemoryAutoCapture = value;
+        });
+    } else {
+      addTextSetting(containerEl, tr("settings.cursorExtraArgs.name"), tr("settings.cursorExtraArgs.desc"),
+        this.plugin.settings.cursorExtraArgs, "", async (value) => {
+          this.plugin.settings.cursorExtraArgs = value.trim();
           await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.deepMemoryMaxPromptItems.name"))
-      .setDesc(translate("settings.deepMemoryMaxPromptItems.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.deepMemoryMaxPromptItems))
-        .setValue(String(this.plugin.settings.deepMemoryMaxPromptItems))
-        .onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.deepMemoryMaxPromptItems = Number.isFinite(parsed) && parsed > 0
-            ? parsed
-            : DEFAULT_SETTINGS.deepMemoryMaxPromptItems;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.deepMemoryImportanceThreshold.name"))
-      .setDesc(translate("settings.deepMemoryImportanceThreshold.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.deepMemoryImportanceThreshold))
-        .setValue(String(this.plugin.settings.deepMemoryImportanceThreshold))
-        .onChange(async (value) => {
-          const parsed = Number(value);
-          this.plugin.settings.deepMemoryImportanceThreshold = Number.isFinite(parsed) && parsed > 0
-            ? Math.min(1, Math.max(0, parsed))
-            : DEFAULT_SETTINGS.deepMemoryImportanceThreshold;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.deepMemoryRecallCooldownDays.name"))
-      .setDesc(translate("settings.deepMemoryRecallCooldownDays.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.deepMemoryRecallCooldownDays))
-        .setValue(String(this.plugin.settings.deepMemoryRecallCooldownDays))
-        .onChange(async (value) => {
-          const parsed = Number(value);
-          this.plugin.settings.deepMemoryRecallCooldownDays = Number.isFinite(parsed) && parsed >= 0
-            ? parsed
-            : DEFAULT_SETTINGS.deepMemoryRecallCooldownDays;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.clearDeepMemory.name"))
-      .setDesc(translate("settings.clearDeepMemory.desc"))
-      .addButton((button) => button
-        .setButtonText(translate("settings.clearDeepMemory.button"))
-        .setWarning()
-        .onClick(async () => {
-          if (!window.confirm(translate("settings.clearDeepMemory.confirm"))) {
-            return;
-          }
-          await this.plugin.clearDeepMemory();
-          new Notice(translate("settings.clearDeepMemory.done"));
-        }));
-
-    containerEl.createEl("h3", { text: translate("settings.memory.heading") });
-
-    new Setting(containerEl)
-      .setName(translate("settings.memoryEnabled.name"))
-      .setDesc(translate("settings.memoryEnabled.desc"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.memoryEnabled)
-        .onChange(async (value) => {
-          this.plugin.settings.memoryEnabled = value;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.memoryAutoCapture.name"))
-      .setDesc(translate("settings.memoryAutoCapture.desc"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.memoryAutoCapture)
-        .onChange(async (value) => {
-          this.plugin.settings.memoryAutoCapture = value;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.memoryAgentSearchEnabled.name"))
-      .setDesc(translate("settings.memoryAgentSearchEnabled.desc"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.memoryAgentSearchEnabled)
-        .onChange(async (value) => {
-          this.plugin.settings.memoryAgentSearchEnabled = value;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.memoryProactiveOmissionsEnabled.name"))
-      .setDesc(translate("settings.memoryProactiveOmissionsEnabled.desc"))
-      .addToggle((toggle) => toggle
-        .setValue(this.plugin.settings.memoryProactiveOmissionsEnabled)
-        .onChange(async (value) => {
-          this.plugin.settings.memoryProactiveOmissionsEnabled = value;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.memoryOmissionCooldownDays.name"))
-      .setDesc(translate("settings.memoryOmissionCooldownDays.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.memoryOmissionCooldownDays))
-        .setValue(String(this.plugin.settings.memoryOmissionCooldownDays))
-        .onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.memoryOmissionCooldownDays = Number.isFinite(parsed) && parsed > 0
-            ? parsed
-            : DEFAULT_SETTINGS.memoryOmissionCooldownDays;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.memoryMaxPromptItems.name"))
-      .setDesc(translate("settings.memoryMaxPromptItems.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.memoryMaxPromptItems))
-        .setValue(String(this.plugin.settings.memoryMaxPromptItems))
-        .onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.memoryMaxPromptItems = Number.isFinite(parsed) && parsed > 0
-            ? parsed
-            : DEFAULT_SETTINGS.memoryMaxPromptItems;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.memoryMaxPromptChars.name"))
-      .setDesc(translate("settings.memoryMaxPromptChars.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.memoryMaxPromptChars))
-        .setValue(String(this.plugin.settings.memoryMaxPromptChars))
-        .onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.memoryMaxPromptChars = Number.isFinite(parsed) && parsed > 0
-            ? parsed
-            : DEFAULT_SETTINGS.memoryMaxPromptChars;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.memoryMaxItems.name"))
-      .setDesc(translate("settings.memoryMaxItems.desc"))
-      .addText((text) => text
-        .setPlaceholder(String(DEFAULT_SETTINGS.memoryMaxItems))
-        .setValue(String(this.plugin.settings.memoryMaxItems))
-        .onChange(async (value) => {
-          const parsed = Number.parseInt(value, 10);
-          this.plugin.settings.memoryMaxItems = Number.isFinite(parsed) && parsed > 0
-            ? parsed
-            : DEFAULT_SETTINGS.memoryMaxItems;
-          await this.plugin.saveSettings();
-        }));
-
-    new Setting(containerEl)
-      .setName(translate("settings.clearMemory.name"))
-      .setDesc(translate("settings.clearMemory.desc"))
-      .addButton((button) => button
-        .setButtonText(translate("settings.clearMemory.button"))
-        .setWarning()
-        .onClick(async () => {
-          if (!window.confirm(translate("settings.clearMemory.confirm"))) {
-            return;
-          }
-          try {
-            await this.plugin.clearMemory();
-            new Notice(translate("settings.clearMemory.done"));
-          } catch (error) {
-            console.warn("Agent Dock could not clear memory:", error);
-            new Notice(translate("settings.clearMemory.failed"));
-          }
-        }));
+        });
+      new Setting(containerEl)
+        .setName(tr("settings.cursorPermissionPolicy.name"))
+        .setDesc(tr("settings.cursorPermissionPolicy.desc"))
+        .addDropdown((dropdown) => dropdown
+          .addOption("allow-once", tr("settings.cursorPermissionPolicy.allowOnce"))
+          .addOption("allow-always", tr("settings.cursorPermissionPolicy.allowAlways"))
+          .addOption("reject-once", tr("settings.cursorPermissionPolicy.rejectOnce"))
+          .setValue(this.plugin.settings.cursorPermissionPolicy)
+          .onChange(async (value) => {
+            this.plugin.settings.cursorPermissionPolicy = value;
+            await this.plugin.saveSettings();
+          }));
+    }
+    addNumberSetting(containerEl, tr("settings.contextLimitChars.name"), tr("settings.contextLimitChars.desc"),
+      this.plugin.settings.contextLimitChars, DEFAULT_SETTINGS.contextLimitChars, async (value) => {
+        this.plugin.settings.contextLimitChars = value;
+        await this.plugin.saveSettings();
+      });
+    addToggleSetting(containerEl, tr("settings.debugActivity.name"), tr("settings.debugActivity.desc"),
+      this.plugin.settings.debugActivity, async (value) => {
+        this.plugin.settings.debugActivity = value;
+        await this.plugin.saveSettings();
+        this.plugin.refreshOpenViews();
+      });
   }
 }
 
-function formatAssistantStyleDescription(style, translate) {
-  const styleKey = ASSISTANT_STYLE_OPTIONS[style] ? style : DEFAULT_SETTINGS.assistantStyle;
-  const description = translate(`assistantStyle.${styleKey}.description`);
-  return translate("settings.assistantStyle.desc", { description });
+async function confirmWorkspaceWrite(plugin, translate) {
+  if (plugin.settings.workspaceWriteAcknowledged) return true;
+  if (!window.confirm(translate("confirm.workspaceWrite"))) return false;
+  plugin.settings.workspaceWriteAcknowledged = true;
+  await plugin.saveSettings();
+  return true;
 }
 
-module.exports = {
-  AgentDockSettingTab
-};
+function addTextSetting(container, name, desc, value, placeholder, onChange) {
+  new Setting(container).setName(name).setDesc(desc).addText((text) => text
+    .setPlaceholder(placeholder).setValue(String(value || "")).onChange(onChange));
+}
+
+function addTextAreaSetting(container, name, desc, value, onChange) {
+  new Setting(container).setName(name).setDesc(desc).addTextArea((text) => text
+    .setValue(String(value || "")).onChange(onChange));
+}
+
+function addToggleSetting(container, name, desc, value, onChange) {
+  new Setting(container).setName(name).setDesc(desc).addToggle((toggle) => toggle.setValue(Boolean(value)).onChange(onChange));
+}
+
+function addNumberSetting(container, name, desc, value, fallback, onChange) {
+  new Setting(container).setName(name).setDesc(desc).addText((text) => text
+    .setValue(String(value)).setPlaceholder(String(fallback)).onChange(async (raw) => {
+      const parsed = Number.parseInt(raw, 10);
+      await onChange(Number.isFinite(parsed) && parsed > 0 ? parsed : fallback);
+    }));
+}
+
+module.exports = { AgentDockSettingTab, confirmWorkspaceWrite };

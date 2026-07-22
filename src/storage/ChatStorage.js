@@ -16,18 +16,6 @@ const PERSISTED_TIMELINE_TEXT_LIMITS = {
   toolType: 80,
   noticeType: 80
 };
-const PERSISTED_AUDIT_ITEMS_LIMIT = 12;
-const PERSISTED_AUDIT_BADGES_LIMIT = 8;
-const PERSISTED_AUDIT_FIELDS_LIMIT = 12;
-const PERSISTED_AUDIT_TEXT_LIMITS = {
-  title: 300,
-  summary: 1000,
-  type: 120,
-  source: 160,
-  badge: 100,
-  label: 120,
-  value: 12000
-};
 const TRUNCATED_TEXT_MARKER = "\n\n[Persisted timeline detail truncated]";
 
 class ChatStorage {
@@ -246,10 +234,6 @@ function serializeMessage(message) {
     if (message.agentId) {
       serialized.agentId = String(message.agentId);
     }
-    const memoryProvenance = normalizeMemoryProvenance(message.memoryProvenance);
-    if (memoryProvenance.available.length > 0 || memoryProvenance.claimedUsedRefs.length > 0) {
-      serialized.memoryProvenance = memoryProvenance;
-    }
   }
   if (message.role === "system") {
     serialized.kind = String(message.kind || "notice");
@@ -318,7 +302,6 @@ function normalizePersistedMessage(message) {
   if (message.role === "assistant") {
     normalized.agentLabel = typeof message.agentLabel === "string" ? message.agentLabel : "";
     normalized.agentId = typeof message.agentId === "string" ? message.agentId : "";
-    normalized.memoryProvenance = normalizeMemoryProvenance(message.memoryProvenance);
   }
   if (message.role === "system") {
     normalized.kind = typeof message.kind === "string" ? message.kind : "notice";
@@ -339,32 +322,6 @@ function normalizeMessageId(value, role, createdAt) {
   const timestamp = normalizeTimestamp(createdAt, Date.now()).toString(36);
   const content = `${role || "message"}:${timestamp}`;
   return `msg-legacy-${Buffer.from(content).toString("base64").replace(/[^a-z0-9]/gi, "").slice(0, 18)}`;
-}
-
-function normalizeMemoryProvenance(value) {
-  const source = value && typeof value === "object" ? value : {};
-  const available = (Array.isArray(source.available) ? source.available : [])
-    .map((item) => {
-      if (!item || typeof item !== "object") {
-        return null;
-      }
-      const ref = String(item.ref || "").slice(0, 20);
-      const memoryId = String(item.memoryId || "").slice(0, 200);
-      if (!ref || !memoryId) {
-        return null;
-      }
-      return {
-        ref,
-        memoryId
-      };
-    })
-    .filter(Boolean)
-    .slice(0, 12);
-  const availableRefs = new Set(available.map((item) => item.ref));
-  const claimedUsedRefs = [...new Set((Array.isArray(source.claimedUsedRefs) ? source.claimedUsedRefs : [])
-    .map((ref) => String(ref || "").slice(0, 20))
-    .filter((ref) => availableRefs.has(ref)))].slice(0, 12);
-  return { available, claimedUsedRefs };
 }
 
 function isPersistableMessageRole(role) {
@@ -418,12 +375,11 @@ function normalizeTimelineEntry(entry) {
       normalized[field] = normalizeTimelineStringField(field, entry[field]);
     }
   }
+  if (Array.isArray(entry.paths)) {
+    normalized.paths = [...new Set(entry.paths.map((path) => String(path || "").trim()).filter(Boolean))].slice(0, 20);
+  }
   if (entry.kind === "reasoning" && entry.discrete !== undefined) {
     normalized.discrete = entry.discrete === true;
-  }
-  const auditItems = normalizeAuditItems(entry.auditItems);
-  if (auditItems.length > 0) {
-    normalized.auditItems = auditItems;
   }
 
   if ((entry.kind === "message" || entry.kind === "content") && !normalized.text) {
@@ -449,95 +405,6 @@ function truncatePersistedTimelineText(text, limit) {
     return normalized;
   }
   return `${normalized.slice(0, maxLength)}${TRUNCATED_TEXT_MARKER}`;
-}
-
-function normalizeAuditItems(items) {
-  if (!Array.isArray(items)) {
-    return [];
-  }
-  return items
-    .map(normalizeAuditItem)
-    .filter(Boolean)
-    .slice(0, PERSISTED_AUDIT_ITEMS_LIMIT);
-}
-
-function normalizeAuditItem(item) {
-  if (!item || typeof item !== "object") {
-    return null;
-  }
-  const title = normalizeAuditText(item.title, PERSISTED_AUDIT_TEXT_LIMITS.title);
-  const summary = normalizeAuditText(item.summary, PERSISTED_AUDIT_TEXT_LIMITS.summary);
-  if (!title && !summary) {
-    return null;
-  }
-  const normalized = {
-    title: title || summary,
-    summary,
-    type: normalizeAuditText(item.type, PERSISTED_AUDIT_TEXT_LIMITS.type),
-    source: normalizeAuditText(item.source, PERSISTED_AUDIT_TEXT_LIMITS.source),
-    badges: normalizeAuditBadges(item.badges),
-    fields: normalizeAuditFields(item.fields)
-  };
-  return normalized;
-}
-
-function normalizeAuditBadges(badges) {
-  if (!Array.isArray(badges)) {
-    return [];
-  }
-  const seen = new Set();
-  return badges
-    .map((badge) => normalizeAuditText(badge, PERSISTED_AUDIT_TEXT_LIMITS.badge))
-    .filter(Boolean)
-    .filter((badge) => {
-      if (seen.has(badge)) {
-        return false;
-      }
-      seen.add(badge);
-      return true;
-    })
-    .slice(0, PERSISTED_AUDIT_BADGES_LIMIT);
-}
-
-function normalizeAuditFields(fields) {
-  if (!Array.isArray(fields)) {
-    return [];
-  }
-  return fields
-    .map((field) => {
-      if (!field || typeof field !== "object") {
-        return null;
-      }
-      const label = normalizeAuditText(field.label, PERSISTED_AUDIT_TEXT_LIMITS.label);
-      const value = field.preformatted === true
-        ? normalizeAuditPreformattedText(field.value, PERSISTED_AUDIT_TEXT_LIMITS.value)
-        : normalizeAuditText(field.value, PERSISTED_AUDIT_TEXT_LIMITS.value);
-      if (!label || !value) {
-        return null;
-      }
-      const normalized = { label, value };
-      if (field.debugOnly === true) {
-        normalized.debugOnly = true;
-      }
-      if (field.preformatted === true) {
-        normalized.preformatted = true;
-      }
-      return normalized;
-    })
-    .filter(Boolean)
-    .slice(0, PERSISTED_AUDIT_FIELDS_LIMIT);
-}
-
-function normalizeAuditText(value, limit) {
-  return truncatePersistedTimelineText(redactSensitiveText(String(value || "").replace(/\s+/g, " ").trim()), limit);
-}
-
-function normalizeAuditPreformattedText(value, limit) {
-  const text = String(value || "");
-  if (!text.trim()) {
-    return "";
-  }
-  return truncatePersistedTimelineText(redactSensitiveText(text), limit);
 }
 
 function limitSessions(sessions, settings) {

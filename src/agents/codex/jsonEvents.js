@@ -63,6 +63,7 @@ function codexJsonEventToUpdates(event, translate = defaultTranslate) {
     return [{
       kind: "tool",
       toolType: "command",
+      exitCode: hasExitCode(item) ? Number(item.exit_code) : null,
       title: formatCommandTitle(type, item, translate),
       summary: formatCommandSummary(item, translate),
       detail: formatCommandExecution(item, translate)
@@ -71,9 +72,11 @@ function codexJsonEventToUpdates(event, translate = defaultTranslate) {
 
   if (isToolItem(item)) {
     const summary = extractText(item) || summarizeItem(item);
+    const isFileChange = item.type === "patch" || item.type === "file_change";
     return [{
       kind: "tool",
-      toolType: "generic",
+      toolType: isFileChange ? "file_change" : "generic",
+      paths: isFileChange ? extractPaths(item) : [],
       title: formatEventTitle(type, formatToolTitle(item), translate),
       summary: compactOneLine(summary),
       detail: summary
@@ -100,6 +103,24 @@ function codexJsonEventToUpdates(event, translate = defaultTranslate) {
   }
 
   return [{ kind: "activity", title: type, detail: compactJson(event) }];
+}
+
+function extractPaths(value) {
+  const paths = [];
+  const seen = new Set();
+  const add = (candidate) => {
+    const path = String(candidate || "").trim();
+    if (path && !seen.has(path)) {
+      seen.add(path);
+      paths.push(path);
+    }
+  };
+  add(value?.path);
+  add(value?.file_path);
+  for (const item of Array.isArray(value?.changes) ? value.changes : []) {
+    add(item?.path || item?.file_path);
+  }
+  return paths.slice(0, 20);
 }
 
 function updateLatestAgentMessageOutput(current, update) {

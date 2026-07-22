@@ -24,10 +24,12 @@ function acpUpdateToEvents(update, translate = defaultTranslate) {
   }
 
   if (sessionUpdate === "tool_call") {
+    const toolType = getCursorToolType(update);
     return [{
       kind: "tool",
       toolCallId: update.toolCallId || "",
-      toolType: getCursorToolType(update),
+      toolType,
+      paths: toolType === "file_change" ? extractCursorPaths(update) : [],
       title: update.title || update.kind || translate("cursor.toolCall"),
       summary: formatToolCallSummary(update, translate),
       detail: formatToolCallDetail(update)
@@ -35,10 +37,12 @@ function acpUpdateToEvents(update, translate = defaultTranslate) {
   }
 
   if (sessionUpdate === "tool_call_update") {
+    const toolType = getCursorToolType(update);
     return [{
       kind: "tool",
       toolCallId: update.toolCallId || "",
-      toolType: getCursorToolType(update),
+      toolType,
+      paths: toolType === "file_change" ? extractCursorPaths(update) : [],
       title: update.title || translate("cursor.toolCall"),
       summary: formatToolCallUpdateSummary(update, translate),
       detail: formatToolCallUpdateDetail(update)
@@ -126,10 +130,35 @@ function getCursorToolType(update) {
   if (/web[_ -]?search|search_web|browser_search/.test(haystack)) {
     return "web_search";
   }
+  if (/file[_ -]?(change|edit|write)|apply[_ -]?patch|patch|edit file|write file/.test(haystack)) {
+    return "file_change";
+  }
   if (/terminal|shell|command|exec/.test(haystack) || Boolean(rawInput && typeof rawInput === "object" && rawInput.command)) {
     return "command";
   }
   return "generic";
+}
+
+function extractCursorPaths(update) {
+  const paths = [];
+  const seen = new Set();
+  const add = (value) => {
+    const path = String(value || "").trim();
+    if (path && !seen.has(path)) {
+      seen.add(path);
+      paths.push(path);
+    }
+  };
+  const input = update?.rawInput;
+  if (input && typeof input === "object") {
+    add(input.path);
+    add(input.filePath);
+    add(input.file_path);
+  }
+  for (const location of Array.isArray(update?.locations) ? update.locations : []) {
+    add(location?.path);
+  }
+  return paths.slice(0, 20);
 }
 
 function formatToolCallDetail(update) {
