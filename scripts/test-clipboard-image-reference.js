@@ -1,6 +1,8 @@
 const assert = require("assert");
 
 const {
+  replacePastedImageEmbedsForRendering,
+  saveClipboardImageFile,
   _test
 } = require("../src/view/reference/ClipboardImageReference");
 
@@ -44,6 +46,29 @@ assert.strictEqual(_test.resolveObsidianAttachmentFolder(createApp("./attachment
 assert.strictEqual(_test.resolveObsidianAttachmentFolder(createApp("Assets/Pasted")), "Assets/Pasted");
 assert.strictEqual(_test.isCacheImagePath(".agent-dock-cache/pasted-images/a.png"), true);
 assert.strictEqual(_test.isCacheImagePath("Attachments/a.png"), false);
+assert.strictEqual(
+  replacePastedImageEmbedsForRendering({
+    vault: {
+      adapter: {
+        getResourcePath(path) {
+          return `app://local/${path}`;
+        }
+      }
+    }
+  }, "请看 ![[.agent-dock-cache/pasted-images/chart.png]]"),
+  "请看 ![](<app://local/.agent-dock-cache/pasted-images/chart.png>)"
+);
+assert.strictEqual(
+  _test.replacePastedImageEmbedsForRendering({ vault: { adapter: {} } }, "![[Attachments/chart.png]]"),
+  "![[Attachments/chart.png]]"
+);
+assert.strictEqual(
+  _test.getPastedImageAbsolutePath(
+    { vault: { adapter: { basePath: "/Users/example/Vault" } } },
+    ".agent-dock-cache/pasted-images/chart.png"
+  ),
+  "/Users/example/Vault/.agent-dock-cache/pasted-images/chart.png"
+);
 
 {
   const firstFile = {
@@ -123,6 +148,45 @@ runAsyncTests()
   });
 
 async function runAsyncTests() {
+  {
+    const targetFolder = ".agent-dock-cache/pasted-images";
+    let targetFolderExists = false;
+    let createFolderCalls = 0;
+    const createdFiles = new Map();
+    const app = {
+      vault: {
+        adapter: {
+          async exists(path) {
+            return path === ".agent-dock-cache" || (path === targetFolder && targetFolderExists);
+          }
+        },
+        getAbstractFileByPath() {
+          return null;
+        },
+        async createFolder(path) {
+          assert.strictEqual(path, targetFolder);
+          createFolderCalls += 1;
+          targetFolderExists = true;
+          throw new Error("Folder already exists.");
+        },
+        async createBinary(path, buffer) {
+          createdFiles.set(path, buffer);
+        }
+      }
+    };
+    const savedPath = await saveClipboardImageFile(app, {
+      name: "",
+      type: "image/png",
+      arrayBuffer: async () => new ArrayBuffer(0)
+    }, {
+      cleanup: false,
+      now: new Date(2026, 6, 7, 1, 2, 3, 4)
+    });
+    assert.strictEqual(createFolderCalls, 1);
+    assert.strictEqual(savedPath, ".agent-dock-cache/pasted-images/pasted-image20260707-010203-004.png");
+    assert.strictEqual(createdFiles.has(savedPath), true);
+  }
+
   {
     const adapter = createAdapter({
       ".agent-dock-cache/pasted-images/old.png": {

@@ -10,6 +10,9 @@ function renderComposerContent(composer, options) {
     plugin,
     draft,
     getActiveSession,
+    getModel,
+    getModelCatalog,
+    setModel,
     handleMentionKeydown,
     replaceObsidianLinksInInput,
     updateContextStatus,
@@ -237,6 +240,71 @@ function renderComposerContent(composer, options) {
     });
   }
 
+  const modelPill = leftTools.createEl("details", { cls: "codex-dock__mode-pill codex-dock__model-pill" });
+  let modelCatalog = { models: [], defaultModel: "", defaultLabel: "" };
+  let isLoadingModelCatalog = false;
+  const modelSummary = modelPill.createEl("summary", {
+    cls: "codex-dock__mode-summary codex-dock__model-summary",
+    attr: { "aria-label": translate("composer.model") }
+  });
+  const modelIcon = modelSummary.createSpan({ cls: "codex-dock__mode-icon", attr: { "aria-hidden": "true" } });
+  setIcon(modelIcon, "bot");
+  const modelLabel = modelSummary.createSpan({ cls: "codex-dock__mode-label", text: getModelLabel() });
+  const modelChevron = modelSummary.createSpan({ cls: "codex-dock__mode-chevron", attr: { "aria-hidden": "true" } });
+  setIcon(modelChevron, "chevron-down");
+  const modelMenu = modelPill.createDiv({ cls: "codex-dock__mode-menu codex-dock__model-menu" });
+  const modelListId = `codex-dock-models-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const modelInput = modelMenu.createEl("input", {
+    cls: "codex-dock__model-input",
+    type: "text",
+    value: getModel(getActiveSession()),
+    attr: {
+      placeholder: translate("composer.modelPlaceholder"),
+      "aria-label": translate("composer.model"),
+      list: modelListId
+    }
+  });
+  const modelOptions = modelMenu.createEl("datalist", { attr: { id: modelListId } });
+  const modelHint = modelMenu.createDiv({ cls: "codex-dock__model-hint", text: translate("composer.modelLoading") });
+  const refreshModelsButton = modelMenu.createEl("button", {
+    cls: "codex-dock__model-refresh",
+    text: translate("composer.refreshModels"),
+    attr: { type: "button" }
+  });
+  const closeModelMenu = (event) => {
+    if (!modelPill.contains(event.target)) {
+      modelPill.removeAttribute("open");
+      removeGlobalPointerListener(closeModelMenu);
+    }
+  };
+  modelPill.addEventListener("toggle", () => {
+    if (modelPill.open) {
+      modelInput.disabled = Boolean(getActiveSession()?.currentRun);
+      window.setTimeout(() => {
+        if (modelPill.isConnected && modelPill.open) {
+          modelInput.focus();
+          addGlobalPointerListener(closeModelMenu);
+          loadModelCatalog();
+        }
+      }, 0);
+    } else {
+      removeGlobalPointerListener(closeModelMenu);
+    }
+  });
+  modelInput.addEventListener("keydown", (event) => event.stopPropagation());
+  refreshModelsButton.addEventListener("click", () => loadModelCatalog({ force: true }));
+  modelInput.addEventListener("change", async () => {
+    const session = getActiveSession();
+    if (!session || session.currentRun) {
+      return;
+    }
+    await setModel(session, modelInput.value);
+    modelInput.value = getModel(session);
+    modelLabel.setText(getModelLabel());
+    modelSummary.setAttr("title", getModelTitle());
+  });
+  modelSummary.setAttr("title", getModelTitle());
+
   const rightTools = composerBar.createDiv({ cls: "codex-dock__composer-status" });
   const contextStatusEl = rightTools.createDiv({ cls: "codex-dock__context-status" });
 
@@ -281,6 +349,67 @@ function renderComposerContent(composer, options) {
     sendButton.setAttr("title", label);
     setIcon(sendButton, "arrow-up");
   }
+
+  function getModelLabel() {
+    const selectedModel = getModel(getActiveSession());
+    if (selectedModel) {
+      const entry = modelCatalog.models.find((model) => model.id === selectedModel);
+      return entry ? `${entry.label} (${entry.id})` : selectedModel;
+    }
+    return modelCatalog.defaultModel
+      ? translate("composer.modelDefault", { model: modelCatalog.defaultLabel || modelCatalog.defaultModel })
+      : translate("composer.modelDefaultUnknown");
+  }
+
+  function getModelTitle() {
+    return translate("composer.modelTitle", { model: getModelLabel() });
+  }
+
+  async function loadModelCatalog(options = {}) {
+    if (isLoadingModelCatalog || (!options.force && modelCatalog.models.length > 0)) {
+      return;
+    }
+    isLoadingModelCatalog = true;
+    refreshModelsButton.disabled = true;
+    modelHint.setText(translate("composer.modelLoading"));
+    try {
+      const result = await getModelCatalog();
+      modelCatalog = normalizeModelCatalog(result);
+      modelOptions.empty();
+      for (const model of modelCatalog.models) {
+        modelOptions.createEl("option", {
+          value: model.id,
+          text: model.label ? `${model.label} — ${model.id}` : model.id
+        });
+      }
+      modelHint.setText(modelCatalog.models.length > 0
+        ? translate("composer.modelHint", { count: modelCatalog.models.length })
+        : translate("composer.modelUnavailable"));
+      modelLabel.setText(getModelLabel());
+      modelSummary.setAttr("title", getModelTitle());
+    } catch {
+      modelHint.setText(translate("composer.modelUnavailable"));
+    } finally {
+      isLoadingModelCatalog = false;
+      refreshModelsButton.disabled = false;
+    }
+  }
+}
+
+function normalizeModelCatalog(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const models = Array.isArray(source.models) ? source.models
+    .filter((model) => model && typeof model.id === "string" && model.id)
+    .map((model) => ({
+      id: model.id,
+      label: typeof model.label === "string" ? model.label : model.id,
+      description: typeof model.description === "string" ? model.description : ""
+    })) : [];
+  return {
+    models,
+    defaultModel: typeof source.defaultModel === "string" ? source.defaultModel : "",
+    defaultLabel: typeof source.defaultLabel === "string" ? source.defaultLabel : ""
+  };
 }
 
 function hasFileDropPayload(dataTransfer) {

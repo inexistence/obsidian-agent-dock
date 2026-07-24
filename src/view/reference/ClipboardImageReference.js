@@ -198,9 +198,43 @@ function isCacheImagePath(path, folder = DEFAULT_PASTE_FOLDER) {
   return /\.(png|jpe?g|gif|webp|tiff?|bmp|svg)$/i.test(normalizedPath);
 }
 
+function replacePastedImageEmbedsForRendering(app, text) {
+  return String(text || "").replace(/!\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g, (embed, path) => {
+    const resourcePath = getPastedImageResourcePath(app, path);
+    return resourcePath ? `![](<${resourcePath}>)` : embed;
+  });
+}
+
+function getPastedImageResourcePath(app, path) {
+  const normalizedPath = normalizeVaultPath(path);
+  const adapter = app?.vault?.adapter;
+  if (!isCacheImagePath(normalizedPath) || typeof adapter?.getResourcePath !== "function") {
+    return "";
+  }
+  try {
+    return String(adapter.getResourcePath(normalizedPath) || "");
+  } catch {
+    return "";
+  }
+}
+
+function getPastedImageAbsolutePath(app, path) {
+  const normalizedPath = normalizeVaultPath(path);
+  if (!isCacheImagePath(normalizedPath)) {
+    return "";
+  }
+  const adapter = app?.vault?.adapter;
+  const basePath = String(adapter?.getBasePath?.() || adapter?.basePath || "").replace(/[\\/]+$/, "");
+  if (!basePath) {
+    return "";
+  }
+  const separator = basePath.includes("\\") ? "\\" : "/";
+  return `${basePath}${separator}${normalizedPath.replace(/\//g, separator)}`;
+}
+
 async function ensureVaultFolder(app, folder) {
   const normalizedFolder = normalizeVaultPath(folder);
-  if (!normalizedFolder || app.vault.getAbstractFileByPath(normalizedFolder)) {
+  if (!normalizedFolder || await vaultPathExists(app, normalizedFolder)) {
     return;
   }
 
@@ -208,10 +242,26 @@ async function ensureVaultFolder(app, folder) {
   let current = "";
   for (const part of parts) {
     current = joinVaultPath(current, part);
-    if (!app.vault.getAbstractFileByPath(current)) {
-      await app.vault.createFolder(current);
+    if (!await vaultPathExists(app, current)) {
+      try {
+        await app.vault.createFolder(current);
+      } catch (error) {
+        // The adapter can see a folder before Obsidian's in-memory index does,
+        // and another paste may have created it between the check and create.
+        if (!await vaultPathExists(app, current)) {
+          throw error;
+        }
+      }
     }
   }
+}
+
+async function vaultPathExists(app, path) {
+  if (app?.vault?.getAbstractFileByPath?.(path)) {
+    return true;
+  }
+  const adapter = app?.vault?.adapter;
+  return Boolean(adapter?.exists && await adapter.exists(path));
 }
 
 async function getAvailableVaultPath(app, requestedPath) {
@@ -300,6 +350,8 @@ module.exports = {
   cleanupExpiredPastedImages,
   deletePastedImagePaths,
   extractClipboardImageFiles,
+  getPastedImageAbsolutePath,
+  replacePastedImageEmbedsForRendering,
   saveClipboardImageFile,
   _test: {
     cleanupExpiredPastedImages,
@@ -307,10 +359,12 @@ module.exports = {
     deletePastedImagePaths,
     extractClipboardImageFiles,
     getImageExtension,
+    getPastedImageAbsolutePath,
     isCacheImagePath,
     isGenericClipboardImageFile,
     joinVaultPath,
     normalizeVaultPath,
+    replacePastedImageEmbedsForRendering,
     resolvePasteFolder,
     resolveObsidianAttachmentFolder
   }

@@ -3,7 +3,7 @@ const fs = require("fs/promises");
 const os = require("os");
 const path = require("path");
 
-const { parseArgsTemplate, withJsonOutput, withOutputLastMessage } = require("../../cli/args");
+const { parseArgsTemplate, withJsonOutput, withModel, withOutputLastMessage } = require("../../cli/args");
 const { buildCliPath } = require("../../cli/env");
 const { t } = require("../../i18n");
 const { applyModeArgs } = require("../../modes");
@@ -11,6 +11,7 @@ const { DEFAULT_SETTINGS } = require("../../settings");
 const { buildAgentTurnContext, emitDebugPromptActivity } = require("../shared/TurnContextBuilder");
 const { applyVisibleEventPolicy } = require("../shared/visibleEventPolicy");
 const { codexJsonEventToUpdates, updateLatestAgentMessageOutput } = require("./jsonEvents");
+const { listCodexModels } = require("./ModelCatalog");
 
 class CodexAgent {
   constructor(plugin) {
@@ -34,7 +35,10 @@ class CodexAgent {
     });
     const outputPath = path.join(os.tmpdir(), `obsidian-agent-dock-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`);
     const args = withJsonOutput(withOutputLastMessage(applyModeArgs(
-      parseArgsTemplate(settings.args, turnContext.promptResult.prompt, DEFAULT_SETTINGS.args),
+      withModel(
+        parseArgsTemplate(settings.args, turnContext.promptResult.prompt, DEFAULT_SETTINGS.args),
+        this.getModel(options.dockSession)
+      ),
       settings.mode,
       DEFAULT_SETTINGS.mode
     ), outputPath));
@@ -121,6 +125,30 @@ class CodexAgent {
   getWorkingDirectory() {
     return this.plugin.settings.workingDirectory || this.plugin.app.vault.adapter.basePath;
   }
+
+  getModel(dockSession) {
+    return String(dockSession?.providerState?.codex?.model || "");
+  }
+
+  setModel(dockSession, model) {
+    if (!dockSession) return;
+    if (!dockSession.providerState || typeof dockSession.providerState !== "object") {
+      dockSession.providerState = {};
+    }
+    dockSession.providerState.codex = { model: normalizeModel(model) };
+  }
+
+  async getModelCatalog() {
+    return listCodexModels({
+      executablePath: this.plugin.settings.codexPath,
+      cwd: this.getWorkingDirectory(),
+      env: Object.assign({}, process.env, { PATH: buildCliPath(process.env.PATH), TERM: "dumb" })
+    });
+  }
+}
+
+function normalizeModel(value) {
+  return String(value || "").trim().slice(0, 120);
 }
 
 async function readOutputFile(outputPath) {

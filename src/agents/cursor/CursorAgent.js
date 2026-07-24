@@ -10,6 +10,7 @@ const { DEFAULT_SETTINGS } = require("../../settings");
 const { AcpClient } = require("./AcpClient");
 const { acpUpdateToEvents } = require("./acpEvents");
 const { toCursorMode } = require("./modes");
+const { spawn } = require("child_process");
 
 const CONNECTION_IDLE_MS = 30 * 60 * 1000;
 
@@ -49,7 +50,8 @@ class CursorAgent {
     const dockSession = options.dockSession || null;
     const cursorState = ensureCursorProviderState(dockSession);
     const cursorMode = toCursorMode(settings.mode, DEFAULT_SETTINGS.mode);
-    const connectionKey = buildConnectionKey(settings, cwd, cursorMode);
+    const model = cursorState.model;
+    const connectionKey = buildConnectionKey(settings, cwd, cursorMode, model);
     const sessionKey = dockSession?.id || "__anonymous__";
 
     let useFullPrompt = !cursorState.acpSessionId;
@@ -119,6 +121,7 @@ class CursorAgent {
       client = await this.getOrCreateClient(sessionKey, connectionKey, {
         settings,
         cwd,
+        model,
         translate,
         onUpdate: emitUpdate
       });
@@ -272,7 +275,7 @@ class CursorAgent {
 
     const client = new AcpClient({
       executablePath: expandHomePath(context.settings.cursorPath || DEFAULT_SETTINGS.cursorPath),
-      extraArgs: splitExtraArgs(context.settings.cursorExtraArgs),
+      extraArgs: buildCursorArgs(context.settings, context.model),
       cwd: context.cwd,
       permissionPolicy: resolvePermissionPolicy(
         context.settings.mode,
@@ -375,6 +378,27 @@ class CursorAgent {
     return this.plugin.settings.workingDirectory || this.plugin.app.vault.adapter.basePath;
   }
 
+  getModel(dockSession) {
+    return ensureCursorProviderState(dockSession).model;
+  }
+
+  setModel(dockSession, model) {
+    if (!dockSession) return;
+    const cursorState = ensureCursorProviderState(dockSession);
+    const nextModel = normalizeModel(model);
+    if (cursorState.model === nextModel) return;
+    cursorState.model = nextModel;
+    cursorState.acpSessionId = "";
+    this.removeConnection(dockSession.id);
+  }
+
+  async getModelCatalog() {
+    return listCursorModels({
+      executablePath: expandHomePath(this.plugin.settings.cursorPath || DEFAULT_SETTINGS.cursorPath),
+      cwd: this.getWorkingDirectory()
+    });
+  }
+
 }
 
 function emitCursorAuthenticationNoticeIfNeeded(client, emitUpdate, translate) {
@@ -397,19 +421,21 @@ function ensureCursorProviderState(dockSession) {
     dockSession.providerState = {};
   }
   if (!dockSession.providerState.cursor || typeof dockSession.providerState.cursor !== "object") {
-    dockSession.providerState.cursor = { acpSessionId: "" };
+    dockSession.providerState.cursor = { acpSessionId: "", model: "" };
   }
   if (typeof dockSession.providerState.cursor.acpSessionId !== "string") {
     dockSession.providerState.cursor.acpSessionId = "";
   }
+  dockSession.providerState.cursor.model = normalizeModel(dockSession.providerState.cursor.model);
   return dockSession.providerState.cursor;
 }
 
-function buildConnectionKey(settings, cwd, cursorMode) {
+function buildConnectionKey(settings, cwd, cursorMode, model) {
   return [
     expandHomePath(settings.cursorPath || DEFAULT_SETTINGS.cursorPath),
     settings.cursorExtraArgs || "",
     settings.cursorPermissionPolicy || DEFAULT_SETTINGS.cursorPermissionPolicy,
+    model || "",
     cwd,
     cursorMode
   ].join("|");
@@ -421,6 +447,62 @@ function splitExtraArgs(value) {
     return [];
   }
   return text.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+}
+
+function buildCursorArgs(settings, model) {
+  const args = splitExtraArgs(settings.cursorExtraArgs);
+  const selectedModel = normalizeModel(model);
+  return selectedModel ? [...args, "--model", selectedModel] : args;
+}
+
+function normalizeModel(value) {
+  return String(value || "").trim().slice(0, 120);
+}
+
+function listCursorModels(options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(options.executablePath, ["--list-models"], {
+      cwd: options.cwd || process.cwd(),
+      shell: false,
+      env: Object.assign({}, process.env, { PATH: buildCliPath(process.env.PATH), TERM: "dumb" }),
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    const timeout = setTimeout(() => child.kill("SIGTERM"), 10000);
+    child.stdout.on("data", (data) => { stdout += data.toString(); });
+    child.stderr.on("data", (data) => { stderr += data.toString(); });
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timeout);
+      if (code !== 0) {
+        reject(new Error(stderr.trim() || "Cursor could not list models."));
+        return;
+      }
+      resolve(parseCursorModels(stdout));
+    });
+  });
+}
+
+function parseCursorModels(output) {
+  const entries = String(output || "").split(/\r?\n/).map((line) => {
+    const match = /^(\S+)\s+-\s+(.+?)(?:\s+\(([^)]*)\))?$/.exec(line.trim());
+    if (!match) return null;
+    return {
+      id: match[1],
+      label: match[2],
+      isDefault: /\bdefault\b/i.test(match[3] || "")
+    };
+  }).filter(Boolean);
+  const defaultEntry = entries.find((entry) => entry.isDefault);
+  return {
+    models: entries.map(({ id, label }) => ({ id, label, description: "" })),
+    defaultModel: defaultEntry?.id || "",
+    defaultLabel: defaultEntry?.label || defaultEntry?.id || ""
+  };
 }
 
 function normalizePermissionPolicy(value) {
@@ -565,6 +647,8 @@ module.exports = {
   CursorAgent,
   _test: {
     isStaleSessionError,
+    buildCursorArgs,
+    parseCursorModels,
     resolvePermissionPolicy,
     withSuppressedSessionUpdates: (client, callback) => (
       CursorAgent.prototype.withSuppressedSessionUpdates.call(null, client, callback)

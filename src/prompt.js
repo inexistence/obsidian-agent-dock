@@ -1,4 +1,5 @@
 const { extractMentionReferences } = require("./view/reference/mention");
+const { getPastedImageAbsolutePath } = require("./view/reference/ClipboardImageReference");
 
 const DEFAULT_CONTEXT_LIMIT = 258000;
 
@@ -136,9 +137,12 @@ function buildReferencedPathsPrompt(app, prompt, contextLimit) {
     "Inspect these paths with local tools when relevant; their contents are not embedded here."
   ];
   for (const reference of references) {
+    const pastedImagePath = getPastedImageAbsolutePath(app, reference.path);
     const resolved = resolveReferencedEntry(app, reference.path);
     const kind = resolved?.children ? "folder" : resolved ? "file" : "not found in vault";
-    const line = `- ${resolved?.path || reference.path} (${kind})`;
+    const line = pastedImagePath
+      ? `- ${pastedImagePath} (pasted image; absolute local path)`
+      : `- ${resolved?.path || reference.path} (${kind})`;
     if (lines.join("\n").length + line.length + 1 > maxChars) {
       lines.push("[Additional referenced paths omitted]");
       break;

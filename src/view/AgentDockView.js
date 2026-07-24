@@ -9,6 +9,7 @@ const { ImagePreviewController } = require("./ImagePreviewController");
 const { OnboardingModal } = require("./OnboardingModal");
 const { renderComposerContent } = require("./composer/ComposerRenderer");
 const { ReferenceController } = require("./reference/ReferenceController");
+const { replacePastedImageEmbedsForRendering } = require("./reference/ClipboardImageReference");
 const { runChatTurn } = require("./session/ChatTurnRunner");
 const {
   clearPromptQueue,
@@ -417,6 +418,19 @@ class AgentDockView extends ItemView {
       plugin: this.plugin,
       draft,
       getActiveSession: () => this.getActiveSession(),
+      getModel: (session) => this.plugin.agent.getModel?.(session) || "",
+      getModelCatalog: () => this.plugin.agent.getModelCatalog?.() || Promise.resolve({
+        models: [],
+        defaultModel: "",
+        defaultLabel: ""
+      }),
+      setModel: async (session, model) => {
+        if (!session || session.currentRun || typeof this.plugin.agent.setModel !== "function") {
+          return;
+        }
+        this.plugin.agent.setModel(session, model);
+        this.persistSessionChange(session);
+      },
       handleMentionKeydown: (event) => this.referenceController.handleMentionKeydown(event),
       replaceObsidianLinksInInput: () => this.referenceController.replaceObsidianLinksInInput(),
       updateContextStatus: () => this.updateContextStatus(),
@@ -954,7 +968,10 @@ class AgentDockView extends ItemView {
     const contentEl = containerEl.createDiv({ cls: contentClass });
     const markdownEl = contentEl.createDiv({ cls: "codex-dock__content-body" });
     const sourcePath = this.app.workspace.getActiveFile()?.path || "";
-    const normalizedText = normalizeLocalFileMarkdownLinks(text || "");
+    const normalizedText = replacePastedImageEmbedsForRendering(
+      this.app,
+      normalizeLocalFileMarkdownLinks(text || "")
+    );
     MarkdownRenderer.render(this.app, normalizedText, markdownEl, sourcePath, this).then(() => {
       decorateLocalFileLinks(markdownEl, this.app, {
         sourcePath,

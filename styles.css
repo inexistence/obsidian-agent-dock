@@ -2937,6 +2937,30 @@
   z-index: 35;
 }
 
+.codex-dock__model-menu {
+  width: min(260px, calc(100cqw - 44px));
+  gap: 6px;
+}
+
+.codex-dock__model-input {
+  width: 100%;
+  min-height: 30px;
+  box-sizing: border-box;
+}
+
+.codex-dock__model-hint {
+  color: var(--text-muted);
+  font-size: var(--font-ui-smaller);
+  line-height: 1.35;
+}
+
+.codex-dock__model-refresh {
+  justify-self: start;
+  min-height: 28px;
+  padding: 0 8px;
+  font-size: var(--font-ui-smaller);
+}
+
 .codex-dock__mode-option {
   display: block;
   width: 100%;

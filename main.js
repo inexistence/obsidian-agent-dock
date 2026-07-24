@@ -119,9 +119,29 @@ function withJsonOutput(args) {
   return args;
 }
 
+function withModel(args, model) {
+  const selectedModel = String(model || "").trim();
+  if (!selectedModel) {
+    return args;
+  }
+
+  const execIndex = args.indexOf("exec");
+  if (execIndex >= 0) {
+    return [
+      ...args.slice(0, execIndex),
+      "--model",
+      selectedModel,
+      ...args.slice(execIndex)
+    ];
+  }
+
+  return ["--model", selectedModel, ...args];
+}
+
 module.exports = {
   parseArgsTemplate,
   withJsonOutput,
+  withModel,
   withOutputLastMessage
 };
 
@@ -290,6 +310,15 @@ module.exports = {
     "composer.attachActiveNote": "Attach active note as a reference",
     "composer.referencedFiles": "Referenced files",
     "composer.mode": "Mode",
+    "composer.model": "Model",
+    "composer.modelDefault": "Default: {model}",
+    "composer.modelDefaultUnknown": "CLI default model",
+    "composer.modelPlaceholder": "Search or enter a model ID",
+    "composer.modelHint": "{count} available models · applies from the next message.",
+    "composer.modelLoading": "Loading models available to this CLI account…",
+    "composer.modelUnavailable": "Could not load available models. You can still enter a model ID.",
+    "composer.refreshModels": "Refresh models",
+    "composer.modelTitle": "Model: {model}",
     "composer.stopAgent": "Stop agent",
     "composer.sendMessage": "Send message",
     "composer.queueMessage": "Queue message",
@@ -551,6 +580,15 @@ module.exports = {
     "composer.attachActiveNote": "将当前笔记附加为引用",
     "composer.referencedFiles": "提及的文件",
     "composer.mode": "模式",
+    "composer.model": "模型",
+    "composer.modelDefault": "默认：{model}",
+    "composer.modelDefaultUnknown": "CLI 默认模型",
+    "composer.modelPlaceholder": "搜索或输入模型 ID",
+    "composer.modelHint": "可用 {count} 个模型 · 从下一条消息开始生效。",
+    "composer.modelLoading": "正在加载此 CLI 账号可用的模型…",
+    "composer.modelUnavailable": "无法加载可用模型；仍可手动输入模型 ID。",
+    "composer.refreshModels": "刷新模型列表",
+    "composer.modelTitle": "模型：{model}",
     "composer.stopAgent": "停止 agent",
     "composer.sendMessage": "发送消息",
     "composer.queueMessage": "加入发送队列",
@@ -1044,8 +1082,383 @@ module.exports = {
 };
 
 },
+"src/view/reference/ClipboardImageReference.js": function(module, exports, __require) {
+const DEFAULT_PASTE_FOLDER = ".agent-dock-cache/pasted-images";
+const DEFAULT_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
+
+function extractClipboardImageFiles(clipboardData) {
+  const files = [];
+  const genericClipboardImages = [];
+  const seen = new Set();
+
+  for (const item of Array.from(clipboardData?.items || [])) {
+    if (item?.kind !== "file" || !isImageType(item.type)) {
+      continue;
+    }
+    const file = item.getAsFile?.();
+    if (file && !hasSeenClipboardFile(seen, file)) {
+      markClipboardFileSeen(seen, file);
+      addClipboardImageFile(files, genericClipboardImages, file);
+    }
+  }
+
+  for (const file of Array.from(clipboardData?.files || [])) {
+    if (isImageType(file?.type) && !hasSeenClipboardFile(seen, file)) {
+      markClipboardFileSeen(seen, file);
+      addClipboardImageFile(files, genericClipboardImages, file);
+    }
+  }
+
+  return files;
+}
+
+function addClipboardImageFile(files, genericClipboardImages, file) {
+  if (!isGenericClipboardImageFile(file)) {
+    files.push(file);
+    return;
+  }
+  genericClipboardImages.push(file);
+  if (genericClipboardImages.length === 1) {
+    files.push(file);
+  }
+}
+
+function hasSeenClipboardFile(seen, file) {
+  return seen.has(file) || seen.has(getClipboardFileKey(file));
+}
+
+function markClipboardFileSeen(seen, file) {
+  seen.add(file);
+  seen.add(getClipboardFileKey(file));
+}
+
+function getClipboardFileKey(file) {
+  return [
+    String(file?.name || ""),
+    String(file?.type || "").toLowerCase(),
+    Number.isFinite(Number(file?.size)) ? Number(file.size) : "",
+    Number.isFinite(Number(file?.lastModified)) ? Number(file.lastModified) : ""
+  ].join("|");
+}
+
+function isImageType(type) {
+  return String(type || "").toLowerCase().startsWith("image/");
+}
+
+function isGenericClipboardImageFile(file) {
+  const name = String(file?.name || "").trim().toLowerCase();
+  return !name || /^image\.(png|jpe?g|gif|webp|tiff?|bmp|svg)$/.test(name);
+}
+
+async function saveClipboardImageFile(app, file, options = {}) {
+  if (options.cleanup !== false) {
+    await cleanupExpiredPastedImages(app, options);
+  }
+  const folder = resolvePasteFolder(app, options);
+  const extension = getImageExtension(file);
+  const baseName = createPastedImageBaseName(options.now || new Date());
+  await ensureVaultFolder(app, folder);
+  const path = await getAvailableVaultPath(app, joinVaultPath(folder, `${baseName}.${extension}`));
+  const buffer = await file.arrayBuffer();
+  await app.vault.createBinary(path, buffer);
+  return path;
+}
+
+function resolvePasteFolder(app, options = {}) {
+  if (options.useObsidianAttachmentFolder === true) {
+    return resolveObsidianAttachmentFolder(app, options);
+  }
+  return DEFAULT_PASTE_FOLDER;
+}
+
+function resolveObsidianAttachmentFolder(app, options = {}) {
+  const rawConfigured = String(
+    options.attachmentFolderPath
+    ?? app?.vault?.getConfig?.("attachmentFolderPath")
+    ?? ""
+  ).trim();
+  const configured = normalizeVaultPath(rawConfigured);
+  const activeFile = options.activeFile ?? app?.workspace?.getActiveFile?.();
+  const activeFolder = normalizeVaultPath(activeFile?.parent?.path || getParentPath(activeFile?.path || ""));
+
+  if (rawConfigured === "/") {
+    return "";
+  }
+  if (rawConfigured === "." || rawConfigured === "./") {
+    return activeFolder;
+  }
+  if (rawConfigured.startsWith("./")) {
+    return joinVaultPath(activeFolder, rawConfigured.slice(2));
+  }
+  if (!configured) {
+    return DEFAULT_PASTE_FOLDER;
+  }
+  return configured;
+}
+
+async function cleanupExpiredPastedImages(app, options = {}) {
+  const folder = normalizeVaultPath(options.folder || DEFAULT_PASTE_FOLDER);
+  const maxAgeMs = Number(options.maxAgeMs) || DEFAULT_CACHE_MAX_AGE_MS;
+  const now = Number(options.nowMs) || Date.now();
+  const adapter = app?.vault?.adapter;
+  if (!adapter || !folder || !await adapter.exists(folder)) {
+    return 0;
+  }
+
+  const files = await listVaultFiles(adapter, folder);
+  let removed = 0;
+  for (const path of files) {
+    if (!isCacheImagePath(path, folder)) {
+      continue;
+    }
+    const stat = await safeStat(adapter, path);
+    const mtime = Number(stat?.mtime);
+    if (!Number.isFinite(mtime) || now - mtime <= maxAgeMs) {
+      continue;
+    }
+    if (await removeVaultFile(adapter, path)) {
+      removed += 1;
+    }
+  }
+  return removed;
+}
+
+async function deletePastedImagePaths(app, paths, options = {}) {
+  const folder = normalizeVaultPath(options.folder || DEFAULT_PASTE_FOLDER);
+  const adapter = app?.vault?.adapter;
+  if (!adapter || !Array.isArray(paths) || paths.length === 0) {
+    return 0;
+  }
+
+  let removed = 0;
+  const seen = new Set();
+  for (const rawPath of paths) {
+    const path = normalizeVaultPath(rawPath);
+    if (!path || seen.has(path) || !isCacheImagePath(path, folder)) {
+      continue;
+    }
+    seen.add(path);
+    if (await removeVaultFile(adapter, path)) {
+      removed += 1;
+    }
+  }
+  return removed;
+}
+
+async function listVaultFiles(adapter, folder) {
+  const listing = await adapter.list(folder);
+  const files = [...(listing.files || [])];
+  for (const childFolder of listing.folders || []) {
+    files.push(...await listVaultFiles(adapter, childFolder));
+  }
+  return files;
+}
+
+async function safeStat(adapter, path) {
+  try {
+    return await adapter.stat(path);
+  } catch {
+    return null;
+  }
+}
+
+async function removeVaultFile(adapter, path) {
+  try {
+    if (await adapter.exists(path)) {
+      await adapter.remove(path);
+      return true;
+    }
+  } catch (error) {
+    console.warn(`Agent Dock could not remove pasted image cache file ${path}:`, error);
+  }
+  return false;
+}
+
+function isCacheImagePath(path, folder = DEFAULT_PASTE_FOLDER) {
+  const normalizedPath = normalizeVaultPath(path);
+  const normalizedFolder = normalizeVaultPath(folder);
+  if (!normalizedPath || !normalizedFolder || !normalizedPath.startsWith(`${normalizedFolder}/`)) {
+    return false;
+  }
+  return /\.(png|jpe?g|gif|webp|tiff?|bmp|svg)$/i.test(normalizedPath);
+}
+
+function replacePastedImageEmbedsForRendering(app, text) {
+  return String(text || "").replace(/!\[\[([^\]|#]+)(?:#[^\]|]+)?(?:\|[^\]]+)?\]\]/g, (embed, path) => {
+    const resourcePath = getPastedImageResourcePath(app, path);
+    return resourcePath ? `![](<${resourcePath}>)` : embed;
+  });
+}
+
+function getPastedImageResourcePath(app, path) {
+  const normalizedPath = normalizeVaultPath(path);
+  const adapter = app?.vault?.adapter;
+  if (!isCacheImagePath(normalizedPath) || typeof adapter?.getResourcePath !== "function") {
+    return "";
+  }
+  try {
+    return String(adapter.getResourcePath(normalizedPath) || "");
+  } catch {
+    return "";
+  }
+}
+
+function getPastedImageAbsolutePath(app, path) {
+  const normalizedPath = normalizeVaultPath(path);
+  if (!isCacheImagePath(normalizedPath)) {
+    return "";
+  }
+  const adapter = app?.vault?.adapter;
+  const basePath = String(adapter?.getBasePath?.() || adapter?.basePath || "").replace(/[\\/]+$/, "");
+  if (!basePath) {
+    return "";
+  }
+  const separator = basePath.includes("\\") ? "\\" : "/";
+  return `${basePath}${separator}${normalizedPath.replace(/\//g, separator)}`;
+}
+
+async function ensureVaultFolder(app, folder) {
+  const normalizedFolder = normalizeVaultPath(folder);
+  if (!normalizedFolder || await vaultPathExists(app, normalizedFolder)) {
+    return;
+  }
+
+  const parts = normalizedFolder.split("/").filter(Boolean);
+  let current = "";
+  for (const part of parts) {
+    current = joinVaultPath(current, part);
+    if (!await vaultPathExists(app, current)) {
+      try {
+        await app.vault.createFolder(current);
+      } catch (error) {
+        // The adapter can see a folder before Obsidian's in-memory index does,
+        // and another paste may have created it between the check and create.
+        if (!await vaultPathExists(app, current)) {
+          throw error;
+        }
+      }
+    }
+  }
+}
+
+async function vaultPathExists(app, path) {
+  if (app?.vault?.getAbstractFileByPath?.(path)) {
+    return true;
+  }
+  const adapter = app?.vault?.adapter;
+  return Boolean(adapter?.exists && await adapter.exists(path));
+}
+
+async function getAvailableVaultPath(app, requestedPath) {
+  const normalizedPath = normalizeVaultPath(requestedPath);
+  if (!app.vault.getAbstractFileByPath(normalizedPath)) {
+    return normalizedPath;
+  }
+
+  const dotIndex = normalizedPath.lastIndexOf(".");
+  const slashIndex = normalizedPath.lastIndexOf("/");
+  const hasExtension = dotIndex > slashIndex;
+  const base = hasExtension ? normalizedPath.slice(0, dotIndex) : normalizedPath;
+  const extension = hasExtension ? normalizedPath.slice(dotIndex) : "";
+  for (let index = 2; index < 10000; index += 1) {
+    const candidate = `${base}-${index}${extension}`;
+    if (!app.vault.getAbstractFileByPath(candidate)) {
+      return candidate;
+    }
+  }
+  throw new Error("Could not create a unique image filename.");
+}
+
+function getImageExtension(file) {
+  const nameExtension = String(file?.name || "").match(/\.([a-z0-9]+)$/i)?.[1];
+  const mimeExtension = getImageExtensionForMime(file?.type);
+  return sanitizeExtension(nameExtension || mimeExtension || "png");
+}
+
+function getImageExtensionForMime(type) {
+  const normalizedType = String(type || "").toLowerCase();
+  if (normalizedType === "image/jpeg" || normalizedType === "image/jpg") {
+    return "jpg";
+  }
+  if (normalizedType === "image/svg+xml") {
+    return "svg";
+  }
+  const match = normalizedType.match(/^image\/([a-z0-9.+-]+)$/);
+  return match ? match[1].replace(/^x-/, "").replace(/\+xml$/, "") : "";
+}
+
+function sanitizeExtension(extension) {
+  const value = String(extension || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  return value || "png";
+}
+
+function createPastedImageBaseName(date) {
+  const safeDate = date instanceof Date && Number.isFinite(date.getTime()) ? date : new Date();
+  const pad = (value, size = 2) => String(value).padStart(size, "0");
+  return [
+    "pasted-image",
+    safeDate.getFullYear(),
+    pad(safeDate.getMonth() + 1),
+    pad(safeDate.getDate()),
+    "-",
+    pad(safeDate.getHours()),
+    pad(safeDate.getMinutes()),
+    pad(safeDate.getSeconds()),
+    "-",
+    pad(safeDate.getMilliseconds(), 3)
+  ].join("");
+}
+
+function normalizeVaultPath(path) {
+  return String(path || "")
+    .replace(/\\/g, "/")
+    .replace(/\/+/g, "/")
+    .replace(/^\/+/, "")
+    .replace(/\/+$/, "")
+    .trim()
+    .split("/")
+    .filter((part) => part && part !== ".")
+    .join("/");
+}
+
+function joinVaultPath(...parts) {
+  return normalizeVaultPath(parts.filter((part) => String(part || "").trim()).join("/"));
+}
+
+function getParentPath(path) {
+  const normalizedPath = normalizeVaultPath(path);
+  const index = normalizedPath.lastIndexOf("/");
+  return index >= 0 ? normalizedPath.slice(0, index) : "";
+}
+
+module.exports = {
+  cleanupExpiredPastedImages,
+  deletePastedImagePaths,
+  extractClipboardImageFiles,
+  getPastedImageAbsolutePath,
+  replacePastedImageEmbedsForRendering,
+  saveClipboardImageFile,
+  _test: {
+    cleanupExpiredPastedImages,
+    createPastedImageBaseName,
+    deletePastedImagePaths,
+    extractClipboardImageFiles,
+    getImageExtension,
+    getPastedImageAbsolutePath,
+    isCacheImagePath,
+    isGenericClipboardImageFile,
+    joinVaultPath,
+    normalizeVaultPath,
+    replacePastedImageEmbedsForRendering,
+    resolvePasteFolder,
+    resolveObsidianAttachmentFolder
+  }
+};
+
+},
 "src/prompt.js": function(module, exports, __require) {
 const { extractMentionReferences } = __require("src/view/reference/mention.js");
+const { getPastedImageAbsolutePath } = __require("src/view/reference/ClipboardImageReference.js");
 
 const DEFAULT_CONTEXT_LIMIT = 258000;
 
@@ -1183,9 +1596,12 @@ function buildReferencedPathsPrompt(app, prompt, contextLimit) {
     "Inspect these paths with local tools when relevant; their contents are not embedded here."
   ];
   for (const reference of references) {
+    const pastedImagePath = getPastedImageAbsolutePath(app, reference.path);
     const resolved = resolveReferencedEntry(app, reference.path);
     const kind = resolved?.children ? "folder" : resolved ? "file" : "not found in vault";
-    const line = `- ${resolved?.path || reference.path} (${kind})`;
+    const line = pastedImagePath
+      ? `- ${pastedImagePath} (pasted image; absolute local path)`
+      : `- ${resolved?.path || reference.path} (${kind})`;
     if (lines.join("\n").length + line.length + 1 > maxChars) {
       lines.push("[Additional referenced paths omitted]");
       break;
@@ -1639,13 +2055,103 @@ module.exports = {
 };
 
 },
+"src/agents/codex/ModelCatalog.js": function(module, exports, __require) {
+const { spawn } = require("child_process");
+
+const MODEL_REQUEST_TIMEOUT_MS = 10000;
+
+function listCodexModels(options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(options.executablePath, ["app-server", "--stdio"], {
+      cwd: options.cwd || process.cwd(),
+      shell: false,
+      env: options.env || process.env,
+      stdio: ["pipe", "pipe", "pipe"]
+    });
+    let stdoutBuffer = "";
+    let stderr = "";
+    let settled = false;
+    let nextId = 1;
+    let catalog = [];
+    let configuredDefault = "";
+    const timeout = setTimeout(() => finish(new Error("Codex model catalog timed out.")), MODEL_REQUEST_TIMEOUT_MS);
+
+    const finish = (error, result) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      child.stdin?.end();
+      child.kill("SIGTERM");
+      if (error) reject(error);
+      else resolve(result);
+    };
+    const send = (method, params) => {
+      const id = nextId++;
+      child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", id, method, params })}\n`);
+      return id;
+    };
+    const requestModels = (cursor = null) => send("model/list", { cursor, limit: 100 });
+
+    child.on("error", (error) => finish(error));
+    child.on("close", () => {
+      if (!settled) finish(new Error(stderr.trim() || "Codex app-server closed while listing models."));
+    });
+    child.stderr.on("data", (data) => { stderr += data.toString(); });
+    child.stdout.on("data", (data) => {
+      stdoutBuffer += data.toString();
+      const lines = stdoutBuffer.split(/\r?\n/);
+      stdoutBuffer = lines.pop() || "";
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let message;
+        try {
+          message = JSON.parse(line);
+        } catch {
+          continue;
+        }
+        if (message.error && message.id !== 2) {
+          finish(new Error(message.error.message || "Codex model catalog request failed."));
+          return;
+        }
+        if (message.id === 1) {
+          send("config/read", { cwd: options.cwd || process.cwd() });
+        } else if (message.id === 2) {
+          configuredDefault = String(message.result?.config?.model || "").trim();
+          requestModels();
+        } else if (message.result?.data && Array.isArray(message.result.data)) {
+          catalog = catalog.concat(message.result.data);
+          if (message.result.nextCursor) requestModels(message.result.nextCursor);
+          else finish(null, normalizeCatalog(catalog, configuredDefault));
+        }
+      }
+    });
+    send("initialize", {
+      clientInfo: { name: "obsidian-agent-dock", version: "1.0.0" },
+      capabilities: null
+    });
+  });
+}
+
+function normalizeCatalog(entries, configuredDefault) {
+  const models = entries
+    .filter((entry) => entry && !entry.hidden && typeof entry.model === "string" && entry.model)
+    .map((entry) => ({ id: entry.model, label: entry.displayName || entry.model, description: entry.description || "" }));
+  const catalogDefault = entries.find((entry) => entry?.isDefault)?.model || "";
+  const defaultModel = configuredDefault || catalogDefault;
+  const defaultEntry = models.find((entry) => entry.id === defaultModel);
+  return { models, defaultModel, defaultLabel: defaultEntry?.label || defaultModel };
+}
+
+module.exports = { listCodexModels, _test: { normalizeCatalog } };
+
+},
 "src/agents/codex/CodexAgent.js": function(module, exports, __require) {
 const { spawn } = require("child_process");
 const fs = require("fs/promises");
 const os = require("os");
 const path = require("path");
 
-const { parseArgsTemplate, withJsonOutput, withOutputLastMessage } = __require("src/cli/args.js");
+const { parseArgsTemplate, withJsonOutput, withModel, withOutputLastMessage } = __require("src/cli/args.js");
 const { buildCliPath } = __require("src/cli/env.js");
 const { t } = __require("src/i18n/index.js");
 const { applyModeArgs } = __require("src/modes.js");
@@ -1653,6 +2159,7 @@ const { DEFAULT_SETTINGS } = __require("src/settings.js");
 const { buildAgentTurnContext, emitDebugPromptActivity } = __require("src/agents/shared/TurnContextBuilder.js");
 const { applyVisibleEventPolicy } = __require("src/agents/shared/visibleEventPolicy.js");
 const { codexJsonEventToUpdates, updateLatestAgentMessageOutput } = __require("src/agents/codex/jsonEvents.js");
+const { listCodexModels } = __require("src/agents/codex/ModelCatalog.js");
 
 class CodexAgent {
   constructor(plugin) {
@@ -1676,7 +2183,10 @@ class CodexAgent {
     });
     const outputPath = path.join(os.tmpdir(), `obsidian-agent-dock-${Date.now()}-${Math.random().toString(16).slice(2)}.txt`);
     const args = withJsonOutput(withOutputLastMessage(applyModeArgs(
-      parseArgsTemplate(settings.args, turnContext.promptResult.prompt, DEFAULT_SETTINGS.args),
+      withModel(
+        parseArgsTemplate(settings.args, turnContext.promptResult.prompt, DEFAULT_SETTINGS.args),
+        this.getModel(options.dockSession)
+      ),
       settings.mode,
       DEFAULT_SETTINGS.mode
     ), outputPath));
@@ -1763,6 +2273,30 @@ class CodexAgent {
   getWorkingDirectory() {
     return this.plugin.settings.workingDirectory || this.plugin.app.vault.adapter.basePath;
   }
+
+  getModel(dockSession) {
+    return String(dockSession?.providerState?.codex?.model || "");
+  }
+
+  setModel(dockSession, model) {
+    if (!dockSession) return;
+    if (!dockSession.providerState || typeof dockSession.providerState !== "object") {
+      dockSession.providerState = {};
+    }
+    dockSession.providerState.codex = { model: normalizeModel(model) };
+  }
+
+  async getModelCatalog() {
+    return listCodexModels({
+      executablePath: this.plugin.settings.codexPath,
+      cwd: this.getWorkingDirectory(),
+      env: Object.assign({}, process.env, { PATH: buildCliPath(process.env.PATH), TERM: "dumb" })
+    });
+  }
+}
+
+function normalizeModel(value) {
+  return String(value || "").trim().slice(0, 120);
 }
 
 async function readOutputFile(outputPath) {
@@ -2536,6 +3070,7 @@ const { DEFAULT_SETTINGS } = __require("src/settings.js");
 const { AcpClient } = __require("src/agents/cursor/AcpClient.js");
 const { acpUpdateToEvents } = __require("src/agents/cursor/acpEvents.js");
 const { toCursorMode } = __require("src/agents/cursor/modes.js");
+const { spawn } = require("child_process");
 
 const CONNECTION_IDLE_MS = 30 * 60 * 1000;
 
@@ -2575,7 +3110,8 @@ class CursorAgent {
     const dockSession = options.dockSession || null;
     const cursorState = ensureCursorProviderState(dockSession);
     const cursorMode = toCursorMode(settings.mode, DEFAULT_SETTINGS.mode);
-    const connectionKey = buildConnectionKey(settings, cwd, cursorMode);
+    const model = cursorState.model;
+    const connectionKey = buildConnectionKey(settings, cwd, cursorMode, model);
     const sessionKey = dockSession?.id || "__anonymous__";
 
     let useFullPrompt = !cursorState.acpSessionId;
@@ -2645,6 +3181,7 @@ class CursorAgent {
       client = await this.getOrCreateClient(sessionKey, connectionKey, {
         settings,
         cwd,
+        model,
         translate,
         onUpdate: emitUpdate
       });
@@ -2798,7 +3335,7 @@ class CursorAgent {
 
     const client = new AcpClient({
       executablePath: expandHomePath(context.settings.cursorPath || DEFAULT_SETTINGS.cursorPath),
-      extraArgs: splitExtraArgs(context.settings.cursorExtraArgs),
+      extraArgs: buildCursorArgs(context.settings, context.model),
       cwd: context.cwd,
       permissionPolicy: resolvePermissionPolicy(
         context.settings.mode,
@@ -2901,6 +3438,27 @@ class CursorAgent {
     return this.plugin.settings.workingDirectory || this.plugin.app.vault.adapter.basePath;
   }
 
+  getModel(dockSession) {
+    return ensureCursorProviderState(dockSession).model;
+  }
+
+  setModel(dockSession, model) {
+    if (!dockSession) return;
+    const cursorState = ensureCursorProviderState(dockSession);
+    const nextModel = normalizeModel(model);
+    if (cursorState.model === nextModel) return;
+    cursorState.model = nextModel;
+    cursorState.acpSessionId = "";
+    this.removeConnection(dockSession.id);
+  }
+
+  async getModelCatalog() {
+    return listCursorModels({
+      executablePath: expandHomePath(this.plugin.settings.cursorPath || DEFAULT_SETTINGS.cursorPath),
+      cwd: this.getWorkingDirectory()
+    });
+  }
+
 }
 
 function emitCursorAuthenticationNoticeIfNeeded(client, emitUpdate, translate) {
@@ -2923,19 +3481,21 @@ function ensureCursorProviderState(dockSession) {
     dockSession.providerState = {};
   }
   if (!dockSession.providerState.cursor || typeof dockSession.providerState.cursor !== "object") {
-    dockSession.providerState.cursor = { acpSessionId: "" };
+    dockSession.providerState.cursor = { acpSessionId: "", model: "" };
   }
   if (typeof dockSession.providerState.cursor.acpSessionId !== "string") {
     dockSession.providerState.cursor.acpSessionId = "";
   }
+  dockSession.providerState.cursor.model = normalizeModel(dockSession.providerState.cursor.model);
   return dockSession.providerState.cursor;
 }
 
-function buildConnectionKey(settings, cwd, cursorMode) {
+function buildConnectionKey(settings, cwd, cursorMode, model) {
   return [
     expandHomePath(settings.cursorPath || DEFAULT_SETTINGS.cursorPath),
     settings.cursorExtraArgs || "",
     settings.cursorPermissionPolicy || DEFAULT_SETTINGS.cursorPermissionPolicy,
+    model || "",
     cwd,
     cursorMode
   ].join("|");
@@ -2947,6 +3507,62 @@ function splitExtraArgs(value) {
     return [];
   }
   return text.match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) || [];
+}
+
+function buildCursorArgs(settings, model) {
+  const args = splitExtraArgs(settings.cursorExtraArgs);
+  const selectedModel = normalizeModel(model);
+  return selectedModel ? [...args, "--model", selectedModel] : args;
+}
+
+function normalizeModel(value) {
+  return String(value || "").trim().slice(0, 120);
+}
+
+function listCursorModels(options = {}) {
+  return new Promise((resolve, reject) => {
+    const child = spawn(options.executablePath, ["--list-models"], {
+      cwd: options.cwd || process.cwd(),
+      shell: false,
+      env: Object.assign({}, process.env, { PATH: buildCliPath(process.env.PATH), TERM: "dumb" }),
+      stdio: ["ignore", "pipe", "pipe"]
+    });
+    let stdout = "";
+    let stderr = "";
+    const timeout = setTimeout(() => child.kill("SIGTERM"), 10000);
+    child.stdout.on("data", (data) => { stdout += data.toString(); });
+    child.stderr.on("data", (data) => { stderr += data.toString(); });
+    child.on("error", (error) => {
+      clearTimeout(timeout);
+      reject(error);
+    });
+    child.on("close", (code) => {
+      clearTimeout(timeout);
+      if (code !== 0) {
+        reject(new Error(stderr.trim() || "Cursor could not list models."));
+        return;
+      }
+      resolve(parseCursorModels(stdout));
+    });
+  });
+}
+
+function parseCursorModels(output) {
+  const entries = String(output || "").split(/\r?\n/).map((line) => {
+    const match = /^(\S+)\s+-\s+(.+?)(?:\s+\(([^)]*)\))?$/.exec(line.trim());
+    if (!match) return null;
+    return {
+      id: match[1],
+      label: match[2],
+      isDefault: /\bdefault\b/i.test(match[3] || "")
+    };
+  }).filter(Boolean);
+  const defaultEntry = entries.find((entry) => entry.isDefault);
+  return {
+    models: entries.map(({ id, label }) => ({ id, label, description: "" })),
+    defaultModel: defaultEntry?.id || "",
+    defaultLabel: defaultEntry?.label || defaultEntry?.id || ""
+  };
 }
 
 function normalizePermissionPolicy(value) {
@@ -3091,6 +3707,8 @@ module.exports = {
   CursorAgent,
   _test: {
     isStaleSessionError,
+    buildCursorArgs,
+    parseCursorModels,
     resolvePermissionPolicy,
     withSuppressedSessionUpdates: (client, callback) => (
       CursorAgent.prototype.withSuppressedSessionUpdates.call(null, client, callback)
@@ -3513,8 +4131,15 @@ function serializeProviderState(value) {
   const providerState = {};
   if (value.cursor && typeof value.cursor === "object") {
     const acpSessionId = typeof value.cursor.acpSessionId === "string" ? value.cursor.acpSessionId : "";
-    if (acpSessionId) {
-      providerState.cursor = { acpSessionId };
+    const model = normalizeModel(value.cursor.model);
+    if (acpSessionId || model) {
+      providerState.cursor = model ? { acpSessionId, model } : { acpSessionId };
+    }
+  }
+  if (value.codex && typeof value.codex === "object") {
+    const model = normalizeModel(value.codex.model);
+    if (model) {
+      providerState.codex = { model };
     }
   }
   return providerState;
@@ -3527,11 +4152,18 @@ function normalizeProviderState(value) {
 
   const providerState = {};
   if (value.cursor && typeof value.cursor === "object") {
-    providerState.cursor = {
-      acpSessionId: typeof value.cursor.acpSessionId === "string" ? value.cursor.acpSessionId : ""
-    };
+    const acpSessionId = typeof value.cursor.acpSessionId === "string" ? value.cursor.acpSessionId : "";
+    const model = normalizeModel(value.cursor.model);
+    providerState.cursor = model ? { acpSessionId, model } : { acpSessionId };
+  }
+  if (value.codex && typeof value.codex === "object") {
+    providerState.codex = { model: normalizeModel(value.codex.model) };
   }
   return providerState;
+}
+
+function normalizeModel(value) {
+  return typeof value === "string" ? value.trim().slice(0, 120) : "";
 }
 
 module.exports = {
@@ -5705,6 +6337,9 @@ function renderComposerContent(composer, options) {
     plugin,
     draft,
     getActiveSession,
+    getModel,
+    getModelCatalog,
+    setModel,
     handleMentionKeydown,
     replaceObsidianLinksInInput,
     updateContextStatus,
@@ -5932,6 +6567,71 @@ function renderComposerContent(composer, options) {
     });
   }
 
+  const modelPill = leftTools.createEl("details", { cls: "codex-dock__mode-pill codex-dock__model-pill" });
+  let modelCatalog = { models: [], defaultModel: "", defaultLabel: "" };
+  let isLoadingModelCatalog = false;
+  const modelSummary = modelPill.createEl("summary", {
+    cls: "codex-dock__mode-summary codex-dock__model-summary",
+    attr: { "aria-label": translate("composer.model") }
+  });
+  const modelIcon = modelSummary.createSpan({ cls: "codex-dock__mode-icon", attr: { "aria-hidden": "true" } });
+  setIcon(modelIcon, "bot");
+  const modelLabel = modelSummary.createSpan({ cls: "codex-dock__mode-label", text: getModelLabel() });
+  const modelChevron = modelSummary.createSpan({ cls: "codex-dock__mode-chevron", attr: { "aria-hidden": "true" } });
+  setIcon(modelChevron, "chevron-down");
+  const modelMenu = modelPill.createDiv({ cls: "codex-dock__mode-menu codex-dock__model-menu" });
+  const modelListId = `codex-dock-models-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  const modelInput = modelMenu.createEl("input", {
+    cls: "codex-dock__model-input",
+    type: "text",
+    value: getModel(getActiveSession()),
+    attr: {
+      placeholder: translate("composer.modelPlaceholder"),
+      "aria-label": translate("composer.model"),
+      list: modelListId
+    }
+  });
+  const modelOptions = modelMenu.createEl("datalist", { attr: { id: modelListId } });
+  const modelHint = modelMenu.createDiv({ cls: "codex-dock__model-hint", text: translate("composer.modelLoading") });
+  const refreshModelsButton = modelMenu.createEl("button", {
+    cls: "codex-dock__model-refresh",
+    text: translate("composer.refreshModels"),
+    attr: { type: "button" }
+  });
+  const closeModelMenu = (event) => {
+    if (!modelPill.contains(event.target)) {
+      modelPill.removeAttribute("open");
+      removeGlobalPointerListener(closeModelMenu);
+    }
+  };
+  modelPill.addEventListener("toggle", () => {
+    if (modelPill.open) {
+      modelInput.disabled = Boolean(getActiveSession()?.currentRun);
+      window.setTimeout(() => {
+        if (modelPill.isConnected && modelPill.open) {
+          modelInput.focus();
+          addGlobalPointerListener(closeModelMenu);
+          loadModelCatalog();
+        }
+      }, 0);
+    } else {
+      removeGlobalPointerListener(closeModelMenu);
+    }
+  });
+  modelInput.addEventListener("keydown", (event) => event.stopPropagation());
+  refreshModelsButton.addEventListener("click", () => loadModelCatalog({ force: true }));
+  modelInput.addEventListener("change", async () => {
+    const session = getActiveSession();
+    if (!session || session.currentRun) {
+      return;
+    }
+    await setModel(session, modelInput.value);
+    modelInput.value = getModel(session);
+    modelLabel.setText(getModelLabel());
+    modelSummary.setAttr("title", getModelTitle());
+  });
+  modelSummary.setAttr("title", getModelTitle());
+
   const rightTools = composerBar.createDiv({ cls: "codex-dock__composer-status" });
   const contextStatusEl = rightTools.createDiv({ cls: "codex-dock__context-status" });
 
@@ -5976,6 +6676,67 @@ function renderComposerContent(composer, options) {
     sendButton.setAttr("title", label);
     setIcon(sendButton, "arrow-up");
   }
+
+  function getModelLabel() {
+    const selectedModel = getModel(getActiveSession());
+    if (selectedModel) {
+      const entry = modelCatalog.models.find((model) => model.id === selectedModel);
+      return entry ? `${entry.label} (${entry.id})` : selectedModel;
+    }
+    return modelCatalog.defaultModel
+      ? translate("composer.modelDefault", { model: modelCatalog.defaultLabel || modelCatalog.defaultModel })
+      : translate("composer.modelDefaultUnknown");
+  }
+
+  function getModelTitle() {
+    return translate("composer.modelTitle", { model: getModelLabel() });
+  }
+
+  async function loadModelCatalog(options = {}) {
+    if (isLoadingModelCatalog || (!options.force && modelCatalog.models.length > 0)) {
+      return;
+    }
+    isLoadingModelCatalog = true;
+    refreshModelsButton.disabled = true;
+    modelHint.setText(translate("composer.modelLoading"));
+    try {
+      const result = await getModelCatalog();
+      modelCatalog = normalizeModelCatalog(result);
+      modelOptions.empty();
+      for (const model of modelCatalog.models) {
+        modelOptions.createEl("option", {
+          value: model.id,
+          text: model.label ? `${model.label} — ${model.id}` : model.id
+        });
+      }
+      modelHint.setText(modelCatalog.models.length > 0
+        ? translate("composer.modelHint", { count: modelCatalog.models.length })
+        : translate("composer.modelUnavailable"));
+      modelLabel.setText(getModelLabel());
+      modelSummary.setAttr("title", getModelTitle());
+    } catch {
+      modelHint.setText(translate("composer.modelUnavailable"));
+    } finally {
+      isLoadingModelCatalog = false;
+      refreshModelsButton.disabled = false;
+    }
+  }
+}
+
+function normalizeModelCatalog(value) {
+  const source = value && typeof value === "object" ? value : {};
+  const models = Array.isArray(source.models) ? source.models
+    .filter((model) => model && typeof model.id === "string" && model.id)
+    .map((model) => ({
+      id: model.id,
+      label: typeof model.label === "string" ? model.label : model.id,
+      description: typeof model.description === "string" ? model.description : ""
+    })) : [];
+  return {
+    models,
+    defaultModel: typeof source.defaultModel === "string" ? source.defaultModel : "",
+    defaultLabel: typeof source.defaultLabel === "string" ? source.defaultLabel : ""
+  };
 }
 
 function hasFileDropPayload(dataTransfer) {
@@ -7011,326 +7772,6 @@ function getMarkdownBasename(name) {
 
 module.exports = {
   ReferenceResolver
-};
-
-},
-"src/view/reference/ClipboardImageReference.js": function(module, exports, __require) {
-const DEFAULT_PASTE_FOLDER = ".agent-dock-cache/pasted-images";
-const DEFAULT_CACHE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
-
-function extractClipboardImageFiles(clipboardData) {
-  const files = [];
-  const genericClipboardImages = [];
-  const seen = new Set();
-
-  for (const item of Array.from(clipboardData?.items || [])) {
-    if (item?.kind !== "file" || !isImageType(item.type)) {
-      continue;
-    }
-    const file = item.getAsFile?.();
-    if (file && !hasSeenClipboardFile(seen, file)) {
-      markClipboardFileSeen(seen, file);
-      addClipboardImageFile(files, genericClipboardImages, file);
-    }
-  }
-
-  for (const file of Array.from(clipboardData?.files || [])) {
-    if (isImageType(file?.type) && !hasSeenClipboardFile(seen, file)) {
-      markClipboardFileSeen(seen, file);
-      addClipboardImageFile(files, genericClipboardImages, file);
-    }
-  }
-
-  return files;
-}
-
-function addClipboardImageFile(files, genericClipboardImages, file) {
-  if (!isGenericClipboardImageFile(file)) {
-    files.push(file);
-    return;
-  }
-  genericClipboardImages.push(file);
-  if (genericClipboardImages.length === 1) {
-    files.push(file);
-  }
-}
-
-function hasSeenClipboardFile(seen, file) {
-  return seen.has(file) || seen.has(getClipboardFileKey(file));
-}
-
-function markClipboardFileSeen(seen, file) {
-  seen.add(file);
-  seen.add(getClipboardFileKey(file));
-}
-
-function getClipboardFileKey(file) {
-  return [
-    String(file?.name || ""),
-    String(file?.type || "").toLowerCase(),
-    Number.isFinite(Number(file?.size)) ? Number(file.size) : "",
-    Number.isFinite(Number(file?.lastModified)) ? Number(file.lastModified) : ""
-  ].join("|");
-}
-
-function isImageType(type) {
-  return String(type || "").toLowerCase().startsWith("image/");
-}
-
-function isGenericClipboardImageFile(file) {
-  const name = String(file?.name || "").trim().toLowerCase();
-  return !name || /^image\.(png|jpe?g|gif|webp|tiff?|bmp|svg)$/.test(name);
-}
-
-async function saveClipboardImageFile(app, file, options = {}) {
-  if (options.cleanup !== false) {
-    await cleanupExpiredPastedImages(app, options);
-  }
-  const folder = resolvePasteFolder(app, options);
-  const extension = getImageExtension(file);
-  const baseName = createPastedImageBaseName(options.now || new Date());
-  await ensureVaultFolder(app, folder);
-  const path = await getAvailableVaultPath(app, joinVaultPath(folder, `${baseName}.${extension}`));
-  const buffer = await file.arrayBuffer();
-  await app.vault.createBinary(path, buffer);
-  return path;
-}
-
-function resolvePasteFolder(app, options = {}) {
-  if (options.useObsidianAttachmentFolder === true) {
-    return resolveObsidianAttachmentFolder(app, options);
-  }
-  return DEFAULT_PASTE_FOLDER;
-}
-
-function resolveObsidianAttachmentFolder(app, options = {}) {
-  const rawConfigured = String(
-    options.attachmentFolderPath
-    ?? app?.vault?.getConfig?.("attachmentFolderPath")
-    ?? ""
-  ).trim();
-  const configured = normalizeVaultPath(rawConfigured);
-  const activeFile = options.activeFile ?? app?.workspace?.getActiveFile?.();
-  const activeFolder = normalizeVaultPath(activeFile?.parent?.path || getParentPath(activeFile?.path || ""));
-
-  if (rawConfigured === "/") {
-    return "";
-  }
-  if (rawConfigured === "." || rawConfigured === "./") {
-    return activeFolder;
-  }
-  if (rawConfigured.startsWith("./")) {
-    return joinVaultPath(activeFolder, rawConfigured.slice(2));
-  }
-  if (!configured) {
-    return DEFAULT_PASTE_FOLDER;
-  }
-  return configured;
-}
-
-async function cleanupExpiredPastedImages(app, options = {}) {
-  const folder = normalizeVaultPath(options.folder || DEFAULT_PASTE_FOLDER);
-  const maxAgeMs = Number(options.maxAgeMs) || DEFAULT_CACHE_MAX_AGE_MS;
-  const now = Number(options.nowMs) || Date.now();
-  const adapter = app?.vault?.adapter;
-  if (!adapter || !folder || !await adapter.exists(folder)) {
-    return 0;
-  }
-
-  const files = await listVaultFiles(adapter, folder);
-  let removed = 0;
-  for (const path of files) {
-    if (!isCacheImagePath(path, folder)) {
-      continue;
-    }
-    const stat = await safeStat(adapter, path);
-    const mtime = Number(stat?.mtime);
-    if (!Number.isFinite(mtime) || now - mtime <= maxAgeMs) {
-      continue;
-    }
-    if (await removeVaultFile(adapter, path)) {
-      removed += 1;
-    }
-  }
-  return removed;
-}
-
-async function deletePastedImagePaths(app, paths, options = {}) {
-  const folder = normalizeVaultPath(options.folder || DEFAULT_PASTE_FOLDER);
-  const adapter = app?.vault?.adapter;
-  if (!adapter || !Array.isArray(paths) || paths.length === 0) {
-    return 0;
-  }
-
-  let removed = 0;
-  const seen = new Set();
-  for (const rawPath of paths) {
-    const path = normalizeVaultPath(rawPath);
-    if (!path || seen.has(path) || !isCacheImagePath(path, folder)) {
-      continue;
-    }
-    seen.add(path);
-    if (await removeVaultFile(adapter, path)) {
-      removed += 1;
-    }
-  }
-  return removed;
-}
-
-async function listVaultFiles(adapter, folder) {
-  const listing = await adapter.list(folder);
-  const files = [...(listing.files || [])];
-  for (const childFolder of listing.folders || []) {
-    files.push(...await listVaultFiles(adapter, childFolder));
-  }
-  return files;
-}
-
-async function safeStat(adapter, path) {
-  try {
-    return await adapter.stat(path);
-  } catch {
-    return null;
-  }
-}
-
-async function removeVaultFile(adapter, path) {
-  try {
-    if (await adapter.exists(path)) {
-      await adapter.remove(path);
-      return true;
-    }
-  } catch (error) {
-    console.warn(`Agent Dock could not remove pasted image cache file ${path}:`, error);
-  }
-  return false;
-}
-
-function isCacheImagePath(path, folder = DEFAULT_PASTE_FOLDER) {
-  const normalizedPath = normalizeVaultPath(path);
-  const normalizedFolder = normalizeVaultPath(folder);
-  if (!normalizedPath || !normalizedFolder || !normalizedPath.startsWith(`${normalizedFolder}/`)) {
-    return false;
-  }
-  return /\.(png|jpe?g|gif|webp|tiff?|bmp|svg)$/i.test(normalizedPath);
-}
-
-async function ensureVaultFolder(app, folder) {
-  const normalizedFolder = normalizeVaultPath(folder);
-  if (!normalizedFolder || app.vault.getAbstractFileByPath(normalizedFolder)) {
-    return;
-  }
-
-  const parts = normalizedFolder.split("/").filter(Boolean);
-  let current = "";
-  for (const part of parts) {
-    current = joinVaultPath(current, part);
-    if (!app.vault.getAbstractFileByPath(current)) {
-      await app.vault.createFolder(current);
-    }
-  }
-}
-
-async function getAvailableVaultPath(app, requestedPath) {
-  const normalizedPath = normalizeVaultPath(requestedPath);
-  if (!app.vault.getAbstractFileByPath(normalizedPath)) {
-    return normalizedPath;
-  }
-
-  const dotIndex = normalizedPath.lastIndexOf(".");
-  const slashIndex = normalizedPath.lastIndexOf("/");
-  const hasExtension = dotIndex > slashIndex;
-  const base = hasExtension ? normalizedPath.slice(0, dotIndex) : normalizedPath;
-  const extension = hasExtension ? normalizedPath.slice(dotIndex) : "";
-  for (let index = 2; index < 10000; index += 1) {
-    const candidate = `${base}-${index}${extension}`;
-    if (!app.vault.getAbstractFileByPath(candidate)) {
-      return candidate;
-    }
-  }
-  throw new Error("Could not create a unique image filename.");
-}
-
-function getImageExtension(file) {
-  const nameExtension = String(file?.name || "").match(/\.([a-z0-9]+)$/i)?.[1];
-  const mimeExtension = getImageExtensionForMime(file?.type);
-  return sanitizeExtension(nameExtension || mimeExtension || "png");
-}
-
-function getImageExtensionForMime(type) {
-  const normalizedType = String(type || "").toLowerCase();
-  if (normalizedType === "image/jpeg" || normalizedType === "image/jpg") {
-    return "jpg";
-  }
-  if (normalizedType === "image/svg+xml") {
-    return "svg";
-  }
-  const match = normalizedType.match(/^image\/([a-z0-9.+-]+)$/);
-  return match ? match[1].replace(/^x-/, "").replace(/\+xml$/, "") : "";
-}
-
-function sanitizeExtension(extension) {
-  const value = String(extension || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-  return value || "png";
-}
-
-function createPastedImageBaseName(date) {
-  const safeDate = date instanceof Date && Number.isFinite(date.getTime()) ? date : new Date();
-  const pad = (value, size = 2) => String(value).padStart(size, "0");
-  return [
-    "pasted-image",
-    safeDate.getFullYear(),
-    pad(safeDate.getMonth() + 1),
-    pad(safeDate.getDate()),
-    "-",
-    pad(safeDate.getHours()),
-    pad(safeDate.getMinutes()),
-    pad(safeDate.getSeconds()),
-    "-",
-    pad(safeDate.getMilliseconds(), 3)
-  ].join("");
-}
-
-function normalizeVaultPath(path) {
-  return String(path || "")
-    .replace(/\\/g, "/")
-    .replace(/\/+/g, "/")
-    .replace(/^\/+/, "")
-    .replace(/\/+$/, "")
-    .trim()
-    .split("/")
-    .filter((part) => part && part !== ".")
-    .join("/");
-}
-
-function joinVaultPath(...parts) {
-  return normalizeVaultPath(parts.filter((part) => String(part || "").trim()).join("/"));
-}
-
-function getParentPath(path) {
-  const normalizedPath = normalizeVaultPath(path);
-  const index = normalizedPath.lastIndexOf("/");
-  return index >= 0 ? normalizedPath.slice(0, index) : "";
-}
-
-module.exports = {
-  cleanupExpiredPastedImages,
-  deletePastedImagePaths,
-  extractClipboardImageFiles,
-  saveClipboardImageFile,
-  _test: {
-    cleanupExpiredPastedImages,
-    createPastedImageBaseName,
-    deletePastedImagePaths,
-    extractClipboardImageFiles,
-    getImageExtension,
-    isCacheImagePath,
-    isGenericClipboardImageFile,
-    joinVaultPath,
-    normalizeVaultPath,
-    resolvePasteFolder,
-    resolveObsidianAttachmentFolder
-  }
 };
 
 },
@@ -10835,6 +11276,7 @@ const { ImagePreviewController } = __require("src/view/ImagePreviewController.js
 const { OnboardingModal } = __require("src/view/OnboardingModal.js");
 const { renderComposerContent } = __require("src/view/composer/ComposerRenderer.js");
 const { ReferenceController } = __require("src/view/reference/ReferenceController.js");
+const { replacePastedImageEmbedsForRendering } = __require("src/view/reference/ClipboardImageReference.js");
 const { runChatTurn } = __require("src/view/session/ChatTurnRunner.js");
 const {
   clearPromptQueue,
@@ -11243,6 +11685,19 @@ class AgentDockView extends ItemView {
       plugin: this.plugin,
       draft,
       getActiveSession: () => this.getActiveSession(),
+      getModel: (session) => this.plugin.agent.getModel?.(session) || "",
+      getModelCatalog: () => this.plugin.agent.getModelCatalog?.() || Promise.resolve({
+        models: [],
+        defaultModel: "",
+        defaultLabel: ""
+      }),
+      setModel: async (session, model) => {
+        if (!session || session.currentRun || typeof this.plugin.agent.setModel !== "function") {
+          return;
+        }
+        this.plugin.agent.setModel(session, model);
+        this.persistSessionChange(session);
+      },
       handleMentionKeydown: (event) => this.referenceController.handleMentionKeydown(event),
       replaceObsidianLinksInInput: () => this.referenceController.replaceObsidianLinksInInput(),
       updateContextStatus: () => this.updateContextStatus(),
@@ -11780,7 +12235,10 @@ class AgentDockView extends ItemView {
     const contentEl = containerEl.createDiv({ cls: contentClass });
     const markdownEl = contentEl.createDiv({ cls: "codex-dock__content-body" });
     const sourcePath = this.app.workspace.getActiveFile()?.path || "";
-    const normalizedText = normalizeLocalFileMarkdownLinks(text || "");
+    const normalizedText = replacePastedImageEmbedsForRendering(
+      this.app,
+      normalizeLocalFileMarkdownLinks(text || "")
+    );
     MarkdownRenderer.render(this.app, normalizedText, markdownEl, sourcePath, this).then(() => {
       decorateLocalFileLinks(markdownEl, this.app, {
         sourcePath,

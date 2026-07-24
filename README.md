@@ -30,6 +30,9 @@ Install and authenticate the OpenAI Codex CLI, then configure its executable
 path if it is not available at `/opt/homebrew/bin/codex`.
 
 Agent Dock runs Codex with JSON events and a sandbox matching the selected mode.
+The model control beside the message composer lists models available to the
+signed-in CLI account and shows Codex's effective default. Leaving the field
+empty uses that default.
 
 ### Cursor
 
@@ -39,6 +42,9 @@ supported `CURSOR_API_KEY` configuration.
 
 Agent Dock communicates with Cursor through ACP over stdio and reuses the ACP
 session for each Agent Dock chat session.
+The model control lists models available to the signed-in Cursor account and
+identifies its default. Changing the model applies on the next message and
+creates a fresh ACP session for that chat.
 
 ## Getting started
 

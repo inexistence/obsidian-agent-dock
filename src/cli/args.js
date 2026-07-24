@@ -68,8 +68,28 @@ function withJsonOutput(args) {
   return args;
 }
 
+function withModel(args, model) {
+  const selectedModel = String(model || "").trim();
+  if (!selectedModel) {
+    return args;
+  }
+
+  const execIndex = args.indexOf("exec");
+  if (execIndex >= 0) {
+    return [
+      ...args.slice(0, execIndex),
+      "--model",
+      selectedModel,
+      ...args.slice(execIndex)
+    ];
+  }
+
+  return ["--model", selectedModel, ...args];
+}
+
 module.exports = {
   parseArgsTemplate,
   withJsonOutput,
+  withModel,
   withOutputLastMessage
 };
